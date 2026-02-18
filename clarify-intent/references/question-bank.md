@@ -15,7 +15,7 @@ Use this file when you need extra prompts beyond the core workflow in `SKILL.md`
 
 **Goal and success**
 - What outcome are you trying to achieve (not the solution)?
-- What does “success” look like, and how will you measure it?
+- What does "success" look like, and how will you measure it?
 - What is the definition of done?
 
 **Audience and context**
@@ -23,17 +23,25 @@ Use this file when you need extra prompts beyond the core workflow in `SKILL.md`
 - What is the current state / baseline today?
 - Why now (urgency, deadline, triggering event)?
 
-**Scope**
+**Scope and slicing**
 - What is in scope vs out of scope for this effort?
 - What are the must-haves vs nice-to-haves?
+- Can this be split into independently deliverable slices?
+- What is the smallest version that delivers value?
+- Which slice is highest-value or highest-risk to do first?
 
 **Constraints**
 - What constraints matter (time, budget, platform, policy/compliance, performance, security/privacy)?
 - Are there required tools/stack/approvals?
 
+**Existing behavior and regression**
+- What existing behavior must not break?
+- What existing user flows or systems does this touch?
+- Are there existing tests or contracts that define current correct behavior?
+
 **Examples**
 - Can you provide a concrete example (input/output, screenshot, mock, error message, sample doc)?
-- Are there “bad outcomes” we must avoid?
+- Are there "bad outcomes" we must avoid?
 
 ## Feature / product
 
@@ -43,6 +51,8 @@ Use this file when you need extra prompts beyond the core workflow in `SKILL.md`
 - What is the rollout/release expectation (phased, beta, flags, backwards compatibility)?
 - What analytics/telemetry is needed to confirm success?
 - What existing systems does this touch (dependencies, ownership, constraints)?
+- What existing user-facing behavior must not change (regression boundaries)?
+- Can this feature be delivered as a series of thin vertical slices rather than all at once?
 
 ## Bug / incident
 
@@ -60,6 +70,11 @@ Use this file when you need extra prompts beyond the core workflow in `SKILL.md`
 - What parts must remain stable (APIs, behavior, performance)?
 - What tests/verification are required to consider it done?
 - What is the migration/rollout plan (if any)?
+
+**Behavioral edge cases from system knowledge** (ask after exploring the codebase in step 2)
+- Does the current system have implicit behaviors that the spec doesn't mention but that this change would affect? (e.g., cron jobs, notifications, cascading logic)
+- What happens at the boundaries of the existing system when this behavior changes? (e.g., a field used for multiple purposes, a value that other subsystems depend on)
+- Does the spec's proposed solution fully address the stated problem, or does it solve a narrower/different problem?
 
 ## Data / analytics
 

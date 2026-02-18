@@ -1,65 +1,113 @@
 ---
 name: clarify-intent
-description: Clarify ambiguous ideas, features, tasks, user stories, or problems by eliciting intent, constraints, unknowns, risks, and success criteria; ask focused questions; then produce a structured brief (goals, non-goals, assumptions, open questions, acceptance criteria, and next steps). Use when a request is vague/underspecified, when scoping work, or before planning/coding.
+description: Clarifies ambiguous ideas, features, tasks, user stories, or problems by eliciting intent, constraints, unknowns, risks, and success criteria; asks focused questions; then produces a structured Feature Brief or Story-Level Behavioral Spec with testable acceptance criteria. Use when a request is vague or underspecified, when scoping work, when a user says "I have a rough idea", "help me scope this", "what should we build", "spec this out", or before planning and coding.
 ---
 
 # Clarify Intent
 
 ## Overview
 
-Turn an underspecified request into an actionable, shared understanding by asking high-leverage questions and summarizing the result as an "Intent Brief".
+Turn an underspecified request into an actionable, shared understanding. Triage by size: large inputs produce a Feature Brief and get split into stories; small inputs produce a Story-Level Behavioral Spec with testable acceptance criteria ready for TDD.
 
 ## Workflow
 
-1. Decide whether clarification is needed.
-   - Proceed immediately only if you can state the goal, deliverable, constraints, and definition of done with high confidence.
-   - Otherwise, switch into "clarify" mode.
+1. Triage: assess input size and route.
+   - **Trivial** (< half day, obvious change — typo, rename, config tweak): state the change in one sentence and skip to implementation. No spec needed.
+   - **Small** (1–2 days, single behavior): go directly to step 4 → produce a Story-Level Behavioral Spec.
+   - **Medium** (3–5 days, a few behaviors): clarify at story level → produce a Story-Level Behavioral Spec.
+   - **Large / Epic** (many stories, cross-cutting): clarify at feature level → produce a Feature Brief → split into stories (hand off to `agile-issue-splitter`) → pick one slice → produce a Story-Level Behavioral Spec for that slice.
+   - If unclear, default to feature-level and let the clarification reveal the true size.
 
-2. Reflect back the current understanding.
+2. For technical tasks: understand current behavior from the codebase.
+   - Before asking clarifying questions, explore the relevant modules to understand how the system works today. The codebase surfaces questions that no amount of asking the requester will reveal.
+   - Scope: read only the modules directly touched by the change — enough to verify the spec's description of current behavior and to spot behavioral edge cases.
+   - Boundary: you are reading code to ask better questions, not to plan the implementation. Stop when you can describe the current behavior accurately. Mapping code paths to new designs belongs in the downstream design sketch step, not here.
+   - Skip this step for non-technical requests (product ideas, writing, data questions).
+
+3. Decide whether clarification is needed.
+   - If you can state the goal, deliverable, constraints, and definition of done with high confidence → skip to step 7 (produce spec). No questioning needed.
+   - Otherwise → continue to step 4 (reflect back and clarify).
+
+4. Reflect back the current understanding.
    - Restate the request in 1–3 bullets.
    - Call out any assumptions you are currently making.
+   - **Separate problem from solution.** If the request arrives with a proposed solution baked in, explicitly restate the underlying problem separately. Ask: "Is the goal [problem], and the proposal is [solution]?" This prevents speccing a solution without validating that it addresses the right problem.
 
-3. Ask a small batch of high-leverage questions.
+5. Ask a small batch of high-leverage questions.
    - Ask 3–7 questions at a time; wait for answers; iterate.
    - Prioritize blockers (answers that change approach or scope).
    - Offer options when that reduces ambiguity.
+   - Decision heuristic for unknowns:
+     - **Can't answer by asking?** → Spike (time-boxed throwaway experiment), then resume clarification. Spikes are a first-class tool for de-risking, not a last resort.
+     - **Can answer later without blocking the first slice?** → Defer. Note it as a deferrable unknown and move on (Last Responsible Moment).
+     - **Blocks the approach or scope?** → Resolve now before continuing.
 
-4. Track unknowns, risks, and decisions.
-   - Maintain an explicit list of open questions (mark "blocker" vs "nice-to-have").
+6. Track unknowns, risks, and decisions.
+   - Maintain an explicit list of open questions. Classify each as:
+     - **Blocking**: changes approach or scope; must resolve or spike before coding.
+     - **Deferrable**: will clarify during implementation; carry it into the spec as an open unknown (Last Responsible Moment — don't force decisions before you need to).
    - Note constraints and decisions as they become clear.
 
-5. Propose a draft "Intent Brief".
-   - Summarize goals, non-goals, constraints, acceptance criteria, assumptions, open questions, risks, and next steps.
-   - Ask for confirmation/corrections before doing substantive work.
+7. Produce the appropriate output.
+   - **Feature-level input** → Feature Brief (goals, scope, constraints, success criteria). Then suggest splitting into vertical slices via `agile-issue-splitter`.
+   - **Story-level input** → Story-Level Behavioral Spec with Given/When/Then acceptance criteria as the primary artifact. These AC become test cases in the downstream TDD step.
+   - While drafting, self-check:
+     - Can a developer write failing tests from the acceptance criteria alone?
+     - Do ACs cover the happy path and at least one error/edge case? (Add boundary cases when the domain involves limits, thresholds, or ranges.)
+     - Are all blocking unknowns resolved or converted to time-boxed spikes?
+     - Is scope small enough for one sprint?
+   - If any answer is "no", iterate before presenting.
 
-6. If the user cannot answer key questions, offer next-step tactics.
-   - Suggest a quick spike/prototype, gathering examples, consulting stakeholders, or defining a temporary assumption with a timebox.
+8. Confirm with the requester (Definition of Ready).
+   - Present the spec and explicitly ask for confirmation or corrections. This is the single gate — the shared agreement that the story is understood well enough to start work.
+   - If the requester flags gaps, iterate (return to step 5 or adjust the spec directly).
+
+9. Downstream handoff.
+   - **From Feature Brief** → split into stories via `agile-issue-splitter`, then pick one slice and produce a Story-Level Behavioral Spec.
+   - **From Story-Level Behavioral Spec** → proceed to lightweight design sketch (identify which files/modules the change lives in, pick the approach that fits existing patterns), then TDD (Red → Green → Refactor).
+   - **Feedback loop**: If implementation reveals the spec was wrong or incomplete, return here and update the spec before continuing. The spec is a living artifact, not a contract.
+   - See `references/templates.md` for handoff details per template.
 
 ## Default Output
 
-Use this structure unless the user requests otherwise:
+### Feature-level (large input)
 
-- **Clarifying questions**: numbered, grouped by theme
-- **Working assumptions**: what you will assume if unanswered
-- **Unknowns & risks**: open questions + potential pitfalls
-- **Intent brief**: goals, non-goals, constraints, definition of done
-- **Next steps**: smallest set of actions to move forward
+Use the **Feature Brief** template from `references/templates.md`:
+- Problem/why now, goal & success criteria, scope boundaries, constraints & risks (if surfaced), open questions, downstream handoff (split into stories).
 
-For full templates and question sets, read:
+### Story-level (small/medium input)
+
+Use the **Story-Level Behavioral Spec** template from `references/templates.md`:
+- Problem (1–2 sentences), acceptance criteria (Given/When/Then — this is the primary artifact), scope boundaries, what must not break, open unknowns, downstream handoff.
+
+For full templates, question sets, and worked examples, read:
 - `references/templates.md`
 - `references/question-bank.md`
+- `references/examples.md`
 
 ## Questioning Heuristics
 
 - Ask for concrete examples (inputs/outputs, screenshots/logs, "what would a good result look like?").
-- Separate "goal" from "solution" (what they want vs how to do it).
 - Confirm scope boundaries early (in-scope / out-of-scope).
+- Challenge scope: "Can this be split into independently deliverable slices?" / "What's the smallest version that delivers value?"
 - Elicit constraints explicitly (time, budget, platform, policies, performance, security/privacy).
 - Surface tradeoffs when constraints conflict; propose 2–3 viable options.
-- Stop asking once you can write a credible definition of done; proceed and keep remaining unknowns explicit.
+- Ask what existing behavior must not break (regression awareness for downstream TDD).
+- Stop clarifying when you can write Given/When/Then acceptance criteria covering the happy path and key error cases without guessing, a developer could write failing tests from the spec without asking questions, and all blocking unknowns are resolved or converted to spikes. Continuing beyond this point is waste.
 
-## Common Traps To Avoid
+## Splitting Guidance (Feature-Level Only)
 
-- Do not ask a long questionnaire up front; batch and iterate.
-- Do not implicitly accept ambiguous terms ("fast", "simple", "secure"); ask what they mean.
-- Do not guess silently; make assumptions explicit and confirm.
+When the input is feature-sized, guide toward vertical slices before speccing in detail:
+- Split by **user-facing behavior**, not by technical layer.
+- Each slice should be independently deliverable and testable.
+- For the first slice, prefer a **walking skeleton**: the thinnest possible end-to-end path that proves the integration/architecture works. Subsequent slices add behaviors on top of this skeleton.
+- Pick the highest-value or highest-risk slice to spec first (the walking skeleton often is both).
+- Hand off to `agile-issue-splitter` for the full backlog breakdown.
+
+## Guardrails
+
+- Batch questions in groups of 3–7 and iterate; avoid front-loading a long questionnaire.
+- Pin down ambiguous terms ("fast", "simple", "secure") by asking what they mean concretely.
+- State assumptions explicitly and confirm them; never fill gaps silently.
+- Clarify at feature level first, split into slices, then spec one slice at a time — not the entire feature at once.
+- The spec is a living artifact, not a contract. When implementation reveals the spec was wrong or incomplete, updating it is expected — that's the agile feedback loop working, not a failure of clarification.
