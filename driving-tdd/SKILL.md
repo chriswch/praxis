@@ -1,6 +1,6 @@
 ---
-name: tdd-loop
-description: Drives the Red → Green → Refactor cycle from a Story-Level Behavioral Spec (and optional design sketch), converting acceptance criteria into failing tests, writing minimum code to pass, and refactoring to let design emerge. Handles the feedback loop back to clarify-intent when implementation reveals spec gaps. Use after clarify-intent or design-sketch when starting implementation. Triggers on "let's code this", "start TDD", "implement this story", "write the tests", "make it work", "next slice", or when a behavioral spec with acceptance criteria is ready and the next step is writing code.
+name: driving-tdd
+description: Drives the Red → Green → Refactor cycle from a Story-Level Behavioral Spec (and optional design sketch), converting acceptance criteria into failing tests, writing minimum code to pass, and refactoring to let design emerge. Handles the feedback loop back to clarifying-intent when implementation reveals spec gaps. Use after clarifying-intent or sketching-design when starting implementation. Triggers on "let's code this", "start TDD", "implement this story", "write the tests", "make it work", "next slice", or when a behavioral spec with acceptance criteria is ready and the next step is writing code.
 ---
 
 # TDD Loop
@@ -11,12 +11,12 @@ Turn acceptance criteria into working, tested code through strict Red → Green 
 
 This is where the real design happens. The design sketch gave a direction; TDD's refactor step discovers the actual structure.
 
-**Pipeline**: `clarify-intent` [spec] → `design-sketch` [optional] → **`tdd-loop`** [tested code] → feedback back to `clarify-intent` if spec was wrong.
+**Pipeline**: `clarifying-intent` [spec] → `sketching-design` [optional] → **`driving-tdd`** [tested code] → feedback back to `clarifying-intent` if spec was wrong.
 
 ## Input
 
-- **Story-Level Behavioral Spec** (from `clarify-intent`) — required. Provides acceptance criteria in Given/When/Then format.
-- **Design Sketch** (from `design-sketch`) — optional. Provides the change map, first test, and approach direction. If absent, derive file locations from codebase exploration.
+- **Story-Level Behavioral Spec** (from `clarifying-intent`) — required. Provides acceptance criteria in Given/When/Then format.
+- **Design Sketch** (from `sketching-design`) — optional. Provides the change map, first test, and approach direction. If absent, derive file locations from codebase exploration.
 
 ## Workflow
 
@@ -25,7 +25,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
      - **Trivial** (rename, one-liner): Write the test, make it pass, done. Skip the AC checklist and summary.
      - **Small** (1–2 ACs, single file): Full Red → Green → Refactor per AC. Lightweight tracking.
      - **Medium** (3+ ACs, multiple files): Full workflow with AC checklist, feedback log, and session summary.
-     - **Large**: Should have been sliced first. Redirect to `agile-story-slicer`.
+     - **Large**: Should have been sliced first. Redirect to `slicing-stories`.
    - Read the behavioral spec. List every acceptance criterion.
    - If a design sketch exists, read it for the change map and first test.
    - If no sketch, explore the codebase: test framework, file conventions, existing patterns. Just enough to place the first test.
@@ -63,9 +63,9 @@ This is where the real design happens. The design sketch gave a direction; TDD's
    - Note any missing coverage — it goes through the feedback loop, not silently into tests.
 
 8. **Feedback loop.**
-   - Ambiguous or contradictory AC → pause. Return to `clarify-intent` to update the spec. Resume after.
-   - Missing behavior discovered → note it. After existing ACs, return to `clarify-intent` to add the AC.
-   - Impossible constraint → flag it. Return to `clarify-intent` to negotiate.
+   - Ambiguous or contradictory AC → pause. Return to `clarifying-intent` to update the spec. Resume after.
+   - Missing behavior discovered → note it. After existing ACs, return to `clarifying-intent` to add the AC.
+   - Impossible constraint → flag it. Return to `clarifying-intent` to negotiate.
    - Design sketch was wrong → discard or update. Expected and normal.
    - Slice map affected → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 9).
    - Track discoveries in the **feedback log**. See `references/templates.md`.
@@ -76,8 +76,8 @@ This is where the real design happens. The design sketch gave a direction; TDD's
      - Did implementation reveal anything that changes the slice map? (new slices, reordering, merging, splitting)
      - Are the remaining slices still the right slices, or has the feature understanding shifted?
      - Is the next slice in the sequence still the right one to pick up?
-   - If the slice map needs updating, return to `agile-story-slicer` to revise it before speccing the next slice.
-   - If no changes, pick the next slice from the sequence and hand off to `clarify-intent` to produce its Story-Level Behavioral Spec.
+   - If the slice map needs updating, return to `slicing-stories` to revise it before speccing the next slice.
+   - If no changes, pick the next slice from the sequence and hand off to `clarifying-intent` to produce its Story-Level Behavioral Spec.
    - Skip this step if the current task is a standalone story (no slice map).
 
 ## Default Output
@@ -99,7 +99,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 - **Mock at boundaries only.** Mock external services, databases, network. Not the code under test or its direct collaborators.
 - **Green means ALL green.** Never move to the next AC with a failing test in the suite.
 - **Names are documentation.** `rejects expired tokens` beats `test_token_validation_3`.
-- **No gold-plating.** When all ACs are green and the suite passes, stop. Missing coverage goes through `clarify-intent`, not into speculative tests.
+- **No gold-plating.** When all ACs are green and the suite passes, stop. Missing coverage goes through `clarifying-intent`, not into speculative tests.
 - **Feedback is a feature.** Discovering the spec was wrong is the system working. Surface gaps; don't silently patch around them.
 
 ## References

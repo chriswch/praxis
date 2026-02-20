@@ -149,7 +149,7 @@ def validate_slice_map(bundle: Any, *, strict: bool) -> tuple[list[str], list[st
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Validate an agile-story-slicer Slice Map JSON file.")
+    parser = argparse.ArgumentParser(description="Validate an slicing-stories Slice Map JSON file.")
     parser.add_argument("path", help="Path to slice-map.json")
     parser.add_argument(
         "--strict",

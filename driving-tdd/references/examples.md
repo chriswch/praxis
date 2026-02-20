@@ -11,7 +11,7 @@ Use these as style references, not rigid formats.
 
 ## Full Example: Auth Middleware
 
-**Input**: Story-Level Behavioral Spec — "Auth middleware rejects unauthenticated requests" (from `clarify-intent`). Design sketch identified `src/middleware/auth.ts` as the target file, `src/middleware/request-logger.ts` as the existing pattern, and `tests/middleware/auth.test.ts` as the test file.
+**Input**: Story-Level Behavioral Spec — "Auth middleware rejects unauthenticated requests" (from `clarifying-intent`). Design sketch identified `src/middleware/auth.ts` as the target file, `src/middleware/request-logger.ts` as the existing pattern, and `tests/middleware/auth.test.ts` as the test file.
 
 ### AC Checklist (after step 1)
 
@@ -130,9 +130,9 @@ During Cycle 3 (AC 2: expired tokens), the test revealed a problem. The spec say
 
 | # | Discovery | Type | Action |
 |---|---|---|---|
-| 1 | `verifyToken` throws the same error for expired and malformed tokens — can't produce separate error codes | Ambiguous AC | Return to `clarify-intent`: should expired and malformed tokens return the same error, or switch to a library that distinguishes them? |
+| 1 | `verifyToken` throws the same error for expired and malformed tokens — can't produce separate error codes | Ambiguous AC | Return to `clarifying-intent`: should expired and malformed tokens return the same error, or switch to a library that distinguishes them? |
 
-**What happened**: Paused TDD. Returned to `clarify-intent`. Decision: use a single `invalid_token` error for both cases (simpler, no library change). Updated the spec's AC 2. Resumed TDD with the revised AC.
+**What happened**: Paused TDD. Returned to `clarifying-intent`. Decision: use a single `invalid_token` error for both cases (simpler, no library change). Updated the spec's AC 2. Resumed TDD with the revised AC.
 
 This is the feedback loop working as designed — not a failure of planning.
 

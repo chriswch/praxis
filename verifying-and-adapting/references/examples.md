@@ -12,11 +12,11 @@ Use these as style references, not rigid formats.
 
 ## Full Example: Auth Middleware
 
-**Input**: TDD just completed for "Auth middleware rejects unauthenticated requests." 4 ACs, all green. Feedback log has one entry (expired vs. malformed token ambiguity, already resolved via clarify-intent). This is slice S-001 of a multi-slice auth feature.
+**Input**: TDD just completed for "Auth middleware rejects unauthenticated requests." 4 ACs, all green. Feedback log has one entry (expired vs. malformed token ambiguity, already resolved via clarifying-intent). This is slice S-001 of a multi-slice auth feature.
 
 ### Verification: Auth middleware rejects unauthenticated requests
 
-**Spec**: Story-Level Behavioral Spec from clarify-intent
+**Spec**: Story-Level Behavioral Spec from clarifying-intent
 
 **Acceptance Check**
 
@@ -75,7 +75,7 @@ Use these as style references, not rigid formats.
 
 **Suite Status**: All green (but AC 3 coverage is incomplete)
 
-**Routing**: Rework — return to tdd-loop. Write a failing test that passes the `nextPage` token and asserts the second page contains the remaining records. Then make it green. Return here after.
+**Routing**: Rework — return to driving-tdd. Write a failing test that passes the `nextPage` token and asserts the second page contains the remaining records. Then make it green. Return here after.
 
 ---
 
@@ -87,6 +87,6 @@ Use these as style references, not rigid formats.
 - Constraints section assumed RabbitMQ; infrastructure uses Redis Streams.
 - ACs are behaviorally correct but untestable against the assumed infrastructure.
 
-**Routing**: Escalate — return to clarify-intent. Update the spec's constraints to reflect Redis Streams. Then re-run design-sketch (the change map is different). Then resume tdd-loop. The behavioral ACs likely survive unchanged; the implementation path changes.
+**Routing**: Escalate — return to clarifying-intent. Update the spec's constraints to reflect Redis Streams. Then re-run sketching-design (the change map is different). Then resume driving-tdd. The behavioral ACs likely survive unchanged; the implementation path changes.
 
 This is not a planning failure — it's the feedback loop catching an incorrect assumption before it compounds across multiple slices.

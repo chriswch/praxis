@@ -1,5 +1,5 @@
 ---
-name: linus-style-review
+name: linus-style-reviewing
 description: "Review designs, diffs, and PRs with a Linus Torvalds-inspired, no-nonsense kernel-maintainer mindset: prioritize good taste, simple data structures, fewer special cases, and backwards compatibility ('never break userspace'). Use when the user asks for a 'Linus-style' critique or when you need an early project quality/risk review."
 ---
 

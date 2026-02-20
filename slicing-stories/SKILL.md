@@ -1,26 +1,26 @@
 ---
-name: agile-story-slicer
-description: Splits a Feature Brief into an ordered slice map of thin, vertical story slices — each capturing scope and build order, while deferring detailed acceptance criteria to downstream clarify-intent. Use after clarify-intent produces a Feature Brief, when a feature is too large for one story. Triggers on "split this into stories", "slice this feature", "what should we build first", "create a slice map", or when a Feature Brief needs to be broken into deliverable increments.
+name: slicing-stories
+description: Splits a Feature Brief into an ordered slice map of thin, vertical story slices — each capturing scope and build order, while deferring detailed acceptance criteria to downstream `clarifying-intent`. Use after clarifying-intent produces a Feature Brief, when a feature is too large for one story. Triggers on "split this into stories", "slice this feature", "what should we build first", "create a slice map", or when a Feature Brief needs to be broken into deliverable increments.
 ---
 
 # Agile Story Slicer
 
 ## Overview
 
-Take a Feature Brief (produced by `clarify-intent`) and split it into an ordered **slice map** — a sequence of thin, vertical story outlines. Each slice captures what the story covers and where it sits in the build order, but intentionally omits detailed acceptance criteria, tasks, and implementation plans. Those emerge downstream: `clarify-intent` specs each slice, then TDD drives the design.
+Take a Feature Brief (produced by `clarifying-intent`) and split it into an ordered **slice map** — a sequence of thin, vertical story outlines. Each slice captures what the story covers and where it sits in the build order, but intentionally omits detailed acceptance criteria, tasks, and implementation plans. Those emerge downstream: `clarifying-intent` specs each slice, then TDD drives the design.
 
-Pipeline: `clarify-intent [Feature Brief]` → **agile-story-slicer [slice map]** → `clarify-intent [Story-Level Behavioral Spec per slice]` → design sketch → TDD.
+Pipeline: `clarifying-intent [Feature Brief]` → **slicing-stories [slice map]** → `clarifying-intent [Story-Level Behavioral Spec per slice]` → design sketch → TDD.
 
 ## Input Contract
 
-Expects a **Feature Brief** from `clarify-intent` containing:
+Expects a **Feature Brief** from `clarifying-intent` containing:
 - Problem / why now
 - Goal & success criteria
 - Scope boundaries (in / out)
 - Constraints & risks (if surfaced)
 - Open questions (blocking / deferrable)
 
-If the input is not a Feature Brief, ask the requester to run `clarify-intent` first.
+If the input is not a Feature Brief, ask the requester to run `clarifying-intent` first.
 
 ## Output
 
@@ -62,20 +62,20 @@ Produce two artifacts:
      - `scope_out`: what is explicitly deferred to other slices.
      - `sequence_rationale`: why this slice is in this position.
      - `open_unknowns` (optional): deferrable unknowns specific to this slice.
-   - Do **not** write acceptance criteria — that's `clarify-intent`'s job when it specs each slice.
+   - Do **not** write acceptance criteria — that's `clarifying-intent`'s job when it specs each slice.
 
 5. **Validate.**
    - Self-check:
      - Does every slice deliver user-visible value (not just a technical layer)?
      - Can each slice be independently tested?
      - Does the first slice prove the core integration / highest-risk assumption?
-     - Are `scope_in` boundaries clear enough that `clarify-intent` can spec the slice without asking "what are we building?"
+     - Are `scope_in` boundaries clear enough that `clarifying-intent` can spec the slice without asking "what are we building?"
      - Do `scope_out` boundaries prevent overlap between slices?
    - If producing JSON, run `python3 scripts/validate_slice_map.py slice-map.json`.
 
 ## Downstream Handoff
 
-Each slice goes back to `clarify-intent` to produce a Story-Level Behavioral Spec. The sequence in the slice map determines build order.
+Each slice goes back to `clarifying-intent` to produce a Story-Level Behavioral Spec. The sequence in the slice map determines build order.
 
 **Feedback loop**: The slice map is a living artifact, not a frozen plan. When speccing or implementing a later slice reveals that the boundaries, ordering, or number of slices need to change — update the slice map. Common triggers:
 - Implementing slice N reveals slice N+1 should be split or merged.

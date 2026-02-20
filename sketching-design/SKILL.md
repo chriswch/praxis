@@ -1,6 +1,6 @@
 ---
-name: design-sketch
-description: Produces a lightweight design sketch from a Story-Level Behavioral Spec by locating affected files in the codebase, matching existing patterns, and proposing a single implementation direction — just enough to write the first failing test. Use before TDD when the implementation path is non-obvious, after clarify-intent or agile-story-slicer. Triggers on: "where do I start?", "which files do I change?", "how should I implement this?", mapping a spec to code, or pre-implementation codebase exploration.
+name: sketching-design
+description: Produces a lightweight design sketch from a Story-Level Behavioral Spec by locating affected files in the codebase, matching existing patterns, and proposing a single implementation direction — just enough to write the first failing test. Use before TDD when the implementation path is non-obvious, after clarifying-intent or slicing-stories. Triggers on: "where do I start?", "which files do I change?", "how should I implement this?", mapping a spec to code, or pre-implementation codebase exploration.
 ---
 
 # Design Sketch
@@ -11,19 +11,19 @@ Bridge the gap between "what to build" (behavioral spec) and "where to start cod
 
 ## Input
 
-A **Story-Level Behavioral Spec** (from `clarify-intent`) or equivalent: a scoped problem statement with Given/When/Then acceptance criteria.
+A **Story-Level Behavioral Spec** (from `clarifying-intent`) or equivalent: a scoped problem statement with Given/When/Then acceptance criteria.
 
-If the input is vague, underspecified, or feature-sized, redirect to `clarify-intent` first. Design sketches operate on single stories, never epics.
+If the input is vague, underspecified, or feature-sized, redirect to `clarifying-intent` first. Design sketches operate on single stories, never epics.
 
 ## Workflow
 
 1. **Triage: decide if a sketch is needed.**
    - Read the spec's acceptance criteria. If the implementation path is obvious — you know which file to open and what test to write — skip the sketch and go directly to TDD.
-   - Sizing guide (from `clarify-intent` triage):
+   - Sizing guide (from `clarifying-intent` triage):
      - **Trivial** (< half day): Skip. Go to TDD.
      - **Small** (1–2 days, single behavior): Locate + pattern match only (steps 2–3). Skip step 4 if the direction is obvious from existing patterns.
      - **Medium** (3–5 days, story-level): Full sketch (steps 2–5).
-     - **Large/Epic**: Should have been split first. Redirect to `agile-story-slicer`.
+     - **Large/Epic**: Should have been split first. Redirect to `slicing-stories`.
    - When in doubt, do the sketch. It's cheap; wrong assumptions during TDD are expensive.
 
 2. **Locate the change.**
@@ -83,4 +83,4 @@ Use the **Design Sketch** template from `references/templates.md`.
 - **Disposable.** TDD's refactor step overrides the sketch when it discovers better structure.
 - **Spikes over speculation.** If uncertain, write throwaway code to learn — don't plan harder.
 - **No architecture astronautics.** Don't propose design patterns, class hierarchies, or module structures that aren't directly needed for this one story.
-- **Stories only.** Never sketch an epic or feature. If the input is too large, redirect to `agile-story-slicer` first.
+- **Stories only.** Never sketch an epic or feature. If the input is too large, redirect to `slicing-stories` first.

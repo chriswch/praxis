@@ -151,7 +151,7 @@ def _load_json_text(path: str) -> str:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Render an agile-story-slicer Slice Map JSON file as human-readable Markdown."
+        description="Render an slicing-stories Slice Map JSON file as human-readable Markdown."
     )
     parser.add_argument("path", nargs="?", default="slice-map.json", help="Path to slice-map.json (or '-' for stdin)")
     parser.add_argument("--no-json", action="store_true", help="Do not embed the JSON at the end of the Markdown output")

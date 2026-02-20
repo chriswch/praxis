@@ -19,7 +19,7 @@ Populate from the behavioral spec before starting the first cycle. Order determi
 
 ## Feedback Log
 
-Track discoveries that need to flow back to `clarify-intent`.
+Track discoveries that need to flow back to `clarifying-intent`.
 
 | # | Discovery | Type | Action |
 |---|---|---|---|

@@ -53,7 +53,7 @@ Filled-in examples showing what good output looks like for each template. Use th
 - Rolling out auth without a migration period could break existing clients.
 
 **Downstream Handoff**
-- Split into vertical slices via `agile-story-slicer`. Candidate slices:
+- Split into vertical slices via `slicing-stories`. Candidate slices:
   1. Auth middleware rejects unauthenticated requests (smallest, highest-risk — proves the approach).
   2. Client credential issuance and storage.
   3. Token validation and expiry.

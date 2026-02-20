@@ -11,7 +11,7 @@ Filled-in examples showing what good design sketch output looks like. Use these 
 
 ## Full Sketch Example
 
-> Input: Story-Level Behavioral Spec for "Auth middleware rejects unauthenticated requests" (from `clarify-intent` examples).
+> Input: Story-Level Behavioral Spec for "Auth middleware rejects unauthenticated requests" (from `clarifying-intent` examples).
 
 ### Design Sketch: Auth middleware rejects unauthenticated requests
 

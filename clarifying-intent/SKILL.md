@@ -1,5 +1,5 @@
 ---
-name: clarify-intent
+name: clarifying-intent
 description: Clarifies ambiguous ideas, features, tasks, user stories, or problems by eliciting intent, constraints, unknowns, risks, and success criteria; asks focused questions; then produces a structured Feature Brief or Story-Level Behavioral Spec with testable acceptance criteria. Use when a request is vague or underspecified, when scoping work, when a user says "I have a rough idea", "help me scope this", "what should we build", "spec this out", or before planning and coding.
 ---
 
@@ -15,7 +15,7 @@ Turn an underspecified request into an actionable, shared understanding. Triage 
    - **Trivial** (< half day, obvious change — typo, rename, config tweak): state the change in one sentence and skip to implementation. No spec needed.
    - **Small** (1–2 days, single behavior): go directly to step 4 → produce a Story-Level Behavioral Spec.
    - **Medium** (3–5 days, a few behaviors): clarify at story level → produce a Story-Level Behavioral Spec.
-   - **Large / Epic** (many stories, cross-cutting): clarify at feature level → produce a Feature Brief → split into stories (hand off to `agile-story-slicer`) → pick one slice → produce a Story-Level Behavioral Spec for that slice.
+   - **Large / Epic** (many stories, cross-cutting): clarify at feature level → produce a Feature Brief → split into stories (hand off to `slicing-stories`) → pick one slice → produce a Story-Level Behavioral Spec for that slice.
    - If unclear, default to feature-level and let the clarification reveal the true size.
 
 2. For technical tasks: understand current behavior from the codebase.
@@ -49,7 +49,7 @@ Turn an underspecified request into an actionable, shared understanding. Triage 
    - Note constraints and decisions as they become clear.
 
 7. Produce the appropriate output.
-   - **Feature-level input** → Feature Brief (goals, scope, constraints, success criteria). Then suggest splitting into vertical slices via `agile-story-slicer`.
+   - **Feature-level input** → Feature Brief (goals, scope, constraints, success criteria). Then suggest splitting into vertical slices via `slicing-stories`.
    - **Story-level input** → Story-Level Behavioral Spec with Given/When/Then acceptance criteria as the primary artifact. These AC become test cases in the downstream TDD step.
    - While drafting, self-check:
      - Can a developer write failing tests from the acceptance criteria alone?
@@ -63,7 +63,7 @@ Turn an underspecified request into an actionable, shared understanding. Triage 
    - If the requester flags gaps, iterate (return to step 5 or adjust the spec directly).
 
 9. Downstream handoff.
-   - **From Feature Brief** → split into stories via `agile-story-slicer`, then pick one slice and produce a Story-Level Behavioral Spec.
+   - **From Feature Brief** → split into stories via `slicing-stories`, then pick one slice and produce a Story-Level Behavioral Spec.
    - **From Story-Level Behavioral Spec** → proceed to lightweight design sketch (identify which files/modules the change lives in, pick the approach that fits existing patterns), then TDD (Red → Green → Refactor).
    - **Feedback loop**: If implementation reveals the spec was wrong or incomplete, return here and update the spec before continuing. The spec is a living artifact, not a contract.
    - See `references/templates.md` for handoff details per template.
@@ -72,12 +72,12 @@ Turn an underspecified request into an actionable, shared understanding. Triage 
 
 Not every task goes through the full pipeline. Match the input type to the shortest path that produces working, tested code.
 
-- **Bug fix**: `clarify-intent` (reproduce the bug as a Given/When/Then AC) → `tdd-loop` (failing test reproducing the bug → fix → refactor) → done. Skip `design-sketch` and `verify-and-adapt`.
+- **Bug fix**: `clarifying-intent` (reproduce the bug as a Given/When/Then AC) → `driving-tdd` (failing test reproducing the bug → fix → refactor) → done. Skip `sketching-design` and `verifying-and-adapting`.
 - **Refactor**: Ensure existing tests pass → refactor → ensure tests still pass. No spec needed. If tests don't exist, write characterization tests first, then refactor.
 - **Trivial change** (typo, rename, config tweak): State the change → implement → done. No spec, no sketch, no verification.
 - **Small bug with obvious fix**: Write the failing test, fix it, move on. One-sentence spec at most.
 
-The full pipeline (`clarify-intent` → `agile-story-slicer` → `design-sketch` → `tdd-loop` → `verify-and-adapt`) is for medium+ features. Don't run every task through it.
+The full pipeline (`clarifying-intent` → `slicing-stories` → `sketching-design` → `driving-tdd` → `verifying-and-adapting`) is for medium+ features. Don't run every task through it.
 
 ## Default Output
 
@@ -113,7 +113,7 @@ When the input is feature-sized, guide toward vertical slices before speccing in
 - Each slice should be independently deliverable and testable.
 - For the first slice, prefer a **walking skeleton**: the thinnest possible end-to-end path that proves the integration/architecture works. Subsequent slices add behaviors on top of this skeleton.
 - Pick the highest-value or highest-risk slice to spec first (the walking skeleton often is both).
-- Hand off to `agile-story-slicer` for the slice map.
+- Hand off to `slicing-stories` for the slice map.
 
 ## Guardrails
 

@@ -1,6 +1,6 @@
 # Slice Map Spec (v1)
 
-Use this spec for the default output of the `agile-story-slicer` skill. The goal is an ordered list of thin story outlines — just enough for `clarify-intent` to pick up each slice and produce a full Story-Level Behavioral Spec without re-asking "what are we building?"
+Use this spec for the default output of the `slicing-stories` skill. The goal is an ordered list of thin story outlines — just enough for `clarifying-intent` to pick up each slice and produce a full Story-Level Behavioral Spec without re-asking "what are we building?"
 
 ## Table of Contents
 - Conventions (IDs, uniqueness, ordering)

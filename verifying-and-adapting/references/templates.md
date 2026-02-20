@@ -6,7 +6,7 @@ Use these as structure references. Adapt or omit sections based on the story's c
 
 ## Verification Summary
 
-Produced at the end of verify-and-adapt for medium+ tasks.
+Produced at the end of verifying-and-adapting for medium+ tasks.
 
 ```markdown
 ### Verification: [story title]
@@ -63,7 +63,7 @@ Produced at the end of verify-and-adapt for medium+ tasks.
 | **Match** | Implementation matches spec exactly | None |
 | **Refined** | Faithful to intent, but details evolved (wording, status codes, validation messages) | Update spec AC wording to match reality |
 | **Diverged** | Implementation deviated from spec (constraint impossible, dependency forced different approach) | Document *why*, rewrite the AC |
-| **Gap** | AC not fully covered — test is missing, incomplete, or tests the wrong thing | Route to rework (back to tdd-loop) |
+| **Gap** | AC not fully covered — test is missing, incomplete, or tests the wrong thing | Route to rework (back to driving-tdd) |
 
 ---
 
