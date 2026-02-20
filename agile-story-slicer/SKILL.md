@@ -75,7 +75,15 @@ Produce two artifacts:
 
 ## Downstream Handoff
 
-Each slice goes back to `clarify-intent` to produce a Story-Level Behavioral Spec. The slicer's job is done once the slice map is confirmed. The sequence in the slice map determines build order.
+Each slice goes back to `clarify-intent` to produce a Story-Level Behavioral Spec. The sequence in the slice map determines build order.
+
+**Feedback loop**: The slice map is a living artifact, not a frozen plan. When speccing or implementing a later slice reveals that the boundaries, ordering, or number of slices need to change — update the slice map. Common triggers:
+- Implementing slice N reveals slice N+1 should be split or merged.
+- A deferrable unknown becomes blocking and forces reordering.
+- A slice turns out to be trivial and should be absorbed into an adjacent slice.
+- New behavior is discovered that doesn't fit any existing slice.
+
+When updating, re-validate (step 5) and re-confirm with the requester. Don't treat slice map changes as failures — they're the agile feedback loop working at the planning level.
 
 ## References and Tools
 

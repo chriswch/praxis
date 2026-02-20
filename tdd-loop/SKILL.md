@@ -35,6 +35,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
    - Happy path first — the walking skeleton that proves core behavior works.
    - Then error/edge cases — boundaries, invalid inputs, failure modes.
    - Then non-functional constraints — performance, security (if testable).
+   - Reorder when one AC's implementation depends on another's code being in place. Note the rationale.
    - If the design sketch suggested a first test, start there.
 
 3. **Red: write one failing test.**
@@ -66,8 +67,18 @@ This is where the real design happens. The design sketch gave a direction; TDD's
    - Missing behavior discovered → note it. After existing ACs, return to `clarify-intent` to add the AC.
    - Impossible constraint → flag it. Return to `clarify-intent` to negotiate.
    - Design sketch was wrong → discard or update. Expected and normal.
+   - Slice map affected → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 9).
    - Track discoveries in the **feedback log**. See `references/templates.md`.
    - The spec is a living artifact. Updating it during TDD is the agile feedback loop working correctly.
+
+9. **Between-slice checkpoint** (when working through a slice map).
+   - After completing all ACs for a slice, before starting the next one, ask:
+     - Did implementation reveal anything that changes the slice map? (new slices, reordering, merging, splitting)
+     - Are the remaining slices still the right slices, or has the feature understanding shifted?
+     - Is the next slice in the sequence still the right one to pick up?
+   - If the slice map needs updating, return to `agile-story-slicer` to revise it before speccing the next slice.
+   - If no changes, pick the next slice from the sequence and hand off to `clarify-intent` to produce its Story-Level Behavioral Spec.
+   - Skip this step if the current task is a standalone story (no slice map).
 
 ## Default Output
 

@@ -23,7 +23,7 @@ Track discoveries that need to flow back to `clarify-intent`.
 
 | # | Discovery | Type | Action |
 |---|---|---|---|
-| 1 | [what you found] | Ambiguous AC / Missing AC / Impossible constraint / Spec contradiction | [what to update in the spec] |
+| 1 | [what you found] | Ambiguous AC / Missing AC / Impossible constraint / Spec contradiction / Slice map impact | [what to update in the spec or slice map] |
 
 ---
 
@@ -46,6 +46,9 @@ Produced at the end of a TDD session.
 
 **Spec Feedback**
 - [update needed, or "None — spec was accurate"]
+
+**Slice Map Impact** (only when working through a slice map)
+- [changes needed to upcoming slices, or "None — slice map holds"]
 
 **Suite Status**: All green / [N] failures remaining
 ```
