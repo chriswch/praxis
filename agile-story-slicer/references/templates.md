@@ -2,6 +2,11 @@
 
 Use these templates and heuristics when splitting a Feature Brief into story slices. Match the fields to `references/slice-map.spec.md`.
 
+## Table of Contents
+- Story Slicing Heuristics
+- Slice Template (JSON and Markdown)
+- Worked Example (SSO Feature Brief → Slice Map)
+
 ## Story Slicing Heuristics
 
 - Slice **vertically** (end-to-end behavior) instead of by layer (frontend-only/backend-only).

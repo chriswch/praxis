@@ -74,6 +74,7 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
 
 7. **Route.**
    - All ACs verified, spec reconciled, no gaps → **Done** (or **Next slice** if slices remain).
+   - **Last slice of a multi-slice feature** → before routing to Done, run a feature-level completion check. Re-read the Feature Brief's goal and success criteria. Confirm the end-to-end user flow works across all slices. If a success criterion isn't met, identify what's missing — it may be a new slice (return to `agile-story-slicer`) or a gap in an existing slice (return to `tdd-loop` for that slice).
    - Spec diverged but implementation is correct → **Update spec** (do it now, inline), then done/next.
    - Gaps found (missing behavior, AC not fully covered) → **Rework** — log what's missing, return to `tdd-loop` for the specific gaps. After rework, return here to re-verify.
    - Feature-level rethink needed (scope was wrong, core assumption invalidated) → **Escalate** — return to `clarify-intent` at the feature level, potentially update the slice map.
@@ -91,6 +92,7 @@ Read `references/examples.md` for style reference.
 ## Downstream Handoff
 
 - **Done (single-slice)**: Story is complete. The updated spec (if changed) and test suite are the deliverables.
+- **Done (last slice of multi-slice)**: Feature is complete. The Feature Brief's success criteria are met across all slices. All updated slice specs and test suites are the deliverables.
 - **Next slice (multi-slice)**: Pick the next slice from the slice map. Return to `clarify-intent` to produce a Story-Level Behavioral Spec for that slice. Carry forward emerged design knowledge — it informs the next sketch and TDD cycle.
 - **Rework**: Return to `tdd-loop` with the specific gaps. After gaps are closed, return here to re-verify. This is a tight inner loop, not a full pipeline restart.
 - **Escalate**: Return to `clarify-intent` at feature or story level. May trigger slice map updates via `agile-story-slicer`. This is the system catching an incorrect assumption before it compounds.

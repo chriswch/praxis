@@ -2,6 +2,11 @@
 
 Use these as style references, not rigid formats.
 
+## Table of Contents
+- Full Example: Auth Middleware (medium, 4 ACs, with session summary)
+- Feedback Loop Example (spec ambiguity discovered during TDD)
+- Minimal Example (trivial triage, one AC)
+
 ---
 
 ## Full Example: Auth Middleware

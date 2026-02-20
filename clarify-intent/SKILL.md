@@ -68,6 +68,17 @@ Turn an underspecified request into an actionable, shared understanding. Triage 
    - **Feedback loop**: If implementation reveals the spec was wrong or incomplete, return here and update the spec before continuing. The spec is a living artifact, not a contract.
    - See `references/templates.md` for handoff details per template.
 
+## Fast Paths
+
+Not every task goes through the full pipeline. Match the input type to the shortest path that produces working, tested code.
+
+- **Bug fix**: `clarify-intent` (reproduce the bug as a Given/When/Then AC) → `tdd-loop` (failing test reproducing the bug → fix → refactor) → done. Skip `design-sketch` and `verify-and-adapt`.
+- **Refactor**: Ensure existing tests pass → refactor → ensure tests still pass. No spec needed. If tests don't exist, write characterization tests first, then refactor.
+- **Trivial change** (typo, rename, config tweak): State the change → implement → done. No spec, no sketch, no verification.
+- **Small bug with obvious fix**: Write the failing test, fix it, move on. One-sentence spec at most.
+
+The full pipeline (`clarify-intent` → `agile-story-slicer` → `design-sketch` → `tdd-loop` → `verify-and-adapt`) is for medium+ features. Don't run every task through it.
+
 ## Default Output
 
 ### Feature-level (large input)

@@ -1,6 +1,6 @@
 ---
 name: agile-story-slicer
-description: Split a Feature Brief into an ordered list of thin, vertical story slices — just enough for each slice to be picked up by clarify-intent and turned into a full Story-Level Behavioral Spec without re-asking "what are we building?"
+description: Splits a Feature Brief into an ordered slice map of thin, vertical story slices — each capturing scope and build order, while deferring detailed acceptance criteria to downstream clarify-intent. Use after clarify-intent produces a Feature Brief, when a feature is too large for one story. Triggers on "split this into stories", "slice this feature", "what should we build first", "create a slice map", or when a Feature Brief needs to be broken into deliverable increments.
 ---
 
 # Agile Story Slicer

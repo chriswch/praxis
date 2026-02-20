@@ -2,6 +2,13 @@
 
 Use this spec for the default output of the `agile-story-slicer` skill. The goal is an ordered list of thin story outlines — just enough for `clarify-intent` to pick up each slice and produce a full Story-Level Behavioral Spec without re-asking "what are we building?"
 
+## Table of Contents
+- Conventions (IDs, uniqueness, ordering)
+- Top-Level Shape (`meta` + `slices`)
+- `meta` fields and `OpenQuestion` schema
+- `Slice` fields
+- Example (API Authentication slice map)
+
 ## Conventions
 
 - **Canonical JSON**: The Slice Map is a JSON object and must be valid JSON (no comments, trailing commas). When presenting results in chat, you may also include a human-readable Markdown rendering, but the JSON must conform to this spec.
