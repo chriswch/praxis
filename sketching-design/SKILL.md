@@ -1,6 +1,6 @@
 ---
 name: sketching-design
-description: Produces a lightweight design sketch from a Story-Level Behavioral Spec by locating affected files in the codebase, matching existing patterns, and proposing a single implementation direction — just enough to write the first failing test. Use before TDD when the implementation path is non-obvious, after clarifying-intent or slicing-stories. Triggers on: "where do I start?", "which files do I change?", "how should I implement this?", mapping a spec to code, or pre-implementation codebase exploration.
+description: Produces a lightweight design sketch from a Story-Level Behavioral Spec by locating affected files in the codebase, matching existing patterns, and proposing a single implementation direction — just enough to write the first failing test. Use before TDD when the implementation path is non-obvious, after clarifying-intent or slicing-stories. Triggers on "where do I start?", "which files do I change?", "how should I implement this?", mapping a spec to code, or pre-implementation codebase exploration.
 ---
 
 # Design Sketch
