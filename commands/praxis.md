@@ -1,4 +1,10 @@
-Drive the Praxis workflow for the task below, advancing through each stage with user checkpoints between stages.
+---
+description: Drive the spec-driven + test-driven development workflow for the task below, advancing through each stage with user checkpoints between stages.
+---
+
+# Praxis Workflow
+
+This command is the orchestrator of the spec-driven + test-driven development workflow.
 
 ## Task
 
