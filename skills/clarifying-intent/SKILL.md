@@ -67,7 +67,7 @@ Turn an underspecified request into an actionable, shared understanding. Triage 
    - **From Feature Brief** → split into stories via `slicing-stories`, then pick one slice and produce a Story-Level Behavioral Spec.
    - **From Story-Level Behavioral Spec** → proceed to lightweight design sketch (identify which files/modules the change lives in, pick the approach that fits existing patterns), then TDD (Red → Green → Refactor).
    - **Feedback loop**: If implementation reveals the spec was wrong or incomplete, return here and update the spec before continuing. The spec is a living artifact, not a contract.
-   - See `references/templates.md` for handoff details per template.
+   - See `${CLAUDE_SKILL_DIR}/references/templates.md` for handoff details per template.
 
 ## Fast Paths
 
@@ -84,23 +84,23 @@ The full pipeline (`clarifying-intent` → `slicing-stories` → `sketching-desi
 
 ### Feature-level (large input)
 
-Use the **Feature Brief** template from `references/templates.md`:
+Use the **Feature Brief** template from `${CLAUDE_SKILL_DIR}/references/templates.md`:
 
 - Problem/why now, goal & success criteria, scope boundaries, constraints & risks (if surfaced), open questions, downstream handoff (split into stories).
 - Write to `.praxis/brief.md`.
 
 ### Story-level (small/medium input)
 
-Use the **Story-Level Behavioral Spec** template from `references/templates.md`:
+Use the **Story-Level Behavioral Spec** template from `${CLAUDE_SKILL_DIR}/references/templates.md`:
 
 - Problem (1–2 sentences), acceptance criteria (Given/When/Then — this is the primary artifact), scope boundaries, what must not break, open unknowns, downstream handoff.
 - Write to `.praxis/spec.md` (single-story) or `.praxis/slices/{slice-id}/spec.md` (multi-slice).
 
 For full templates, question sets, and worked examples, read:
 
-- `references/templates.md`
-- `references/question-bank.md`
-- `references/examples.md`
+- `${CLAUDE_SKILL_DIR}/references/templates.md`
+- `${CLAUDE_SKILL_DIR}/references/question-bank.md`
+- `${CLAUDE_SKILL_DIR}/references/examples.md`
 
 ## Questioning Heuristics
 

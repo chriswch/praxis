@@ -1,10 +1,17 @@
 ---
 name: sketching-design
 description: Produces a lightweight design sketch from a Story-Level Behavioral Spec by locating affected files in the codebase, matching existing patterns, and proposing a single implementation direction — just enough to write the first failing test. Use before TDD when the implementation path is non-obvious, after clarifying-intent or slicing-stories. Triggers on "where do I start?", "which files do I change?", "how should I implement this?", mapping a spec to code, or pre-implementation codebase exploration.
-allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion
+context: fork
+allowed-tools: Read, Grep, Glob, Write, Edit
 ---
 
 # Design Sketch
+
+## Artifact Directory
+
+If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
+
+Read the spec from `{artifact-dir}/spec.md`. Write the sketch to `{artifact-dir}/sketch.md`.
 
 ## Overview
 
@@ -14,17 +21,17 @@ Bridge the gap between "what to build" (behavioral spec) and "where to start cod
 
 A **Story-Level Behavioral Spec** (from `clarifying-intent`) or equivalent: a scoped problem statement with Given/When/Then acceptance criteria.
 
-If the input is vague, underspecified, or feature-sized, redirect to `clarifying-intent` first. Design sketches operate on single stories, never epics.
+If the input is vague, underspecified, or feature-sized, stop and return a message indicating the spec is insufficient — the orchestrator should run `clarifying-intent` first. Design sketches operate on single stories, never epics.
 
 ## Workflow
 
 1. **Triage: decide if a sketch is needed.**
-   - Read the spec's acceptance criteria. If the implementation path is obvious — you know which file to open and what test to write — skip the sketch and go directly to TDD.
+   - Read the spec's acceptance criteria. If the implementation path is obvious — you know which file to open and what test to write — write `SKETCH_SKIPPED` to your output with a brief explanation, and return. The orchestrator will proceed directly to TDD.
    - Sizing guide (from `clarifying-intent` triage):
-     - **Trivial** (< half day): Skip. Go to TDD.
+     - **Trivial** (< half day): Skip. Output `SKETCH_SKIPPED`.
      - **Small** (1–2 days, single behavior): Locate + pattern match only (steps 2–3). Skip step 4 if the direction is obvious from existing patterns.
      - **Medium** (3–5 days, story-level): Full sketch (steps 2–5).
-     - **Large/Epic**: Should have been split first. Redirect to `slicing-stories`.
+     - **Large/Epic**: Should have been split first. Stop and return a message indicating `slicing-stories` should be run first.
    - When in doubt, do the sketch. It's cheap; wrong assumptions during TDD are expensive.
 
 2. **Locate the change.**
@@ -34,7 +41,7 @@ If the input is vague, underspecified, or feature-sized, redirect to `clarifying
      - What's the blast radius? What existing code paths are touched?
    - Output: a **change map** — a short list of files/modules that will be touched, and why.
    - Scope: read only what's needed to answer these questions. Stop when you can name the files.
-   - **Early exit**: If codebase exploration reveals the spec's assumptions are wrong (e.g., the module it describes doesn't exist, the behavior is already implemented differently, or a stated constraint doesn't hold), stop and flag this to the developer before continuing. The spec may need updating before a sketch makes sense.
+   - **Early exit**: If codebase exploration reveals the spec's assumptions are wrong (e.g., the module it describes doesn't exist, the behavior is already implemented differently, or a stated constraint doesn't hold), stop and flag this in your output under a `## Spec Issue` heading. The orchestrator will resolve this with the user before continuing.
 
 3. **Read existing patterns.**
    - Before proposing anything new, answer:
@@ -59,21 +66,9 @@ If the input is vague, underspecified, or feature-sized, redirect to `clarifying
    - Confirm the sketch is shorter than the spec. If not, compress.
 
 6. **Produce the design sketch.**
-   - Use the template from `references/templates.md`.
+   - Use the template from `${CLAUDE_SKILL_DIR}/references/templates.md`.
    - Keep it shorter than the behavioral spec that feeds it. If the sketch is longer, compress or remove sections.
-
-7. **Confirm and hand off to TDD.**
-   - Present the sketch and ask for a quick confirmation or corrections.
-   - Hand off: the developer writes the first failing test from the spec's AC, using the sketch's direction and file locations. Red → Green → Refactor.
-   - **Feedback loop**: If TDD reveals the sketch was wrong, update or discard the sketch. The sketch is disposable — follow the code, not the document.
-
-## Default Output
-
-Use the **Design Sketch** template from `references/templates.md`.
-
-- Read `references/templates.md` when producing the output (step 6).
-- Read `references/examples.md` for style reference when unsure about output quality or format.
-- Write to `.praxis/sketch.md` (single-story) or `.praxis/slices/{slice-id}/sketch.md` (multi-slice).
+   - Write to `{artifact-dir}/sketch.md`.
 
 ## Guardrails
 
@@ -81,8 +76,13 @@ Use the **Design Sketch** template from `references/templates.md`.
 - **Shorter than the spec.** If the design sketch is longer than the behavioral spec, compress it.
 - **One approach, not candidates.** Pick and commit. TDD validates or invalidates.
 - **Existing patterns first.** Only propose new patterns when the codebase has no applicable analog.
-- **Skippable.** If the spec makes implementation obvious, skip the sketch entirely.
+- **Skippable.** If the spec makes implementation obvious, skip the sketch entirely (output `SKETCH_SKIPPED`).
 - **Disposable.** TDD's refactor step overrides the sketch when it discovers better structure.
 - **Spikes over speculation.** If uncertain, write throwaway code to learn — don't plan harder.
 - **No architecture astronautics.** Don't propose design patterns, class hierarchies, or module structures that aren't directly needed for this one story.
-- **Stories only.** Never sketch an epic or feature. If the input is too large, redirect to `slicing-stories` first.
+- **Stories only.** Never sketch an epic or feature. If the input is too large, signal that `slicing-stories` should be run first.
+
+## References
+
+- Templates (design sketch template): `${CLAUDE_SKILL_DIR}/references/templates.md`
+- Worked examples: `${CLAUDE_SKILL_DIR}/references/examples.md`

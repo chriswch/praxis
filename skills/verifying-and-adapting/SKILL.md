@@ -1,10 +1,17 @@
 ---
 name: verifying-and-adapting
 description: Closes the loop after TDD by verifying the implementation holistically against the behavioral spec, reconciling spec-vs-reality divergences, capturing emerged design knowledge, and routing to the next slice or done. Use after driving-tdd completes. Triggers on "verify this", "are we done?", "check against the spec", "close out this story", "what's next?", "wrap up", or when all TDD acceptance criteria are green and the developer needs to confirm completion and decide the next step.
-allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion
+context: fork
+allowed-tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 
 # Verify and Adapt
+
+## Artifact Directory
+
+If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
+
+Read the spec from `{artifact-dir}/spec.md`. Read the TDD session summary from `{artifact-dir}/tdd.md`. Read the sketch (if it exists) from `{artifact-dir}/sketch.md`. Read the slice map (if it exists) from `.praxis/slice-map.json`. Write the verification summary to `{artifact-dir}/verification.md`.
 
 ## Overview
 
@@ -26,12 +33,12 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
 ## Workflow
 
 1. **Validate inputs and triage.**
-   - Gather: behavioral spec, AC checklist, feedback log, session summary (if medium+). If any required input is missing or TDD is incomplete (AC checklist has pending items, suite is not green), redirect back to `driving-tdd` to finish first.
+   - Gather: behavioral spec, AC checklist, feedback log, session summary (if medium+). If any required input is missing or TDD is incomplete (AC checklist has pending items, suite is not green), stop and return a message indicating `driving-tdd` should finish first.
    - Scale ceremony to task size:
-     - **Trivial** (one AC, one file, obvious change): Skip. TDD passed, suite is green, you're done. No verification artifact needed.
+     - **Trivial** (one AC, one file, obvious change): Skip. TDD passed, suite is green, you're done. No verification artifact needed. Output `ROUTING: DONE`.
      - **Small** (1–2 ACs, single file): Quick sanity check — re-read the spec, confirm all ACs are covered, note if anything changed. No formal artifact.
      - **Medium** (3+ ACs, multiple files): Full workflow. Produce a verification summary. Update spec if needed.
-     - **Large**: You shouldn't be here — should have been sliced. Redirect to `slicing-stories`.
+     - **Large**: You shouldn't be here — should have been sliced. Stop and return a message indicating `slicing-stories` should be run first.
 
 2. **Holistic acceptance check.**
    - Walk through every AC in the _original spec_ (not just the test names). For each one:
@@ -80,16 +87,23 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
    - Gaps found (missing behavior, AC not fully covered) → **Rework** — log what's missing, return to `driving-tdd` for the specific gaps. After rework, return here to re-verify.
    - Feature-level rethink needed (scope was wrong, core assumption invalidated) → **Escalate** — return to `clarifying-intent` at the feature level, potentially update the slice map.
 
+**End your output with a routing decision on its own line in this exact format:**
+
+- `ROUTING: DONE` — story or feature complete.
+- `ROUTING: NEXT_SLICE <slice-id>` — proceed to the next slice.
+- `ROUTING: REWORK <description>` — gaps found, return to TDD.
+- `ROUTING: ESCALATE <reason>` — feature-level rethink needed.
+
 ## Default Output
 
-- **Verification summary** (for medium+ tasks). See `references/templates.md`.
+- **Verification summary** (for medium+ tasks). See `${CLAUDE_SKILL_DIR}/references/templates.md`.
 - **Updated spec** (if any ACs were refined or diverged — update inline, don't create a separate document).
 - **Slice impact notes** (if multi-slice and any downstream slices are affected).
 - **Routing decision** with rationale.
 
-Read `references/templates.md` when producing output.
-Read `references/examples.md` for style reference.
-Write to `.praxis/verification.md` (single-story) or `.praxis/slices/{slice-id}/verification.md` (multi-slice).
+Read `${CLAUDE_SKILL_DIR}/references/templates.md` when producing output.
+Read `${CLAUDE_SKILL_DIR}/references/examples.md` for style reference.
+Write to `{artifact-dir}/verification.md`.
 
 ## Downstream Handoff
 
@@ -113,5 +127,5 @@ Write to `.praxis/verification.md` (single-story) or `.praxis/slices/{slice-id}/
 
 ## References
 
-- Templates (verification summary, section guide, spec update convention): `references/templates.md`
-- Worked examples: `references/examples.md`
+- Templates (verification summary, section guide, spec update convention): `${CLAUDE_SKILL_DIR}/references/templates.md`
+- Worked examples: `${CLAUDE_SKILL_DIR}/references/examples.md`
