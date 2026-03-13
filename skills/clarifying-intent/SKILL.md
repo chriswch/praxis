@@ -1,7 +1,7 @@
 ---
 name: clarifying-intent
 description: Clarifies ambiguous ideas, features, tasks, user stories, or problems by eliciting intent, constraints, unknowns, risks, and success criteria; asks focused questions; then produces a structured Feature Brief or Story-Level Behavioral Spec with testable acceptance criteria. Use when a request is vague or underspecified, when scoping work, when a user says "I have a rough idea", "help me scope this", "what should we build", "spec this out", or before planning and coding.
-allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion
+allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, mcp__atlassian__getAccessibleAtlassianResources, mcp__atlassian__getJiraIssue, mcp__figma-remote-mcp__get_design_context, mcp__figma-remote-mcp__get_screenshot, mcp__atlassian__search
 ---
 
 # Clarify Intent
