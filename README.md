@@ -22,6 +22,16 @@ verifying-and-adapting ──→ next slice / done / rework
 
 Every transition is a human decision, not an automated pipeline. You drive the workflow; the skills provide structure at each step.
 
+### Prototype workflow (`/prototype`)
+
+```text
+clarifying-intent ──→ [slicing-stories] ──→ sketching-design ──→ rapid-implementing ──→ done
+       ↑                                                                |
+       └──────────────── feedback (spec issues) ───────────────────────┘
+```
+
+Same spec-driven clarification, then auto-advance without human checkpoints or test writing. Fast path for prototypes and MVPs.
+
 ## Skills
 
 | Skill                    | What it does                                                                                                          |
@@ -31,6 +41,7 @@ Every transition is a human decision, not an automated pipeline. You drive the w
 | `sketching-design`       | Locates affected files, matches existing patterns, proposes a direction — just enough to write the first failing test |
 | `driving-tdd`            | Red → Green → Refactor, one acceptance criterion at a time                                                            |
 | `verifying-and-adapting` | Checks the whole story against the spec, reconciles divergences, routes to next slice or done                         |
+| `rapid-implementing`     | Implements acceptance criteria as working code without writing tests — for prototype/MVP mode                         |
 | `linus-style-reviewing`  | Blunt design and code review focused on simplicity, fewer special cases, and backwards compatibility                  |
 
 ## Fast paths
@@ -41,6 +52,7 @@ Not everything needs the full ceremony.
 - **Bug fix**: `clarifying-intent` → `driving-tdd`. Skip design and verification.
 - **Refactor**: existing tests cover the behavior. Refactor, re-run, done.
 - **Small story** (1-2 days): `clarifying-intent` → `sketching-design` (optional) → `driving-tdd` → `verifying-and-adapting`.
+- **Prototype/MVP**: `clarifying-intent` → auto-advance through `sketching-design` → `rapid-implementing`. No tests, no human checkpoints after spec confirmation.
 
 Every skill triages by size and skips ceremony that doesn't earn its keep.
 
@@ -68,9 +80,11 @@ praxis/
 │   ├── sketching-design/
 │   ├── driving-tdd/
 │   ├── verifying-and-adapting/
+│   ├── rapid-implementing/
 │   └── linus-style-reviewing/
 ├── commands/                # Slash commands
-│   └── praxis.md            # Full workflow orchestrator
+│   ├── praxis.md            # Full workflow orchestrator
+│   └── prototype.md         # Prototype/MVP orchestrator
 ├── CLAUDE.md
 └── README.md
 ```
