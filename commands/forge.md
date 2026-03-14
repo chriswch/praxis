@@ -3,9 +3,9 @@ description: Drive a rapid prototype/MVP workflow — full interactive clarifica
 allowed-tools: Skill(praxis:clarifying-intent), Skill(praxis:slicing-stories), Skill(praxis:sketching-design), Skill(praxis:rapid-implementing)
 ---
 
-# Prototype Workflow
+# Forge Workflow
 
-This command orchestrates the rapid prototype/MVP workflow. Same spec-driven clarification as `/praxis`, but after requirements are locked, it auto-advances through design and implementation without pausing for human checkpoints and without writing tests.
+This command orchestrates the rapid prototype/MVP workflow. Same spec-driven clarification as `/craft`, but after requirements are locked, it auto-advances through design and implementation without pausing for human checkpoints and without writing tests.
 
 ## Task
 
@@ -15,7 +15,7 @@ $ARGUMENTS
 
 The pipeline has three core stages (four for large features). Non-interactive skills have `context: fork` and run in isolated subagent contexts. Only `clarifying-intent` runs inline (it needs `AskUserQuestion` for interactive questioning).
 
-Skills communicate through `.praxis/` filesystem artifacts — same paths as the full `/praxis` workflow. After `clarifying-intent` finishes, the remaining stages auto-advance without user confirmation.
+Skills communicate through `.praxis/` filesystem artifacts — same paths as the full `/craft` workflow. After `clarifying-intent` finishes, the remaining stages auto-advance without user confirmation.
 
 For multi-slice features, pass the artifact directory as the skill argument (e.g., `.praxis/slices/S-001/`). Skills default to `.praxis/` when no argument is given.
 
@@ -31,7 +31,7 @@ Invoke the `clarifying-intent` skill with the task above.
 - **Large feature**: produces a Feature Brief (`.praxis/brief.md`). Proceed to Stage 2.
 - **Small/medium story**: produces a Story-Level Spec (`.praxis/spec.md`). Skip to Stage 3.
 
-After the skill finishes, confirm the artifact with the user before continuing. This is the one human checkpoint in the prototype workflow — the spec must be right before auto-advancing.
+After the skill finishes, confirm the artifact with the user before continuing. This is the one human checkpoint in the forge workflow — the spec must be right before auto-advancing.
 
 ### Stage 2: Slice Stories (large features only, auto-advance)
 

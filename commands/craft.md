@@ -3,7 +3,7 @@ description: Drive the spec-driven + test-driven development workflow for the ta
 allowed-tools: Skill(praxis:clarifying-intent), Skill(praxis:slicing-stories), Skill(praxis:sketching-design), Skill(praxis:driving-tdd), Skill(praxis:verifying-and-adapting), Skill(praxis:linus-style-reviewing)
 ---
 
-# Praxis Workflow
+# Craft Workflow
 
 This command orchestrates the spec-driven + test-driven development workflow.
 

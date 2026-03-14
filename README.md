@@ -8,6 +8,8 @@ Theory without practice is empty. Practice without theory is blind. **Praxis** i
 
 Start from the highest level of abstraction — a vague idea, a problem statement, a feature request — and transform it step by step into concrete, working code. Each stage has one job. Do that job and move on.
 
+### Craft workflow (`/craft`)
+
 ```text
      clarifying-intent
       ↙            ↘
@@ -24,7 +26,7 @@ verifying-and-adapting ──→ next slice / done / rework
 
 Every transition is a human decision, not an automated pipeline. You drive the workflow; the skills provide structure at each step.
 
-### Prototype workflow (`/prototype`)
+### Forge workflow (`/forge`)
 
 ```text
 clarifying-intent ──→ [slicing-stories] ──→ sketching-design ──→ rapid-implementing ──→ done
@@ -54,7 +56,7 @@ Not everything needs the full ceremony.
 - **Bug fix**: `clarifying-intent` → `driving-tdd`. Skip design and verification.
 - **Refactor**: existing tests cover the behavior. Refactor, re-run, done.
 - **Small story** (1-2 days): `clarifying-intent` → `sketching-design` (optional) → `driving-tdd` → `verifying-and-adapting`.
-- **Prototype/MVP**: `clarifying-intent` → auto-advance through `sketching-design` → `rapid-implementing`. No tests, no human checkpoints after spec confirmation.
+- **Prototype/MVP** (`/forge`): `clarifying-intent` → auto-advance through `sketching-design` → `rapid-implementing`. No tests, no human checkpoints after spec confirmation.
 
 Every skill triages by size and skips ceremony that doesn't earn its keep.
 
@@ -97,8 +99,8 @@ praxis/
 │   ├── rapid-implementing/
 │   └── linus-style-reviewing/
 ├── commands/                # Slash commands
-│   ├── praxis.md            # Full workflow orchestrator
-│   └── prototype.md         # Prototype/MVP orchestrator
+│   ├── craft.md             # Full workflow orchestrator (/craft)
+│   └── forge.md             # Prototype/MVP orchestrator (/forge)
 ├── CLAUDE.md
 └── README.md
 ```

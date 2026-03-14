@@ -16,11 +16,11 @@ Build products the way humans build good products: start from the highest abstra
 
 ## Workflow
 
-Pipeline: `clarifying-intent` → [`slicing-stories`] → `sketching-design` → `driving-tdd` → `verifying-and-adapting`
+`/craft` pipeline: `clarifying-intent` → [`slicing-stories`] → `sketching-design` → `driving-tdd` → `verifying-and-adapting`
 
-Prototype pipeline: `clarifying-intent` → [`slicing-stories`] → `sketching-design` → `rapid-implementing`
+`/forge` pipeline: `clarifying-intent` → [`slicing-stories`] → `sketching-design` → `rapid-implementing`
 
-Fast paths: Trivial skips everything. Bug fix → clarify + TDD. Refactor → existing tests + refactor. Prototype/MVP → full clarification, then auto-advance without tests or human checkpoints. Every skill triages by size.
+Fast paths: Trivial skips everything. Bug fix → clarify + TDD. Refactor → existing tests + refactor. `/forge` → full clarification, then auto-advance without tests or human checkpoints. Every skill triages by size.
 
 ## Artifact paths
 

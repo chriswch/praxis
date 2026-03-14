@@ -1,6 +1,6 @@
 {
   "name": "praxis",
-  "description": "Spec-driven, test-driven development workflow — clarify intent, slice stories, sketch design, drive TDD, verify and adapt.",
+  "description": "Spec-driven development workflow — /craft for test-driven development with verification, /forge for rapid prototyping without tests.",
   "version": "1.0.0",
   "license": "MIT"
 }
