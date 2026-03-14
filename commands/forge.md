@@ -74,7 +74,8 @@ When all slices are done (or the single story completes), read the implementatio
 
 ## Rules
 
-- **One human checkpoint**: confirm the spec after `clarifying-intent`. Everything else auto-advances.
+- **Only confirm after `clarifying-intent`** — that's the sole type of human checkpoint. In multi-slice features this means one confirmation per slice (each slice runs `clarifying-intent` for its own spec). Everything else auto-advances.
+- **Do not present intermediate artifacts.** Do not show the slice map, sketch, or implementation summary to the user for review. Report completion only after all stages finish.
 - Respect fast paths: don't force ceremony on trivial or small tasks.
 - All artifacts go to `.praxis/` (single-story) or `.praxis/slices/{slice-id}/` (multi-slice) as defined in CLAUDE.md.
 - **Artifact-mediated communication**: Skills read inputs from and write outputs to `.praxis/`. Do not relay artifact content through the orchestrator's context — let skills read the files directly.
