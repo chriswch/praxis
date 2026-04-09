@@ -1,108 +1,42 @@
 ---
-description: Drive the spec-driven + test-driven development workflow for the task below, advancing through each stage with user checkpoints between stages.
+description: Drive the full Praxis craft workflow with user checkpoints between stages.
 allowed-tools: Skill(praxis:clarifying-intent), Skill(praxis:slicing-stories), Skill(praxis:sketching-design), Skill(praxis:driving-tdd), Skill(praxis:code-reviewing), Skill(praxis:code-improving), Skill(praxis:verifying-and-adapting)
 ---
 
-# Craft Workflow
-
-This command orchestrates the spec-driven + test-driven development workflow.
+# Craft
 
 ## Task
 
 $ARGUMENTS
 
-## How It Works
+## Shared Workflow Source
 
-The pipeline has seven stages. Each non-interactive skill has `context: fork` in its frontmatter, so it automatically runs in an isolated subagent context — codebase exploration, test writing, and reasoning stay out of this conversation. Only `clarifying-intent` runs inline (it needs `AskUserQuestion` for interactive questioning).
+Load and follow `../workflow/pipelines/craft.md`.
 
-Skills communicate through `.praxis/` filesystem artifacts. Each stage reads the previous stage's output and writes its own. The orchestrator presents each artifact to the user between stages.
+Treat that file as the workflow source of truth for:
 
-For multi-slice features, pass the artifact directory as the skill argument (e.g., `.praxis/slices/S-001/`). Skills default to `.praxis/` when no argument is given.
+- stage order
+- checkpoint policy
+- routing behavior
+- artifact scope
+- completion rules
 
-## Workflow
+Also use these shared contracts:
 
-Execute the pipeline stage by stage. After each stage completes, present its output artifact to the user and confirm before advancing.
+- `../workflow/contracts/run.schema.json`
+- `../workflow/contracts/stage-result.schema.json`
 
-### Stage 1: Clarify Intent (inline)
+## Claude Adapter Rules
 
-Invoke the `clarifying-intent` skill with the task above.
-
-- The skill will triage by size and produce the appropriate artifact.
-- **Trivial**: state the change, implement it, commit, done — skip the rest of the workflow.
-- **Bug fix**: after this stage, skip directly to Stage 4 (driving-tdd).
-- **Large feature**: produces a Feature Brief (`.praxis/brief.md`). Proceed to Stage 2.
-- **Small/medium story**: produces a Story-Level Spec (`.praxis/spec.md`). Skip to Stage 3.
-
-After the skill finishes, confirm the artifact with the user before continuing.
-
-### Stage 2: Slice Stories (large features only)
-
-Invoke the `slicing-stories` skill.
-
-When the skill completes:
-
-- If `## Blocking Questions` appears in the output, resolve them with the user using `AskUserQuestion`, then re-invoke the skill.
-- Otherwise, read `.praxis/slice-map.json` and present the slice map to the user. Confirm before continuing.
-
-**Slice iteration:** Once confirmed, iterate through slices in sequence order. For each slice:
-
-1. Run Stage 1 (clarifying-intent, inline) to produce a Story-Level Spec at `.praxis/slices/{slice-id}/spec.md`.
-2. Continue through Stages 3-7, passing `.praxis/slices/{slice-id}/` as the skill argument.
-
-### Stage 3: Sketch Design
-
-Invoke the `sketching-design` skill, passing the artifact directory as the argument (e.g., `.praxis/slices/S-001/` for multi-slice, or omit for single-story).
-
-When the skill completes:
-
-- If a sketch was produced, read it and present to the user. Confirm before continuing.
-- If `SKETCH_SKIPPED` appears in the output, inform the user and proceed directly to Stage 4.
-- If `## Spec Issue` appears, resolve it with the user using `AskUserQuestion`, update the spec, then re-invoke the skill.
-
-### Stage 4: Drive TDD
-
-Invoke the `driving-tdd` skill, passing the artifact directory as the argument.
-
-When the skill completes, check the TDD session summary:
-
-- **If `## Feedback` exists**: A spec issue needs resolution. Run `clarifying-intent` inline to resolve it with the user. Update the spec. Then re-invoke `driving-tdd` — it will pick up from the updated spec and the existing test files.
-- **If all ACs are green**: Read the TDD session summary and proceed to Stage 5.
-
-### Stage 5: Code Review
-
-Invoke the `code-reviewing` skill, passing the artifact directory as the argument.
-
-When the skill completes:
-
-- If `REVIEW_SKIPPED` appears in the output, inform the user and proceed directly to Stage 7.
-- Otherwise, read the review report and present it to the user. The report shows issues by severity (critical, high, medium, low). Explain that critical/high/medium issues will be auto-fixed in the next stage, and low issues are for the user to decide on later. Confirm before continuing.
-
-### Stage 6: Code Improvement
-
-Invoke the `code-improving` skill, passing the artifact directory as the argument.
-
-When the skill completes:
-
-- **If `IMPROVEMENT_SKIPPED`**: No review was produced. Proceed to Stage 7.
-- **If `## Feedback` exists**: A spec or test issue needs resolution. Run `clarifying-intent` inline to resolve with the user. Update the spec. Then re-invoke `code-improving`.
-- **Otherwise**: Read the improvement summary and present it to the user — what was fixed and what low-severity items remain for their consideration. Confirm before continuing to Stage 7.
-
-### Stage 7: Verify and Adapt
-
-Invoke the `verifying-and-adapting` skill, passing the artifact directory as the argument.
-
-Follow the routing decision in the output:
-
-- **`ROUTING: DONE`**: Workflow complete. Read the verification summary and report to the user.
-- **`ROUTING: NEXT_SLICE <slice-id>`**: Return to the slice iteration loop. Run Stage 1 (clarifying-intent, inline) for the indicated slice, then continue through Stages 3-7.
-- **`ROUTING: REWORK <description>`**: Return to Stage 4. Re-invoke `driving-tdd` to address the specific gaps identified. After TDD completes, continue through Stages 5-7 again.
-- **`ROUTING: ESCALATE <reason>`**: Return to Stage 1 at the feature level to rethink. May require updating the Feature Brief and Slice Map.
-
-## Rules
-
-- Every transition between stages is a user checkpoint — present the artifact summary and ask to proceed.
-- Respect fast paths: don't force ceremony on trivial or small tasks.
-- All artifacts go to `.praxis/` (single-story) or `.praxis/slices/{slice-id}/` (multi-slice) as defined in CLAUDE.md.
-- If the user wants to stop or pivot at any checkpoint, respect that immediately.
-- **Artifact-mediated communication**: Skills read inputs from and write outputs to `.praxis/`. Do not relay artifact content through the orchestrator's context — let skills read the files directly.
-- **Feedback proxy**: When a forked skill encounters a spec issue requiring user input, it stops and returns the issue. The orchestrator resolves it by running `clarifying-intent` inline, then re-invokes the forked skill.
+- This file is a thin Claude wrapper. Do not duplicate the shared workflow logic
+  here.
+- Keep orchestration in the main session.
+- Use the listed Praxis stage skills as workers.
+- `clarifying-intent` may run inline when user interaction is required.
+- Other stages may run in isolated contexts when the stage skill configuration
+  allows it.
+- Read and write workflow state through `.praxis/`.
+- Use `{artifact-dir}/results/<stage>.json` as the routing API. Do not rely only
+  on human-readable markers in Markdown.
+- If this wrapper and `../workflow/pipelines/craft.md` ever disagree, the shared
+  pipeline file wins for workflow semantics.
