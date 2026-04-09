@@ -1,6 +1,6 @@
 # Praxis
 
-Spec-driven, test-driven development plugin.
+Spec-driven, test-driven development plugin for Claude Code and Codex.
 
 Theory without practice is empty. Practice without theory is blind. **Praxis** is the cycle where understanding and action inform each other — you spec what to build, build it through TDD, verify against the spec, and adapt when reality diverges.
 
@@ -8,7 +8,7 @@ Theory without practice is empty. Practice without theory is blind. **Praxis** i
 
 Start from the highest level of abstraction — a vague idea, a problem statement, a feature request — and transform it step by step into concrete, working code. Each stage has one job. Do that job and move on.
 
-### Craft workflow (`/craft`)
+### Craft workflow (`/craft` in Claude, `craft` skill in Codex)
 
 ```text
      clarifying-intent
@@ -26,7 +26,7 @@ verifying-and-adapting ──→ next slice / done / rework
 
 Every transition is a human decision, not an automated pipeline. You drive the workflow; the skills provide structure at each step.
 
-### Forge workflow (`/forge`)
+### Forge workflow (`/forge` in Claude, `forge` skill in Codex)
 
 ```text
 clarifying-intent ──→ [slicing-stories] ──→ sketching-design ──→ rapid-implementing ──→ done
@@ -87,21 +87,32 @@ Every skill triages by size and skips ceremony that doesn't earn its keep.
 
 ```
 praxis/
+├── .codex-plugin/
+│   └── plugin.json          # Codex plugin manifest
 ├── .claude-plugin/
-│   └── plugin.json          # Plugin manifest
+│   └── plugin.json          # Claude plugin manifest
 ├── skills/                  # Skill definitions
+│   ├── craft/               # Codex workflow entrypoint (full workflow)
+│   ├── forge/               # Codex workflow entrypoint (fast workflow)
 │   ├── clarifying-intent/
 │   ├── slicing-stories/
 │   ├── sketching-design/
 │   ├── driving-tdd/
 │   ├── verifying-and-adapting/
 │   └── rapid-implementing/
-├── commands/                # Slash commands
+├── commands/                # Claude slash commands
 │   ├── craft.md             # Full workflow orchestrator (/craft)
 │   └── forge.md             # Fast delivery orchestrator (/forge)
 ├── CLAUDE.md
 └── README.md
 ```
+
+## Codex support
+
+- `.codex-plugin/plugin.json` exposes Praxis as a Codex plugin using the existing `skills/` directory.
+- `skills/craft/SKILL.md` and `skills/forge/SKILL.md` provide Codex-native workflow entrypoints equivalent to the Claude `/craft` and `/forge` commands.
+- The stage skills now use repo-relative `references/` and `scripts/` paths instead of the Claude-only `CLAUDE_SKILL_DIR` variable, so the same skill content can be reused in Codex.
+- `commands/` remains useful for Claude, while Codex consumes the mirrored workflow entrypoints under `skills/`.
 
 ## License
 

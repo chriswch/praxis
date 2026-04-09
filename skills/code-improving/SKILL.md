@@ -59,7 +59,7 @@ After all fixes:
 
 Write `{artifact-dir}/improvement.md`.
 
-Read `${CLAUDE_SKILL_DIR}/references/templates.md` when producing output.
+Read `references/templates.md` when producing output.
 
 ## Guardrails
 

@@ -1,0 +1,39 @@
+{
+  "name": "praxis",
+  "version": "1.0.0",
+  "description": "Spec-driven software engineering workflows for turning ideas into clarified specs, tested code, and verified changes.",
+  "author": {
+    "name": "chriswch",
+    "email": "chriswangwch@gmail.com",
+    "url": "https://github.com/chriswch"
+  },
+  "homepage": "https://github.com/chriswch/praxis",
+  "repository": "https://github.com/chriswch/praxis",
+  "license": "MIT",
+  "keywords": [
+    "software-engineering",
+    "spec-driven-development",
+    "tdd",
+    "workflow",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Praxis",
+    "shortDescription": "Spec-driven workflows for clarifying, designing, implementing, reviewing, and verifying software changes",
+    "longDescription": "Praxis brings its staged software engineering workflow to Codex. It includes reusable skills for clarifying intent, slicing features, sketching design, driving TDD, reviewing code, improving changes, and verifying behavior, plus `craft` and `forge` workflow skills that adapt the original Claude slash commands for Codex.",
+    "developerName": "chriswch",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/chriswch/praxis",
+    "defaultPrompt": [
+      "Clarify this feature and turn it into a testable spec before coding.",
+      "Split this large feature into thin vertical slices I can ship incrementally.",
+      "Drive this change with the full Praxis craft workflow."
+    ]
+  }
+}

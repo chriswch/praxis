@@ -96,13 +96,13 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
 
 ## Default Output
 
-- **Verification summary** (for medium+ tasks). See `${CLAUDE_SKILL_DIR}/references/templates.md`.
+- **Verification summary** (for medium+ tasks). See `references/templates.md`.
 - **Updated spec** (if any ACs were refined or diverged — update inline, don't create a separate document).
 - **Slice impact notes** (if multi-slice and any downstream slices are affected).
 - **Routing decision** with rationale.
 
-Read `${CLAUDE_SKILL_DIR}/references/templates.md` when producing output.
-Read `${CLAUDE_SKILL_DIR}/references/examples.md` for style reference.
+Read `references/templates.md` when producing output.
+Read `references/examples.md` for style reference.
 Write to `{artifact-dir}/verification.md`.
 
 ## Downstream Handoff
@@ -127,5 +127,5 @@ Write to `{artifact-dir}/verification.md`.
 
 ## References
 
-- Templates (verification summary, section guide, spec update convention): `${CLAUDE_SKILL_DIR}/references/templates.md`
-- Worked examples: `${CLAUDE_SKILL_DIR}/references/examples.md`
+- Templates (verification summary, section guide, spec update convention): `references/templates.md`
+- Worked examples: `references/examples.md`

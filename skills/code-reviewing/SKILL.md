@@ -142,4 +142,4 @@ Scale the review to the size of the change:
 
 Write the review report to `{artifact-dir}/review.md`.
 
-Read `${CLAUDE_SKILL_DIR}/references/templates.md` when producing output.
+Read `references/templates.md` when producing output.

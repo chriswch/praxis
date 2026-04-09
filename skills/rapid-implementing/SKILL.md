@@ -38,7 +38,7 @@ The behavioral spec provides the implementation guidance. The design sketch (if 
    - If a design sketch exists, read it for the change map and approach direction.
    - If no sketch, explore the codebase: file conventions, existing patterns. Just enough to place the code.
    - Check recent `git log --oneline` for commit message conventions (conventional commits, prefix style, etc.).
-   - Output: **AC checklist**. See `${CLAUDE_SKILL_DIR}/references/templates.md`.
+   - Output: **AC checklist**. See `references/templates.md`.
 
 2. **Order the ACs.**
    - Happy path first — the walking skeleton that proves core behavior works.
@@ -68,7 +68,7 @@ The behavioral spec provides the implementation guidance. The design sketch (if 
    - Impossible constraint → flag it under `## Feedback` and stop.
    - Design sketch was wrong → discard or update. Expected and normal. No need to stop for this.
    - Slice map affected → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 6).
-   - Track discoveries in the **feedback log**. See `${CLAUDE_SKILL_DIR}/references/templates.md`.
+   - Track discoveries in the **feedback log**. See `references/templates.md`.
 
 6. **Between-slice checkpoint** (when working through a slice map).
    - After completing all ACs for a slice, note in your output:
@@ -82,7 +82,7 @@ The behavioral spec provides the implementation guidance. The design sketch (if 
 - Source code implementing every acceptance criterion.
 - AC checklist showing completion status.
 - Feedback log (if any discoveries).
-- Implementation summary (for medium+ tasks). See `${CLAUDE_SKILL_DIR}/references/templates.md`.
+- Implementation summary (for medium+ tasks). See `references/templates.md`.
 - Write AC checklist, feedback log, and implementation summary to `{artifact-dir}/implementation.md`.
 
 ## Guardrails
@@ -97,4 +97,4 @@ The behavioral spec provides the implementation guidance. The design sketch (if 
 
 ## References
 
-- Templates (AC checklist, feedback log, implementation summary): `${CLAUDE_SKILL_DIR}/references/templates.md`
+- Templates (AC checklist, feedback log, implementation summary): `references/templates.md`

@@ -32,13 +32,13 @@ If the input is not a Feature Brief, stop and return a message asking the orches
 Produce two artifacts:
 
 1. A human-readable **Slice Map (Markdown)** for reading/review.
-2. A canonical **Slice Map (JSON)** that conforms to `${CLAUDE_SKILL_DIR}/references/slice-map.spec.md`.
+2. A canonical **Slice Map (JSON)** that conforms to `references/slice-map.spec.md`.
 
 - Put the Markdown first, and the JSON last (in a fenced `json` block).
 - Treat the JSON as the source of truth; ensure the Markdown is derivable from the JSON.
 - Write the JSON to `.praxis/slice-map.json` and optionally render Markdown with:
-  - `python3 ${CLAUDE_SKILL_DIR}/scripts/render_slice_map_markdown.py .praxis/slice-map.json > .praxis/slice-map.md`
-- If producing JSON, validate with `python3 ${CLAUDE_SKILL_DIR}/scripts/validate_slice_map.py .praxis/slice-map.json`.
+  - `python3 scripts/render_slice_map_markdown.py .praxis/slice-map.json > .praxis/slice-map.md`
+- If producing JSON, validate with `python3 scripts/validate_slice_map.py .praxis/slice-map.json`.
 
 ## Workflow
 
@@ -48,7 +48,7 @@ Produce two artifacts:
 
 2. **Identify seam lines.**
    - Find natural boundaries where the feature can be split into independently deliverable, testable behaviors.
-   - Apply slicing heuristics (see `${CLAUDE_SKILL_DIR}/references/templates.md`):
+   - Apply slicing heuristics (see `references/templates.md`):
      - Start with a walking skeleton — the thinnest end-to-end path that delivers value to one real user with one real integration. Use real dependencies (a real IdP, a real database, a real API), not stubs or test doubles. The skeleton proves the architecture BY delivering value, not instead of it.
      - Then add: validation/error states, edge cases, permissions/roles, performance/accessibility, telemetry.
      - Split by persona, workflow step, data subset, or capability tier (read → create → edit → bulk).
@@ -83,7 +83,7 @@ Produce two artifacts:
      - Are `scope_in` boundaries clear enough that `clarifying-intent` can spec the slice without asking "what are we building?"
      - Do `scope_out` boundaries prevent overlap between slices?
      - Is anything in the slice map actually a spike (technology validation, integration proof) rather than a user story? If so, extract it as a spike in `clarifying-intent` and remove it from the slice map.
-   - If producing JSON, run `python3 ${CLAUDE_SKILL_DIR}/scripts/validate_slice_map.py .praxis/slice-map.json`.
+   - If producing JSON, run `python3 scripts/validate_slice_map.py .praxis/slice-map.json`.
 
 ## Downstream Handoff
 
@@ -100,7 +100,7 @@ When updating, re-validate (step 5) and re-confirm with the requester. Don't tre
 
 ## References and Tools
 
-- Templates and slicing heuristics: `${CLAUDE_SKILL_DIR}/references/templates.md`
-- Output schema: `${CLAUDE_SKILL_DIR}/references/slice-map.spec.md`
-- Validator: `python3 ${CLAUDE_SKILL_DIR}/scripts/validate_slice_map.py .praxis/slice-map.json`
-- Markdown renderer: `python3 ${CLAUDE_SKILL_DIR}/scripts/render_slice_map_markdown.py .praxis/slice-map.json`
+- Templates and slicing heuristics: `references/templates.md`
+- Output schema: `references/slice-map.spec.md`
+- Validator: `python3 scripts/validate_slice_map.py .praxis/slice-map.json`
+- Markdown renderer: `python3 scripts/render_slice_map_markdown.py .praxis/slice-map.json`

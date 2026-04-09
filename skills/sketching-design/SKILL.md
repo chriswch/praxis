@@ -66,7 +66,7 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
    - Confirm the sketch is shorter than the spec. If not, compress.
 
 6. **Produce the design sketch.**
-   - Use the template from `${CLAUDE_SKILL_DIR}/references/templates.md`.
+   - Use the template from `references/templates.md`.
    - Keep it shorter than the behavioral spec that feeds it. If the sketch is longer, compress or remove sections.
    - Write to `{artifact-dir}/sketch.md`.
 
@@ -84,5 +84,5 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
 
 ## References
 
-- Templates (design sketch template): `${CLAUDE_SKILL_DIR}/references/templates.md`
-- Worked examples: `${CLAUDE_SKILL_DIR}/references/examples.md`
+- Templates (design sketch template): `references/templates.md`
+- Worked examples: `references/examples.md`

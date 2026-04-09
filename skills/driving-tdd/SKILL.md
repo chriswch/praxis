@@ -38,7 +38,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
    - If a design sketch exists, read it for the change map and first test.
    - If no sketch, explore the codebase: test framework, file conventions, existing patterns. Just enough to place the first test.
    - Check recent `git log --oneline` for commit message conventions (conventional commits, prefix style, etc.).
-   - Output: **AC checklist**. See `${CLAUDE_SKILL_DIR}/references/templates.md`.
+   - Output: **AC checklist**. See `references/templates.md`.
 
 2. **Order the ACs.**
    - Happy path first — the walking skeleton that proves core behavior works.
@@ -81,7 +81,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
    - Impossible constraint → flag it under `## Feedback` and stop.
    - Design sketch was wrong → discard or update. Expected and normal. No need to stop for this.
    - Slice map affected → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 9).
-   - Track discoveries in the **feedback log**. See `${CLAUDE_SKILL_DIR}/references/templates.md`.
+   - Track discoveries in the **feedback log**. See `references/templates.md`.
    - The spec is a living artifact. Updating it during TDD is the agile feedback loop working correctly.
 
 9. **Between-slice checkpoint** (when working through a slice map).
@@ -98,7 +98,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 - Source code passing all tests.
 - AC checklist showing completion status.
 - Feedback log (if any discoveries).
-- Session summary (for medium+ tasks). See `${CLAUDE_SKILL_DIR}/references/templates.md`.
+- Session summary (for medium+ tasks). See `references/templates.md`.
 - Write AC checklist, feedback log, and session summary to `{artifact-dir}/tdd.md`.
 
 ## Guardrails
@@ -118,5 +118,5 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 
 ## References
 
-- Templates (AC checklist, feedback log, session summary): `${CLAUDE_SKILL_DIR}/references/templates.md`
-- Worked examples: `${CLAUDE_SKILL_DIR}/references/examples.md`
+- Templates (AC checklist, feedback log, session summary): `references/templates.md`
+- Worked examples: `references/examples.md`
