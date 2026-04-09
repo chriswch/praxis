@@ -14,6 +14,27 @@ If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/sl
 Read the review report from `{artifact-dir}/review.md` — required.
 Read the spec from `{artifact-dir}/spec.md` for context.
 Write the improvement summary to `{artifact-dir}/improvement.md`.
+Ensure `{artifact-dir}/results/` exists and write the structured result to
+`{artifact-dir}/results/code-improving.json`.
+
+## Result Contract
+
+Follow `../../workflow/contracts/stage-result.schema.json`.
+
+The result JSON is the routing source of truth.
+
+Use these outcome codes:
+
+- `improvement_ready` -> `status = completed`, `route.kind = proceed`,
+  `route.next_stage = null`
+- `improvement_skipped` -> `status = skipped`, `route.kind = proceed`,
+  `route.next_stage = null`
+- `spec_feedback` -> `status = blocked`, `route.kind = ask_user`,
+  `route.next_stage = clarifying-intent`, `needs_user_input = true`
+
+Use `{artifact-dir}/improvement.md` as `summary_path` when the summary exists.
+If the stage is skipped, `summary_path` may be `null`. Even on skip or blocker
+outcomes, still write `results/code-improving.json`.
 
 ## Role
 
@@ -27,9 +48,11 @@ You are not the reviewer. You did not write the review. You read it, understand 
 
 Read `{artifact-dir}/review.md`.
 
-If the review says `REVIEW_SKIPPED`, output `IMPROVEMENT_SKIPPED` and stop.
+If the review says `REVIEW_SKIPPED`, write
+`{artifact-dir}/results/code-improving.json` with
+`data.outcome_code = improvement_skipped` and stop.
 
-Parse the issues by severity. Count them. If there are no critical, high, or medium issues, write a brief improvement summary noting only low-severity items remain for user consideration. Write to `{artifact-dir}/improvement.md` and stop.
+Parse the issues by severity. Count them. If there are no critical, high, or medium issues, write a brief improvement summary noting only low-severity items remain for user consideration. Write to `{artifact-dir}/improvement.md`, then write `{artifact-dir}/results/code-improving.json` with `data.outcome_code = improvement_ready`, and stop.
 
 ### 2. Plan fixes
 
@@ -58,12 +81,17 @@ After all fixes:
 ### 5. Write the improvement summary
 
 Write `{artifact-dir}/improvement.md`.
+Write `{artifact-dir}/results/code-improving.json` with
+`data.outcome_code = improvement_ready`.
 
 Read `references/templates.md` when producing output.
 
 ## Guardrails
 
-- **Do NOT modify test files.** Tests define the behavioral contract. If you think a test is wrong, that's a spec clarification issue — output `## Feedback` and stop. The orchestrator will resolve with the user.
+- **Do NOT modify test files.** Tests define the behavioral contract. If you
+  think a test is wrong, that's a spec clarification issue — output
+  `## Feedback`, emit `data.outcome_code = spec_feedback`, and stop. The
+  orchestrator will resolve with the user.
 - **Do NOT fix low-severity issues.** Those are for the user to evaluate and decide.
 - **Do NOT add new features, tests, or functionality.** You are improving existing code quality, not extending behavior.
 - **Do NOT over-engineer the fixes.** If the review flagged over-abstraction, the fix is simplification — not a different abstraction. Remove complexity, don't transform it.
@@ -78,4 +106,8 @@ If during improvement you discover that:
 - The API surface needs to change to fix a critical issue
 - The spec has an ambiguity that the review exposed
 
-Output a `## Feedback` section describing the issue, and stop. Do not attempt to resolve spec-level concerns on your own. The orchestrator will run `clarifying-intent` to resolve with the user, then re-invoke this skill.
+Output a `## Feedback` section describing the issue, write
+`{artifact-dir}/results/code-improving.json` with
+`data.outcome_code = spec_feedback`, and stop. Do not attempt to resolve
+spec-level concerns on your own. The orchestrator will run `clarifying-intent`
+to resolve with the user, then re-invoke this skill.

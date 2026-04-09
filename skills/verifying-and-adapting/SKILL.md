@@ -12,6 +12,29 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Edit
 If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
 
 Read the spec from `{artifact-dir}/spec.md`. Read the TDD session summary from `{artifact-dir}/tdd.md`. Read the sketch (if it exists) from `{artifact-dir}/sketch.md`. Read the slice map (if it exists) from `.praxis/slice-map.json`. Write the verification summary to `{artifact-dir}/verification.md`.
+Ensure `{artifact-dir}/results/` exists and write the structured result to
+`{artifact-dir}/results/verifying-and-adapting.json`.
+
+## Result Contract
+
+Follow `../../workflow/contracts/stage-result.schema.json`.
+
+The result JSON is the routing source of truth.
+
+Use these outcome codes:
+
+- `done` -> `status = completed`, `route.kind = done`,
+  `route.next_stage = null`
+- `next_slice` -> `status = completed`, `route.kind = next_slice`,
+  `route.next_stage = clarifying-intent`, `route.next_slice_id = <slice-id>`
+- `rework` -> `status = blocked`, `route.kind = rework`,
+  `route.next_stage = driving-tdd`
+- `escalate` -> `status = blocked`, `route.kind = escalate`,
+  `route.next_stage = clarifying-intent`
+
+Use `{artifact-dir}/verification.md` as `summary_path` when you write it. For
+trivial verification, `summary_path` may be `null`. Even on trivial, blocker,
+or escalation outcomes, still write `results/verifying-and-adapting.json`.
 
 ## Overview
 
@@ -35,7 +58,7 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
 1. **Validate inputs and triage.**
    - Gather: behavioral spec, AC checklist, feedback log, session summary (if medium+). If any required input is missing or TDD is incomplete (AC checklist has pending items, suite is not green), stop and return a message indicating `driving-tdd` should finish first.
    - Scale ceremony to task size:
-     - **Trivial** (one AC, one file, obvious change): Skip. TDD passed, suite is green, you're done. No verification artifact needed. Output `ROUTING: DONE`.
+     - **Trivial** (one AC, one file, obvious change): Skip the full artifact. TDD passed, suite is green, you're done. Still write `{artifact-dir}/results/verifying-and-adapting.json` with `data.outcome_code = done`.
      - **Small** (1–2 ACs, single file): Quick sanity check — re-read the spec, confirm all ACs are covered, note if anything changed. No formal artifact.
      - **Medium** (3+ ACs, multiple files): Full workflow. Produce a verification summary. Update spec if needed.
      - **Large**: You shouldn't be here — should have been sliced. Stop and return a message indicating `slicing-stories` should be run first.
@@ -87,12 +110,17 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
    - Gaps found (missing behavior, AC not fully covered) → **Rework** — log what's missing, return to `driving-tdd` for the specific gaps. After rework, return here to re-verify.
    - Feature-level rethink needed (scope was wrong, core assumption invalidated) → **Escalate** — return to `clarifying-intent` at the feature level, potentially update the slice map.
 
-**End your output with a routing decision on its own line in this exact format:**
+Record the routing decision in
+`{artifact-dir}/results/verifying-and-adapting.json`.
 
-- `ROUTING: DONE` — story or feature complete.
-- `ROUTING: NEXT_SLICE <slice-id>` — proceed to the next slice.
-- `ROUTING: REWORK <description>` — gaps found, return to TDD.
-- `ROUTING: ESCALATE <reason>` — feature-level rethink needed.
+If you also mirror the decision in `verification.md`, keep it consistent with
+the JSON result, but treat the JSON as authoritative:
+
+- `data.outcome_code = done` -> story or feature complete
+- `data.outcome_code = next_slice` -> proceed to the next slice and set
+  `route.next_slice_id`
+- `data.outcome_code = rework` -> gaps found, return to TDD
+- `data.outcome_code = escalate` -> feature-level rethink needed
 
 ## Default Output
 
@@ -100,6 +128,8 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
 - **Updated spec** (if any ACs were refined or diverged — update inline, don't create a separate document).
 - **Slice impact notes** (if multi-slice and any downstream slices are affected).
 - **Routing decision** with rationale.
+- Write `{artifact-dir}/results/verifying-and-adapting.json` with one of:
+  `done`, `next_slice`, `rework`, or `escalate`.
 
 Read `references/templates.md` when producing output.
 Read `references/examples.md` for style reference.

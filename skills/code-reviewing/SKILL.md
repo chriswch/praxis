@@ -15,6 +15,25 @@ Read the spec from `{artifact-dir}/spec.md` for context.
 Read the implementation summary from `{artifact-dir}/tdd.md` or `{artifact-dir}/implementation.md` — whichever exists.
 Read the sketch from `{artifact-dir}/sketch.md` if it exists.
 Write the review report to `{artifact-dir}/review.md`.
+Ensure `{artifact-dir}/results/` exists and write the structured result to
+`{artifact-dir}/results/code-reviewing.json`.
+
+## Result Contract
+
+Follow `../../workflow/contracts/stage-result.schema.json`.
+
+The result JSON is the routing source of truth.
+
+Use these outcome codes:
+
+- `review_ready` -> `status = completed`, `route.kind = proceed`,
+  `route.next_stage = code-improving`
+- `review_skipped` -> `status = skipped`, `route.kind = proceed`,
+  `route.next_stage = null`
+
+Use `{artifact-dir}/review.md` as `summary_path` when review output exists. If
+review is skipped, `summary_path` may be `null`. Even on skip outcomes, still
+write `results/code-reviewing.json`.
 
 ## Role
 
@@ -122,7 +141,9 @@ Flag these when they actually appear — don't go hunting for problems that aren
 
 Scale the review to the size of the change:
 
-- **Trivial** (one file, few-line change): Output `REVIEW_SKIPPED` — the change is too small for formal review.
+- **Trivial** (one file, few-line change): Skip formal review and write
+  `{artifact-dir}/results/code-reviewing.json` with
+  `data.outcome_code = review_skipped`.
 - **Small** (1–2 files, straightforward logic): Quick review. Run through Layers 1–3. Skip Layers 4–5 unless something jumps out.
 - **Medium+** (multiple files, non-trivial logic): Full 5-layer review.
 
@@ -141,5 +162,7 @@ Scale the review to the size of the change:
 ## Output
 
 Write the review report to `{artifact-dir}/review.md`.
+Write `{artifact-dir}/results/code-reviewing.json` with
+`data.outcome_code = review_ready` or `review_skipped`.
 
 Read `references/templates.md` when producing output.

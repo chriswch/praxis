@@ -12,6 +12,25 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
 
 Read the spec from `{artifact-dir}/spec.md`. Read the sketch (if it exists) from `{artifact-dir}/sketch.md`. Write the implementation summary to `{artifact-dir}/implementation.md`.
+Ensure `{artifact-dir}/results/` exists and write the structured result to
+`{artifact-dir}/results/rapid-implementing.json`.
+
+## Result Contract
+
+Follow `../../workflow/contracts/stage-result.schema.json`.
+
+The result JSON is the routing source of truth.
+
+Use these outcome codes:
+
+- `implementation_complete` -> `status = completed`, `route.kind = proceed`,
+  `route.next_stage = code-reviewing`
+- `spec_feedback` -> `status = blocked`, `route.kind = ask_user`,
+  `route.next_stage = clarifying-intent`, `needs_user_input = true`
+
+Use `{artifact-dir}/implementation.md` as `summary_path`. Even if the stage
+stops for feedback, still write both `implementation.md` and
+`results/rapid-implementing.json`.
 
 ## Overview
 
@@ -63,9 +82,9 @@ The behavioral spec provides the implementation guidance. The design sketch (if 
    - Verify all changes are committed: `git status` should show no uncommitted implementation files. If anything was missed, stage and commit it.
 
 5. **Feedback loop.**
-   - Ambiguous or contradictory AC → document it under a `## Feedback` heading in the implementation summary. Write all progress so far, then **stop and return**. The orchestrator will run `clarifying-intent` to resolve the issue and re-invoke.
-   - Missing behavior discovered → note it. After existing ACs, document it under `## Feedback` for the orchestrator to handle.
-   - Impossible constraint → flag it under `## Feedback` and stop.
+   - Ambiguous or contradictory AC -> document it under a `## Feedback` heading in the implementation summary, write `{artifact-dir}/results/rapid-implementing.json` with `data.outcome_code = spec_feedback`, then stop. The orchestrator will run `clarifying-intent` to resolve the issue and re-invoke.
+   - Missing behavior discovered -> note it. After existing ACs, document it under `## Feedback` and write `data.outcome_code = spec_feedback` for the orchestrator to handle.
+   - Impossible constraint -> flag it under `## Feedback`, write `data.outcome_code = spec_feedback`, and stop.
    - Design sketch was wrong → discard or update. Expected and normal. No need to stop for this.
    - Slice map affected → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 6).
    - Track discoveries in the **feedback log**. See `references/templates.md`.
@@ -84,6 +103,8 @@ The behavioral spec provides the implementation guidance. The design sketch (if 
 - Feedback log (if any discoveries).
 - Implementation summary (for medium+ tasks). See `references/templates.md`.
 - Write AC checklist, feedback log, and implementation summary to `{artifact-dir}/implementation.md`.
+- Write `{artifact-dir}/results/rapid-implementing.json` with
+  `data.outcome_code = implementation_complete` or `spec_feedback`.
 
 ## Guardrails
 
@@ -93,7 +114,10 @@ The behavioral spec provides the implementation guidance. The design sketch (if 
 - **One AC at a time.** Implement in order. Don't jump ahead or batch.
 - **Minimum to satisfy.** Implement what the AC asks for. Don't gold-plate, don't add features the spec doesn't mention, don't build abstractions for hypothetical future needs.
 - **Commit per AC.** Each implemented AC gets its own commit. The reviewer sees a progression where each commit adds one behavior. Don't batch multiple ACs into one commit.
-- **Feedback is a feature.** Discovering the spec was wrong is the system working. Surface gaps under `## Feedback` and stop; don't silently patch around them.
+- **Feedback is a feature.** Discovering the spec was wrong is the system
+  working. Surface gaps under `## Feedback`, emit
+  `data.outcome_code = spec_feedback`, and stop; don't silently patch around
+  them.
 
 ## References
 

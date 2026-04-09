@@ -12,6 +12,24 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
 
 Read the spec from `{artifact-dir}/spec.md`. Read the sketch (if it exists) from `{artifact-dir}/sketch.md`. Write the TDD session summary to `{artifact-dir}/tdd.md`.
+Ensure `{artifact-dir}/results/` exists and write the structured result to
+`{artifact-dir}/results/driving-tdd.json`.
+
+## Result Contract
+
+Follow `../../workflow/contracts/stage-result.schema.json`.
+
+The result JSON is the routing source of truth.
+
+Use these outcome codes:
+
+- `tdd_complete` -> `status = completed`, `route.kind = proceed`,
+  `route.next_stage = code-reviewing`
+- `spec_feedback` -> `status = blocked`, `route.kind = ask_user`,
+  `route.next_stage = clarifying-intent`, `needs_user_input = true`
+
+Use `{artifact-dir}/tdd.md` as `summary_path`. Even if the stage stops for
+feedback, still write both `tdd.md` and `results/driving-tdd.json`.
 
 ## Overview
 
@@ -76,9 +94,9 @@ This is where the real design happens. The design sketch gave a direction; TDD's
    - Note any missing coverage — it goes through the feedback loop, not silently into tests.
 
 8. **Feedback loop.**
-   - Ambiguous or contradictory AC → document it under a `## Feedback` heading in the TDD session summary. Write all progress so far, then **stop and return**. The orchestrator will run `clarifying-intent` to resolve the issue and re-invoke TDD.
-   - Missing behavior discovered → note it. After existing ACs, document it under `## Feedback` for the orchestrator to handle.
-   - Impossible constraint → flag it under `## Feedback` and stop.
+   - Ambiguous or contradictory AC -> document it under a `## Feedback` heading in the TDD session summary, write `{artifact-dir}/results/driving-tdd.json` with `data.outcome_code = spec_feedback`, then stop. The orchestrator will run `clarifying-intent` to resolve the issue and re-invoke TDD.
+   - Missing behavior discovered -> note it. After existing ACs, document it under `## Feedback` and write `data.outcome_code = spec_feedback` for the orchestrator to handle.
+   - Impossible constraint -> flag it under `## Feedback`, write `data.outcome_code = spec_feedback`, and stop.
    - Design sketch was wrong → discard or update. Expected and normal. No need to stop for this.
    - Slice map affected → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 9).
    - Track discoveries in the **feedback log**. See `references/templates.md`.
@@ -100,6 +118,8 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 - Feedback log (if any discoveries).
 - Session summary (for medium+ tasks). See `references/templates.md`.
 - Write AC checklist, feedback log, and session summary to `{artifact-dir}/tdd.md`.
+- Write `{artifact-dir}/results/driving-tdd.json` with
+  `data.outcome_code = tdd_complete` or `spec_feedback`.
 
 ## Guardrails
 
@@ -114,7 +134,10 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 - **Names are documentation.** `rejects expired tokens` beats `test_token_validation_3`.
 - **No gold-plating.** When all ACs are green and the suite passes, stop. Missing coverage goes through `clarifying-intent`, not into speculative tests.
 - **Commit per AC.** Each Red → Green → Refactor cycle ends with a commit. The reviewer sees a progression where each commit adds one behavior with its test. Don't batch multiple ACs into one commit. Don't commit at Red — a failing test in history breaks bisect and CI.
-- **Feedback is a feature.** Discovering the spec was wrong is the system working. Surface gaps under `## Feedback` and stop; don't silently patch around them.
+- **Feedback is a feature.** Discovering the spec was wrong is the system
+  working. Surface gaps under `## Feedback`, emit
+  `data.outcome_code = spec_feedback`, and stop; don't silently patch around
+  them.
 
 ## References
 

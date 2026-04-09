@@ -12,6 +12,27 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
 
 Read the spec from `{artifact-dir}/spec.md`. Write the sketch to `{artifact-dir}/sketch.md`.
+Ensure `{artifact-dir}/results/` exists and write the structured result to
+`{artifact-dir}/results/sketching-design.json`.
+
+## Result Contract
+
+Follow `../../workflow/contracts/stage-result.schema.json`.
+
+The result JSON is the routing source of truth.
+
+Use these outcome codes:
+
+- `sketch_ready` -> `status = completed`, `route.kind = proceed`,
+  `route.next_stage = driving-tdd`
+- `sketch_skipped` -> `status = skipped`, `route.kind = proceed`,
+  `route.next_stage = driving-tdd`
+- `spec_issue` -> `status = blocked`, `route.kind = ask_user`,
+  `route.next_stage = clarifying-intent`, `needs_user_input = true`
+
+Use `{artifact-dir}/sketch.md` as `summary_path` when you write it. If the
+stage is skipped and you do not write `sketch.md`, `summary_path` may be `null`.
+Even on skip or blocker outcomes, still write the result JSON.
 
 ## Overview
 
@@ -26,9 +47,9 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
 ## Workflow
 
 1. **Triage: decide if a sketch is needed.**
-   - Read the spec's acceptance criteria. If the implementation path is obvious — you know which file to open and what test to write — write `SKETCH_SKIPPED` to your output with a brief explanation, and return. The orchestrator will proceed directly to TDD.
+   - Read the spec's acceptance criteria. If the implementation path is obvious — you know which file to open and what test to write — skip the sketch and write `{artifact-dir}/results/sketching-design.json` with `data.outcome_code = sketch_skipped`. A short note in `sketch.md` is optional.
    - Sizing guide (from `clarifying-intent` triage):
-     - **Trivial** (< half day): Skip. Output `SKETCH_SKIPPED`.
+     - **Trivial** (< half day): Skip. Emit `data.outcome_code = sketch_skipped`.
      - **Small** (1–2 days, single behavior): Locate + pattern match only (steps 2–3). Skip step 4 if the direction is obvious from existing patterns.
      - **Medium** (3–5 days, story-level): Full sketch (steps 2–5).
      - **Large/Epic**: Should have been split first. Stop and return a message indicating `slicing-stories` should be run first.
@@ -41,7 +62,7 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
      - What's the blast radius? What existing code paths are touched?
    - Output: a **change map** — a short list of files/modules that will be touched, and why.
    - Scope: read only what's needed to answer these questions. Stop when you can name the files.
-   - **Early exit**: If codebase exploration reveals the spec's assumptions are wrong (e.g., the module it describes doesn't exist, the behavior is already implemented differently, or a stated constraint doesn't hold), stop and flag this in your output under a `## Spec Issue` heading. The orchestrator will resolve this with the user before continuing.
+   - **Early exit**: If codebase exploration reveals the spec's assumptions are wrong (e.g., the module it describes doesn't exist, the behavior is already implemented differently, or a stated constraint doesn't hold), stop and flag this in your output under a `## Spec Issue` heading if helpful, but always write `{artifact-dir}/results/sketching-design.json` with `data.outcome_code = spec_issue`. The orchestrator will resolve this with the user before continuing.
 
 3. **Read existing patterns.**
    - Before proposing anything new, answer:
@@ -69,6 +90,8 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
    - Use the template from `references/templates.md`.
    - Keep it shorter than the behavioral spec that feeds it. If the sketch is longer, compress or remove sections.
    - Write to `{artifact-dir}/sketch.md`.
+   - Write `{artifact-dir}/results/sketching-design.json` with
+     `data.outcome_code = sketch_ready`.
 
 ## Guardrails
 
@@ -76,7 +99,8 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
 - **Shorter than the spec.** If the design sketch is longer than the behavioral spec, compress it.
 - **One approach, not candidates.** Pick and commit. TDD validates or invalidates.
 - **Existing patterns first.** Only propose new patterns when the codebase has no applicable analog.
-- **Skippable.** If the spec makes implementation obvious, skip the sketch entirely (output `SKETCH_SKIPPED`).
+- **Skippable.** If the spec makes implementation obvious, skip the sketch and
+  emit `data.outcome_code = sketch_skipped`.
 - **Disposable.** TDD's refactor step overrides the sketch when it discovers better structure.
 - **Spikes over speculation.** If uncertain, write throwaway code to learn — don't plan harder.
 - **No architecture astronautics.** Don't propose design patterns, class hierarchies, or module structures that aren't directly needed for this one story.
