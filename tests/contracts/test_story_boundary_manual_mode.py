@@ -157,6 +157,55 @@ class ManualStoryBoundaryContractTest(unittest.TestCase):
         self.assertIn("Dirty product worktree", ledger["stories"]["items"]["S-001"]["boundary_reason"])
         self.assertFalse((self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").exists())
 
+    def test_finishes_run_when_last_story_completes(self) -> None:
+        shutil.copy(
+            FIXTURES / "final_done_result.json",
+            self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "verifying-and-adapting.json",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["slices"]["order"] = ["S-001"]
+        run["slices"]["active"] = "S-001"
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["order"] = ["S-001"]
+        ledger["stories"]["items"].pop("S-002", None)
+        ledger["stories"]["active"] = "S-001"
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        checkpoint_manual_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/verifying-and-adapting.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "Final story completed.",
+                "carry_forward_context": [],
+                "changed_paths": ["workflow/pipelines/craft.md"],
+            },
+            dirty_paths=[],
+            timestamp="2026-04-10T18:15:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        handoff = load_json(self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json")
+
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["routing"]["next_action"], "finish")
+        self.assertIsNone(run["routing"]["next_stage"])
+        self.assertEqual(run["current"]["slice_id"], "S-001")
+        self.assertIsNone(run["current"]["stage"])
+
+        self.assertIsNone(ledger["stories"]["active"])
+        self.assertEqual(ledger["stories"]["last_completed"], "S-001")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "completed")
+        self.assertEqual(handoff["next_story_id"], None)
+
 
 if __name__ == "__main__":
     unittest.main()
