@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "workflow": "craft",
+  "status": "running",
+  "entry_task": "Praxis v3",
+  "mode": "multi_slice",
+  "runtime": {
+    "adapter": "codex",
+    "entrypoint": "praxis:craft"
+  },
+  "execution": {
+    "mode": "manual",
+    "fresh_context_per_story": true
+  },
+  "current": {
+    "scope": "slice",
+    "slice_id": "S-001",
+    "artifact_dir": ".praxis/slices/S-001",
+    "stage": "verifying-and-adapting"
+  },
+  "slices": {
+    "order": [
+      "S-001",
+      "S-002"
+    ],
+    "active": "S-001",
+    "completed": []
+  },
+  "routing": {
+    "next_action": "run_stage",
+    "next_stage": "verifying-and-adapting",
+    "next_slice_id": null,
+    "reason": "S-001 is completing."
+  },
+  "timestamps": {
+    "created_at": "2026-04-10T16:33:35Z",
+    "updated_at": "2026-04-10T17:17:38Z"
+  }
+}

@@ -52,6 +52,25 @@
         "adapter"
       ]
     },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "autopilot"
+          ]
+        },
+        "fresh_context_per_story": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    },
     "current": {
       "type": "object",
       "additionalProperties": false,
@@ -188,6 +207,17 @@
             {
               "type": "string",
               "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boundary_handoff_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
             },
             {
               "type": "null"

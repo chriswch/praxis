@@ -131,6 +131,8 @@ Praxis still uses human-readable artifacts in `.praxis/`, but v2 adds structured
 Core workflow files:
 
 - `.praxis/run.json` is the workflow cursor for the active run.
+- `.praxis/story-ledger.json` is the durable queue/history record for
+  multi-story runs.
 - `.praxis/results/<stage>.json` is the routing result written by each stage.
 - Human-readable artifacts such as `.praxis/spec.md`, `.praxis/sketch.md`, `.praxis/tdd.md`, and `.praxis/verification.md` remain the reading surface for the user.
 
@@ -140,6 +142,7 @@ Feature-level artifacts always live at `.praxis/` root:
 - `.praxis/slice-map.json`
 - `.praxis/slice-map.md`
 - `.praxis/run.json`
+- `.praxis/story-ledger.json`
 - `.praxis/results/slicing-stories.json`
 
 Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write slice-local artifacts under `.praxis/slices/{slice-id}/`, including stage results:
@@ -147,6 +150,8 @@ Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write sl
 - `.praxis/slices/{slice-id}/spec.md`
 - `.praxis/slices/{slice-id}/sketch.md`
 - `.praxis/slices/{slice-id}/tdd.md`
+- `.praxis/slices/{slice-id}/handoff.json`
+- `.praxis/slices/{slice-id}/handoff.md`
 - `.praxis/slices/{slice-id}/results/driving-tdd.json`
 
 The human-readable artifact is for people. The result JSON is for orchestration.

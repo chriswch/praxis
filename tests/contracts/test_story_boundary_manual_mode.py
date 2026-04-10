@@ -1,0 +1,85 @@
+import json
+import shutil
+import tempfile
+import unittest
+from pathlib import Path
+
+from workflow.scripts.story_boundary import checkpoint_manual_story_boundary
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def load_json(path: Path):
+    return json.loads(path.read_text())
+
+
+class ManualStoryBoundaryContractTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo_root = Path(self.temp_dir.name)
+        (self.repo_root / ".praxis" / "slices" / "S-001" / "results").mkdir(parents=True)
+        (self.repo_root / ".praxis" / "slices" / "S-002" / "results").mkdir(parents=True)
+        shutil.copy(FIXTURES / "manual_run.json", self.repo_root / ".praxis" / "run.json")
+        shutil.copy(
+            FIXTURES / "manual_story_ledger.json",
+            self.repo_root / ".praxis" / "story-ledger.json",
+        )
+        shutil.copy(
+            FIXTURES / "next_slice_result.json",
+            self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "verifying-and-adapting.json",
+        )
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_checkpoints_completed_story_and_arms_next_story_in_manual_mode(self) -> None:
+        checkpoint_manual_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/verifying-and-adapting.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "S-001 completed.",
+                "carry_forward_context": [
+                    "Execution mode is modeled separately from workflow and story shape."
+                ],
+                "changed_paths": [
+                    "workflow/contracts/run.schema.json",
+                    "workflow/contracts/story-ledger.schema.json"
+                ]
+            },
+            dirty_paths=[],
+            timestamp="2026-04-10T18:00:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        handoff = load_json(self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json")
+
+        self.assertEqual(run["execution"]["mode"], "manual")
+        self.assertEqual(run["mode"], "multi_slice")
+        self.assertEqual(run["current"]["slice_id"], "S-002")
+        self.assertEqual(run["current"]["stage"], "clarifying-intent")
+        self.assertEqual(run["routing"]["next_action"], "confirm_then_run")
+        self.assertEqual(run["routing"]["next_stage"], "clarifying-intent")
+        self.assertEqual(run["status"], "waiting_for_user")
+
+        self.assertEqual(ledger["stories"]["last_completed"], "S-001")
+        self.assertEqual(ledger["stories"]["active"], "S-002")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "completed")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active_next")
+        self.assertEqual(
+            ledger["stories"]["items"]["S-001"]["handoff_path"],
+            ".praxis/slices/S-001/handoff.json",
+        )
+        self.assertEqual(handoff["story_id"], "S-001")
+        self.assertEqual(handoff["next_story_id"], "S-002")
+        self.assertEqual(handoff["commit_meta"]["end_commit"], "def2222")
+
+
+if __name__ == "__main__":
+    unittest.main()

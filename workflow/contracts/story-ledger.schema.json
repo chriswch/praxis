@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/workflow/contracts/story-ledger.schema.json",
+  "title": "Praxis Story Ledger",
+  "description": "Durable queue and story-boundary state for multi-slice Praxis runs stored at .praxis/story-ledger.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "execution_mode",
+    "stories",
+    "timestamps"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "execution_mode": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "autopilot"
+      ]
+    },
+    "stories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order",
+        "active",
+        "last_completed",
+        "items"
+      ],
+      "properties": {
+        "order": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "active": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_completed": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "artifact_dir",
+              "status",
+              "boundary_status",
+              "handoff_path",
+              "handoff_markdown_path",
+              "carry_forward_from",
+              "commit_meta",
+              "boundary_reason"
+            ],
+            "properties": {
+              "artifact_dir": {
+                "type": "string",
+                "pattern": "^\\.praxis(?:/.*)?$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "active",
+                  "active_next",
+                  "completed"
+                ]
+              },
+              "boundary_status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "in_progress",
+                  "checkpointed",
+                  "blocked"
+                ]
+              },
+              "handoff_path": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\.praxis(?:/.*)?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "handoff_markdown_path": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\.praxis(?:/.*)?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "carry_forward_from": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "commit_meta": {
+                "anyOf": [
+                  {
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "boundary_reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "updated_at"
+      ],
+      "properties": {
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

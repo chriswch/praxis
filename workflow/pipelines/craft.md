@@ -43,6 +43,7 @@ Feature-level artifacts always live at the root:
 - `.praxis/slice-map.json`
 - `.praxis/slice-map.md`
 - `.praxis/run.json`
+- `.praxis/story-ledger.json`
 - `.praxis/events.jsonl`
 
 Single-story artifacts also live at the root. Slice-local artifacts live under
@@ -248,11 +249,25 @@ Routing:
 - `done` -> confirm the verification summary and finish the run if this is a
   single story or the last slice
 - `next_slice` -> confirm, mark the current slice complete in `.praxis/run.json`,
-  activate the next slice, and run `clarifying-intent` for that slice
+  checkpoint the completed story into `.praxis/story-ledger.json`, write
+  `.praxis/slices/<slice-id>/handoff.json` and `handoff.md`, then arm the next
+  slice behind a manual confirmation before `clarifying-intent` runs
 - `rework` -> confirm the gap, then return to `driving-tdd` for the same
   artifact directory
 - `escalate` -> confirm the scope issue, switch back to root scope `.praxis/`,
   and run `clarifying-intent` at feature level
+
+Manual story-boundary rules for multi-slice runs:
+
+- Treat `.praxis/run.json` as the active cursor and `.praxis/story-ledger.json`
+  as the durable queue/history record.
+- When a story completes and another slice remains, do not rely on transcript
+  continuity; write bounded carry-forward context to the story handoff
+  artifacts.
+- Do not activate the next story if the product worktree is dirty or required
+  commit metadata is missing.
+- In manual mode, stop after boundary checkpointing with
+  `routing.next_action = confirm_then_run`.
 
 ## Run State Updates
 

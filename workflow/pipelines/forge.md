@@ -43,6 +43,7 @@ Feature-level artifacts always live at the root:
 - `.praxis/slice-map.json`
 - `.praxis/slice-map.md`
 - `.praxis/run.json`
+- `.praxis/story-ledger.json`
 - `.praxis/events.jsonl`
 
 Single-story artifacts also live at the root. Slice-local artifacts live under
@@ -236,9 +237,21 @@ Routing:
 When the current story or slice completes:
 
 - if this is a single-story run, finish the workflow
-- if more slices remain, mark the current slice complete in `.praxis/run.json`,
-  activate the next slice, and run `clarifying-intent` for that slice
+- if more slices remain, checkpoint the completed story in
+  `.praxis/story-ledger.json`, write the story handoff artifacts, and activate
+  the next slice according to the configured execution mode
 - if no slices remain, finish the workflow
+
+Shared story-boundary rules:
+
+- Use `.praxis/run.json` as the active cursor and `.praxis/story-ledger.json`
+  as the durable queue/history record.
+- Use `.praxis/slices/<slice-id>/handoff.json` and `handoff.md` as the bounded
+  carry-forward context for the next story.
+- Do not advance past the boundary if the product worktree is dirty or required
+  commit metadata is missing.
+- `forge` may auto-advance across the boundary only when the configured
+  execution mode permits it; the durable checkpoint still happens first.
 
 Completion for `forge` should summarize:
 
