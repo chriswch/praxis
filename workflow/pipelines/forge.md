@@ -245,7 +245,9 @@ When the current story or slice completes:
 Shared story-boundary rules:
 
 - Use `.praxis/run.json` as the active cursor and `.praxis/story-ledger.json`
-  as the durable queue/history record.
+  as the durable queue owner / history record.
+- `run.json.slices` remains a compatibility mirror during the v3 transition.
+  Keep it synchronized, but do not treat it as the queue owner.
 - Use `.praxis/slices/<slice-id>/handoff.json` and `handoff.md` as the bounded
   carry-forward context for the next story.
 - Do not advance past the boundary if the product worktree is dirty or required

@@ -131,8 +131,10 @@ Praxis still uses human-readable artifacts in `.praxis/`, but v2 adds structured
 Core workflow files:
 
 - `.praxis/run.json` is the workflow cursor for the active run.
-- `.praxis/story-ledger.json` is the durable queue/history record for
+- `.praxis/story-ledger.json` is the durable queue owner / history record for
   multi-story runs.
+- `.praxis/run.json.slices` remains a compatibility mirror during the v3
+  transition; queue ownership lives in `.praxis/story-ledger.json`.
 - `.praxis/results/<stage>.json` is the routing result written by each stage.
 - Human-readable artifacts such as `.praxis/spec.md`, `.praxis/sketch.md`, `.praxis/tdd.md`, and `.praxis/verification.md` remain the reading surface for the user.
 

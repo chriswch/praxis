@@ -14,6 +14,35 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
+def _append_unique(items: list[str], value: str) -> None:
+    if value not in items:
+        items.append(value)
+
+
+def _validate_completion_result(stage_result: dict[str, Any]) -> tuple[str, str | None]:
+    route_kind = stage_result["route"]["kind"]
+    outcome_code = stage_result["data"]["outcome_code"]
+    next_story_id = stage_result["route"]["next_slice_id"]
+
+    allowed = {
+        ("done", "done"),
+        ("next_slice", "next_slice"),
+    }
+    if (route_kind, outcome_code) not in allowed:
+        raise ValueError(
+            "Story boundary only accepts completed story results: "
+            f"got route.kind={route_kind!r}, outcome_code={outcome_code!r}."
+        )
+
+    if route_kind == "next_slice" and not next_story_id:
+        raise ValueError("A next-slice boundary requires route.next_slice_id.")
+
+    if route_kind == "done" and next_story_id is not None:
+        raise ValueError("A final done boundary must not set route.next_slice_id.")
+
+    return route_kind, next_story_id
+
+
 def _write_markdown(path: Path, story_id: str, next_story_id: str | None, handoff_data: dict[str, Any], commit_meta: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -56,17 +85,20 @@ def checkpoint_manual_story_boundary(
 
     current_story_id = run["current"]["slice_id"]
     current_story = ledger["stories"]["items"][current_story_id]
-    next_story_id = stage_result["route"]["next_slice_id"]
+    route_kind, next_story_id = _validate_completion_result(stage_result)
 
     if dirty_paths or not commit_meta or not commit_meta.get("end_commit"):
         reason = "Dirty product worktree blocks story boundary." if dirty_paths else "Missing commit metadata blocks story boundary."
         current_story["boundary_status"] = "blocked"
         current_story["boundary_reason"] = reason
+        ledger["stories"]["active"] = current_story_id
         run["status"] = "waiting_for_user"
         run["routing"]["next_action"] = "ask_user"
         run["routing"]["next_stage"] = None
         run["routing"]["next_slice_id"] = None
         run["routing"]["reason"] = reason
+        run["routing"]["boundary_handoff_path"] = None
+        run["slices"]["active"] = current_story_id
         run["timestamps"]["updated_at"] = timestamp
         ledger["timestamps"]["updated_at"] = timestamp
         _write_json(run_path, run)
@@ -96,8 +128,9 @@ def checkpoint_manual_story_boundary(
     current_story["handoff_markdown_path"] = handoff_md_rel
     current_story["commit_meta"] = commit_meta
     ledger["stories"]["last_completed"] = current_story_id
+    _append_unique(run["slices"]["completed"], current_story_id)
 
-    if next_story_id:
+    if route_kind == "next_slice":
         next_story = ledger["stories"]["items"][next_story_id]
         next_story["status"] = "active_next"
         next_story["carry_forward_from"] = current_story_id
@@ -111,6 +144,8 @@ def checkpoint_manual_story_boundary(
         run["routing"]["next_stage"] = "clarifying-intent"
         run["routing"]["next_slice_id"] = next_story_id
         run["routing"]["reason"] = f"{current_story_id} checkpointed. Awaiting confirmation to begin {next_story_id}."
+        run["routing"]["boundary_handoff_path"] = handoff_json_rel
+        run["slices"]["active"] = next_story_id
     else:
         ledger["stories"]["active"] = None
         run["status"] = "completed"
@@ -118,6 +153,8 @@ def checkpoint_manual_story_boundary(
         run["routing"]["next_stage"] = None
         run["routing"]["next_slice_id"] = None
         run["routing"]["reason"] = f"{current_story_id} checkpointed as the final completed story."
+        run["routing"]["boundary_handoff_path"] = handoff_json_rel
+        run["slices"]["active"] = None
         run["current"]["stage"] = None
 
     run["timestamps"]["updated_at"] = timestamp
@@ -149,6 +186,8 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
     run["routing"]["next_stage"] = "clarifying-intent"
     run["routing"]["next_slice_id"] = None
     run["routing"]["reason"] = f"{next_story_id} activated from durable story-boundary state."
+    run["routing"]["boundary_handoff_path"] = next_story.get("carry_forward_from") and ledger["stories"]["items"][next_story["carry_forward_from"]]["handoff_path"]
+    run["slices"]["active"] = next_story_id
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
 

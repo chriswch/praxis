@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/chriswch/praxis/workflow/contracts/story-ledger.schema.json",
   "title": "Praxis Story Ledger",
-  "description": "Durable queue and story-boundary state for multi-slice Praxis runs stored at .praxis/story-ledger.json.",
+  "description": "Durable queue owner and story-boundary state for multi-slice Praxis runs stored at .praxis/story-ledger.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [

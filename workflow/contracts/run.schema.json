@@ -54,6 +54,7 @@
     },
     "execution": {
       "type": "object",
+      "description": "Execution policy for advancing stories. Separate from workflow type and story-shape mode.",
       "additionalProperties": false,
       "properties": {
         "mode": {
@@ -134,6 +135,7 @@
     },
     "slices": {
       "type": "object",
+      "description": "Compatibility mirror of the active queue state. Durable queue ownership lives in .praxis/story-ledger.json.",
       "additionalProperties": false,
       "required": [
         "order",
@@ -214,6 +216,7 @@
           ]
         },
         "boundary_handoff_path": {
+          "description": "Path to the current story-boundary handoff artifact that should seed the next story.",
           "anyOf": [
             {
               "type": "string",

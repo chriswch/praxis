@@ -260,7 +260,9 @@ Routing:
 Manual story-boundary rules for multi-slice runs:
 
 - Treat `.praxis/run.json` as the active cursor and `.praxis/story-ledger.json`
-  as the durable queue/history record.
+  as the durable queue owner / history record.
+- `run.json.slices` remains a compatibility mirror during the v3 transition.
+  Keep it synchronized, but do not treat it as the queue owner.
 - When a story completes and another slice remains, do not rely on transcript
   continuity; write bounded carry-forward context to the story handoff
   artifacts.
