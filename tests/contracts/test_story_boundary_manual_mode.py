@@ -4,7 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.story_boundary import checkpoint_manual_story_boundary
+from workflow.scripts.story_boundary import (
+    activate_next_story_from_boundary,
+    checkpoint_manual_story_boundary,
+)
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -79,6 +82,46 @@ class ManualStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(handoff["story_id"], "S-001")
         self.assertEqual(handoff["next_story_id"], "S-002")
         self.assertEqual(handoff["commit_meta"]["end_commit"], "def2222")
+
+    def test_activates_next_story_from_boundary_after_confirmation(self) -> None:
+        checkpoint_manual_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/verifying-and-adapting.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "S-001 completed.",
+                "carry_forward_context": [
+                    "Execution mode is modeled separately from workflow and story shape."
+                ],
+                "changed_paths": [
+                    "workflow/contracts/run.schema.json"
+                ]
+            },
+            dirty_paths=[],
+            timestamp="2026-04-10T18:00:00Z",
+        )
+
+        activate_next_story_from_boundary(
+            repo_root=self.repo_root,
+            timestamp="2026-04-10T18:05:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(run["status"], "running")
+        self.assertEqual(run["current"]["slice_id"], "S-002")
+        self.assertEqual(run["current"]["stage"], "clarifying-intent")
+        self.assertEqual(run["routing"]["next_action"], "run_stage")
+        self.assertEqual(run["routing"]["next_stage"], "clarifying-intent")
+
+        self.assertEqual(ledger["stories"]["active"], "S-002")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["carry_forward_from"], "S-001")
 
 
 if __name__ == "__main__":
