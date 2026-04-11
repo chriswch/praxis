@@ -23,7 +23,10 @@ Execution policy is separate from workflow shape:
 - `workflow/contracts/run.schema.json`
 - `workflow/contracts/stage-result.schema.json`
 - `workflow/contracts/story-ledger.schema.json`
+- `workflow/contracts/adapter-harness.schema.json`
+- `workflow/contracts/worker-launch.schema.json`
 - `workflow/scripts/orchestrator.py`
+- `workflow/scripts/harness_config.py`
 - `workflow/scripts/run_state.py`
 - `workflow/scripts/routing.py`
 - `workflow/scripts/story_boundary.py`
@@ -40,14 +43,23 @@ Use `workflow/scripts/story_boundary.py` as the lower-level runtime helper for:
 
 Use `workflow/scripts/run_state.py` as the lower-level helper for ordinary stage-to-stage `run.json` updates.
 
+Use `workflow/scripts/harness_config.py` to load repo-scoped Claude harness config from `.claude-plugin/adapter.json` and to build the worker-launch payload for fresh worker contexts.
+
 Do not re-implement these transitions in Claude-specific wrappers.
 
 Read-side handoff contract:
 
-- Before launching slice-level `clarifying-intent` for a newly activated story, load `.praxis/run.json`.
-- If `run.routing.boundary_handoff_path` is set, load that handoff JSON and pass it into the fresh worker context as explicit input.
+- Before launching any fresh worker context, build the worker-launch payload with `workflow/scripts/harness_config.py`.
+- If `inputs.boundary_handoff` is present in that payload, pass it into the fresh worker context as explicit input.
 - Treat that handoff as the only cross-story carry-forward context; do not rely on old transcript continuity.
 - `workflow/scripts/run_state.py` clears `run.routing.boundary_handoff_path` once `clarifying-intent` advances beyond itself. If clarification loops back to itself, the handoff path remains available for the retry.
+
+Repo-scoped extension points live under `.claude-plugin/`:
+
+- `adapter.json` declares settings, hooks, subagent patterns, and optional extension paths.
+- `hooks/` holds repo-local automation entrypoints.
+- `subagents/` holds repo-local subagent patterns.
+- `extensions.md` documents optional MCP/resources/tool integrations without hardcoding them into shared Praxis skills.
 
 ## Artifact Paths
 

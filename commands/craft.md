@@ -43,6 +43,7 @@ Also use these shared contracts and helpers:
 - Read and write workflow state through `.praxis/`.
 - Use `{artifact-dir}/results/<stage>.json` as the routing API. Do not rely only on human-readable markers in Markdown.
 - Prefer `../workflow/scripts/orchestrator.py` as the runtime API for initializing runs, advancing stage results, handling manual confirmations, and resume.
+- Use `../workflow/scripts/harness_config.py build-worker-launch --repo-root .` to build the fresh-worker launch payload for Claude-specific execution.
 - Use `../workflow/scripts/run_state.py` and `../workflow/scripts/story_boundary.py` as lower-level helpers behind the orchestrator.
-- Before invoking slice-level `clarifying-intent` for a newly activated story, load `.praxis/run.json`; if `routing.boundary_handoff_path` is set, load that handoff JSON and include it in the fresh worker context.
+- Before invoking any fresh worker context, load the worker-launch payload and treat `inputs.boundary_handoff` as the only cross-story carry-forward input.
 - If this wrapper and `../workflow/pipelines/craft.md` ever disagree, the shared pipeline file wins for workflow semantics.

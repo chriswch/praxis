@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/workflow/contracts/worker-launch.schema.json",
+  "title": "Praxis Worker Launch Payload",
+  "description": "Canonical dispatch payload that adapter wrappers pass into a fresh worker context.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "workflow",
+    "adapter",
+    "dispatch",
+    "inputs",
+    "harness"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "workflow": {
+      "type": "string",
+      "enum": [
+        "craft",
+        "forge"
+      ]
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex"
+      ]
+    },
+    "dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "workflow",
+        "adapter",
+        "entrypoint",
+        "scope",
+        "slice_id",
+        "artifact_dir",
+        "stage",
+        "boundary_handoff_path"
+      ],
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workflow": {
+          "type": "string",
+          "enum": [
+            "craft",
+            "forge"
+          ]
+        },
+        "adapter": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ]
+        },
+        "entrypoint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "root",
+            "feature",
+            "slice"
+          ]
+        },
+        "slice_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_dir": {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boundary_handoff_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stage_result_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_path",
+        "boundary_handoff_path",
+        "boundary_handoff"
+      ],
+      "properties": {
+        "run_path": {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        },
+        "boundary_handoff_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boundary_handoff": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config_path",
+        "settings_path",
+        "hooks_path",
+        "subagents_path",
+        "worker_launch_command",
+        "extension_points"
+      ],
+      "properties": {
+        "config_path": {
+          "type": "string",
+          "pattern": "^\\.[^\\n]*$"
+        },
+        "settings_path": {
+          "type": "string",
+          "pattern": "^\\.[^\\n]*$"
+        },
+        "hooks_path": {
+          "type": "string",
+          "pattern": "^\\.[^\\n]*$"
+        },
+        "subagents_path": {
+          "type": "string",
+          "pattern": "^\\.[^\\n]*$"
+        },
+        "worker_launch_command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "extension_points": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mcp_config_path",
+            "resources_path",
+            "tool_overrides_path",
+            "notes_path"
+          ],
+          "properties": {
+            "mcp_config_path": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\.[^\\n]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "resources_path": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\.[^\\n]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tool_overrides_path": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\.[^\\n]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "notes_path": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\.[^\\n]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

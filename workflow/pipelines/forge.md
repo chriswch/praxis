@@ -125,13 +125,17 @@ When a story boundary activates the next slice, `run.routing.boundary_handoff_pa
 points at the previous story's `.praxis/slices/<slice-id>/handoff.json`.
 
 Before launching slice-level `clarifying-intent` in a fresh worker context, the
-orchestrator must:
+orchestrator must build the worker-launch payload with
+`workflow/scripts/harness_config.py build-worker-launch --repo-root .`.
 
-1. read `.praxis/run.json`
+That launch payload must:
+
+1. include the current dispatch block for the target stage
 2. if `run.current.scope = slice`, `run.current.stage = clarifying-intent`, and
-   `run.routing.boundary_handoff_path` is non-null, load that handoff JSON
-3. pass the loaded handoff into the fresh `clarifying-intent` worker context as
-   explicit input together with the new slice task
+   `run.routing.boundary_handoff_path` is non-null, load that handoff JSON into
+   `inputs.boundary_handoff`
+3. point at repo-scoped harness config for the active adapter so settings,
+   hooks, and subagent patterns come from committed repo artifacts
 4. treat that handoff as the only cross-story carry-forward context; do not
    rely on transcript continuity from the previous story
 

@@ -111,7 +111,7 @@ def _snapshot(repo_root: Path) -> dict[str, Any]:
     return payload
 
 
-def _dispatch(repo_root: Path) -> dict[str, Any]:
+def build_dispatch(repo_root: Path) -> dict[str, Any]:
     recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
     current = run["current"]
@@ -145,7 +145,7 @@ def _print_result(
 ) -> None:
     payload = _snapshot(repo_root)
     payload["command"] = command
-    payload["dispatch"] = _dispatch(repo_root)
+    payload["dispatch"] = build_dispatch(repo_root)
     if transition_action is not None:
         payload["transition_action"] = transition_action
     print(dump_json(payload), end="")

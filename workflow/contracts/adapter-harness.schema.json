@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/workflow/contracts/adapter-harness.schema.json",
+  "title": "Praxis Adapter Harness Config",
+  "description": "Repo-scoped harness configuration for one runtime adapter.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "adapter",
+    "settings_path",
+    "hooks_path",
+    "subagents_path",
+    "worker_launch_command",
+    "extension_points"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex"
+      ]
+    },
+    "settings_path": {
+      "type": "string",
+      "pattern": "^\\.[^\\n]*$"
+    },
+    "hooks_path": {
+      "type": "string",
+      "pattern": "^\\.[^\\n]*$"
+    },
+    "subagents_path": {
+      "type": "string",
+      "pattern": "^\\.[^\\n]*$"
+    },
+    "worker_launch_command": {
+      "type": "string",
+      "minLength": 1
+    },
+    "extension_points": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mcp_config_path",
+        "resources_path",
+        "tool_overrides_path",
+        "notes_path"
+      ],
+      "properties": {
+        "mcp_config_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.[^\\n]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resources_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.[^\\n]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tool_overrides_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.[^\\n]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.[^\\n]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

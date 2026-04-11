@@ -52,6 +52,7 @@ Praxis v3 separates workflow semantics from runtime adapters:
 - `workflow/pipelines/` defines shared `craft` and `forge` orchestration rules.
 - `workflow/contracts/` defines machine-readable state and result contracts.
 - `workflow/scripts/orchestrator.py` is the shared runtime entrypoint for run initialization, stage-result advancement, manual confirmations, and durable resume.
+- `workflow/scripts/harness_config.py` loads repo-scoped adapter harness config and builds the fresh-worker launch payload for Claude/Codex wrappers.
 - `workflow/scripts/run_state.py` is the shared runtime helper for normal stage-to-stage `run.json` updates.
 - `workflow/scripts/story_boundary.py` is the shared runtime helper for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume.
 - `commands/` and `skills/craft` / `skills/forge` are thin Claude/Codex adapters over those shared files.
@@ -159,10 +160,25 @@ The orchestrator prints a machine-readable state summary plus a dispatch block a
 
 Read-side handoff contract:
 
-- Before launching slice-level `clarifying-intent` for a newly activated story, load `.praxis/run.json`.
-- If `run.routing.boundary_handoff_path` is set, load that handoff JSON and pass it into the fresh worker context as explicit input.
+- Build the fresh-worker launch payload with `python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .`.
+- If `inputs.boundary_handoff` is present in that payload, pass it into the fresh worker context as explicit input.
 - Treat that handoff as the only cross-story carry-forward context; do not rely on old transcript continuity.
 - `workflow/scripts/run_state.py` clears `run.routing.boundary_handoff_path` once `clarifying-intent` advances beyond itself. If clarification loops back to itself, the handoff path remains available for the retry.
+
+Repo-scoped harness surfaces:
+
+- `.claude-plugin/adapter.json`
+- `.claude-plugin/settings.md`
+- `.claude-plugin/hooks/`
+- `.claude-plugin/subagents/`
+- `.claude-plugin/extensions.md`
+- `.codex-plugin/adapter.json`
+- `.codex-plugin/settings.md`
+- `.codex-plugin/hooks/`
+- `.codex-plugin/subagents/`
+- `.codex-plugin/extensions.md`
+
+Those files define repo-local settings, hook entrypoints, subagent patterns, and neutral extension points for MCP/resources/tools without putting team-specific assumptions into shared Praxis skills.
 
 ## Plugin Structure
 
