@@ -14,7 +14,7 @@
   "properties": {
     "version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "execution_mode": {
       "type": "string",
@@ -202,9 +202,14 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "created_at",
         "updated_at"
       ],
       "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
         "updated_at": {
           "type": "string",
           "format": "date-time"

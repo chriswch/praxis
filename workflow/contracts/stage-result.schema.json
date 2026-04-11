@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/chriswch/praxis/workflow/contracts/stage-result.schema.json",
   "title": "Praxis Stage Result",
-  "description": "Canonical result for a Praxis v2 stage run stored at {artifact-dir}/results/<stage>.json.",
+  "description": "Canonical result for a Praxis stage run stored at {artifact-dir}/results/<stage>.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -1,149 +1,79 @@
 # Praxis
 
-Spec-driven, test-driven development plugin for Claude Code and Codex.
+Spec-driven software engineering workflows for Claude Code and Codex.
 
-Theory without practice is empty. Practice without theory is blind. **Praxis** is the cycle where understanding and action inform each other — you spec what to build, build it through TDD, verify against the spec, and adapt when reality diverges.
+Praxis turns vague requests into clarified specs, implementation work, review, and verification. The shared workflow lives in `workflow/`; Claude and Codex entrypoints are thin adapters over the same contract.
 
-## How it works
+## Workflows
 
-Start from the highest level of abstraction — a vague idea, a problem statement, a feature request — and transform it step by step into concrete, working code. Each stage has one job. Do that job and move on.
-
-### Craft workflow (`/craft` in Claude, `craft` skill in Codex)
+### Craft
 
 ```text
-     clarifying-intent
-      ↙            ↘
-[small/medium]    [large]
-     ↓               ↓
-     |          slicing-stories ──→ pick a slice ──→ clarifying-intent
-     ↓                                                      ↓
-sketching-design  ←──────────────────────────────────────────┘
-     ↓
- driving-tdd
-     ↓
-verifying-and-adapting ──→ next slice / done / rework
+clarifying-intent -> [slicing-stories] -> sketching-design -> driving-tdd
+  -> code-reviewing -> code-improving -> verifying-and-adapting
 ```
 
-Every transition is a human decision, not an automated pipeline. You drive the workflow; the skills provide structure at each step.
+`craft` is the full spec-driven and test-driven workflow. It is checkpoint-heavy in `manual` mode and can advance across stories in `autopilot` mode when no stop condition exists.
 
-### Forge workflow (`/forge` in Claude, `forge` skill in Codex)
+### Forge
 
 ```text
-clarifying-intent ──→ [slicing-stories] ──→ sketching-design ──→ rapid-implementing ──→ done
-       ↑                                                                |
-       └──────────────── feedback (spec issues) ───────────────────────┘
+clarifying-intent -> [slicing-stories] -> sketching-design -> rapid-implementing
+  -> code-reviewing -> code-improving -> done
 ```
 
-Same spec-driven clarification, then auto-advance without human checkpoints or test writing. Production-grade code, just without writing new tests.
+`forge` keeps the same clarified-spec entrypoint, then auto-advances unless a stage or story boundary needs an operator stop.
 
 ## Skills
 
-| Skill                    | What it does                                                                                                          |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `clarifying-intent`      | Turns a vague idea into a testable behavioral spec with Given/When/Then acceptance criteria                           |
-| `slicing-stories`        | Splits a large feature into thin, vertical story slices ordered by build sequence                                     |
-| `sketching-design`       | Locates affected files, matches existing patterns, proposes a direction — just enough to write the first failing test |
-| `driving-tdd`            | Red → Green → Refactor, one acceptance criterion at a time                                                            |
-| `verifying-and-adapting` | Checks the whole story against the spec, reconciles divergences, routes to next slice or done                         |
-| `rapid-implementing`     | Implements acceptance criteria as production-grade code without writing new tests                                     |
+| Skill | What it does |
+| --- | --- |
+| `clarifying-intent` | Turns a vague idea into a feature brief or story-level behavioral spec |
+| `slicing-stories` | Splits a large feature into thin, ordered vertical slices |
+| `sketching-design` | Finds the files and patterns that fit the next story |
+| `driving-tdd` | Implements a story through Red -> Green -> Refactor |
+| `rapid-implementing` | Implements a story quickly without writing new tests |
+| `code-reviewing` | Reviews changed code for structural, practical, and breaking-change risks |
+| `code-improving` | Fixes critical, high, and medium review findings |
+| `verifying-and-adapting` | Verifies the delivered behavior and routes to `done`, `next_slice`, `rework`, or `escalate` |
 
-## Fast paths
+## Fast Paths
 
-Not everything needs the full ceremony.
+- Trivial change: clarify the change, implement it, finish.
+- Bug fix: `clarifying-intent` -> `driving-tdd`.
+- Refactor: rely on existing tests, refactor, re-run, finish.
+- Small story: `clarifying-intent` -> `sketching-design` (optional) -> implementation workflow.
+- Fast delivery: use `forge`.
 
-- **Trivial** (typo, rename, config tweak): state the change, implement, done.
-- **Bug fix**: `clarifying-intent` → `driving-tdd`. Skip design and verification.
-- **Refactor**: existing tests cover the behavior. Refactor, re-run, done.
-- **Small story** (1-2 days): `clarifying-intent` → `sketching-design` (optional) → `driving-tdd` → `verifying-and-adapting`.
-- **Fast delivery** (`/forge`): `clarifying-intent` → auto-advance through `sketching-design` → `rapid-implementing`. No new tests, no human checkpoints after spec confirmation.
+## Workflow Architecture
 
-Every skill triages by size and skips ceremony that doesn't earn its keep.
+Praxis v3 separates workflow semantics from runtime adapters:
 
-## Principles
+- `workflow/pipelines/` defines shared `craft` and `forge` orchestration rules.
+- `workflow/contracts/` defines machine-readable state and result contracts.
+- `workflow/scripts/story_boundary.py` is the shared runtime helper for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume.
+- `commands/` and `skills/craft` / `skills/forge` are thin Claude/Codex adapters over those shared files.
 
-**Progressive refinement.** Start from the highest abstraction — a vague idea, a user problem — and transform it step by step into spec, design, tests, and code. Each stage has one job. Do that job and move on.
+If an adapter wrapper and a shared workflow file disagree, the shared workflow file wins.
 
-**Core behavior, not exhaustive coverage.** Focus acceptance criteria and tests on the behaviors users will perceive. Each AC should represent a change a real user can see or experience. A few precise criteria beat many overlapping ones.
+## `.praxis/` Contract
 
-**High standards, fewer tests.** Each acceptance criterion and test should be precise and meaningful. Avoid redundant tests that verify the same behavior from different angles. Quality over quantity in both implementation and testing.
+Praxis uses `.praxis/` as durable workflow state.
 
-**Sharp, fast, minimal.** Deliver a version that allows users to use the core functionality, does not break existing behavior, and maintains sufficient code quality. Do not wait for a perfect result before shipping.
+Core runtime artifacts:
 
-**Spec-driven, not doc-driven.** The spec is a living checklist of testable behaviors, not a frozen document. Update it when reality diverges.
-
-**Design emerges from TDD.** The design sketch is a compass, not a blueprint. The real architecture reveals itself during Red → Green → Refactor.
-
-**Thin vertical slices.** Each slice delivers one end-to-end behavior a user can perceive. The first slice is always a walking skeleton that proves the integration.
-
-**Do not break what works.** Run existing tests after every change. Existing behavior is a contract — honor it unless explicitly told otherwise.
-
-**Sufficiently maintainable code.** Simple, effective, pragmatic, easy to understand, extensible, easy to change. Not theoretically optimal — practically good.
-
-**Last responsible moment.** Defer decisions until you have the information to make them well. Carry unknowns forward as notes, not premature commitments.
-
-**Proportional ceremony.** A one-line fix doesn't need a spec. A multi-slice feature does. Every skill triages first and scales accordingly.
-
-## Plugin structure
-
-```
-praxis/
-├── workflow/
-│   ├── pipelines/
-│   │   ├── craft.md         # Shared craft orchestration source of truth
-│   │   └── forge.md         # Shared forge orchestration source of truth
-│   └── contracts/
-│       ├── run.schema.json  # .praxis/run.json contract
-│       └── stage-result.schema.json # Stage result contract
-├── .codex-plugin/
-│   └── plugin.json          # Codex plugin manifest
-├── .claude-plugin/
-│   └── plugin.json          # Claude plugin manifest
-├── skills/                  # Skill definitions
-│   ├── craft/               # Codex workflow entrypoint (full workflow)
-│   ├── forge/               # Codex workflow entrypoint (fast workflow)
-│   ├── clarifying-intent/
-│   ├── slicing-stories/
-│   ├── sketching-design/
-│   ├── driving-tdd/
-│   ├── verifying-and-adapting/
-│   └── rapid-implementing/
-├── commands/                # Claude slash commands
-│   ├── craft.md             # Thin Claude wrapper over workflow/pipelines/craft.md
-│   └── forge.md             # Thin Claude wrapper over workflow/pipelines/forge.md
-├── CLAUDE.md
-└── README.md
-```
-
-## Workflow architecture
-
-Praxis v2 splits the workflow into three layers:
-
-- `workflow/pipelines/` defines the shared `craft` and `forge` orchestration rules: stage order, checkpoint policy, routing semantics, and completion rules.
-- `workflow/contracts/` defines the machine-readable contracts for workflow state and stage results.
-- `commands/` and `skills/craft` / `skills/forge` are now thin runtime adapters. Claude and Codex each keep their own entrypoints, but both point at the same shared workflow source of truth.
-
-This keeps the workflow semantics portable while still allowing Claude- and Codex-specific wrappers where needed.
-
-## `.praxis/` contract
-
-Praxis still uses human-readable artifacts in `.praxis/`, but v2 adds structured state so the orchestrator does not need to infer routing from markdown alone.
-
-Core workflow files:
-
-- `.praxis/run.json` is the workflow cursor for the active run.
-- `.praxis/story-ledger.json` is the durable queue owner / history record for
-  multi-story runs.
-- `.praxis/run.json.slices` remains a compatibility mirror during the v3
-  transition; queue ownership lives in `.praxis/story-ledger.json`.
-- `run.execution.mode` selects `manual` or `autopilot` without changing the
-  meanings of `workflow` or story-shape `mode`.
-- `run.routing.stop_reason_code` records why `autopilot` paused, blocked, or
-  cancelled progression.
-- Story entries in `.praxis/story-ledger.json` record both boundary stop codes
-  and non-boundary autopilot stop codes so the queue owner explains why the run
-  paused.
+- `.praxis/run.json` is the active workflow cursor.
+- `.praxis/story-ledger.json` is the durable queue owner for multi-slice runs.
+- `.praxis/events.jsonl` is the lifecycle event log.
 - `.praxis/results/<stage>.json` is the routing result written by each stage.
-- Human-readable artifacts such as `.praxis/spec.md`, `.praxis/sketch.md`, `.praxis/tdd.md`, and `.praxis/verification.md` remain the reading surface for the user.
+
+Execution semantics:
+
+- `run.execution.mode` is `manual` or `autopilot`.
+- `workflow` still means `craft` or `forge`.
+- `mode` still means `single_story` or `multi_slice`.
+- `run.routing.stop_reason_code` records why `autopilot` paused, blocked, or cancelled.
+- `run.routing.boundary_handoff_path` points at the handoff artifact that seeds the next story.
 
 Feature-level artifacts always live at `.praxis/` root:
 
@@ -152,25 +82,114 @@ Feature-level artifacts always live at `.praxis/` root:
 - `.praxis/slice-map.md`
 - `.praxis/run.json`
 - `.praxis/story-ledger.json`
+- `.praxis/events.jsonl`
 - `.praxis/results/slicing-stories.json`
 
-Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write slice-local artifacts under `.praxis/slices/{slice-id}/`, including stage results:
+Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write story-local artifacts under `.praxis/slices/{slice-id}/`, for example:
 
 - `.praxis/slices/{slice-id}/spec.md`
 - `.praxis/slices/{slice-id}/sketch.md`
-- `.praxis/slices/{slice-id}/tdd.md`
+- `.praxis/slices/{slice-id}/tdd.md` or `implementation.md`
+- `.praxis/slices/{slice-id}/review.md`
+- `.praxis/slices/{slice-id}/improvement.md`
+- `.praxis/slices/{slice-id}/verification.md`
 - `.praxis/slices/{slice-id}/handoff.json`
 - `.praxis/slices/{slice-id}/handoff.md`
-- `.praxis/slices/{slice-id}/results/driving-tdd.json`
+- `.praxis/slices/{slice-id}/results/<stage>.json`
 
-The human-readable artifact is for people. The result JSON is for orchestration.
+The markdown artifact is for people. The result JSON is for orchestration.
 
-## Codex support
+## Story-Boundary Helper
 
-- `.codex-plugin/plugin.json` exposes Praxis as a Codex plugin using the existing `skills/` directory.
-- `skills/craft/SKILL.md` and `skills/forge/SKILL.md` now act as thin Codex-native wrappers over `workflow/pipelines/craft.md` and `workflow/pipelines/forge.md`.
-- The stage skills now use repo-relative `references/` and `scripts/` paths instead of the Claude-only `CLAUDE_SKILL_DIR` variable, so the same skill content can be reused in Codex.
-- `commands/` remains useful for Claude as thin wrappers over the same shared pipeline files, while Codex consumes the mirrored workflow entrypoints under `skills/`.
+Use `workflow/scripts/story_boundary.py` as the shared runtime API for multi-story execution. Do not re-implement story-boundary transitions in wrappers.
+
+Available commands:
+
+```bash
+python3 -m workflow.scripts.story_boundary initialize-story-queue \
+  --repo-root . \
+  --slice-map-path .praxis/slice-map.json
+
+python3 -m workflow.scripts.story_boundary checkpoint-story-boundary \
+  --repo-root . \
+  --stage-result-path .praxis/slices/S-001/results/verifying-and-adapting.json \
+  --commit-meta-path /tmp/commit-meta.json \
+  --handoff-data-path /tmp/handoff-data.json
+
+python3 -m workflow.scripts.story_boundary pause-autopilot-for-stage-result \
+  --repo-root . \
+  --stage-result-path .praxis/slices/S-001/results/clarifying-intent.json
+
+python3 -m workflow.scripts.story_boundary activate-next-story-from-boundary \
+  --repo-root .
+
+python3 -m workflow.scripts.story_boundary resume-story-run-from-disk \
+  --repo-root .
+```
+
+Boundary helper JSON inputs:
+
+```json
+{
+  "start_commit": "abc1111",
+  "end_commit": "def2222",
+  "commits": ["abc1111", "def2222"]
+}
+```
+
+```json
+{
+  "summary": "What the story delivered.",
+  "carry_forward_context": [
+    "Only the context the next story actually needs."
+  ],
+  "changed_paths": [
+    "workflow/scripts/story_boundary.py"
+  ]
+}
+```
+
+The helper prints a machine-readable state summary after each command so wrappers can inspect the updated cursor and queue state.
+
+## Plugin Structure
+
+```text
+praxis/
+├── workflow/
+│   ├── contracts/
+│   │   ├── run.schema.json
+│   │   ├── stage-result.schema.json
+│   │   └── story-ledger.schema.json
+│   ├── pipelines/
+│   │   ├── craft.md
+│   │   └── forge.md
+│   └── scripts/
+│       └── story_boundary.py
+├── commands/
+│   ├── craft.md
+│   └── forge.md
+├── skills/
+│   ├── craft/
+│   ├── forge/
+│   ├── clarifying-intent/
+│   ├── slicing-stories/
+│   ├── sketching-design/
+│   ├── driving-tdd/
+│   ├── rapid-implementing/
+│   ├── code-reviewing/
+│   ├── code-improving/
+│   └── verifying-and-adapting/
+├── .codex-plugin/
+├── .claude-plugin/
+├── CLAUDE.md
+└── README.md
+```
+
+## Runtime Support
+
+- Claude uses `commands/` as thin wrappers over `workflow/pipelines/`.
+- Codex uses `skills/craft/SKILL.md` and `skills/forge/SKILL.md` as thin wrappers over the same shared workflow files.
+- Both runtimes use the same run contract, story-ledger contract, and story-boundary helper.
 
 ## License
 

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "workflow": "craft",
   "status": "running",
   "entry_task": "Praxis v3",
@@ -17,14 +17,6 @@
     "slice_id": "S-001",
     "artifact_dir": ".praxis/slices/S-001",
     "stage": "verifying-and-adapting"
-  },
-  "slices": {
-    "order": [
-      "S-001",
-      "S-002"
-    ],
-    "active": "S-001",
-    "completed": []
   },
   "routing": {
     "next_action": "run_stage",

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/chriswch/praxis/workflow/contracts/run.schema.json",
   "title": "Praxis Workflow Run",
-  "description": "Canonical state for a Praxis v2 workflow run stored at .praxis/run.json.",
+  "description": "Canonical state for an active Praxis workflow run stored at .praxis/run.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -11,6 +11,7 @@
     "status",
     "entry_task",
     "mode",
+    "execution",
     "current",
     "routing",
     "timestamps"
@@ -18,7 +19,7 @@
   "properties": {
     "version": {
       "type": "integer",
-      "const": 2
+      "const": 3
     },
     "workflow": {
       "$ref": "#/$defs/workflowName"
@@ -133,51 +134,16 @@
         }
       ]
     },
-    "slices": {
-      "type": "object",
-      "description": "Compatibility mirror of the active queue state. Durable queue ownership lives in .praxis/story-ledger.json.",
-      "additionalProperties": false,
-      "required": [
-        "order",
-        "active",
-        "completed"
-      ],
-      "properties": {
-        "order": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "uniqueItems": true
-        },
-        "active": {
-          "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "completed": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "uniqueItems": true
-        }
-      }
-    },
     "routing": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "next_action",
-        "next_stage"
+        "next_stage",
+        "next_slice_id",
+        "reason",
+        "stop_reason_code",
+        "boundary_handoff_path"
       ],
       "properties": {
         "next_action": {
@@ -261,20 +227,6 @@
     }
   },
   "allOf": [
-    {
-      "if": {
-        "properties": {
-          "mode": {
-            "const": "multi_slice"
-          }
-        }
-      },
-      "then": {
-        "required": [
-          "slices"
-        ]
-      }
-    },
     {
       "if": {
         "properties": {

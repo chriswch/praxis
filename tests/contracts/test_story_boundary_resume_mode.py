@@ -35,7 +35,6 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         run["current"]["slice_id"] = "S-002"
         run["current"]["artifact_dir"] = ".praxis/slices/S-002"
         run["current"]["stage"] = "clarifying-intent"
-        run["slices"]["active"] = "S-002"
         run["routing"]["next_action"] = "ask_user"
         run["routing"]["next_stage"] = None
         run["routing"]["next_slice_id"] = None
@@ -105,7 +104,6 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["current"]["slice_id"], "S-002")
         self.assertEqual(run["current"]["stage"], "clarifying-intent")
         self.assertEqual(run["routing"]["next_action"], "run_stage")
-        self.assertEqual(run["slices"]["active"], "S-002")
         self.assertEqual(len(lines), 2)
 
     def test_resumes_checkpointed_autopilot_story_by_activating_once(self) -> None:
@@ -114,7 +112,6 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         run["current"]["slice_id"] = "S-002"
         run["current"]["artifact_dir"] = ".praxis/slices/S-002"
         run["current"]["stage"] = "clarifying-intent"
-        run["slices"]["active"] = "S-002"
         run["routing"]["next_action"] = "confirm_then_run"
         run["routing"]["next_stage"] = "clarifying-intent"
         run["routing"]["next_slice_id"] = "S-002"
@@ -168,7 +165,6 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         run["current"]["slice_id"] = "S-002"
         run["current"]["artifact_dir"] = ".praxis/slices/S-002"
         run["current"]["stage"] = "clarifying-intent"
-        run["slices"]["active"] = "S-002"
         run["routing"]["next_action"] = "confirm_then_run"
         run["routing"]["next_stage"] = "clarifying-intent"
         run["routing"]["next_slice_id"] = "S-002"
@@ -217,13 +213,110 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["boundary_handoff_path"], ".praxis/slices/S-001/handoff.json")
         self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active_next")
 
+    def test_preserves_a_stage_level_autopilot_pause_on_resume(self) -> None:
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "waiting_for_user"
+        run["current"]["slice_id"] = "S-001"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-001"
+        run["current"]["stage"] = "clarifying-intent"
+        run["routing"]["next_action"] = "ask_user"
+        run["routing"]["next_stage"] = "clarifying-intent"
+        run["routing"]["next_slice_id"] = None
+        run["routing"]["stop_reason_code"] = "needs_user_input"
+        run["routing"]["reason"] = "Autopilot paused because user input is required."
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["active"] = "S-001"
+        ledger["stories"]["items"]["S-001"]["status"] = "active"
+        ledger["stories"]["items"]["S-001"]["boundary_status"] = "in_progress"
+        ledger["stories"]["items"]["S-001"]["stop_reason_code"] = "needs_user_input"
+        ledger["stories"]["items"]["S-001"]["stop_reason"] = "Autopilot paused because user input is required."
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        action = resume_story_run_from_disk(
+            repo_root=self.repo_root,
+            timestamp="2026-04-11T03:26:30Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(action, "resume_waiting")
+        self.assertEqual(run["status"], "waiting_for_user")
+        self.assertEqual(run["routing"]["next_action"], "ask_user")
+        self.assertEqual(run["routing"]["next_stage"], "clarifying-intent")
+        self.assertEqual(run["routing"]["stop_reason_code"], "needs_user_input")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "active")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["stop_reason_code"], "needs_user_input")
+
+    def test_preserves_a_cancelled_autopilot_boundary_on_resume(self) -> None:
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "cancelled"
+        run["current"]["slice_id"] = "S-002"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-002"
+        run["current"]["stage"] = "clarifying-intent"
+        run["routing"]["next_action"] = "idle"
+        run["routing"]["next_stage"] = None
+        run["routing"]["next_slice_id"] = "S-002"
+        run["routing"]["stop_reason_code"] = "cancelled"
+        run["routing"]["reason"] = "Autopilot cancellation stopped story advancement before activation."
+        run["routing"]["boundary_handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["active"] = "S-002"
+        ledger["stories"]["last_completed"] = "S-001"
+        ledger["stories"]["items"]["S-001"]["status"] = "completed"
+        ledger["stories"]["items"]["S-001"]["boundary_status"] = "checkpointed"
+        ledger["stories"]["items"]["S-001"]["handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        ledger["stories"]["items"]["S-002"]["status"] = "active_next"
+        ledger["stories"]["items"]["S-002"]["boundary_status"] = "pending"
+        ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
+        ledger["stories"]["items"]["S-002"]["stop_reason_code"] = "cancelled"
+        ledger["stories"]["items"]["S-002"]["stop_reason"] = "Autopilot cancellation stopped story advancement before activation."
+        ledger["stories"]["items"]["S-002"]["boundary_reason_code"] = "cancelled"
+        ledger["stories"]["items"]["S-002"]["boundary_reason"] = "Autopilot cancellation stopped story advancement before activation."
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        handoff = {
+            "version": 1,
+            "story_id": "S-001",
+            "next_story_id": "S-002",
+            "summary": "S-001 completed.",
+            "carry_forward_context": ["Resume should not reactivate cancelled autopilot progress."],
+            "changed_paths": ["workflow/scripts/story_boundary.py"],
+            "commit_meta": {"end_commit": "def2222"},
+            "generated_at": "2026-04-11T03:26:40Z",
+        }
+        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
+            json.dumps(handoff, indent=2) + "\n"
+        )
+
+        action = resume_story_run_from_disk(
+            repo_root=self.repo_root,
+            timestamp="2026-04-11T03:26:50Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(action, "resume_cancelled")
+        self.assertEqual(run["status"], "cancelled")
+        self.assertEqual(run["routing"]["next_action"], "idle")
+        self.assertEqual(run["routing"]["next_stage"], None)
+        self.assertEqual(run["routing"]["next_slice_id"], "S-002")
+        self.assertEqual(run["routing"]["stop_reason_code"], "cancelled")
+        self.assertEqual(run["routing"]["boundary_handoff_path"], ".praxis/slices/S-001/handoff.json")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active_next")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["boundary_status"], "pending")
+
     def test_uses_activation_event_to_finish_replay_without_double_activation(self) -> None:
         run = load_json(self.repo_root / ".praxis" / "run.json")
         run["status"] = "failed"
         run["current"]["slice_id"] = "S-002"
         run["current"]["artifact_dir"] = ".praxis/slices/S-002"
         run["current"]["stage"] = "clarifying-intent"
-        run["slices"]["active"] = "S-002"
         run["routing"]["next_action"] = "confirm_then_run"
         run["routing"]["next_stage"] = "clarifying-intent"
         run["routing"]["next_slice_id"] = "S-002"
@@ -303,7 +396,6 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         run["current"]["slice_id"] = "S-001"
         run["current"]["artifact_dir"] = ".praxis/slices/S-001"
         run["current"]["stage"] = "verifying-and-adapting"
-        run["slices"]["active"] = "S-001"
         run["routing"]["next_action"] = "run_stage"
         run["routing"]["next_stage"] = "verifying-and-adapting"
         run["routing"]["reason"] = "Interrupted during a blocked boundary."
@@ -331,7 +423,6 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["next_stage"], None)
         self.assertEqual(run["routing"]["stop_reason_code"], "test_gate_failed")
         self.assertIn("Resolve test_gate_failed", run["routing"]["reason"])
-        self.assertEqual(run["slices"]["active"], "S-001")
         self.assertEqual(ledger["stories"]["active"], "S-001")
         self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "active")
         self.assertEqual(ledger["stories"]["items"]["S-001"]["boundary_status"], "blocked")
@@ -343,7 +434,6 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         run["current"]["slice_id"] = "S-001"
         run["current"]["artifact_dir"] = ".praxis/slices/S-001"
         run["current"]["stage"] = "clarifying-intent"
-        run["slices"]["active"] = "S-001"
         run["routing"]["next_action"] = "run_stage"
         run["routing"]["next_stage"] = "clarifying-intent"
         run["routing"]["reason"] = "Interrupted with mismatched cursor state."
@@ -389,8 +479,39 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["stop_reason_code"], "inconsistent_state")
         self.assertIn("run.current.slice_id", run["routing"]["reason"])
         self.assertEqual(run["current"]["slice_id"], "S-001")
-        self.assertEqual(run["slices"]["active"], "S-002")
         self.assertEqual(ledger["stories"]["active"], "S-002")
+
+    def test_resumes_a_terminal_run_without_requiring_an_active_story(self) -> None:
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "completed"
+        run["current"]["slice_id"] = "S-001"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-001"
+        run["current"]["stage"] = None
+        run["routing"]["next_action"] = "finish"
+        run["routing"]["next_stage"] = None
+        run["routing"]["next_slice_id"] = None
+        run["routing"]["reason"] = "Run already finished."
+        run["routing"]["boundary_handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["active"] = None
+        ledger["stories"]["last_completed"] = "S-001"
+        ledger["stories"]["items"]["S-001"]["status"] = "completed"
+        ledger["stories"]["items"]["S-001"]["boundary_status"] = "checkpointed"
+        ledger["stories"]["items"]["S-001"]["handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        action = resume_story_run_from_disk(
+            repo_root=self.repo_root,
+            timestamp="2026-04-11T03:33:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        self.assertEqual(action, "resume_terminal")
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["routing"]["next_action"], "finish")
+        self.assertEqual(run["routing"]["boundary_handoff_path"], ".praxis/slices/S-001/handoff.json")
 
 
 if __name__ == "__main__":

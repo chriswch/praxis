@@ -18,16 +18,20 @@ Treat that file as the workflow source of truth for:
 - routing behavior
 - artifact scope
 - completion rules
+- execution-mode semantics
+- story-boundary behavior
+- resume rules
 
-Also use these shared contracts:
+Also use these shared contracts and helpers:
 
 - `../../workflow/contracts/run.schema.json`
 - `../../workflow/contracts/stage-result.schema.json`
+- `../../workflow/contracts/story-ledger.schema.json`
+- `../../workflow/scripts/story_boundary.py`
 
 ## Codex Adapter Rules
 
-- This file is a thin Codex wrapper. Do not duplicate the shared workflow logic
-  here.
+- This file is a thin Codex wrapper. Do not duplicate shared workflow logic here.
 - Keep orchestration in the main session.
 - Use these sibling stage skills as workers:
   - `../clarifying-intent/SKILL.md`
@@ -38,7 +42,6 @@ Also use these shared contracts:
   - `../code-improving/SKILL.md`
   - `../verifying-and-adapting/SKILL.md`
 - Read and write workflow state through `.praxis/`.
-- Use `{artifact-dir}/results/<stage>.json` as the routing API. Do not rely only
-  on human-readable markers in Markdown.
-- If this wrapper and `../../workflow/pipelines/craft.md` ever disagree, the
-  shared pipeline file wins for workflow semantics.
+- Use `{artifact-dir}/results/<stage>.json` as the routing API. Do not rely only on human-readable markers in Markdown.
+- For multi-slice runs, use `../../workflow/scripts/story_boundary.py` as the runtime API for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume. Do not re-implement those transitions in this wrapper.
+- If this wrapper and `../../workflow/pipelines/craft.md` ever disagree, the shared pipeline file wins for workflow semantics.

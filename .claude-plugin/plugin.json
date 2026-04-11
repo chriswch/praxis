@@ -1,6 +1,6 @@
 {
   "name": "praxis",
-  "description": "Spec-driven development workflow — /craft for test-driven development with verification, /forge for fast delivery without writing new tests.",
+  "description": "Spec-driven Praxis v3 workflow - /craft for full TDD plus verification, /forge for fast delivery, both with shared manual/autopilot story-boundary semantics.",
   "version": "1.0.0",
   "license": "MIT"
 }

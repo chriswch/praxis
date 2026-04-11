@@ -1,68 +1,66 @@
 # Praxis
 
-Spec-driven, test-driven development plugin for Claude Code.
+Spec-driven software engineering workflows for Claude Code.
 
-Build products the way humans build good products: start from the highest abstraction, transform intent into concrete spec and code step by step, and deliver working behavior — not perfect artifacts.
-
-## How to work
-
-- **One stage at a time.** Define the goal of each stage clearly. Produce results within the current stage. Do not leak downstream concerns upstream.
-- **Core behavior first.** Focus acceptance criteria and tests on the behaviors users will actually perceive. Avoid redundant ACs that test the same behavior from different angles.
-- **High standards, fewer tests.** Each acceptance criterion and test should be precise and meaningful. Quality over quantity — a few well-chosen tests beat many overlapping ones.
-- **Sharp, fast, minimal.** Deliver a version that lets users use the core functionality, does not break existing behavior, and maintains sufficient code quality. Do not wait for a perfect result.
-- **Do not break what works.** Run existing tests after every change. Existing behavior is a contract — honor it unless explicitly told otherwise.
-- **Sufficiently maintainable code.** Simple, effective, pragmatic, easy to understand, extensible, easy to change. Not theoretically optimal — practically good.
-- **Proportional ceremony.** A one-line fix does not need a spec. A multi-slice feature does. Every skill triages first and scales accordingly.
+Claude commands under `commands/` are thin adapters over the shared Praxis v3 workflow files in `workflow/`. If a Claude wrapper and a shared workflow file disagree, the shared workflow file wins.
 
 ## Workflow
 
-`/craft` pipeline: `clarifying-intent` → [`slicing-stories`] → `sketching-design` → `driving-tdd` → `code-reviewing` → `code-improving` → `verifying-and-adapting`
+`/craft`: `clarifying-intent` -> [`slicing-stories`] -> `sketching-design` -> `driving-tdd` -> `code-reviewing` -> `code-improving` -> `verifying-and-adapting`
 
-`/forge` pipeline: `clarifying-intent` → [`slicing-stories`] → `sketching-design` → `rapid-implementing` → `code-reviewing` → `code-improving`
+`/forge`: `clarifying-intent` -> [`slicing-stories`] -> `sketching-design` -> `rapid-implementing` -> `code-reviewing` -> `code-improving`
 
-Fast paths: Trivial skips everything. Bug fix → clarify + TDD. Refactor → existing tests + refactor. `/forge` → full clarification, then auto-advance without writing new tests or human checkpoints. Every skill triages by size.
+Execution policy is separate from workflow shape:
 
-## Shared workflow layer
+- `workflow`: `craft` or `forge`
+- `mode`: `single_story` or `multi_slice`
+- `run.execution.mode`: `manual` or `autopilot`
 
-Praxis v2 separates shared workflow semantics from runtime-specific entrypoints:
+## Shared Runtime Files
 
-- `workflow/pipelines/craft.md` is the shared source of truth for the `craft` workflow.
-- `workflow/pipelines/forge.md` is the shared source of truth for the `forge` workflow.
-- `workflow/contracts/run.schema.json` defines `.praxis/run.json`.
-- `workflow/contracts/stage-result.schema.json` defines `.praxis/results/<stage>.json`.
+- `workflow/pipelines/craft.md`
+- `workflow/pipelines/forge.md`
+- `workflow/contracts/run.schema.json`
+- `workflow/contracts/stage-result.schema.json`
+- `workflow/contracts/story-ledger.schema.json`
+- `workflow/scripts/story_boundary.py`
 
-Claude entrypoints under `commands/` are thin wrappers over the shared pipeline files. If a wrapper and a shared pipeline file disagree, the shared pipeline file wins for workflow semantics.
+Use `workflow/scripts/story_boundary.py` as the shared runtime helper for:
 
-## Artifact paths
+- initializing a multi-story queue after `slicing-stories`
+- checkpointing a completed story boundary
+- pausing `autopilot` on operator-required stage results
+- activating the next story after manual confirmation
+- resuming an interrupted multi-story run from `.praxis/`
 
-Skills write workflow artifacts and structured routing state to `.praxis/` in the working project:
+Do not re-implement these transitions in Claude-specific wrappers.
 
-| Artifact         | Path              | Producer                 |
-| ---------------- | ----------------- | ------------------------ |
-| Feature Brief    | `brief.md`        | `clarifying-intent`      |
-| Slice Map        | `slice-map.json`  | `slicing-stories`        |
-| Story-Level Spec | `spec.md`         | `clarifying-intent`      |
-| Design Sketch    | `sketch.md`       | `sketching-design`       |
-| TDD Session      | `tdd.md`          | `driving-tdd`            |
-| Code Review      | `review.md`       | `code-reviewing`         |
-| Improvement      | `improvement.md`  | `code-improving`         |
-| Verification     | `verification.md` | `verifying-and-adapting` |
-| Implementation   | `implementation.md` | `rapid-implementing`   |
+## Artifact Paths
 
-Structured workflow state:
+Human-readable artifacts:
 
-| Structured Artifact | Path                          | Purpose                         |
-| ------------------- | ----------------------------- | ------------------------------- |
-| Run State           | `run.json`                    | Current workflow cursor         |
-| Stage Result        | `results/<stage>.json`        | Stage routing and outcome state |
+| Artifact | Path | Producer |
+| --- | --- | --- |
+| Feature Brief | `brief.md` | `clarifying-intent` |
+| Slice Map | `slice-map.json`, `slice-map.md` | `slicing-stories` |
+| Story-Level Spec | `spec.md` | `clarifying-intent` |
+| Design Sketch | `sketch.md` | `sketching-design` |
+| TDD Session | `tdd.md` | `driving-tdd` |
+| Implementation Summary | `implementation.md` | `rapid-implementing` |
+| Code Review | `review.md` | `code-reviewing` |
+| Improvement | `improvement.md` | `code-improving` |
+| Verification | `verification.md` | `verifying-and-adapting` |
+| Story Handoff | `handoff.json`, `handoff.md` | story-boundary helper |
 
-Single-story: `.praxis/spec.md`, `.praxis/sketch.md`, etc.
-Single-story results: `.praxis/results/clarifying-intent.json`, `.praxis/results/code-reviewing.json`, etc.
-Multi-slice: `.praxis/slices/{slice-id}/spec.md`, `.praxis/slices/{slice-id}/sketch.md`, etc.
-Multi-slice results: `.praxis/slices/{slice-id}/results/driving-tdd.json`, `.praxis/slices/{slice-id}/results/verifying-and-adapting.json`, etc.
-Feature-level artifacts (`brief.md`, `slice-map.json`) always live at `.praxis/` root.
+Structured runtime artifacts:
 
-Use the markdown artifact as the human-readable summary, but use
-`.praxis/results/<stage>.json` as the authoritative routing signal. Do not rely
-only on markers such as `SKETCH_SKIPPED`, `REVIEW_SKIPPED`, `## Feedback`, or
-`ROUTING:` in markdown output.
+| Artifact | Path | Purpose |
+| --- | --- | --- |
+| Run State | `run.json` | Active workflow cursor |
+| Story Ledger | `story-ledger.json` | Durable queue owner for multi-slice runs |
+| Lifecycle Events | `events.jsonl` | Resume and audit trail |
+| Stage Result | `results/<stage>.json` | Stage routing and outcome state |
+
+Single-story artifacts live at `.praxis/`. Multi-slice artifacts live under `.praxis/slices/{slice-id}/`. Feature-level artifacts always live at `.praxis/` root.
+
+Use the markdown artifact as the reading surface for the user, but use `.praxis/results/<stage>.json`, `run.json`, and `story-ledger.json` as the routing source of truth.

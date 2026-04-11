@@ -76,7 +76,6 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["current"]["stage"], "clarifying-intent")
         self.assertEqual(run["routing"]["next_action"], "run_stage")
         self.assertEqual(run["routing"]["boundary_handoff_path"], ".praxis/slices/S-001/handoff.json")
-        self.assertEqual(run["slices"]["active"], "S-002")
 
         self.assertEqual(ledger["execution_mode"], "autopilot")
         self.assertEqual(ledger["stories"]["last_completed"], "S-001")
@@ -311,11 +310,6 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             FIXTURES / "final_done_result.json",
             self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "verifying-and-adapting.json",
         )
-
-        run = load_json(self.repo_root / ".praxis" / "run.json")
-        run["slices"]["order"] = ["S-001"]
-        run["slices"]["active"] = "S-001"
-        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
 
         ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
         ledger["stories"]["order"] = ["S-001"]

@@ -1,36 +1,30 @@
 # Craft Pipeline
 
-This file is the shared source of truth for the Praxis v2 `craft` workflow.
-Claude and Codex wrappers should load this file instead of duplicating the
-orchestration logic in `commands/` and `skills/craft/`.
+This file is the shared source of truth for the Praxis v3 `craft` workflow. Claude and Codex wrappers should load this file instead of duplicating orchestration logic in adapters.
 
 ## Purpose
 
 `craft` is the full spec-driven and test-driven workflow:
 
-`clarifying-intent` -> [`slicing-stories`] -> `sketching-design` ->
-`driving-tdd` -> `code-reviewing` -> `code-improving` ->
-`verifying-and-adapting`
+`clarifying-intent` -> [`slicing-stories`] -> `sketching-design` -> `driving-tdd` -> `code-reviewing` -> `code-improving` -> `verifying-and-adapting`
 
-The orchestrator stays in the main session. Stage skills do bounded work in
-isolated contexts and communicate through `.praxis/` artifacts plus structured
-result files.
+The orchestrator stays in the main session. Stage skills do bounded work in isolated contexts and communicate through `.praxis/` artifacts plus structured result files.
 
 ## Core Rules
 
-1. The orchestrator owns the user conversation, stage routing, and checkpoint
-   decisions.
+1. The orchestrator owns the user conversation, stage routing, checkpoint decisions, and resume flow.
 2. Stage skills own stage work only. They do not decide the whole workflow.
-3. `.praxis/run.json` is the workflow cursor for the active run.
-4. Each stage writes a structured result file to
-   `{artifact-dir}/results/<stage>.json`.
-5. Human-readable artifacts remain the primary reading surface for the user,
-   but JSON result files are the routing source of truth.
+3. `.praxis/run.json` is the active workflow cursor.
+4. `.praxis/story-ledger.json` is the durable queue owner for multi-slice runs.
+5. Each stage writes a structured result file to `{artifact-dir}/results/<stage>.json`.
+6. Human-readable artifacts remain the reading surface for the user, but JSON result files, `run.json`, and `story-ledger.json` are the routing source of truth.
+7. Use `../scripts/story_boundary.py` for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume. Do not re-implement those transitions in runtime wrappers.
 
 ## Shared Contracts
 
 - Run state: `../contracts/run.schema.json`
 - Stage result: `../contracts/stage-result.schema.json`
+- Story ledger: `../contracts/story-ledger.schema.json`
 
 ## Artifact Layout
 
@@ -46,8 +40,7 @@ Feature-level artifacts always live at the root:
 - `.praxis/story-ledger.json`
 - `.praxis/events.jsonl`
 
-Single-story artifacts also live at the root. Slice-local artifacts live under
-their slice directory.
+Single-story artifacts also live at the root. Slice-local artifacts live under their slice directory.
 
 ## Stage Names
 
@@ -61,35 +54,22 @@ Use these exact stage identifiers in `run.json` and result files:
 - `code-improving`
 - `verifying-and-adapting`
 
-## Orchestrator Responsibilities
+## Execution Modes
 
-For each step of the workflow, the orchestrator should:
+`craft` supports two execution policies:
 
-1. Load `.praxis/run.json`.
-2. Determine the current scope and artifact directory.
-3. Invoke the current stage skill with the current artifact directory when
-   needed.
-4. Read `{artifact-dir}/results/<stage>.json`.
-5. Present the relevant artifact summary to the user.
-6. Wait for confirmation or clarification before advancing.
-7. Update `.praxis/run.json` with the next stage, scope, and routing state.
+- `manual`: pause after every completed non-trivial stage and after each story boundary checkpoint.
+- `autopilot`: auto-run `proceed` and `next_slice` routes when no stop condition exists.
 
-## Checkpoint Policy
+Always pause when either of these is true:
 
-`craft` is stage-by-stage and artifact-driven.
-
-- In `manual` execution mode, pause after every completed non-trivial stage.
-- In `autopilot` execution mode, auto-run `proceed` and `next_slice` routes
-  when no stop condition exists.
-- Always pause when `needs_user_input` is `true`.
-- Always honor `route.kind`.
-- Present summaries, not full artifacts, unless the user asks for the full
-  text.
+- `needs_user_input` is `true`
+- `route.kind` is `ask_user`, `rework`, or `escalate`
+- a story-boundary gate fails
 
 ## Result Routing Model
 
-The orchestrator should route primarily by `route.kind`, then use
-`data.outcome_code` for stage-specific meaning.
+Route primarily by `route.kind`, then use `data.outcome_code` for stage-specific meaning.
 
 Supported route kinds:
 
@@ -99,6 +79,97 @@ Supported route kinds:
 - `next_slice`
 - `rework`
 - `escalate`
+
+## Story-Boundary Runtime API
+
+### Initialize the queue after `slicing-stories`
+
+When a slice map is accepted for a multi-slice run, initialize the durable queue before starting the first story:
+
+```bash
+python3 -m workflow.scripts.story_boundary initialize-story-queue \
+  --repo-root . \
+  --slice-map-path .praxis/slice-map.json \
+  --timestamp <iso-8601-utc>
+```
+
+This command creates `.praxis/story-ledger.json`, activates the first story, updates `.praxis/run.json`, and appends a `story_queue_initialized` event.
+
+### Pause `autopilot` on stage-level stop conditions
+
+After a completed stage result is written during `autopilot`, evaluate whether the run must stop before auto-advancing:
+
+```bash
+python3 -m workflow.scripts.story_boundary pause-autopilot-for-stage-result \
+  --repo-root . \
+  --stage-result-path <artifact-dir>/results/<stage>.json \
+  --timestamp <iso-8601-utc>
+```
+
+If the helper reports `paused = true`, stop and show the operator the recorded reason from `.praxis/run.json`.
+
+### Checkpoint a completed story boundary
+
+When `verifying-and-adapting` returns `route.kind = next_slice` or `route.kind = done`, checkpoint the story boundary through the helper.
+
+Required JSON inputs:
+
+```json
+{
+  "start_commit": "abc1111",
+  "end_commit": "def2222",
+  "commits": ["abc1111", "def2222"]
+}
+```
+
+```json
+{
+  "summary": "What this story delivered.",
+  "carry_forward_context": [
+    "Only the context the next story actually needs."
+  ],
+  "changed_paths": [
+    "path/to/file"
+  ]
+}
+```
+
+Invoke:
+
+```bash
+python3 -m workflow.scripts.story_boundary checkpoint-story-boundary \
+  --repo-root . \
+  --stage-result-path .praxis/slices/<slice-id>/results/verifying-and-adapting.json \
+  --commit-meta-path /tmp/commit-meta.json \
+  --handoff-data-path /tmp/handoff-data.json \
+  --timestamp <iso-8601-utc>
+```
+
+Pass `--dirty-path <path>` for each dirty product-worktree path and `--gate-failure <code>` for each failed boundary gate. In `autopilot`, pass `--cancel-requested` if the operator cancelled before the next story activates.
+
+The helper writes story handoff artifacts, updates `run.json` and `story-ledger.json`, appends lifecycle events, and either arms or activates the next story based on `run.execution.mode`.
+
+### Activate the next story after manual confirmation
+
+In `manual`, once the user confirms continuing from a checkpointed boundary:
+
+```bash
+python3 -m workflow.scripts.story_boundary activate-next-story-from-boundary \
+  --repo-root . \
+  --timestamp <iso-8601-utc>
+```
+
+### Resume from durable state
+
+On a resumed multi-slice run, let the helper reconstruct the exact next action from `.praxis/` artifacts:
+
+```bash
+python3 -m workflow.scripts.story_boundary resume-story-run-from-disk \
+  --repo-root . \
+  --timestamp <iso-8601-utc>
+```
+
+Trust the helper's returned state summary. Resume decisions come from durable artifacts, not transcript continuity.
 
 ## Stage Routing
 
@@ -126,12 +197,6 @@ Routing:
 - `feature_brief_ready` -> confirm, then run `slicing-stories`
 - `clarification_needed` -> ask the user, then re-run `clarifying-intent`
 
-Notes:
-
-- For feature-level clarification, use root scope `.praxis/`.
-- For slice-level clarification, use `.praxis/slices/<slice-id>/`.
-- A bug fix skips `sketching-design` and enters TDD directly.
-
 ### 2. `slicing-stories`
 
 Expected outputs:
@@ -147,15 +212,8 @@ Expected outcome codes:
 
 Routing:
 
-- `slice_map_ready` -> confirm the slice map, initialize slice order in
-  `.praxis/run.json`, then run `clarifying-intent` for the first slice
-- `blocking_questions` -> ask the user, update the brief if needed, then
-  re-run `slicing-stories`
-
-Notes:
-
-- `slicing-stories` always runs at root scope.
-- The root run state should record the ordered slice ids and the active slice.
+- `slice_map_ready` -> confirm the slice map, initialize the story queue with `initialize-story-queue`, then run `clarifying-intent` for the first slice
+- `blocking_questions` -> ask the user, update the brief if needed, then re-run `slicing-stories`
 
 ### 3. `sketching-design`
 
@@ -174,8 +232,7 @@ Routing:
 
 - `sketch_ready` -> confirm, then run `driving-tdd`
 - `sketch_skipped` -> inform the user, then run `driving-tdd`
-- `spec_issue` -> ask the user, return to `clarifying-intent` for the same
-  artifact directory, then re-run `sketching-design` if needed
+- `spec_issue` -> ask the user, return to `clarifying-intent` for the same artifact directory, then re-run `sketching-design` if needed
 
 ### 4. `driving-tdd`
 
@@ -192,8 +249,7 @@ Expected outcome codes:
 Routing:
 
 - `tdd_complete` -> confirm, then run `code-reviewing`
-- `spec_feedback` -> ask the user, return to `clarifying-intent` for the same
-  artifact directory, then re-run `driving-tdd`
+- `spec_feedback` -> ask the user, return to `clarifying-intent` for the same artifact directory, then re-run `driving-tdd`
 
 ### 5. `code-reviewing`
 
@@ -229,8 +285,7 @@ Routing:
 
 - `improvement_ready` -> confirm, then run `verifying-and-adapting`
 - `improvement_skipped` -> inform the user, then run `verifying-and-adapting`
-- `spec_feedback` -> ask the user, return to `clarifying-intent` for the same
-  artifact directory, then re-run `code-improving`
+- `spec_feedback` -> ask the user, return to `clarifying-intent` for the same artifact directory, then re-run `code-improving`
 
 ### 7. `verifying-and-adapting`
 
@@ -248,36 +303,10 @@ Expected outcome codes:
 
 Routing:
 
-- `done` -> confirm the verification summary and finish the run if this is a
-  single story or the last slice
-- `next_slice` -> confirm in `manual` mode, mark the current slice complete in
-  `.praxis/run.json`, checkpoint the completed story into
-  `.praxis/story-ledger.json`, write `.praxis/slices/<slice-id>/handoff.json`
-  and `handoff.md`, then either arm the next slice behind manual confirmation
-  or activate it immediately in `autopilot`
-- `rework` -> confirm the gap, then return to `driving-tdd` for the same
-  artifact directory
-- `escalate` -> confirm the scope issue, switch back to root scope `.praxis/`,
-  and run `clarifying-intent` at feature level
-
-Execution-mode story-boundary rules for multi-slice runs:
-
-- Treat `.praxis/run.json` as the active cursor and `.praxis/story-ledger.json`
-  as the durable queue owner / history record.
-- `run.json.slices` remains a compatibility mirror during the v3 transition.
-  Keep it synchronized, but do not treat it as the queue owner.
-- When a story completes and another slice remains, do not rely on transcript
-  continuity; write bounded carry-forward context to the story handoff
-  artifacts.
-- In `manual`, stop after boundary checkpointing with
-  `routing.next_action = confirm_then_run`.
-- In `autopilot`, activate the next story immediately only after the durable
-  checkpoint succeeds.
-- Stop `autopilot` when a stage needs user input, a route asks for rework or
-  escalation, the worktree is dirty, commit metadata is missing, the test or
-  commit gate fails, or the run is cancelled.
-- Record `autopilot` stop reasons in `run.routing.stop_reason_code` and the
-  active story entry in `.praxis/story-ledger.json`.
+- `done` -> checkpoint the story boundary, then finish the run if this is a single story or the last slice
+- `next_slice` -> checkpoint the completed story boundary, then either arm the next slice behind manual confirmation or activate it immediately in `autopilot`
+- `rework` -> confirm the gap, then return to `driving-tdd` for the same artifact directory
+- `escalate` -> confirm the scope issue, switch back to root scope `.praxis/`, and run `clarifying-intent` at feature level
 
 ## Run State Updates
 
@@ -290,6 +319,9 @@ After each completed stage, update `.praxis/run.json` with:
 - `routing.next_action`
 - `routing.next_stage`
 - `routing.next_slice_id` when relevant
+- `routing.reason`
+- `routing.stop_reason_code`
+- `routing.boundary_handoff_path`
 - `status`
 - `timestamps.updated_at`
 
@@ -307,12 +339,11 @@ A `craft` run is complete when either:
 
 - a trivial change ends at `clarifying-intent`
 - a single-story run reaches `verifying-and-adapting` with `route.kind = done`
-- a multi-slice run has no remaining slices after the last
-  `verifying-and-adapting` result with `route.kind = done`
+- a multi-slice run has no remaining slices after the last `verifying-and-adapting` result with `route.kind = done`
 
 When complete:
 
 1. Set `status` to `completed`.
-2. Clear `routing.next_action` to `finish`.
+2. Set `routing.next_action` to `finish`.
 3. Leave `current.stage` as `null`.
 4. Report the final artifact summary to the user.

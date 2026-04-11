@@ -165,11 +165,6 @@ class ManualStoryBoundaryContractTest(unittest.TestCase):
             self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "verifying-and-adapting.json",
         )
 
-        run = load_json(self.repo_root / ".praxis" / "run.json")
-        run["slices"]["order"] = ["S-001"]
-        run["slices"]["active"] = "S-001"
-        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
-
         ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
         ledger["stories"]["order"] = ["S-001"]
         ledger["stories"]["items"].pop("S-002", None)
