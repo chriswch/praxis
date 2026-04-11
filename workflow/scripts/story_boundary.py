@@ -16,6 +16,7 @@ from .durable_state import (
     validate_handoff_file,
     validate_state_payloads,
 )
+from .git_boundary import GitBoundaryError, collect_boundary_evidence, current_git_head, current_worktree_metadata
 from .routing import resolve_next_stage_for_result, resolve_stop_reason_for_stage_result
 
 
@@ -157,6 +158,8 @@ def _boundary_stop(reason_code: str) -> str:
         "missing_commit_metadata": "Missing commit metadata blocks story boundary.",
         "test_gate_failed": "A failed test gate blocks story boundary.",
         "commit_gate_failed": "A failed commit gate blocks story boundary.",
+        "zero_delta_checkpoint": "Zero-delta story checkpoint blocks story boundary.",
+        "ambiguous_boundary_commits": "Ambiguous git commit history blocks story boundary.",
         "cancelled": "Autopilot cancellation stopped story advancement before activation.",
     }
     return reasons.get(reason_code, f"Boundary gate {reason_code} blocks story boundary.")
@@ -326,8 +329,16 @@ def initialize_story_queue(
         raise ValueError(f"Unsupported execution mode: {resolved_execution_mode!r}.")
 
     first_story_id = story_order[0]
+    first_story_head = current_git_head(repo_root)
+    first_story_worktree = current_worktree_metadata(repo_root)
     stories = {}
     for index, story_id in enumerate(story_order):
+        commit_meta = None
+        if index == 0 and first_story_head is not None:
+            commit_meta = {
+                "start_commit": first_story_head,
+                "worktree": first_story_worktree,
+            }
         stories[story_id] = {
             "artifact_dir": f".praxis/slices/{story_id}",
             "status": "active" if index == 0 else "queued",
@@ -335,7 +346,7 @@ def initialize_story_queue(
             "handoff_path": None,
             "handoff_markdown_path": None,
             "carry_forward_from": None,
-            "commit_meta": None,
+            "commit_meta": commit_meta,
             "boundary_reason_code": None,
             "boundary_reason": None,
             "stop_reason_code": None,
@@ -461,13 +472,34 @@ def checkpoint_story_boundary(
         dedupe_fields={"slice_id": current_story_id, "stage": stage_name},
     )
 
+    verified_commit_meta = commit_meta
+    effective_dirty_paths = dirty_paths
+    effective_gate_failures = list(gate_failures or [])
+    try:
+        collected_commit_meta = collect_boundary_evidence(
+            repo_root=repo_root,
+            story=current_story,
+            ledger=ledger,
+            fallback_commit_meta=commit_meta,
+        )
+    except GitBoundaryError as exc:
+        if exc.evidence is not None:
+            verified_commit_meta = exc.evidence
+            effective_dirty_paths = exc.evidence.get("dirty_paths")
+        effective_gate_failures = [exc.code, *effective_gate_failures]
+    else:
+        verified_commit_meta = collected_commit_meta
+        if collected_commit_meta is not None and "dirty_paths" in collected_commit_meta:
+            effective_dirty_paths = collected_commit_meta.get("dirty_paths")
+
     boundary_stop = _resolve_boundary_stop(
-        dirty_paths=dirty_paths,
-        commit_meta=commit_meta,
-        gate_failures=gate_failures,
+        dirty_paths=effective_dirty_paths,
+        commit_meta=verified_commit_meta,
+        gate_failures=effective_gate_failures or None,
     )
     if boundary_stop:
         reason_code, reason = boundary_stop
+        current_story["commit_meta"] = verified_commit_meta
         current_story["boundary_status"] = "blocked"
         current_story["boundary_reason_code"] = reason_code
         current_story["boundary_reason"] = reason
@@ -506,21 +538,24 @@ def checkpoint_story_boundary(
 
     handoff_json_rel = f".praxis/slices/{current_story_id}/handoff.json"
     handoff_md_rel = f".praxis/slices/{current_story_id}/handoff.md"
+    verified_changed_paths = (verified_commit_meta or {}).get("changed_paths") or handoff_data.get("changed_paths", [])
+    handoff_view = dict(handoff_data)
+    handoff_view["changed_paths"] = verified_changed_paths
     handoff_payload = {
         "version": 1,
         "story_id": current_story_id,
         "next_story_id": next_story_id,
         "summary": handoff_data.get("summary", ""),
         "carry_forward_context": handoff_data.get("carry_forward_context", []),
-        "changed_paths": handoff_data.get("changed_paths", []),
-        "commit_meta": commit_meta,
+        "changed_paths": verified_changed_paths,
+        "commit_meta": verified_commit_meta,
         "generated_at": timestamp,
     }
     handoff_markdown = _render_handoff_markdown(
         current_story_id,
         next_story_id,
-        handoff_data,
-        commit_meta or {},
+        handoff_view,
+        verified_commit_meta or {},
     )
 
     _queue_event_if_missing(
@@ -543,7 +578,7 @@ def checkpoint_story_boundary(
     current_story["stop_reason"] = None
     current_story["handoff_path"] = handoff_json_rel
     current_story["handoff_markdown_path"] = handoff_md_rel
-    current_story["commit_meta"] = commit_meta
+    current_story["commit_meta"] = verified_commit_meta
     ledger["stories"]["last_completed"] = current_story_id
 
     if route_kind == "next_slice":
@@ -551,6 +586,10 @@ def checkpoint_story_boundary(
         next_story["status"] = "active_next"
         next_story["boundary_status"] = "pending"
         next_story["carry_forward_from"] = current_story_id
+        next_story["commit_meta"] = {
+            "start_commit": (verified_commit_meta or {}).get("end_commit"),
+            "worktree": current_worktree_metadata(repo_root),
+        } if verified_commit_meta else next_story.get("commit_meta")
         next_story["stop_reason_code"] = None
         next_story["stop_reason"] = None
         ledger["stories"]["active"] = next_story_id
@@ -753,7 +792,12 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
     handoff_path = _handoff_path_for_story(ledger, next_story_id)
     if not handoff_path or not (repo_root / handoff_path).exists():
         raise ValueError(f"Cannot activate {next_story_id} without a durable handoff artifact.")
-    validate_handoff_file(repo_root / handoff_path)
+    handoff_payload = validate_handoff_file(repo_root / handoff_path)
+
+    next_story["commit_meta"] = {
+        "start_commit": handoff_payload.get("commit_meta", {}).get("end_commit") if handoff_payload.get("commit_meta") else None,
+        "worktree": current_worktree_metadata(repo_root),
+    }
 
     from_story_id = next_story.get("carry_forward_from")
     next_story["status"] = "active"
@@ -1048,7 +1092,7 @@ def main(argv: list[str] | None = None) -> int:
     checkpoint_parser = subparsers.add_parser("checkpoint-story-boundary")
     checkpoint_parser.add_argument("--repo-root", default=".")
     checkpoint_parser.add_argument("--stage-result-path", required=True)
-    checkpoint_parser.add_argument("--commit-meta-path", required=True)
+    checkpoint_parser.add_argument("--commit-meta-path")
     checkpoint_parser.add_argument("--handoff-data-path", required=True)
     checkpoint_parser.add_argument("--dirty-path", action="append", default=[])
     checkpoint_parser.add_argument("--gate-failure", action="append", default=[])
