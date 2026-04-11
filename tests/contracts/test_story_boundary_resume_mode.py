@@ -217,6 +217,86 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["boundary_handoff_path"], ".praxis/slices/S-001/handoff.json")
         self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active_next")
 
+    def test_uses_activation_event_to_finish_replay_without_double_activation(self) -> None:
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "failed"
+        run["current"]["slice_id"] = "S-002"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-002"
+        run["current"]["stage"] = "clarifying-intent"
+        run["slices"]["active"] = "S-002"
+        run["routing"]["next_action"] = "confirm_then_run"
+        run["routing"]["next_stage"] = "clarifying-intent"
+        run["routing"]["next_slice_id"] = "S-002"
+        run["routing"]["reason"] = "Interrupted after activation write."
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["active"] = "S-002"
+        ledger["stories"]["last_completed"] = "S-001"
+        ledger["stories"]["items"]["S-001"]["status"] = "completed"
+        ledger["stories"]["items"]["S-001"]["boundary_status"] = "checkpointed"
+        ledger["stories"]["items"]["S-001"]["handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        ledger["stories"]["items"]["S-002"]["status"] = "active_next"
+        ledger["stories"]["items"]["S-002"]["boundary_status"] = "pending"
+        ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        handoff = {
+            "version": 1,
+            "story_id": "S-001",
+            "next_story_id": "S-002",
+            "summary": "S-001 completed.",
+            "carry_forward_context": ["Activation already reached durable events."],
+            "changed_paths": ["workflow/scripts/story_boundary.py"],
+            "commit_meta": {"end_commit": "def2222"},
+            "generated_at": "2026-04-11T03:27:00Z",
+        }
+        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
+            json.dumps(handoff, indent=2) + "\n"
+        )
+
+        events_path = self.repo_root / ".praxis" / "events.jsonl"
+        events_path.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "ts": "2026-04-11T03:27:00Z",
+                            "type": "boundary_checkpointed",
+                            "slice_id": "S-001",
+                            "next_slice_id": "S-002",
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "ts": "2026-04-11T03:28:00Z",
+                            "type": "story_activated",
+                            "slice_id": "S-002",
+                            "from_slice_id": "S-001",
+                        }
+                    ),
+                ]
+            )
+            + "\n"
+        )
+
+        action = resume_story_run_from_disk(
+            repo_root=self.repo_root,
+            timestamp="2026-04-11T03:29:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        lines = events_path.read_text().strip().splitlines()
+
+        self.assertEqual(action, "resume_replayed_activation")
+        self.assertEqual(run["status"], "running")
+        self.assertEqual(run["routing"]["next_action"], "run_stage")
+        self.assertEqual(run["routing"]["next_slice_id"], None)
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["boundary_status"], "in_progress")
+        self.assertEqual(len(lines), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,6 +21,21 @@ def _load_events(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in lines]
 
 
+def _append_event(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload) + "\n")
+
+
+def _event_exists(events: list[dict[str, Any]], *, event_type: str, **fields: Any) -> bool:
+    for event in events:
+        if event.get("type") != event_type:
+            continue
+        if all(event.get(name) == value for name, value in fields.items()):
+            return True
+    return False
+
+
 def _append_unique(items: list[str], value: str) -> None:
     if value not in items:
         items.append(value)
@@ -343,12 +358,15 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
     repo_root = repo_root.resolve()
     run_path = repo_root / ".praxis" / "run.json"
     ledger_path = repo_root / ".praxis" / "story-ledger.json"
+    events_path = repo_root / ".praxis" / "events.jsonl"
 
     run = _load_json(run_path)
     ledger = _load_json(ledger_path)
+    events = _load_events(events_path)
 
     next_story_id = ledger["stories"]["active"]
     next_story = ledger["stories"]["items"][next_story_id]
+    from_story_id = next_story.get("carry_forward_from")
     next_story["status"] = "active"
     next_story["boundary_status"] = "in_progress"
     next_story["stop_reason_code"] = None
@@ -371,6 +389,21 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
 
     _write_json(run_path, run)
     _write_json(ledger_path, ledger)
+    if not _event_exists(
+        events,
+        event_type="story_activated",
+        slice_id=next_story_id,
+        from_slice_id=from_story_id,
+    ):
+        _append_event(
+            events_path,
+            {
+                "ts": timestamp,
+                "type": "story_activated",
+                "slice_id": next_story_id,
+                "from_slice_id": from_story_id,
+            },
+        )
 
 
 def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
@@ -381,7 +414,7 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
 
     run = _load_json(run_path)
     ledger = _load_json(ledger_path)
-    _load_events(events_path)
+    events = _load_events(events_path)
 
     active_story_id = ledger["stories"]["active"]
     if not active_story_id:
@@ -412,6 +445,15 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
             _write_json(run_path, run)
             _write_json(ledger_path, ledger)
             return "resume_manual_wait"
+
+        if _event_exists(
+            events,
+            event_type="story_activated",
+            slice_id=active_story_id,
+            from_slice_id=active_story.get("carry_forward_from"),
+        ):
+            activate_next_story_from_boundary(repo_root=repo_root, timestamp=timestamp)
+            return "resume_replayed_activation"
 
         activate_next_story_from_boundary(repo_root=repo_root, timestamp=timestamp)
         return "resume_autopilot_activation"
