@@ -4,7 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.story_boundary import checkpoint_story_boundary
+from workflow.scripts.story_boundary import (
+    checkpoint_story_boundary,
+    pause_autopilot_for_stage_result,
+)
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -28,6 +31,14 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         shutil.copy(
             FIXTURES / "next_slice_result.json",
             self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "verifying-and-adapting.json",
+        )
+        shutil.copy(
+            FIXTURES / "clarification_needed_result.json",
+            self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "clarifying-intent.json",
+        )
+        shutil.copy(
+            FIXTURES / "rework_result.json",
+            self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "rework.json",
         )
 
     def tearDown(self) -> None:
@@ -110,6 +121,42 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             "test_gate_failed",
         )
         self.assertFalse((self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").exists())
+
+    def test_autopilot_pauses_when_stage_result_needs_user_input(self) -> None:
+        paused = pause_autopilot_for_stage_result(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/clarifying-intent.json"),
+            timestamp="2026-04-11T03:10:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertTrue(paused)
+        self.assertEqual(run["status"], "waiting_for_user")
+        self.assertEqual(run["current"]["slice_id"], "S-001")
+        self.assertEqual(run["current"]["stage"], "clarifying-intent")
+        self.assertEqual(run["routing"]["next_action"], "ask_user")
+        self.assertEqual(run["routing"]["stop_reason_code"], "needs_user_input")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["stop_reason_code"], "needs_user_input")
+
+    def test_autopilot_pauses_when_stage_routes_to_rework(self) -> None:
+        paused = pause_autopilot_for_stage_result(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/rework.json"),
+            timestamp="2026-04-11T03:12:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertTrue(paused)
+        self.assertEqual(run["status"], "waiting_for_user")
+        self.assertEqual(run["current"]["stage"], "driving-tdd")
+        self.assertEqual(run["routing"]["next_action"], "ask_user")
+        self.assertEqual(run["routing"]["next_stage"], "driving-tdd")
+        self.assertEqual(run["routing"]["stop_reason_code"], "route_rework")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["stop_reason_code"], "route_rework")
 
 
 if __name__ == "__main__":

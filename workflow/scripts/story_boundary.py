@@ -52,6 +52,22 @@ def _resolve_boundary_stop(
     return None
 
 
+def _resolve_stage_stop(stage_result: dict[str, Any]) -> tuple[str, str] | None:
+    if stage_result.get("needs_user_input"):
+        return "needs_user_input", stage_result["route"].get("reason") or "Autopilot paused because user input is required."
+
+    route_kind = stage_result["route"]["kind"]
+    route_codes = {
+        "ask_user": "route_ask_user",
+        "rework": "route_rework",
+        "escalate": "route_escalate",
+    }
+    if route_kind in route_codes:
+        return route_codes[route_kind], stage_result["route"].get("reason") or f"Autopilot paused on route {route_kind}."
+
+    return None
+
+
 def _validate_completion_result(stage_result: dict[str, Any]) -> tuple[str, str | None]:
     route_kind = stage_result["route"]["kind"]
     outcome_code = stage_result["data"]["outcome_code"]
@@ -232,6 +248,53 @@ def checkpoint_story_boundary(
 
     _write_json(run_path, run)
     _write_json(ledger_path, ledger)
+
+
+def pause_autopilot_for_stage_result(
+    *,
+    repo_root: Path,
+    stage_result_path: Path,
+    timestamp: str,
+) -> bool:
+    repo_root = repo_root.resolve()
+    run_path = repo_root / ".praxis" / "run.json"
+    ledger_path = repo_root / ".praxis" / "story-ledger.json"
+    stage_result_full_path = repo_root / stage_result_path
+
+    run = _load_json(run_path)
+    ledger = _load_json(ledger_path)
+    stage_result = _load_json(stage_result_full_path)
+
+    if _resolve_execution_mode(run, ledger) != "autopilot":
+        return False
+
+    stage_stop = _resolve_stage_stop(stage_result)
+    if stage_stop is None:
+        return False
+
+    reason_code, reason = stage_stop
+    current_story_id = run["current"]["slice_id"]
+    current_story = ledger["stories"]["items"][current_story_id]
+    next_stage = stage_result["route"]["next_stage"]
+
+    current_story["status"] = "active"
+    current_story["stop_reason_code"] = reason_code
+    current_story["stop_reason"] = reason
+    ledger["stories"]["active"] = current_story_id
+
+    run["status"] = "waiting_for_user"
+    run["current"]["stage"] = next_stage
+    run["routing"]["next_action"] = "ask_user"
+    run["routing"]["next_stage"] = next_stage
+    run["routing"]["next_slice_id"] = stage_result["route"]["next_slice_id"]
+    run["routing"]["stop_reason_code"] = reason_code
+    run["routing"]["reason"] = reason
+    run["timestamps"]["updated_at"] = timestamp
+    ledger["timestamps"]["updated_at"] = timestamp
+
+    _write_json(run_path, run)
+    _write_json(ledger_path, ledger)
+    return True
 
 
 def checkpoint_manual_story_boundary(
