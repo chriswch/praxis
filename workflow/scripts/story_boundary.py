@@ -196,17 +196,41 @@ def checkpoint_story_boundary(
     repo_root = repo_root.resolve()
     run_path = repo_root / ".praxis" / "run.json"
     ledger_path = repo_root / ".praxis" / "story-ledger.json"
+    events_path = repo_root / ".praxis" / "events.jsonl"
     stage_result_full_path = repo_root / stage_result_path
 
     run = _load_json(run_path)
     ledger = _load_json(ledger_path)
     stage_result = _load_json(stage_result_full_path)
+    events = _load_events(events_path)
     execution_mode = _resolve_execution_mode(run, ledger)
     ledger["execution_mode"] = execution_mode
 
     current_story_id = run["current"]["slice_id"]
     current_story = ledger["stories"]["items"][current_story_id]
     route_kind, next_story_id = _validate_completion_result(stage_result)
+    stage_name = stage_result_full_path.stem
+
+    _append_event(
+        events_path,
+        {
+            "ts": timestamp,
+            "type": "stage_completed",
+            "slice_id": current_story_id,
+            "stage": stage_name,
+            "outcome_code": stage_result["data"]["outcome_code"],
+            "route_kind": stage_result["route"]["kind"],
+        },
+    )
+    _append_event(
+        events_path,
+        {
+            "ts": timestamp,
+            "type": "boundary_started",
+            "slice_id": current_story_id,
+            "stage": stage_name,
+        },
+    )
 
     boundary_stop = _resolve_boundary_stop(
         dirty_paths=dirty_paths,
@@ -231,6 +255,16 @@ def checkpoint_story_boundary(
         ledger["timestamps"]["updated_at"] = timestamp
         _write_json(run_path, run)
         _write_json(ledger_path, ledger)
+        _append_event(
+            events_path,
+            {
+                "ts": timestamp,
+                "type": "boundary_blocked",
+                "slice_id": current_story_id,
+                "reason_code": reason_code,
+                "reason": reason,
+            },
+        )
         return
 
     handoff_json_rel = f".praxis/slices/{current_story_id}/handoff.json"
@@ -248,6 +282,16 @@ def checkpoint_story_boundary(
 
     _write_json(repo_root / handoff_json_rel, handoff_payload)
     _write_markdown(repo_root / handoff_md_rel, current_story_id, next_story_id, handoff_data, commit_meta)
+    _append_event(
+        events_path,
+        {
+            "ts": timestamp,
+            "type": "boundary_checkpointed",
+            "slice_id": current_story_id,
+            "next_slice_id": next_story_id,
+            "handoff_path": handoff_json_rel,
+        },
+    )
 
     current_story["status"] = "completed"
     current_story["boundary_status"] = "checkpointed"
@@ -294,6 +338,17 @@ def checkpoint_story_boundary(
             run["routing"]["next_slice_id"] = next_story_id
             run["routing"]["stop_reason_code"] = reason_code
             run["routing"]["reason"] = reason
+            _append_event(
+                events_path,
+                {
+                    "ts": timestamp,
+                    "type": "story_activation_cancelled",
+                    "slice_id": next_story_id,
+                    "from_slice_id": current_story_id,
+                    "reason_code": reason_code,
+                    "reason": reason,
+                },
+            )
         elif execution_mode == "autopilot":
             next_story["status"] = "active"
             next_story["boundary_status"] = "in_progress"
@@ -305,6 +360,21 @@ def checkpoint_story_boundary(
             run["routing"]["next_slice_id"] = None
             run["routing"]["stop_reason_code"] = None
             run["routing"]["reason"] = f"{next_story_id} activated from durable story-boundary state."
+            if not _event_exists(
+                events,
+                event_type="story_activated",
+                slice_id=next_story_id,
+                from_slice_id=current_story_id,
+            ):
+                _append_event(
+                    events_path,
+                    {
+                        "ts": timestamp,
+                        "type": "story_activated",
+                        "slice_id": next_story_id,
+                        "from_slice_id": current_story_id,
+                    },
+                )
     else:
         ledger["stories"]["active"] = None
         run["status"] = "completed"

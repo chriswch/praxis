@@ -86,6 +86,44 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(ledger["stories"]["items"]["S-002"]["carry_forward_from"], "S-001")
         self.assertEqual(handoff["next_story_id"], "S-002")
 
+    def test_appends_checkpoint_and_activation_events(self) -> None:
+        checkpoint_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/verifying-and-adapting.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "S-001 completed.",
+                "carry_forward_context": ["Autopilot should continue from durable state."],
+                "changed_paths": ["workflow/scripts/story_boundary.py"],
+            },
+            dirty_paths=[],
+            timestamp="2026-04-11T03:40:00Z",
+        )
+
+        events_path = self.repo_root / ".praxis" / "events.jsonl"
+        events = [json.loads(line) for line in events_path.read_text().splitlines() if line.strip()]
+
+        self.assertEqual(
+            [event["type"] for event in events],
+            [
+                "stage_completed",
+                "boundary_started",
+                "boundary_checkpointed",
+                "story_activated",
+            ],
+        )
+        self.assertEqual(events[0]["slice_id"], "S-001")
+        self.assertEqual(events[0]["stage"], "verifying-and-adapting")
+        self.assertEqual(events[1]["slice_id"], "S-001")
+        self.assertEqual(events[2]["next_slice_id"], "S-002")
+        self.assertEqual(events[2]["handoff_path"], ".praxis/slices/S-001/handoff.json")
+        self.assertEqual(events[3]["slice_id"], "S-002")
+        self.assertEqual(events[3]["from_slice_id"], "S-001")
+
     def test_autopilot_stops_when_a_boundary_gate_fails(self) -> None:
         checkpoint_story_boundary(
             repo_root=self.repo_root,
