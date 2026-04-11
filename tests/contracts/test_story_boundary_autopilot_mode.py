@@ -160,6 +160,35 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         )
         self.assertFalse((self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").exists())
 
+    def test_appends_boundary_block_event_when_gate_fails(self) -> None:
+        checkpoint_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/verifying-and-adapting.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "S-001 completed.",
+                "carry_forward_context": [],
+                "changed_paths": ["workflow/scripts/story_boundary.py"],
+            },
+            dirty_paths=[],
+            gate_failures=["test_gate_failed"],
+            timestamp="2026-04-11T03:45:00Z",
+        )
+
+        events_path = self.repo_root / ".praxis" / "events.jsonl"
+        events = [json.loads(line) for line in events_path.read_text().splitlines() if line.strip()]
+
+        self.assertEqual(
+            [event["type"] for event in events],
+            ["stage_completed", "boundary_started", "boundary_blocked"],
+        )
+        self.assertEqual(events[-1]["slice_id"], "S-001")
+        self.assertEqual(events[-1]["reason_code"], "test_gate_failed")
+
     def test_autopilot_pauses_when_stage_result_needs_user_input(self) -> None:
         paused = pause_autopilot_for_stage_result(
             repo_root=self.repo_root,
@@ -177,6 +206,21 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["next_action"], "ask_user")
         self.assertEqual(run["routing"]["stop_reason_code"], "needs_user_input")
         self.assertEqual(ledger["stories"]["items"]["S-001"]["stop_reason_code"], "needs_user_input")
+
+    def test_appends_stop_event_when_stage_pause_is_recorded(self) -> None:
+        pause_autopilot_for_stage_result(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/clarifying-intent.json"),
+            timestamp="2026-04-11T03:46:00Z",
+        )
+
+        events_path = self.repo_root / ".praxis" / "events.jsonl"
+        events = [json.loads(line) for line in events_path.read_text().splitlines() if line.strip()]
+
+        self.assertEqual([event["type"] for event in events], ["autopilot_stopped"])
+        self.assertEqual(events[0]["slice_id"], "S-001")
+        self.assertEqual(events[0]["stage"], "clarifying-intent")
+        self.assertEqual(events[0]["reason_code"], "needs_user_input")
 
     def test_autopilot_pauses_when_stage_routes_to_rework(self) -> None:
         paused = pause_autopilot_for_stage_result(
@@ -226,6 +270,41 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(ledger["stories"]["active"], "S-002")
         self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active_next")
         self.assertEqual(ledger["stories"]["items"]["S-002"]["boundary_reason_code"], "cancelled")
+
+    def test_appends_cancellation_event_when_autopilot_stops_before_activation(self) -> None:
+        checkpoint_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/verifying-and-adapting.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "S-001 completed.",
+                "carry_forward_context": [],
+                "changed_paths": ["workflow/scripts/story_boundary.py"],
+            },
+            dirty_paths=[],
+            cancel_requested=True,
+            timestamp="2026-04-11T03:47:00Z",
+        )
+
+        events_path = self.repo_root / ".praxis" / "events.jsonl"
+        events = [json.loads(line) for line in events_path.read_text().splitlines() if line.strip()]
+
+        self.assertEqual(
+            [event["type"] for event in events],
+            [
+                "stage_completed",
+                "boundary_started",
+                "boundary_checkpointed",
+                "story_activation_cancelled",
+            ],
+        )
+        self.assertEqual(events[-1]["slice_id"], "S-002")
+        self.assertEqual(events[-1]["from_slice_id"], "S-001")
+        self.assertEqual(events[-1]["reason_code"], "cancelled")
 
     def test_autopilot_finishes_cleanly_after_the_last_story(self) -> None:
         shutil.copy(

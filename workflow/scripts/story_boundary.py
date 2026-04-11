@@ -403,6 +403,7 @@ def pause_autopilot_for_stage_result(
     repo_root = repo_root.resolve()
     run_path = repo_root / ".praxis" / "run.json"
     ledger_path = repo_root / ".praxis" / "story-ledger.json"
+    events_path = repo_root / ".praxis" / "events.jsonl"
     stage_result_full_path = repo_root / stage_result_path
 
     run = _load_json(run_path)
@@ -438,6 +439,18 @@ def pause_autopilot_for_stage_result(
 
     _write_json(run_path, run)
     _write_json(ledger_path, ledger)
+    _append_event(
+        events_path,
+        {
+            "ts": timestamp,
+            "type": "autopilot_stopped",
+            "slice_id": current_story_id,
+            "stage": stage_result_full_path.stem,
+            "reason_code": reason_code,
+            "reason": reason,
+            "next_stage": next_stage,
+        },
+    )
     return True
 
 
