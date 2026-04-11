@@ -18,7 +18,7 @@ The orchestrator stays in the main session. Stage skills do bounded work in isol
 4. `.praxis/story-ledger.json` is the durable queue owner for multi-slice runs.
 5. Each stage writes a structured result file to `{artifact-dir}/results/<stage>.json`.
 6. Human-readable artifacts remain the reading surface for the user, but JSON result files, `run.json`, and `story-ledger.json` are the routing source of truth.
-7. Use `../scripts/story_boundary.py` for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume. Do not re-implement those transitions in runtime wrappers.
+7. Use `../scripts/run_state.py` for normal stage-to-stage `run.json` updates and `../scripts/story_boundary.py` for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume. Do not re-implement those transitions in runtime wrappers.
 
 ## Shared Contracts
 
@@ -70,6 +70,8 @@ Always pause when either of these is true:
 ## Result Routing Model
 
 Route primarily by `route.kind`, then use `data.outcome_code` for stage-specific meaning.
+Stage skills should leave `route.next_stage = null`; the shared workflow owns
+next-stage resolution from the current workflow, stage, and outcome.
 
 Supported route kinds:
 
@@ -81,6 +83,19 @@ Supported route kinds:
 - `escalate`
 
 ## Story-Boundary Runtime API
+
+### Normal stage-to-stage run updates
+
+For completed stages that continue to another stage in the same story, use the shared run-state helper:
+
+```bash
+python3 -m workflow.scripts.run_state update-run-from-stage-result \
+  --repo-root . \
+  --stage-result-path <artifact-dir>/results/<stage>.json \
+  --timestamp <iso-8601-utc>
+```
+
+This command resolves `next_stage` from the shared workflow routing table and updates `.praxis/run.json` without trusting workflow-specific `route.next_stage` values from stage skills.
 
 ### Initialize the queue after `slicing-stories`
 
@@ -310,7 +325,7 @@ Routing:
 
 ## Run State Updates
 
-After each completed stage, update `.praxis/run.json` with:
+After each completed stage, update `.praxis/run.json` through `../scripts/run_state.py` or `../scripts/story_boundary.py` with:
 
 - `current.scope`
 - `current.slice_id`

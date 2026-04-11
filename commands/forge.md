@@ -29,6 +29,7 @@ Also use these shared contracts and helpers:
 - `../workflow/contracts/run.schema.json`
 - `../workflow/contracts/stage-result.schema.json`
 - `../workflow/contracts/story-ledger.schema.json`
+- `../workflow/scripts/run_state.py`
 - `../workflow/scripts/story_boundary.py`
 
 ## Claude Adapter Rules
@@ -40,5 +41,6 @@ Also use these shared contracts and helpers:
 - Other stages may run in isolated contexts when the stage skill configuration allows it.
 - Read and write workflow state through `.praxis/`.
 - Use `{artifact-dir}/results/<stage>.json` as the routing API. Do not rely only on human-readable markers in Markdown.
+- Use `../workflow/scripts/run_state.py` as the runtime API for non-boundary stage-to-stage `run.json` updates.
 - For multi-slice runs, use `../workflow/scripts/story_boundary.py` as the runtime API for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume. Do not re-implement those transitions in this wrapper.
 - If this wrapper and `../workflow/pipelines/forge.md` ever disagree, the shared pipeline file wins for workflow semantics.

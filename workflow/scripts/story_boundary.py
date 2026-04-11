@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .routing import resolve_next_stage_for_result, resolve_stop_reason_for_stage_result
+
 
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text())
@@ -128,22 +130,6 @@ def _resolve_boundary_stop(
     if gate_failures:
         reason_code = gate_failures[0]
         return reason_code, _boundary_stop(reason_code)
-    return None
-
-
-def _resolve_stage_stop(stage_result: dict[str, Any]) -> tuple[str, str] | None:
-    if stage_result.get("needs_user_input"):
-        return "needs_user_input", stage_result["route"].get("reason") or "Autopilot paused because user input is required."
-
-    route_kind = stage_result["route"]["kind"]
-    route_codes = {
-        "ask_user": "route_ask_user",
-        "rework": "route_rework",
-        "escalate": "route_escalate",
-    }
-    if route_kind in route_codes:
-        return route_codes[route_kind], stage_result["route"].get("reason") or f"Autopilot paused on route {route_kind}."
-
     return None
 
 
@@ -315,6 +301,10 @@ def checkpoint_story_boundary(
     current_story_id = run["current"]["slice_id"]
     current_story = ledger["stories"]["items"][current_story_id]
     route_kind, next_story_id = _validate_completion_result(stage_result)
+    next_stage = resolve_next_stage_for_result(
+        workflow=run["workflow"],
+        stage_result=stage_result,
+    )
     stage_name = stage_result_full_path.stem
 
     _append_event(
@@ -326,7 +316,7 @@ def checkpoint_story_boundary(
             "slice_id": current_story_id,
             "stage": stage_name,
             "outcome_code": stage_result["data"]["outcome_code"],
-            "next_stage": stage_result["route"]["next_stage"],
+            "next_stage": next_stage,
             "next_slice_id": stage_result["route"]["next_slice_id"],
         },
     )
@@ -518,14 +508,17 @@ def pause_autopilot_for_stage_result(
     if _resolve_execution_mode(run, ledger) != "autopilot":
         return False
 
-    stage_stop = _resolve_stage_stop(stage_result)
+    stage_stop = resolve_stop_reason_for_stage_result(stage_result)
     if stage_stop is None:
         return False
 
     reason_code, reason = stage_stop
     current_story_id = run["current"]["slice_id"]
     current_story = ledger["stories"]["items"][current_story_id]
-    next_stage = stage_result["route"]["next_stage"]
+    next_stage = resolve_next_stage_for_result(
+        workflow=run["workflow"],
+        stage_result=stage_result,
+    )
 
     current_story["status"] = "active"
     current_story["stop_reason_code"] = reason_code

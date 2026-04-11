@@ -51,6 +51,7 @@ Praxis v3 separates workflow semantics from runtime adapters:
 
 - `workflow/pipelines/` defines shared `craft` and `forge` orchestration rules.
 - `workflow/contracts/` defines machine-readable state and result contracts.
+- `workflow/scripts/run_state.py` is the shared runtime helper for normal stage-to-stage `run.json` updates.
 - `workflow/scripts/story_boundary.py` is the shared runtime helper for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume.
 - `commands/` and `skills/craft` / `skills/forge` are thin Claude/Codex adapters over those shared files.
 
@@ -103,12 +104,18 @@ The markdown artifact is for people. The result JSON is for orchestration.
 
 Use `workflow/scripts/story_boundary.py` as the shared runtime API for multi-story execution. Do not re-implement story-boundary transitions in wrappers.
 
+Use `workflow/scripts/run_state.py` as the shared runtime API for non-boundary stage-to-stage `run.json` updates. Do not re-implement ordinary stage routing in wrappers.
+
 Available commands:
 
 ```bash
 python3 -m workflow.scripts.story_boundary initialize-story-queue \
   --repo-root . \
   --slice-map-path .praxis/slice-map.json
+
+python3 -m workflow.scripts.run_state update-run-from-stage-result \
+  --repo-root . \
+  --stage-result-path .praxis/results/sketching-design.json
 
 python3 -m workflow.scripts.story_boundary checkpoint-story-boundary \
   --repo-root . \
@@ -164,6 +171,8 @@ praxis/
 │   │   ├── craft.md
 │   │   └── forge.md
 │   └── scripts/
+│       ├── run_state.py
+│       ├── routing.py
 │       └── story_boundary.py
 ├── commands/
 │   ├── craft.md
@@ -189,7 +198,7 @@ praxis/
 
 - Claude uses `commands/` as thin wrappers over `workflow/pipelines/`.
 - Codex uses `skills/craft/SKILL.md` and `skills/forge/SKILL.md` as thin wrappers over the same shared workflow files.
-- Both runtimes use the same run contract, story-ledger contract, and story-boundary helper.
+- Both runtimes use the same run contract, story-ledger contract, shared run-state helper, shared routing table, and story-boundary helper.
 
 ## License
 

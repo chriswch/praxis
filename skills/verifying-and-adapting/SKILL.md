@@ -20,17 +20,19 @@ Ensure `{artifact-dir}/results/` exists and write the structured result to
 Follow `../../workflow/contracts/stage-result.schema.json`.
 
 The result JSON is the routing source of truth.
+Leave `route.next_stage = null`; the shared workflow resolves the canonical
+next stage from the workflow and outcome.
 
 Use these outcome codes:
 
 - `done` -> `status = completed`, `route.kind = done`,
   `route.next_stage = null`
 - `next_slice` -> `status = completed`, `route.kind = next_slice`,
-  `route.next_stage = clarifying-intent`, `route.next_slice_id = <slice-id>`
+  `route.next_stage = null`, `route.next_slice_id = <slice-id>`
 - `rework` -> `status = blocked`, `route.kind = rework`,
-  `route.next_stage = driving-tdd`
+  `route.next_stage = null`
 - `escalate` -> `status = blocked`, `route.kind = escalate`,
-  `route.next_stage = clarifying-intent`
+  `route.next_stage = null`
 
 Use `{artifact-dir}/verification.md` as `summary_path` when you write it. For
 trivial verification, `summary_path` may be `null`. Even on trivial, blocker,

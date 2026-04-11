@@ -9,7 +9,7 @@
   ],
   "route": {
     "kind": "ask_user",
-    "next_stage": "clarifying-intent",
+    "next_stage": null,
     "next_slice_id": null,
     "reason": "Execution mode naming is still ambiguous."
   },

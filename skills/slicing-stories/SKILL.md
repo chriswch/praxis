@@ -49,14 +49,16 @@ Follow `../../workflow/contracts/stage-result.schema.json`.
 The result JSON is the routing source of truth. If you also include a human
 section such as `## Blocking Questions`, keep it consistent with the JSON
 result.
+Leave `route.next_stage = null`; the shared workflow resolves the canonical
+next stage from the workflow and outcome.
 
 Use these outcome codes:
 
 - `slice_map_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = clarifying-intent`, `route.next_slice_id = <first-slice-id
-  if known>`, `needs_user_input = false`, `needs_confirmation = false`
+  `route.next_stage = null`, `route.next_slice_id = <first-slice-id if known>`,
+  `needs_user_input = false`, `needs_confirmation = false`
 - `blocking_questions` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = slicing-stories`, `needs_user_input = true`
+  `route.next_stage = null`, `needs_user_input = true`
 
 Use `.praxis/slice-map.md` as `summary_path` when it exists; otherwise
 `.praxis/slice-map.json` is acceptable. Even on blocker outcomes, still write

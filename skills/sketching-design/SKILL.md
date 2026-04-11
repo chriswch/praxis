@@ -20,15 +20,17 @@ Ensure `{artifact-dir}/results/` exists and write the structured result to
 Follow `../../workflow/contracts/stage-result.schema.json`.
 
 The result JSON is the routing source of truth.
+Leave `route.next_stage = null`; the shared workflow resolves the canonical
+next stage from the workflow and outcome.
 
 Use these outcome codes:
 
 - `sketch_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = driving-tdd`
+  `route.next_stage = null`
 - `sketch_skipped` -> `status = skipped`, `route.kind = proceed`,
-  `route.next_stage = driving-tdd`
+  `route.next_stage = null`
 - `spec_issue` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = clarifying-intent`, `needs_user_input = true`
+  `route.next_stage = null`, `needs_user_input = true`
 
 Use `{artifact-dir}/sketch.md` as `summary_path` when you write it. If the
 stage is skipped and you do not write `sketch.md`, `summary_path` may be `null`.

@@ -23,11 +23,13 @@ Ensure `{artifact-dir}/results/` exists and write the structured result to
 Follow `../../workflow/contracts/stage-result.schema.json`.
 
 The result JSON is the routing source of truth.
+Leave `route.next_stage = null`; the shared workflow resolves the canonical
+next stage from the workflow and outcome.
 
 Use these outcome codes:
 
 - `review_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = code-improving`
+  `route.next_stage = null`
 - `review_skipped` -> `status = skipped`, `route.kind = proceed`,
   `route.next_stage = null`
 

@@ -9,7 +9,7 @@
   ],
   "route": {
     "kind": "rework",
-    "next_stage": "driving-tdd",
+    "next_stage": null,
     "next_slice_id": null,
     "reason": "Verification found an uncovered boundary case."
   },

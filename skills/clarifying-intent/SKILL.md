@@ -28,19 +28,21 @@ Follow `../../workflow/contracts/stage-result.schema.json`.
 The result JSON is the routing source of truth. Human-readable artifacts such as
 `brief.md` and `spec.md` remain for people; the orchestrator should route from
 `results/clarifying-intent.json`.
+Leave `route.next_stage = null`; the shared workflow resolves the canonical
+next stage from the workflow and outcome.
 
 Use these outcome codes:
 
 - `trivial_change` -> `status = skipped`, `route.kind = done`,
   `route.next_stage = null`
 - `bug_fix_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = driving-tdd`, `needs_confirmation = true`
+  `route.next_stage = null`, `needs_confirmation = true`
 - `story_spec_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = sketching-design`, `needs_confirmation = true`
+  `route.next_stage = null`, `needs_confirmation = true`
 - `feature_brief_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = slicing-stories`, `needs_confirmation = true`
+  `route.next_stage = null`, `needs_confirmation = true`
 - `clarification_needed` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = clarifying-intent`, `needs_user_input = true`
+  `route.next_stage = null`, `needs_user_input = true`
 
 For feature-level output, use `.praxis/brief.md` as `summary_path`. For
 story-level output, use `{artifact-dir}/spec.md` as `summary_path`. For trivial

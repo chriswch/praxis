@@ -64,6 +64,7 @@
           "$ref": "#/$defs/routeKind"
         },
         "next_stage": {
+          "description": "Stage skills may leave this null; shared workflow orchestration resolves the canonical next stage from workflow plus outcome.",
           "anyOf": [
             {
               "$ref": "#/$defs/stageName"

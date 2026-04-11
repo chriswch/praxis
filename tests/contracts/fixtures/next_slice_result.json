@@ -9,7 +9,7 @@
   ],
   "route": {
     "kind": "next_slice",
-    "next_stage": "clarifying-intent",
+    "next_stage": null,
     "next_slice_id": "S-002",
     "reason": "Move to the next slice."
   },

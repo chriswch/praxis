@@ -23,7 +23,11 @@ Execution policy is separate from workflow shape:
 - `workflow/contracts/run.schema.json`
 - `workflow/contracts/stage-result.schema.json`
 - `workflow/contracts/story-ledger.schema.json`
+- `workflow/scripts/run_state.py`
+- `workflow/scripts/routing.py`
 - `workflow/scripts/story_boundary.py`
+
+Use `workflow/scripts/run_state.py` as the shared runtime helper for normal stage-to-stage `run.json` updates.
 
 Use `workflow/scripts/story_boundary.py` as the shared runtime helper for:
 

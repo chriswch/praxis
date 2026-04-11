@@ -20,13 +20,15 @@ Ensure `{artifact-dir}/results/` exists and write the structured result to
 Follow `../../workflow/contracts/stage-result.schema.json`.
 
 The result JSON is the routing source of truth.
+Leave `route.next_stage = null`; the shared workflow resolves the canonical
+next stage from the workflow and outcome.
 
 Use these outcome codes:
 
 - `tdd_complete` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = code-reviewing`
+  `route.next_stage = null`
 - `spec_feedback` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = clarifying-intent`, `needs_user_input = true`
+  `route.next_stage = null`, `needs_user_input = true`
 
 Use `{artifact-dir}/tdd.md` as `summary_path`. Even if the stage stops for
 feedback, still write both `tdd.md` and `results/driving-tdd.json`.
