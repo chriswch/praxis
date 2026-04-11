@@ -133,19 +133,73 @@ def _resolve_boundary_stop(
     return None
 
 
-def _validate_completion_result(stage_result: dict[str, Any]) -> tuple[str, str | None]:
-    route_kind = stage_result["route"]["kind"]
-    outcome_code = stage_result["data"]["outcome_code"]
-    next_story_id = stage_result["route"]["next_slice_id"]
-
-    allowed = {
-        ("done", "done"),
-        ("next_slice", "next_slice"),
-    }
-    if (route_kind, outcome_code) not in allowed:
+def _story_order_context(
+    *,
+    ledger: dict[str, Any],
+    story_id: str,
+) -> tuple[dict[str, Any], str | None, str | None]:
+    story_order = ledger["stories"]["order"]
+    story_items = ledger["stories"]["items"]
+    if story_id not in story_order:
         raise ValueError(
-            "Story boundary only accepts completed story results: "
-            f"got route.kind={route_kind!r}, outcome_code={outcome_code!r}."
+            "Story boundary cannot validate ledger order because "
+            f"{story_id!r} is missing from story-ledger order."
+        )
+    if story_id not in story_items:
+        raise ValueError(
+            "Story boundary cannot validate story state because "
+            f"{story_id!r} is missing from story-ledger items."
+        )
+
+    story_index = story_order.index(story_id)
+    previous_story_id = story_order[story_index - 1] if story_index > 0 else None
+    next_story_id = (
+        story_order[story_index + 1]
+        if story_index + 1 < len(story_order)
+        else None
+    )
+
+    if previous_story_id is not None and previous_story_id not in story_items:
+        raise ValueError(
+            "Story boundary cannot validate ledger order because the previous "
+            f"story {previous_story_id!r} is missing from story-ledger items."
+        )
+    if next_story_id is not None and next_story_id not in story_items:
+        raise ValueError(
+            "Story boundary cannot validate ledger order because the next story "
+            f"{next_story_id!r} is missing from story-ledger items."
+        )
+
+    return story_items[story_id], previous_story_id, next_story_id
+
+
+def _validate_completion_result(
+    *,
+    stage_result: dict[str, Any],
+    ledger: dict[str, Any],
+    current_story_id: str,
+    next_stage: str | None,
+) -> tuple[str, str | None]:
+    route_kind = stage_result["route"]["kind"]
+    next_story_id = stage_result["route"]["next_slice_id"]
+    _, _, expected_next_story_id = _story_order_context(
+        ledger=ledger,
+        story_id=current_story_id,
+    )
+
+    if route_kind == "proceed" and next_stage is None:
+        if next_story_id is not None:
+            raise ValueError(
+                "A terminal proceed boundary must not set route.next_slice_id."
+            )
+        if expected_next_story_id is None:
+            return "done", None
+        return "next_slice", expected_next_story_id
+
+    if route_kind not in {"done", "next_slice"}:
+        raise ValueError(
+            "Story boundary only accepts results that end the current story: "
+            f"got route.kind={route_kind!r}, next_stage={next_stage!r}."
         )
 
     if route_kind == "next_slice" and not next_story_id:
@@ -153,6 +207,20 @@ def _validate_completion_result(stage_result: dict[str, Any]) -> tuple[str, str 
 
     if route_kind == "done" and next_story_id is not None:
         raise ValueError("A final done boundary must not set route.next_slice_id.")
+
+    if route_kind == "next_slice" and next_story_id != expected_next_story_id:
+        raise ValueError(
+            "Story boundary next_slice must follow ledger order: "
+            f"current story {current_story_id!r} expects next_slice_id="
+            f"{expected_next_story_id!r}, got {next_story_id!r}."
+        )
+
+    if route_kind == "done" and expected_next_story_id is not None:
+        raise ValueError(
+            "Story boundary can only finish the final story in ledger order: "
+            f"current story {current_story_id!r} must advance to "
+            f"{expected_next_story_id!r}, not done."
+        )
 
     return route_kind, next_story_id
 
@@ -300,10 +368,15 @@ def checkpoint_story_boundary(
 
     current_story_id = run["current"]["slice_id"]
     current_story = ledger["stories"]["items"][current_story_id]
-    route_kind, next_story_id = _validate_completion_result(stage_result)
     next_stage = resolve_next_stage_for_result(
         workflow=run["workflow"],
         stage_result=stage_result,
+    )
+    route_kind, next_story_id = _validate_completion_result(
+        stage_result=stage_result,
+        ledger=ledger,
+        current_story_id=current_story_id,
+        next_stage=next_stage,
     )
     stage_name = stage_result_full_path.stem
 

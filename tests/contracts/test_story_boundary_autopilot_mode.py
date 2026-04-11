@@ -123,6 +123,154 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(events[3]["slice_id"], "S-002")
         self.assertEqual(events[3]["from_slice_id"], "S-001")
 
+    def test_autopilot_checkpoints_forge_improvement_completion_and_activates_next_story(self) -> None:
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = load_json(run_path)
+        run["workflow"] = "forge"
+        run["runtime"]["entrypoint"] = "praxis:forge"
+        run["current"]["stage"] = "code-improving"
+        run["routing"]["next_stage"] = "code-improving"
+        run["routing"]["reason"] = "S-001 is completing after improvements."
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
+
+        result_path = self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "code-improving.json"
+        result_path.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "stage": "code-improving",
+                    "artifact_dir": ".praxis/slices/S-001",
+                    "status": "completed",
+                    "summary_path": ".praxis/slices/S-001/improvement.md",
+                    "artifacts_written": [".praxis/slices/S-001/improvement.md"],
+                    "route": {
+                        "kind": "proceed",
+                        "next_stage": None,
+                        "next_slice_id": None,
+                        "reason": "S-001 is complete after improvement.",
+                    },
+                    "data": {
+                        "outcome_code": "improvement_ready",
+                    },
+                    "needs_user_input": False,
+                    "needs_confirmation": False,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+
+        checkpoint_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/code-improving.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "S-001 completed through forge improvements.",
+                "carry_forward_context": ["Continue forge from the durable checkpoint."],
+                "changed_paths": ["workflow/scripts/story_boundary.py"],
+            },
+            dirty_paths=[],
+            timestamp="2026-04-11T03:41:30Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        handoff = load_json(self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json")
+
+        self.assertEqual(run["workflow"], "forge")
+        self.assertEqual(run["status"], "running")
+        self.assertEqual(run["current"]["slice_id"], "S-002")
+        self.assertEqual(run["current"]["stage"], "clarifying-intent")
+        self.assertEqual(run["routing"]["next_action"], "run_stage")
+        self.assertEqual(run["routing"]["boundary_handoff_path"], ".praxis/slices/S-001/handoff.json")
+
+        self.assertEqual(ledger["stories"]["last_completed"], "S-001")
+        self.assertEqual(ledger["stories"]["active"], "S-002")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["carry_forward_from"], "S-001")
+        self.assertEqual(handoff["next_story_id"], "S-002")
+
+    def test_autopilot_finishes_forge_run_when_last_story_completes_after_review_skip(self) -> None:
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = load_json(run_path)
+        run["workflow"] = "forge"
+        run["runtime"]["entrypoint"] = "praxis:forge"
+        run["current"]["stage"] = "code-reviewing"
+        run["routing"]["next_stage"] = "code-reviewing"
+        run["routing"]["reason"] = "S-001 is completing after review skip."
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger_path = self.repo_root / ".praxis" / "story-ledger.json"
+        ledger = load_json(ledger_path)
+        ledger["stories"]["order"] = ["S-001"]
+        ledger["stories"]["items"].pop("S-002", None)
+        ledger["stories"]["active"] = "S-001"
+        ledger_path.write_text(json.dumps(ledger, indent=2) + "\n")
+
+        result_path = self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "code-reviewing.json"
+        result_path.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "stage": "code-reviewing",
+                    "artifact_dir": ".praxis/slices/S-001",
+                    "status": "skipped",
+                    "summary_path": None,
+                    "artifacts_written": [],
+                    "route": {
+                        "kind": "proceed",
+                        "next_stage": None,
+                        "next_slice_id": None,
+                        "reason": "No review findings remain; the forge story is complete.",
+                    },
+                    "data": {
+                        "outcome_code": "review_skipped",
+                    },
+                    "needs_user_input": False,
+                    "needs_confirmation": False,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+
+        checkpoint_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/code-reviewing.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "Final forge story completed after review skip.",
+                "carry_forward_context": [],
+                "changed_paths": ["workflow/scripts/story_boundary.py"],
+            },
+            dirty_paths=[],
+            timestamp="2026-04-11T03:41:45Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        handoff = load_json(self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json")
+
+        self.assertEqual(run["workflow"], "forge")
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["routing"]["next_action"], "finish")
+        self.assertIsNone(run["routing"]["next_stage"])
+        self.assertEqual(run["current"]["slice_id"], "S-001")
+        self.assertIsNone(run["current"]["stage"])
+
+        self.assertIsNone(ledger["stories"]["active"])
+        self.assertEqual(ledger["stories"]["last_completed"], "S-001")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "completed")
+        self.assertIsNone(handoff["next_story_id"])
+
     def test_autopilot_stops_when_a_boundary_gate_fails(self) -> None:
         checkpoint_story_boundary(
             repo_root=self.repo_root,

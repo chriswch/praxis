@@ -222,7 +222,8 @@ Expected outcome codes:
 Routing:
 
 - `review_ready` -> run `code-improving`
-- `review_skipped` -> complete the current story or slice
+- `review_skipped` -> complete the current story or slice through the
+  story-boundary helper
 
 ### 6. `code-improving`
 
@@ -239,8 +240,10 @@ Expected outcome codes:
 
 Routing:
 
-- `improvement_ready` -> complete the current story or slice
-- `improvement_skipped` -> complete the current story or slice
+- `improvement_ready` -> complete the current story or slice through the
+  story-boundary helper
+- `improvement_skipped` -> complete the current story or slice through the
+  story-boundary helper
 - `spec_feedback` -> ask the user, return to `clarifying-intent` for the same artifact directory, then re-run `code-improving`
 
 ## Completion and Slice Advancement
@@ -250,6 +253,15 @@ When the current story or slice completes:
 - if this is a single-story run, finish the workflow
 - if more slices remain, checkpoint the completed story in `.praxis/story-ledger.json`, write the story handoff artifacts, and activate the next slice according to `run.execution.mode`
 - if no slices remain, finish the workflow
+
+In `forge`, story completion often arrives as `route.kind = proceed` with the
+shared routing table resolving `next_stage = null` (for example
+`review_skipped`, `improvement_ready`, or `improvement_skipped`). Treat that
+terminal `proceed` result as a completed story boundary:
+
+- `update-run-from-stage-result` should reject it for multi-slice runs
+- `checkpoint-story-boundary` should derive `next_slice` vs final `done` from
+  story-ledger order
 
 `autopilot` may advance across story boundaries only after the durable checkpoint succeeds. Stop `autopilot` when a stage needs user input, a route asks for rework or escalation, the worktree is dirty, commit metadata is missing, the test or commit gate fails, or the run is cancelled.
 
