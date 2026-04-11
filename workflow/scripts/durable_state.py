@@ -124,6 +124,15 @@ def validate_state_payloads(
         validate_recovery_payload(recovery)
 
 
+def extend_event_log(repo_root: Path, new_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    repo_root = repo_root.resolve()
+    recover_pending_transaction(repo_root)
+    events = load_events(repo_root / ".praxis" / "events.jsonl")
+    events.extend(new_events)
+    validate_event_log(events)
+    return events
+
+
 def recover_pending_transaction(repo_root: Path) -> str | None:
     repo_root = repo_root.resolve()
     recovery_path = repo_root / ".praxis" / "recovery.json"

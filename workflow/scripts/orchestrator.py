@@ -7,7 +7,9 @@ from typing import Any
 
 from .durable_state import (
     commit_transaction,
+    dump_events,
     dump_json,
+    extend_event_log,
     inspect_handoff_file,
     load_json as _load_json,
     load_optional_json,
@@ -160,6 +162,55 @@ def _commit_run_only(*, repo_root: Path, run: dict[str, Any], timestamp: str, op
         repo_root=repo_root,
         operation=operation,
         files={".praxis/run.json": dump_json(run)},
+        timestamp=timestamp,
+        metadata=metadata or {},
+    )
+
+
+def _resume_event(
+    *,
+    run: dict[str, Any],
+    timestamp: str,
+    source: str,
+    resume_action: str,
+) -> dict[str, Any]:
+    current = run.get("current", {})
+    routing = run.get("routing", {})
+    runtime = run.get("runtime", {})
+    return {
+        "ts": timestamp,
+        "type": "run_resumed",
+        "adapter": runtime.get("adapter"),
+        "source": source,
+        "resume_action": resume_action,
+        "scope": current.get("scope"),
+        "slice_id": current.get("slice_id"),
+        "artifact_dir": current.get("artifact_dir"),
+        "stage": current.get("stage"),
+        "boundary_handoff_path": routing.get("boundary_handoff_path"),
+        "reason_code": routing.get("stop_reason_code"),
+        "reason": routing.get("reason") or f"{source} restored the run cursor.",
+    }
+
+
+def _commit_run_with_events(
+    *,
+    repo_root: Path,
+    run: dict[str, Any],
+    timestamp: str,
+    operation: str,
+    new_events: list[dict[str, Any]],
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    events = extend_event_log(repo_root, new_events)
+    validate_state_payloads(run=run, events=events)
+    commit_transaction(
+        repo_root=repo_root,
+        operation=operation,
+        files={
+            ".praxis/run.json": dump_json(run),
+            ".praxis/events.jsonl": dump_events(events),
+        },
         timestamp=timestamp,
         metadata=metadata or {},
     )
@@ -363,11 +414,19 @@ def continue_run(*, repo_root: Path, timestamp: str) -> str:
     run["routing"]["reason"] = f"Manual confirmation received. Continue to {next_stage}."
     run["timestamps"]["updated_at"] = timestamp
 
-    _commit_run_only(
+    _commit_run_with_events(
         repo_root=repo_root,
         run=run,
         timestamp=timestamp,
         operation="continue_run",
+        new_events=[
+            _resume_event(
+                run=run,
+                timestamp=timestamp,
+                source="continue-run",
+                resume_action="run_stage",
+            )
+        ],
         metadata={"next_stage": next_stage},
     )
     return "run_stage"
@@ -386,11 +445,19 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
 
     if run["status"] in {"completed", "cancelled"} or next_action in {"finish", "idle"}:
         run["timestamps"]["updated_at"] = timestamp
-        _commit_run_only(
+        _commit_run_with_events(
             repo_root=repo_root,
             run=run,
             timestamp=timestamp,
             operation="resume_terminal_run",
+            new_events=[
+                _resume_event(
+                    run=run,
+                    timestamp=timestamp,
+                    source="resume-run",
+                    resume_action="resume_terminal",
+                )
+            ],
             metadata={"status": run["status"]},
         )
         return "resume_terminal"
@@ -405,11 +472,19 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
         run["routing"]["stop_reason_code"] = None
         run["routing"]["reason"] = f"Awaiting confirmation to continue to {current_stage}."
         run["timestamps"]["updated_at"] = timestamp
-        _commit_run_only(
+        _commit_run_with_events(
             repo_root=repo_root,
             run=run,
             timestamp=timestamp,
             operation="resume_waiting_confirmation",
+            new_events=[
+                _resume_event(
+                    run=run,
+                    timestamp=timestamp,
+                    source="resume-run",
+                    resume_action="resume_waiting_confirmation",
+                )
+            ],
             metadata={"current_stage": current_stage},
         )
         return "resume_waiting_confirmation"
@@ -419,11 +494,19 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
         run["routing"]["next_action"] = "ask_user"
         run["routing"]["next_stage"] = current_stage
         run["timestamps"]["updated_at"] = timestamp
-        _commit_run_only(
+        _commit_run_with_events(
             repo_root=repo_root,
             run=run,
             timestamp=timestamp,
             operation="resume_waiting_single_story",
+            new_events=[
+                _resume_event(
+                    run=run,
+                    timestamp=timestamp,
+                    source="resume-run",
+                    resume_action="resume_waiting",
+                )
+            ],
             metadata={"current_stage": current_stage},
         )
         return "resume_waiting"
@@ -435,11 +518,19 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
     run["routing"]["stop_reason_code"] = None
     run["routing"]["reason"] = f"Resumed {run['workflow']} run from durable state."
     run["timestamps"]["updated_at"] = timestamp
-    _commit_run_only(
+    _commit_run_with_events(
         repo_root=repo_root,
         run=run,
         timestamp=timestamp,
         operation="resume_active_single_story",
+        new_events=[
+            _resume_event(
+                run=run,
+                timestamp=timestamp,
+                source="resume-run",
+                resume_action="resume_active",
+            )
+        ],
         metadata={"current_stage": current_stage},
     )
     return "resume_active"

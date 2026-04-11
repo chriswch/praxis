@@ -163,6 +163,32 @@ def _write_resume_stop(
         metadata={"slice_id": active_story_id, "reason_code": reason_code},
     )
 
+
+def _resume_event(
+    *,
+    run: dict[str, Any],
+    timestamp: str,
+    resume_action: str,
+) -> dict[str, Any]:
+    current = run.get("current", {})
+    routing = run.get("routing", {})
+    runtime = run.get("runtime", {})
+    return {
+        "ts": timestamp,
+        "type": "run_resumed",
+        "adapter": runtime.get("adapter"),
+        "source": "resume-run",
+        "resume_action": resume_action,
+        "scope": current.get("scope"),
+        "slice_id": current.get("slice_id"),
+        "artifact_dir": current.get("artifact_dir"),
+        "stage": current.get("stage"),
+        "boundary_handoff_path": routing.get("boundary_handoff_path"),
+        "reason_code": routing.get("stop_reason_code"),
+        "reason": routing.get("reason") or f"resume-run restored {current.get('slice_id') or 'the run'}.",
+    }
+
+
 def _resolve_execution_mode(run: dict[str, Any], ledger: dict[str, Any]) -> str:
     run_mode = run.get("execution", {}).get("mode")
     ledger_mode = ledger.get("execution_mode")
@@ -708,6 +734,8 @@ def checkpoint_story_boundary(
                     "type": "story_activated",
                     "slice_id": next_story_id,
                     "from_slice_id": current_story_id,
+                    "reason_code": "boundary_checkpoint_ready",
+                    "reason": f"{next_story_id} activated from durable story-boundary state.",
                 },
                 dedupe_fields={"slice_id": next_story_id, "from_slice_id": current_story_id},
             )
@@ -888,6 +916,8 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
             "type": "story_activated",
             "slice_id": next_story_id,
             "from_slice_id": from_story_id,
+            "reason_code": "boundary_checkpoint_ready",
+            "reason": f"{next_story_id} activated from durable story-boundary state.",
         },
         dedupe_fields={"slice_id": next_story_id, "from_slice_id": from_story_id},
     )
@@ -1009,6 +1039,13 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
             )
             run["timestamps"]["updated_at"] = timestamp
             ledger["timestamps"]["updated_at"] = timestamp
+            events.append(
+                _resume_event(
+                    run=run,
+                    timestamp=timestamp,
+                    resume_action="resume_cancelled",
+                )
+            )
             _commit_story_state(
                 repo_root=repo_root,
                 timestamp=timestamp,
@@ -1035,6 +1072,13 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
             run["routing"]["reason"] = f"{active_story_id} is checkpointed and awaiting manual confirmation."
             run["timestamps"]["updated_at"] = timestamp
             ledger["timestamps"]["updated_at"] = timestamp
+            events.append(
+                _resume_event(
+                    run=run,
+                    timestamp=timestamp,
+                    resume_action="resume_manual_wait",
+                )
+            )
             _commit_story_state(
                 repo_root=repo_root,
                 timestamp=timestamp,
@@ -1090,6 +1134,13 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
         run["timestamps"]["updated_at"] = timestamp
         ledger["timestamps"]["updated_at"] = timestamp
 
+        events.append(
+            _resume_event(
+                run=run,
+                timestamp=timestamp,
+                resume_action="resume_waiting",
+            )
+        )
         _commit_story_state(
             repo_root=repo_root,
             timestamp=timestamp,
@@ -1113,6 +1164,13 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
 
+    events.append(
+        _resume_event(
+            run=run,
+            timestamp=timestamp,
+            resume_action="resume_active",
+        )
+    )
     _commit_story_state(
         repo_root=repo_root,
         timestamp=timestamp,

@@ -141,6 +141,99 @@ class CodexHooksContractTest(unittest.TestCase):
         self.assertEqual(record["harness"]["instructions_path"], "AGENTS.md")
         self.assertEqual(record["harness"]["project_config_path"], ".codex/config.toml")
 
+        events = [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertEqual([event["type"] for event in events], ["handoff_validated", "native_launch_recorded"])
+        self.assertTrue(events[0]["schema_valid"])
+        self.assertTrue(events[0]["within_budget"])
+        self.assertTrue(events[0]["handoff_injected"])
+        self.assertEqual(events[0]["handoff_story_id"], "S-001")
+        self.assertEqual(events[1]["adapter"], "codex")
+        self.assertEqual(events[1]["scope"], "slice")
+        self.assertEqual(events[1]["slice_id"], "S-002")
+        self.assertEqual(events[1]["stage"], "clarifying-intent")
+        self.assertTrue(events[1]["handoff_present"])
+        self.assertTrue(events[1]["handoff_injected"])
+        self.assertEqual(events[1]["reason_code"], "native_launch_recorded")
+
+    def test_session_start_hook_records_failure_telemetry_for_an_invalid_handoff(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Launch a codex worker",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T03:10:00Z",
+        )
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = json.loads(run_path.read_text())
+        run["mode"] = "multi_slice"
+        run["current"]["scope"] = "slice"
+        run["current"]["slice_id"] = "S-002"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-002"
+        run["current"]["stage"] = "clarifying-intent"
+        run["routing"]["next_action"] = "run_stage"
+        run["routing"]["next_stage"] = "clarifying-intent"
+        run["routing"]["boundary_handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
+
+        handoff = build_handoff_payload(
+            story_id="S-001",
+            next_story_id="S-002",
+            summary="S-001 completed.",
+            carry_forward_context=["Carry only the bounded handoff should cross the story boundary."],
+            changed_paths=["workflow/scripts/codex_hooks.py"],
+            commit_meta={"end_commit": "abc1234"},
+            generated_at="2026-04-12T03:11:00Z",
+        )
+        handoff.pop("summary")
+        self._write_json(".praxis/slices/S-001/handoff.json", handoff)
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "workflow.scripts.codex_hooks",
+                "session-start",
+                "--repo-root",
+                str(self.repo_root),
+                "--timestamp",
+                "2026-04-12T03:12:00Z",
+            ],
+            cwd=PROJECT_ROOT,
+            input=json.dumps(
+                {
+                    "session_id": "sess-invalid",
+                    "source": "startup",
+                    "cwd": str(self.repo_root),
+                }
+            ),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        response = json.loads(completed.stdout)
+        self.assertFalse(response["continue"])
+        self.assertFalse((self.repo_root / ".praxis" / "runtime" / "codex-launches").exists())
+
+        events = [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertEqual([event["type"] for event in events], ["handoff_validated", "native_launch_failed"])
+        self.assertFalse(events[0]["schema_valid"])
+        self.assertFalse(events[0]["within_budget"])
+        self.assertFalse(events[0]["handoff_injected"])
+        self.assertEqual(events[0]["reason_code"], "handoff_schema_invalid")
+        self.assertEqual(events[1]["reason_code"], "handoff_schema_invalid")
+        self.assertFalse(events[1]["handoff_injected"])
+
 
 if __name__ == "__main__":
     unittest.main()

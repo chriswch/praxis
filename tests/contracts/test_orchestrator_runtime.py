@@ -441,6 +441,15 @@ class OrchestratorRuntimeContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["next_action"], "run_stage")
         self.assertEqual(run["routing"]["next_stage"], "sketching-design")
         self.assertEqual(run["current"]["stage"], "sketching-design")
+        events = [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertEqual([event["type"] for event in events], ["run_resumed"])
+        self.assertEqual(events[0]["source"], "continue-run")
+        self.assertEqual(events[0]["resume_action"], "run_stage")
+        self.assertEqual(events[0]["stage"], "sketching-design")
 
     def test_resume_run_recovers_a_failed_single_story_cursor(self) -> None:
         self._write_json(
@@ -492,6 +501,15 @@ class OrchestratorRuntimeContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["next_action"], "run_stage")
         self.assertEqual(run["routing"]["next_stage"], "rapid-implementing")
         self.assertEqual(run["current"]["stage"], "rapid-implementing")
+        events = [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertEqual([event["type"] for event in events], ["run_resumed"])
+        self.assertEqual(events[0]["source"], "resume-run")
+        self.assertEqual(events[0]["resume_action"], "resume_active")
+        self.assertEqual(events[0]["stage"], "rapid-implementing")
 
 
 class OrchestratorCliContractTest(unittest.TestCase):

@@ -26,7 +26,11 @@
         "autopilot_stopped",
         "story_activation_cancelled",
         "resume_blocked",
-        "resume_failed"
+        "resume_failed",
+        "native_launch_recorded",
+        "native_launch_failed",
+        "handoff_validated",
+        "run_resumed"
       ]
     }
   },
@@ -358,6 +362,442 @@
           "reason_code": {
             "type": "string",
             "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "native_launch_recorded"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "adapter",
+          "hook_event",
+          "scope",
+          "artifact_dir",
+          "stage",
+          "boundary_handoff_path",
+          "handoff_present",
+          "handoff_injected",
+          "launch_record_path",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex"
+            ]
+          },
+          "hook_event": {
+            "type": "string",
+            "const": "session_start"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "root",
+              "feature",
+              "slice"
+            ]
+          },
+          "slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boundary_handoff_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\.praxis(?:/.*)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handoff_present": {
+            "type": "boolean"
+          },
+          "handoff_injected": {
+            "type": "boolean"
+          },
+          "launch_record_path": {
+            "type": "string",
+            "pattern": "^\\.praxis/runtime/(?:codex|claude)-launches/.*\\.json$"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "native_launch_failed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "adapter",
+          "hook_event",
+          "scope",
+          "artifact_dir",
+          "stage",
+          "boundary_handoff_path",
+          "handoff_present",
+          "handoff_injected",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex"
+            ]
+          },
+          "hook_event": {
+            "type": "string",
+            "const": "session_start"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "root",
+              "feature",
+              "slice"
+            ]
+          },
+          "slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boundary_handoff_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\.praxis(?:/.*)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handoff_present": {
+            "type": "boolean"
+          },
+          "handoff_injected": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "handoff_validated"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "adapter",
+          "scope",
+          "artifact_dir",
+          "stage",
+          "boundary_handoff_path",
+          "handoff_present",
+          "handoff_found",
+          "schema_valid",
+          "within_budget",
+          "handoff_injected",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "root",
+              "feature",
+              "slice"
+            ]
+          },
+          "slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boundary_handoff_path": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "handoff_present": {
+            "type": "boolean"
+          },
+          "handoff_found": {
+            "type": "boolean"
+          },
+          "schema_valid": {
+            "type": "boolean"
+          },
+          "within_budget": {
+            "type": "boolean"
+          },
+          "handoff_injected": {
+            "type": "boolean"
+          },
+          "handoff_story_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handoff_next_story_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "run_resumed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "adapter",
+          "source",
+          "resume_action",
+          "scope",
+          "artifact_dir",
+          "stage",
+          "boundary_handoff_path",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "continue-run",
+              "resume-run"
+            ]
+          },
+          "resume_action": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "root",
+              "feature",
+              "slice"
+            ]
+          },
+          "slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boundary_handoff_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\.praxis(?:/.*)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "reason": {
             "type": "string",

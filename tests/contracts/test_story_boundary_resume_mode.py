@@ -112,7 +112,8 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["current"]["slice_id"], "S-002")
         self.assertEqual(run["current"]["stage"], "clarifying-intent")
         self.assertEqual(run["routing"]["next_action"], "run_stage")
-        self.assertEqual(len(lines), 2)
+        self.assertEqual(len(lines), 3)
+        self.assertEqual(json.loads(lines[-1])["type"], "run_resumed")
 
     def test_resumes_checkpointed_autopilot_story_by_activating_once(self) -> None:
         run = load_json(self.repo_root / ".praxis" / "run.json")

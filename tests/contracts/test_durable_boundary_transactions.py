@@ -110,7 +110,8 @@ class DurableBoundaryTransactionContractTest(unittest.TestCase):
         self.assertEqual(run["current"]["stage"], "clarifying-intent")
         self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "completed")
         self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active")
-        self.assertEqual(events[-1]["type"], "story_activated")
+        self.assertEqual(events[-2]["type"], "story_activated")
+        self.assertEqual(events[-1]["type"], "run_resumed")
 
     def test_activation_rejects_an_invalid_handoff_before_the_next_story_starts(self) -> None:
         self._prepare_manual_boundary()

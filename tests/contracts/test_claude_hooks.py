@@ -145,6 +145,24 @@ class ClaudeHooksContractTest(unittest.TestCase):
         self.assertEqual(record["harness"]["hooks_path"], ".claude/hooks")
         self.assertEqual(record["harness"]["agents_path"], ".claude/agents")
 
+        events = [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertEqual([event["type"] for event in events], ["handoff_validated", "native_launch_recorded"])
+        self.assertTrue(events[0]["schema_valid"])
+        self.assertTrue(events[0]["within_budget"])
+        self.assertTrue(events[0]["handoff_injected"])
+        self.assertEqual(events[0]["handoff_story_id"], "S-002")
+        self.assertEqual(events[1]["adapter"], "claude")
+        self.assertEqual(events[1]["scope"], "slice")
+        self.assertEqual(events[1]["slice_id"], "S-003")
+        self.assertEqual(events[1]["stage"], "clarifying-intent")
+        self.assertTrue(events[1]["handoff_present"])
+        self.assertTrue(events[1]["handoff_injected"])
+        self.assertEqual(events[1]["reason_code"], "native_launch_recorded")
+
 
 if __name__ == "__main__":
     unittest.main()

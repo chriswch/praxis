@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .contract_validation import validate_contract_payload
-from .durable_state import dump_json, load_json, validate_handoff_file
+from .durable_state import dump_json, inspect_handoff_file, load_json, validate_handoff_file
 from .orchestrator import build_dispatch
 
 
@@ -78,6 +78,21 @@ def load_adapter_harness(*, repo_root: Path, adapter: str) -> tuple[str, dict[st
         )
     _validate_harness_paths_exist(repo_root=repo_root, config_rel=config_rel, payload=payload)
     return config_rel, payload
+
+
+def inspect_worker_launch_context(*, repo_root: Path) -> dict[str, Any]:
+    repo_root = repo_root.resolve()
+    run = load_json(repo_root / ".praxis" / "run.json")
+    dispatch = build_dispatch(repo_root)
+    handoff_path = dispatch.get("boundary_handoff_path")
+    handoff_status = inspect_handoff_file(repo_root / handoff_path) if handoff_path else None
+    return {
+        "workflow": run["workflow"],
+        "adapter": run["runtime"]["adapter"],
+        "dispatch": dispatch,
+        "boundary_handoff_path": handoff_path,
+        "handoff_status": handoff_status,
+    }
 
 
 def build_worker_launch_payload(*, repo_root: Path) -> dict[str, Any]:
