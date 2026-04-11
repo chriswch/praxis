@@ -8,6 +8,7 @@ from typing import Any
 from .durable_state import (
     commit_transaction,
     dump_json,
+    inspect_handoff_file,
     load_json as _load_json,
     load_optional_json,
     recover_pending_transaction,
@@ -91,10 +92,22 @@ def _snapshot(repo_root: Path) -> dict[str, Any]:
         "stop_reason_code": run.get("routing", {}).get("stop_reason_code"),
         "reason": run.get("routing", {}).get("reason"),
     }
+    handoff_path = run.get("routing", {}).get("boundary_handoff_path")
+    if handoff_path:
+        payload["handoff_status"] = inspect_handoff_file(repo_root / handoff_path)
     if _ledger_path(repo_root).exists():
         ledger = _load_json(_ledger_path(repo_root))
         payload["ledger_active_story"] = ledger.get("stories", {}).get("active")
         payload["ledger_last_completed"] = ledger.get("stories", {}).get("last_completed")
+        if "handoff_status" not in payload:
+            active_story_id = ledger.get("stories", {}).get("active")
+            if active_story_id:
+                active_story = ledger.get("stories", {}).get("items", {}).get(active_story_id, {})
+                carry_forward_from = active_story.get("carry_forward_from")
+                if carry_forward_from:
+                    handoff_path = ledger["stories"]["items"].get(carry_forward_from, {}).get("handoff_path")
+                    if handoff_path:
+                        payload["handoff_status"] = inspect_handoff_file(repo_root / handoff_path)
     return payload
 
 

@@ -9,6 +9,7 @@ from .durable_state import (
     commit_transaction,
     dump_events,
     dump_json,
+    inspect_handoff_file,
     load_events as _load_events,
     load_json as _load_json,
     load_optional_json as _load_optional_json_file,
@@ -17,6 +18,7 @@ from .durable_state import (
     validate_state_payloads,
 )
 from .git_boundary import GitBoundaryError, collect_boundary_evidence, current_git_head, current_worktree_metadata
+from .handoff_policy import HandoffBudgetError, build_handoff_payload
 from .routing import resolve_next_stage_for_result, resolve_stop_reason_for_stage_result
 
 
@@ -44,11 +46,22 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _state_snapshot(run: dict[str, Any], ledger: dict[str, Any]) -> dict[str, Any]:
+def _handoff_status(repo_root: Path, run: dict[str, Any], ledger: dict[str, Any]) -> dict[str, Any] | None:
+    handoff_path = run.get("routing", {}).get("boundary_handoff_path")
+    if not handoff_path:
+        active_story_id = ledger.get("stories", {}).get("active")
+        if active_story_id:
+            handoff_path = _handoff_path_for_story(ledger, active_story_id)
+    if not handoff_path:
+        return None
+    return inspect_handoff_file(repo_root / handoff_path)
+
+
+def _state_snapshot(repo_root: Path, run: dict[str, Any], ledger: dict[str, Any]) -> dict[str, Any]:
     current = run.get("current", {})
     routing = run.get("routing", {})
     stories = ledger.get("stories", {})
-    return {
+    snapshot = {
         "run_status": run.get("status"),
         "current_scope": current.get("scope"),
         "current_slice_id": current.get("slice_id"),
@@ -61,6 +74,10 @@ def _state_snapshot(run: dict[str, Any], ledger: dict[str, Any]) -> dict[str, An
         "ledger_active_story": stories.get("active"),
         "ledger_last_completed": stories.get("last_completed"),
     }
+    handoff_status = _handoff_status(repo_root, run, ledger)
+    if handoff_status is not None:
+        snapshot["handoff_status"] = handoff_status
+    return snapshot
 
 
 def _commit_story_state(
@@ -160,6 +177,8 @@ def _boundary_stop(reason_code: str) -> str:
         "commit_gate_failed": "A failed commit gate blocks story boundary.",
         "zero_delta_checkpoint": "Zero-delta story checkpoint blocks story boundary.",
         "ambiguous_boundary_commits": "Ambiguous git commit history blocks story boundary.",
+        "handoff_required_context_overflow": "Handoff compaction cannot preserve required context within budget.",
+        "handoff_invalid_required_context": "Handoff required context is inconsistent with the carry-forward context.",
         "cancelled": "Autopilot cancellation stopped story advancement before activation.",
     }
     return reasons.get(reason_code, f"Boundary gate {reason_code} blocks story boundary.")
@@ -541,16 +560,57 @@ def checkpoint_story_boundary(
     verified_changed_paths = (verified_commit_meta or {}).get("changed_paths") or handoff_data.get("changed_paths", [])
     handoff_view = dict(handoff_data)
     handoff_view["changed_paths"] = verified_changed_paths
-    handoff_payload = {
-        "version": 1,
-        "story_id": current_story_id,
-        "next_story_id": next_story_id,
-        "summary": handoff_data.get("summary", ""),
-        "carry_forward_context": handoff_data.get("carry_forward_context", []),
-        "changed_paths": verified_changed_paths,
-        "commit_meta": verified_commit_meta,
-        "generated_at": timestamp,
-    }
+    try:
+        handoff_payload = build_handoff_payload(
+            story_id=current_story_id,
+            next_story_id=next_story_id,
+            summary=handoff_data.get("summary", ""),
+            carry_forward_context=handoff_data.get("carry_forward_context", []),
+            changed_paths=verified_changed_paths,
+            commit_meta=verified_commit_meta,
+            generated_at=timestamp,
+            required_context=handoff_data.get("required_context"),
+        )
+    except HandoffBudgetError as exc:
+        reason_code = exc.code
+        reason = _boundary_stop(reason_code)
+        current_story["commit_meta"] = verified_commit_meta
+        current_story["boundary_status"] = "blocked"
+        current_story["boundary_reason_code"] = reason_code
+        current_story["boundary_reason"] = exc.message
+        ledger["stories"]["active"] = current_story_id
+        run["status"] = "waiting_for_user"
+        run["routing"]["next_action"] = "ask_user"
+        run["routing"]["next_stage"] = None
+        run["routing"]["next_slice_id"] = None
+        run["routing"]["stop_reason_code"] = reason_code
+        run["routing"]["reason"] = reason
+        run["routing"]["boundary_handoff_path"] = None
+        run["timestamps"]["updated_at"] = timestamp
+        ledger["timestamps"]["updated_at"] = timestamp
+
+        _queue_event_if_missing(
+            events,
+            {
+                "ts": timestamp,
+                "type": "boundary_blocked",
+                "slice_id": current_story_id,
+                "reason_code": reason_code,
+                "reason": exc.message,
+            },
+            dedupe_fields={"slice_id": current_story_id, "reason_code": reason_code},
+        )
+        _commit_story_state(
+            repo_root=repo_root,
+            timestamp=timestamp,
+            operation="checkpoint_story_boundary_blocked",
+            run=run,
+            ledger=ledger,
+            events=events,
+            metadata={"slice_id": current_story_id, "reason_code": reason_code},
+        )
+        return
+
     handoff_markdown = _render_handoff_markdown(
         current_story_id,
         next_story_id,
@@ -1073,7 +1133,11 @@ def _print_result(*, repo_root: Path, extra: dict[str, Any] | None = None) -> No
     recover_pending_transaction(repo_root)
     run = _load_json(repo_root / ".praxis" / "run.json")
     ledger_path = repo_root / ".praxis" / "story-ledger.json"
-    payload = _state_snapshot(run, _load_json(ledger_path)) if ledger_path.exists() else _state_snapshot(run, {"stories": {}})
+    payload = (
+        _state_snapshot(repo_root, run, _load_json(ledger_path))
+        if ledger_path.exists()
+        else _state_snapshot(repo_root, run, {"stories": {}})
+    )
     if extra:
         payload.update(extra)
     print(dump_json(payload), end="")

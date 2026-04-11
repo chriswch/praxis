@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from workflow.scripts.handoff_policy import build_handoff_payload
 from workflow.scripts.story_boundary import resume_story_run_from_disk
 
 
@@ -29,6 +30,20 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
+    def _write_handoff(self, *, summary: str, carry_forward_context: list[str], generated_at: str) -> None:
+        handoff = build_handoff_payload(
+            story_id="S-001",
+            next_story_id="S-002",
+            summary=summary,
+            carry_forward_context=carry_forward_context,
+            changed_paths=["workflow/scripts/story_boundary.py"],
+            commit_meta={"end_commit": "def2222"},
+            generated_at=generated_at,
+        )
+        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
+            json.dumps(handoff, indent=2) + "\n"
+        )
+
     def test_resumes_an_already_activated_story_without_replaying_boundary(self) -> None:
         run = load_json(self.repo_root / ".praxis" / "run.json")
         run["status"] = "failed"
@@ -52,18 +67,10 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
         (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
 
-        handoff = {
-            "version": 1,
-            "story_id": "S-001",
-            "next_story_id": "S-002",
-            "summary": "S-001 completed.",
-            "carry_forward_context": ["Resume from durable state."],
-            "changed_paths": ["workflow/scripts/story_boundary.py"],
-            "commit_meta": {"end_commit": "def2222"},
-            "generated_at": "2026-04-11T03:20:00Z",
-        }
-        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
-            json.dumps(handoff, indent=2) + "\n"
+        self._write_handoff(
+            summary="S-001 completed.",
+            carry_forward_context=["Resume from durable state."],
+            generated_at="2026-04-11T03:20:00Z",
         )
 
         events_path = self.repo_root / ".praxis" / "events.jsonl"
@@ -130,18 +137,10 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
         (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
 
-        handoff = {
-            "version": 1,
-            "story_id": "S-001",
-            "next_story_id": "S-002",
-            "summary": "S-001 completed.",
-            "carry_forward_context": ["Resume from checkpointed state."],
-            "changed_paths": ["workflow/scripts/story_boundary.py"],
-            "commit_meta": {"end_commit": "def2222"},
-            "generated_at": "2026-04-11T03:23:00Z",
-        }
-        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
-            json.dumps(handoff, indent=2) + "\n"
+        self._write_handoff(
+            summary="S-001 completed.",
+            carry_forward_context=["Resume from checkpointed state."],
+            generated_at="2026-04-11T03:23:00Z",
         )
 
         action = resume_story_run_from_disk(
@@ -184,18 +183,10 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
         (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
 
-        handoff = {
-            "version": 1,
-            "story_id": "S-001",
-            "next_story_id": "S-002",
-            "summary": "S-001 completed.",
-            "carry_forward_context": ["Resume after manual checkpoint."],
-            "changed_paths": ["workflow/scripts/story_boundary.py"],
-            "commit_meta": {"end_commit": "def2222"},
-            "generated_at": "2026-04-11T03:25:00Z",
-        }
-        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
-            json.dumps(handoff, indent=2) + "\n"
+        self._write_handoff(
+            summary="S-001 completed.",
+            carry_forward_context=["Resume after manual checkpoint."],
+            generated_at="2026-04-11T03:25:00Z",
         )
 
         action = resume_story_run_from_disk(
@@ -280,18 +271,10 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         ledger["stories"]["items"]["S-002"]["boundary_reason"] = "Autopilot cancellation stopped story advancement before activation."
         (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
 
-        handoff = {
-            "version": 1,
-            "story_id": "S-001",
-            "next_story_id": "S-002",
-            "summary": "S-001 completed.",
-            "carry_forward_context": ["Resume should not reactivate cancelled autopilot progress."],
-            "changed_paths": ["workflow/scripts/story_boundary.py"],
-            "commit_meta": {"end_commit": "def2222"},
-            "generated_at": "2026-04-11T03:26:40Z",
-        }
-        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
-            json.dumps(handoff, indent=2) + "\n"
+        self._write_handoff(
+            summary="S-001 completed.",
+            carry_forward_context=["Resume should not reactivate cancelled autopilot progress."],
+            generated_at="2026-04-11T03:26:40Z",
         )
 
         action = resume_story_run_from_disk(
@@ -335,18 +318,10 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
         (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
 
-        handoff = {
-            "version": 1,
-            "story_id": "S-001",
-            "next_story_id": "S-002",
-            "summary": "S-001 completed.",
-            "carry_forward_context": ["Activation already reached durable events."],
-            "changed_paths": ["workflow/scripts/story_boundary.py"],
-            "commit_meta": {"end_commit": "def2222"},
-            "generated_at": "2026-04-11T03:27:00Z",
-        }
-        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
-            json.dumps(handoff, indent=2) + "\n"
+        self._write_handoff(
+            summary="S-001 completed.",
+            carry_forward_context=["Activation already reached durable events."],
+            generated_at="2026-04-11T03:27:00Z",
         )
 
         events_path = self.repo_root / ".praxis" / "events.jsonl"
@@ -452,18 +427,10 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
         (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
 
-        handoff = {
-            "version": 1,
-            "story_id": "S-001",
-            "next_story_id": "S-002",
-            "summary": "S-001 completed.",
-            "carry_forward_context": ["Cursor and ledger disagree."],
-            "changed_paths": ["workflow/scripts/story_boundary.py"],
-            "commit_meta": {"end_commit": "def2222"},
-            "generated_at": "2026-04-11T03:31:00Z",
-        }
-        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
-            json.dumps(handoff, indent=2) + "\n"
+        self._write_handoff(
+            summary="S-001 completed.",
+            carry_forward_context=["Cursor and ledger disagree."],
+            generated_at="2026-04-11T03:31:00Z",
         )
 
         action = resume_story_run_from_disk(

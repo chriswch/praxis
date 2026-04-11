@@ -10,6 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from .contract_validation import ContractValidationError, validate_contract_payload
+from .handoff_policy import inspect_handoff_artifact, validate_handoff_contract
 
 
 class RecoveryRequiredError(RuntimeError):
@@ -71,7 +72,7 @@ def validate_stage_result_payload(payload: dict[str, Any]) -> None:
 
 
 def validate_handoff_payload(payload: dict[str, Any]) -> None:
-    validate_contract_payload("handoff.schema.json", payload)
+    validate_handoff_contract(payload)
 
 
 def validate_lifecycle_event_payload(payload: dict[str, Any]) -> None:
@@ -86,6 +87,10 @@ def validate_handoff_file(path: Path) -> dict[str, Any]:
     payload = load_json(path)
     validate_handoff_payload(payload)
     return payload
+
+
+def inspect_handoff_file(path: Path) -> dict[str, Any]:
+    return inspect_handoff_artifact(path)
 
 
 def validate_event_log(events: list[dict[str, Any]]) -> None:

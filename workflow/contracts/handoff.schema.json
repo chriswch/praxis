@@ -13,7 +13,11 @@
     "carry_forward_context",
     "changed_paths",
     "commit_meta",
-    "generated_at"
+    "generated_at",
+    "policy",
+    "metrics",
+    "compaction",
+    "validation"
   ],
   "properties": {
     "version": {
@@ -65,6 +69,94 @@
     "generated_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_summary_chars",
+        "max_carry_forward_items",
+        "max_changed_paths",
+        "max_serialized_bytes"
+      ],
+      "properties": {
+        "max_summary_chars": {
+          "type": "integer"
+        },
+        "max_carry_forward_items": {
+          "type": "integer"
+        },
+        "max_changed_paths": {
+          "type": "integer"
+        },
+        "max_serialized_bytes": {
+          "type": "integer"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_chars",
+        "carry_forward_items",
+        "changed_paths",
+        "serialized_bytes"
+      ],
+      "properties": {
+        "summary_chars": {
+          "type": "integer"
+        },
+        "carry_forward_items": {
+          "type": "integer"
+        },
+        "changed_paths": {
+          "type": "integer"
+        },
+        "serialized_bytes": {
+          "type": "integer"
+        }
+      }
+    },
+    "compaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applied",
+        "summary_truncated",
+        "carry_forward_items_dropped",
+        "changed_paths_dropped"
+      ],
+      "properties": {
+        "applied": {
+          "type": "boolean"
+        },
+        "summary_truncated": {
+          "type": "boolean"
+        },
+        "carry_forward_items_dropped": {
+          "type": "integer"
+        },
+        "changed_paths_dropped": {
+          "type": "integer"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_valid",
+        "within_budget"
+      ],
+      "properties": {
+        "schema_valid": {
+          "type": "boolean"
+        },
+        "within_budget": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }
