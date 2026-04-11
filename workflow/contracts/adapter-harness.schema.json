@@ -8,11 +8,13 @@
   "required": [
     "version",
     "adapter",
-    "settings_path",
+    "instructions_path",
+    "project_config_path",
     "hooks_path",
-    "subagents_path",
+    "agents_path",
     "worker_launch_command",
-    "extension_points"
+    "extension_points",
+    "compatibility"
   ],
   "properties": {
     "version": {
@@ -26,17 +28,28 @@
         "codex"
       ]
     },
-    "settings_path": {
+    "instructions_path": {
       "type": "string",
-      "pattern": "^\\.[^\\n]*$"
+      "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+    },
+    "project_config_path": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "hooks_path": {
       "type": "string",
-      "pattern": "^\\.[^\\n]*$"
+      "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
     },
-    "subagents_path": {
+    "agents_path": {
       "type": "string",
-      "pattern": "^\\.[^\\n]*$"
+      "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
     },
     "worker_launch_command": {
       "type": "string",
@@ -56,7 +69,7 @@
           "anyOf": [
             {
               "type": "string",
-              "pattern": "^\\.[^\\n]*$"
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
             },
             {
               "type": "null"
@@ -67,7 +80,7 @@
           "anyOf": [
             {
               "type": "string",
-              "pattern": "^\\.[^\\n]*$"
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
             },
             {
               "type": "null"
@@ -78,7 +91,7 @@
           "anyOf": [
             {
               "type": "string",
-              "pattern": "^\\.[^\\n]*$"
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
             },
             {
               "type": "null"
@@ -89,7 +102,7 @@
           "anyOf": [
             {
               "type": "string",
-              "pattern": "^\\.[^\\n]*$"
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
             },
             {
               "type": "null"
@@ -97,6 +110,58 @@
           ]
         }
       }
+    },
+    "compatibility": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "settings_path",
+            "hooks_path",
+            "subagents_path"
+          ],
+          "properties": {
+            "settings_path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+            },
+            "hooks_path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+            },
+            "subagents_path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "adapter": {
+            "const": "codex"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "project_config_path": {
+            "type": "string",
+            "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+          },
+          "compatibility": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
 }

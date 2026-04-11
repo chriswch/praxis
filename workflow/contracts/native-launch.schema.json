@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/workflow/contracts/native-launch.schema.json",
+  "title": "Praxis Native Launch Record",
+  "description": "Durable machine-readable evidence that a native adapter launch path was used.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "recorded_at",
+    "adapter",
+    "kind",
+    "session",
+    "dispatch",
+    "context",
+    "harness"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "codex"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "const": "session_start"
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source",
+        "cwd"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workflow",
+        "scope",
+        "slice_id",
+        "artifact_dir",
+        "stage",
+        "boundary_handoff_path"
+      ],
+      "properties": {
+        "workflow": {
+          "type": "string",
+          "enum": [
+            "craft",
+            "forge"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "root",
+            "feature",
+            "slice"
+          ]
+        },
+        "slice_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_dir": {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boundary_handoff_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fresh_context",
+        "carry_forward_mode",
+        "allowed_context_sources",
+        "handoff_injected",
+        "boundary_handoff_story_id",
+        "boundary_handoff_next_story_id"
+      ],
+      "properties": {
+        "fresh_context": {
+          "type": "boolean"
+        },
+        "carry_forward_mode": {
+          "type": "string",
+          "const": "boundary_handoff_only"
+        },
+        "allowed_context_sources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "dispatch",
+              "run_metadata",
+              "boundary_handoff"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "handoff_injected": {
+          "type": "boolean"
+        },
+        "boundary_handoff_story_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boundary_handoff_next_story_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instructions_path",
+        "project_config_path",
+        "hooks_path",
+        "agents_path",
+        "launch_record_path",
+        "compatibility"
+      ],
+      "properties": {
+        "instructions_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+        },
+        "project_config_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+        },
+        "hooks_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+        },
+        "agents_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+        },
+        "launch_record_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/codex-launches/.*\\.json$"
+        },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "settings_path",
+            "hooks_path",
+            "subagents_path"
+          ],
+          "properties": {
+            "settings_path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+            },
+            "hooks_path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+            },
+            "subagents_path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

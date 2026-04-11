@@ -25,6 +25,42 @@ def _adapter_config_relpath(adapter: str) -> str:
         raise ValueError(f"Unsupported adapter: {adapter!r}.") from exc
 
 
+def _referenced_harness_paths(payload: dict[str, Any]) -> list[str]:
+    paths = [
+        payload["instructions_path"],
+        payload["hooks_path"],
+        payload["agents_path"],
+    ]
+    if payload["project_config_path"] is not None:
+        paths.append(payload["project_config_path"])
+
+    compatibility = payload.get("compatibility")
+    if compatibility is not None:
+        paths.extend(
+            [
+                compatibility["settings_path"],
+                compatibility["hooks_path"],
+                compatibility["subagents_path"],
+            ]
+        )
+
+    for value in payload["extension_points"].values():
+        if value is not None:
+            paths.append(value)
+
+    return paths
+
+
+def _validate_harness_paths_exist(*, repo_root: Path, config_rel: str, payload: dict[str, Any]) -> None:
+    missing = [rel_path for rel_path in _referenced_harness_paths(payload) if not (repo_root / rel_path).exists()]
+    if missing:
+        joined = ", ".join(sorted(missing))
+        raise FileNotFoundError(
+            "Praxis could not load the repo-scoped harness because referenced adapter surfaces are missing "
+            f"from {config_rel}: {joined}."
+        )
+
+
 def load_adapter_harness(*, repo_root: Path, adapter: str) -> tuple[str, dict[str, Any]]:
     repo_root = repo_root.resolve()
     config_rel = _adapter_config_relpath(adapter)
@@ -40,6 +76,7 @@ def load_adapter_harness(*, repo_root: Path, adapter: str) -> tuple[str, dict[st
         raise ValueError(
             f"Harness config {config_rel} declares adapter={payload['adapter']!r}, expected {adapter!r}."
         )
+    _validate_harness_paths_exist(repo_root=repo_root, config_rel=config_rel, payload=payload)
     return config_rel, payload
 
 
@@ -62,13 +99,25 @@ def build_worker_launch_payload(*, repo_root: Path) -> dict[str, Any]:
             "boundary_handoff_path": handoff_path,
             "boundary_handoff": handoff_payload,
         },
+        "context_policy": {
+            "fresh_context": bool(run.get("execution", {}).get("fresh_context_per_story")),
+            "carry_forward_mode": "boundary_handoff_only",
+            "allowed_context_sources": [
+                "dispatch",
+                "run_metadata",
+                "boundary_handoff",
+            ],
+            "handoff_injected": handoff_payload is not None,
+        },
         "harness": {
             "config_path": config_rel,
-            "settings_path": harness["settings_path"],
+            "instructions_path": harness["instructions_path"],
+            "project_config_path": harness["project_config_path"],
             "hooks_path": harness["hooks_path"],
-            "subagents_path": harness["subagents_path"],
+            "agents_path": harness["agents_path"],
             "worker_launch_command": harness["worker_launch_command"],
             "extension_points": harness["extension_points"],
+            "compatibility": harness["compatibility"],
         },
     }
     validate_contract_payload("worker-launch.schema.json", payload)
@@ -98,11 +147,13 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "config_path": config_rel,
                     "adapter": payload["adapter"],
-                    "settings_path": payload["settings_path"],
+                    "instructions_path": payload["instructions_path"],
+                    "project_config_path": payload["project_config_path"],
                     "hooks_path": payload["hooks_path"],
-                    "subagents_path": payload["subagents_path"],
+                    "agents_path": payload["agents_path"],
                     "worker_launch_command": payload["worker_launch_command"],
                     "extension_points": payload["extension_points"],
+                    "compatibility": payload["compatibility"],
                 }
             ),
             end="",

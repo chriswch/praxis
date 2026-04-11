@@ -11,6 +11,7 @@
     "adapter",
     "dispatch",
     "inputs",
+    "context_policy",
     "harness"
   ],
   "properties": {
@@ -177,33 +178,80 @@
         }
       }
     },
+    "context_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fresh_context",
+        "carry_forward_mode",
+        "allowed_context_sources",
+        "handoff_injected"
+      ],
+      "properties": {
+        "fresh_context": {
+          "type": "boolean"
+        },
+        "carry_forward_mode": {
+          "type": "string",
+          "const": "boundary_handoff_only"
+        },
+        "allowed_context_sources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "dispatch",
+              "run_metadata",
+              "boundary_handoff"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "handoff_injected": {
+          "type": "boolean"
+        }
+      }
+    },
     "harness": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "config_path",
-        "settings_path",
+        "instructions_path",
+        "project_config_path",
         "hooks_path",
-        "subagents_path",
+        "agents_path",
         "worker_launch_command",
-        "extension_points"
+        "extension_points",
+        "compatibility"
       ],
       "properties": {
         "config_path": {
           "type": "string",
-          "pattern": "^\\.[^\\n]*$"
+          "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
         },
-        "settings_path": {
+        "instructions_path": {
           "type": "string",
-          "pattern": "^\\.[^\\n]*$"
+          "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+        },
+        "project_config_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "hooks_path": {
           "type": "string",
-          "pattern": "^\\.[^\\n]*$"
+          "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
         },
-        "subagents_path": {
+        "agents_path": {
           "type": "string",
-          "pattern": "^\\.[^\\n]*$"
+          "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
         },
         "worker_launch_command": {
           "type": "string",
@@ -223,7 +271,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^\\.[^\\n]*$"
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
                 },
                 {
                   "type": "null"
@@ -234,7 +282,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^\\.[^\\n]*$"
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
                 },
                 {
                   "type": "null"
@@ -245,7 +293,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^\\.[^\\n]*$"
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
                 },
                 {
                   "type": "null"
@@ -256,7 +304,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^\\.[^\\n]*$"
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
                 },
                 {
                   "type": "null"
@@ -264,6 +312,36 @@
               ]
             }
           }
+        },
+        "compatibility": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "settings_path",
+                "hooks_path",
+                "subagents_path"
+              ],
+              "properties": {
+                "settings_path": {
+                  "type": "string",
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+                },
+                "hooks_path": {
+                  "type": "string",
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+                },
+                "subagents_path": {
+                  "type": "string",
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }

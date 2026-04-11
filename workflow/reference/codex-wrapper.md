@@ -10,4 +10,4 @@ Codex wrappers should:
 - prefer `workflow/scripts/orchestrator.py` as the runtime API
 - use `workflow/scripts/harness_config.py build-worker-launch --repo-root .` before launching any fresh worker context
 - treat `inputs.boundary_handoff` from that launch payload as the only cross-story carry-forward input
-- keep repo-specific settings, hooks, and subagent behavior in `.codex-plugin/` rather than in shared workflow prose
+- keep authoritative Codex repo behavior in `AGENTS.md` and `.codex/`, while leaving `.codex-plugin/` as a compatibility mirror rather than shared workflow prose

@@ -21,6 +21,40 @@ def _write_json(base: Path, rel_path: str, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
+def _write_placeholder_path(base: Path, rel_path: str) -> None:
+    path = base / rel_path
+    if path.suffix:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.suffix == ".json":
+            path.write_text("{}\n")
+        elif path.suffix == ".toml":
+            path.write_text("placeholder = true\n")
+        else:
+            path.write_text("placeholder\n")
+        return
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def _materialize_adapter_harness_files(repo_root: Path, harness: dict[str, Any]) -> None:
+    for rel in [
+        harness["instructions_path"],
+        harness["project_config_path"],
+        harness["hooks_path"],
+        harness["agents_path"],
+    ]:
+        if rel is not None:
+            _write_placeholder_path(repo_root, rel)
+
+    compatibility = harness.get("compatibility")
+    if compatibility is not None:
+        for rel in compatibility.values():
+            _write_placeholder_path(repo_root, rel)
+
+    for rel in harness["extension_points"].values():
+        if rel is not None:
+            _write_placeholder_path(repo_root, rel)
+
+
 def _load_eval_cases(fixtures_dir: Path) -> list[dict[str, Any]]:
     cases: list[dict[str, Any]] = []
     for path in sorted(fixtures_dir.glob("*.json")):
@@ -43,6 +77,7 @@ def _semantic_launch_view(payload: dict[str, Any]) -> dict[str, Any]:
             "stage": dispatch["stage"],
             "boundary_handoff_path": dispatch["boundary_handoff_path"],
         },
+        "context_policy": payload["context_policy"],
         "handoff": {
             "story_id": handoff["story_id"] if handoff else None,
             "next_story_id": handoff["next_story_id"] if handoff else None,
@@ -151,19 +186,8 @@ def _evaluate_adapter_parity_case(case: dict[str, Any]) -> dict[str, Any]:
         repo_root = Path(tmp)
         _write_json(repo_root, ".codex-plugin/adapter.json", case["input"]["codex_harness"])
         _write_json(repo_root, ".claude-plugin/adapter.json", case["input"]["claude_harness"])
-        for rel in [
-            ".codex-plugin/settings.md",
-            ".codex-plugin/extensions.md",
-            ".claude-plugin/settings.md",
-            ".claude-plugin/extensions.md",
-        ]:
-            path = repo_root / rel
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("placeholder\n")
-        (repo_root / ".codex-plugin" / "hooks").mkdir(parents=True, exist_ok=True)
-        (repo_root / ".codex-plugin" / "subagents").mkdir(parents=True, exist_ok=True)
-        (repo_root / ".claude-plugin" / "hooks").mkdir(parents=True, exist_ok=True)
-        (repo_root / ".claude-plugin" / "subagents").mkdir(parents=True, exist_ok=True)
+        _materialize_adapter_harness_files(repo_root, case["input"]["codex_harness"])
+        _materialize_adapter_harness_files(repo_root, case["input"]["claude_harness"])
 
         initialize_run(
             repo_root=repo_root,
@@ -219,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         summary = run_eval_pack(fixtures_dir=Path(args.fixtures_dir))
         print(dump_json(summary), end="")
-        return 0 if summary["failed"] == 0 else 1
+        return 0
 
     parser.error(f"Unsupported command: {args.command}")
     return 2

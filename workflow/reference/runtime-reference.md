@@ -76,7 +76,7 @@ Before launching any fresh worker context:
 1. build the worker-launch payload with `python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .`
 2. pass `inputs.boundary_handoff` into the fresh worker context when present
 3. treat that handoff as the only cross-story carry-forward input
-4. load repo-scoped settings, hooks, subagent patterns, and extension points from the active adapter harness config
+4. load repo-scoped settings, hooks, agent patterns, and extension points from the active adapter harness config
 
 Repo-scoped harness surfaces:
 - `.claude-plugin/adapter.json`
@@ -85,12 +85,16 @@ Repo-scoped harness surfaces:
 - `.claude-plugin/subagents/`
 - `.claude-plugin/extensions.md`
 - `.codex-plugin/adapter.json`
+- `AGENTS.md`
+- `.codex/config.toml`
+- `.codex/hooks.json`
+- `.codex/agents/`
 - `.codex-plugin/settings.md`
 - `.codex-plugin/hooks/`
 - `.codex-plugin/subagents/`
 - `.codex-plugin/extensions.md`
 
-These files hold repo-local behavior. Shared skills should stay neutral about MCP servers, resources, and tool wrappers.
+For Codex, `AGENTS.md` and `.codex/` are the authoritative native repo surfaces. `.codex-plugin/` remains a compatibility mirror during migration. Shared skills should stay neutral about MCP servers, resources, and tool wrappers.
 
 ## Eval and Trace Entry Points
 
