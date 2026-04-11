@@ -33,7 +33,7 @@ def _boundary_stop(reason_code: str) -> str:
         "commit_gate_failed": "A failed commit gate blocks story boundary.",
         "cancelled": "Autopilot cancellation stopped story advancement before activation.",
     }
-    return reasons[reason_code]
+    return reasons.get(reason_code, f"Boundary gate {reason_code} blocks story boundary.")
 
 
 def _resolve_boundary_stop(
@@ -216,6 +216,8 @@ def checkpoint_story_boundary(
         if execution_mode == "autopilot" and cancel_requested:
             reason_code = "cancelled"
             reason = _boundary_stop(reason_code)
+            next_story["stop_reason_code"] = reason_code
+            next_story["stop_reason"] = reason
             next_story["boundary_reason_code"] = reason_code
             next_story["boundary_reason"] = reason
             run["status"] = "cancelled"
