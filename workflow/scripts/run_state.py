@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 import argparse
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .durable_state import (
+    commit_transaction,
+    dump_json,
+    load_json as _load_json,
+    recover_pending_transaction,
+    validate_state_payloads,
+)
 from .routing import resolve_next_stage_for_result, resolve_stop_reason_for_stage_result
 
-
-def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text())
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
 def _utc_now() -> str:
@@ -147,9 +145,11 @@ def update_run_from_stage_result(
     run_path = repo_root / ".praxis" / "run.json"
     stage_result_full_path = repo_root / stage_result_path
 
+    recover_pending_transaction(repo_root)
     run = _load_json(run_path)
     stage_result = _load_json(stage_result_full_path)
 
+    validate_state_payloads(run=run, stage_result=stage_result)
     _validate_stage_alignment(run, stage_result)
 
     next_stage = resolve_next_stage_for_result(
@@ -216,16 +216,24 @@ def update_run_from_stage_result(
     )
     run["timestamps"]["updated_at"] = timestamp
 
-    _write_json(run_path, run)
+    validate_state_payloads(run=run)
+    commit_transaction(
+        repo_root=repo_root,
+        operation="update_run_from_stage_result",
+        files={".praxis/run.json": dump_json(run)},
+        timestamp=timestamp,
+        metadata={"stage_result_path": str(stage_result_path)},
+    )
     return action
 
 
 def _print_result(*, repo_root: Path, extra: dict[str, Any] | None = None) -> None:
+    recover_pending_transaction(repo_root)
     run = _load_json(repo_root / ".praxis" / "run.json")
     payload = _state_snapshot(run)
     if extra:
         payload.update(extra)
-    print(json.dumps(payload, indent=2))
+    print(dump_json(payload), end="")
 
 
 def main(argv: list[str] | None = None) -> int:

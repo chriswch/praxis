@@ -1,0 +1,370 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/workflow/contracts/lifecycle-event.schema.json",
+  "title": "Praxis Lifecycle Event",
+  "description": "Canonical event payload stored as one JSON object per line in .praxis/events.jsonl.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "ts",
+    "type"
+  ],
+  "properties": {
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "story_queue_initialized",
+        "stage_completed",
+        "boundary_started",
+        "boundary_blocked",
+        "boundary_checkpointed",
+        "story_activated",
+        "autopilot_stopped",
+        "story_activation_cancelled",
+        "resume_blocked",
+        "resume_failed"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "story_queue_initialized"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "story_order",
+          "active_story_id",
+          "execution_mode"
+        ],
+        "properties": {
+          "story_order": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "active_story_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "execution_mode": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "autopilot"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "stage_completed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "artifact_dir",
+          "slice_id",
+          "stage",
+          "outcome_code",
+          "next_stage",
+          "next_slice_id"
+        ],
+        "properties": {
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "slice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stage": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outcome_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "next_stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "boundary_started"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "slice_id",
+          "stage"
+        ],
+        "properties": {
+          "slice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stage": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "boundary_blocked"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "slice_id",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "slice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "boundary_checkpointed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "slice_id",
+          "next_slice_id",
+          "handoff_path"
+        ],
+        "properties": {
+          "slice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "next_slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handoff_path": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "story_activated"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "slice_id",
+          "from_slice_id"
+        ],
+        "properties": {
+          "slice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from_slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "autopilot_stopped"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "slice_id",
+          "stage",
+          "reason_code",
+          "reason",
+          "next_stage"
+        ],
+        "properties": {
+          "slice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stage": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "next_stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "story_activation_cancelled"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "slice_id",
+          "from_slice_id",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "slice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from_slice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "resume_blocked",
+              "resume_failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "slice_id",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "slice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ]
+}

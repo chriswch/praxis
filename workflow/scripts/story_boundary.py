@@ -1,34 +1,22 @@
 from __future__ import annotations
 
 import argparse
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .durable_state import (
+    commit_transaction,
+    dump_events,
+    dump_json,
+    load_events as _load_events,
+    load_json as _load_json,
+    load_optional_json as _load_optional_json_file,
+    recover_pending_transaction,
+    validate_handoff_file,
+    validate_state_payloads,
+)
 from .routing import resolve_next_stage_for_result, resolve_stop_reason_for_stage_result
-
-
-def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text())
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n")
-
-
-def _load_events(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    lines = [line for line in path.read_text().splitlines() if line.strip()]
-    return [json.loads(line) for line in lines]
-
-
-def _append_event(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload) + "\n")
 
 
 def _event_exists(events: list[dict[str, Any]], *, event_type: str, **fields: Any) -> bool:
@@ -38,6 +26,17 @@ def _event_exists(events: list[dict[str, Any]], *, event_type: str, **fields: An
         if all(event.get(name) == value for name, value in fields.items()):
             return True
     return False
+
+
+def _queue_event_if_missing(
+    events: list[dict[str, Any]],
+    payload: dict[str, Any],
+    *,
+    dedupe_fields: dict[str, Any] | None = None,
+) -> None:
+    if dedupe_fields and _event_exists(events, event_type=payload["type"], **dedupe_fields):
+        return
+    events.append(payload)
 
 
 def _utc_now() -> str:
@@ -63,13 +62,53 @@ def _state_snapshot(run: dict[str, Any], ledger: dict[str, Any]) -> dict[str, An
     }
 
 
-def _write_resume_stop(
+def _commit_story_state(
     *,
-    run_path: Path,
-    ledger_path: Path,
-    events_path: Path,
+    repo_root: Path,
+    timestamp: str,
+    operation: str,
     run: dict[str, Any],
     ledger: dict[str, Any],
+    events: list[dict[str, Any]],
+    handoff_payload: dict[str, Any] | None = None,
+    handoff_json_rel: str | None = None,
+    handoff_markdown_text: str | None = None,
+    handoff_markdown_rel: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    files = {
+        ".praxis/run.json": dump_json(run),
+        ".praxis/story-ledger.json": dump_json(ledger),
+        ".praxis/events.jsonl": dump_events(events),
+    }
+    validate_state_payloads(run=run, ledger=ledger, events=events)
+
+    if handoff_payload is not None:
+        if handoff_json_rel is None:
+            raise ValueError("handoff_json_rel is required when handoff_payload is provided.")
+        files[handoff_json_rel] = dump_json(handoff_payload)
+        validate_state_payloads(handoff=handoff_payload)
+
+    if handoff_markdown_text is not None:
+        if handoff_markdown_rel is None:
+            raise ValueError("handoff_markdown_rel is required when handoff_markdown_text is provided.")
+        files[handoff_markdown_rel] = handoff_markdown_text
+
+    commit_transaction(
+        repo_root=repo_root,
+        operation=operation,
+        files=files,
+        timestamp=timestamp,
+        metadata=metadata or {},
+    )
+
+
+def _write_resume_stop(
+    *,
+    repo_root: Path,
+    run: dict[str, Any],
+    ledger: dict[str, Any],
+    events: list[dict[str, Any]],
     status: str,
     active_story_id: str,
     reason_code: str,
@@ -86,10 +125,8 @@ def _write_resume_stop(
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
 
-    _write_json(run_path, run)
-    _write_json(ledger_path, ledger)
-    _append_event(
-        events_path,
+    _queue_event_if_missing(
+        events,
         {
             "ts": timestamp,
             "type": "resume_blocked" if status == "waiting_for_user" else "resume_failed",
@@ -98,7 +135,15 @@ def _write_resume_stop(
             "reason": reason,
         },
     )
-
+    _commit_story_state(
+        repo_root=repo_root,
+        timestamp=timestamp,
+        operation="resume_story_run_from_disk_stop",
+        run=run,
+        ledger=ledger,
+        events=events,
+        metadata={"slice_id": active_story_id, "reason_code": reason_code},
+    )
 
 def _resolve_execution_mode(run: dict[str, Any], ledger: dict[str, Any]) -> str:
     run_mode = run.get("execution", {}).get("mode")
@@ -225,8 +270,12 @@ def _validate_completion_result(
     return route_kind, next_story_id
 
 
-def _write_markdown(path: Path, story_id: str, next_story_id: str | None, handoff_data: dict[str, Any], commit_meta: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _render_handoff_markdown(
+    story_id: str,
+    next_story_id: str | None,
+    handoff_data: dict[str, Any],
+    commit_meta: dict[str, Any],
+) -> str:
     lines = [
         f"### Story Handoff: {story_id}",
         "",
@@ -244,7 +293,7 @@ def _write_markdown(path: Path, story_id: str, next_story_id: str | None, handof
         lines.extend(["", "#### Changed Paths"])
         for item in handoff_data["changed_paths"]:
             lines.append(f"- `{item}`")
-    path.write_text("\n".join(lines).rstrip() + "\n")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _handoff_path_for_story(ledger: dict[str, Any], story_id: str) -> str | None:
@@ -263,13 +312,10 @@ def initialize_story_queue(
     execution_mode: str | None = None,
 ) -> None:
     repo_root = repo_root.resolve()
-    run_path = repo_root / ".praxis" / "run.json"
-    ledger_path = repo_root / ".praxis" / "story-ledger.json"
-    events_path = repo_root / ".praxis" / "events.jsonl"
-    slice_map_full_path = repo_root / slice_map_path
-
-    run = _load_json(run_path)
-    slice_map = _load_json(slice_map_full_path)
+    recover_pending_transaction(repo_root)
+    run = _load_json(repo_root / ".praxis" / "run.json")
+    slice_map = _load_json(repo_root / slice_map_path)
+    events = _load_events(repo_root / ".praxis" / "events.jsonl")
 
     story_order = [slice_item["id"] for slice_item in slice_map["slices"]]
     if not story_order:
@@ -328,10 +374,8 @@ def initialize_story_queue(
     run["routing"]["boundary_handoff_path"] = None
     run["timestamps"]["updated_at"] = timestamp
 
-    _write_json(run_path, run)
-    _write_json(ledger_path, ledger)
-    _append_event(
-        events_path,
+    _queue_event_if_missing(
+        events,
         {
             "ts": timestamp,
             "type": "story_queue_initialized",
@@ -339,6 +383,15 @@ def initialize_story_queue(
             "active_story_id": first_story_id,
             "execution_mode": resolved_execution_mode,
         },
+    )
+    _commit_story_state(
+        repo_root=repo_root,
+        timestamp=timestamp,
+        operation="initialize_story_queue",
+        run=run,
+        ledger=ledger,
+        events=events,
+        metadata={"active_story_id": first_story_id},
     )
 
 
@@ -354,15 +407,14 @@ def checkpoint_story_boundary(
     timestamp: str,
 ) -> None:
     repo_root = repo_root.resolve()
-    run_path = repo_root / ".praxis" / "run.json"
-    ledger_path = repo_root / ".praxis" / "story-ledger.json"
-    events_path = repo_root / ".praxis" / "events.jsonl"
-    stage_result_full_path = repo_root / stage_result_path
+    recover_pending_transaction(repo_root)
 
-    run = _load_json(run_path)
-    ledger = _load_json(ledger_path)
-    stage_result = _load_json(stage_result_full_path)
-    events = _load_events(events_path)
+    run = _load_json(repo_root / ".praxis" / "run.json")
+    ledger = _load_json(repo_root / ".praxis" / "story-ledger.json")
+    stage_result = _load_json(repo_root / stage_result_path)
+    events = _load_events(repo_root / ".praxis" / "events.jsonl")
+
+    validate_state_payloads(run=run, ledger=ledger, stage_result=stage_result, events=events)
     execution_mode = _resolve_execution_mode(run, ledger)
     ledger["execution_mode"] = execution_mode
 
@@ -380,42 +432,34 @@ def checkpoint_story_boundary(
     )
     stage_name = stage_result["stage"]
 
-    # Boundary retries should not duplicate the same lifecycle events.
-    if not _event_exists(
+    _queue_event_if_missing(
         events,
-        event_type="stage_completed",
-        artifact_dir=stage_result["artifact_dir"],
-        slice_id=current_story_id,
-        stage=stage_name,
-    ):
-        _append_event(
-            events_path,
-            {
-                "ts": timestamp,
-                "type": "stage_completed",
-                "artifact_dir": stage_result["artifact_dir"],
-                "slice_id": current_story_id,
-                "stage": stage_name,
-                "outcome_code": stage_result["data"]["outcome_code"],
-                "next_stage": next_stage,
-                "next_slice_id": stage_result["route"]["next_slice_id"],
-            },
-        )
-    if not _event_exists(
+        {
+            "ts": timestamp,
+            "type": "stage_completed",
+            "artifact_dir": stage_result["artifact_dir"],
+            "slice_id": current_story_id,
+            "stage": stage_name,
+            "outcome_code": stage_result["data"]["outcome_code"],
+            "next_stage": next_stage,
+            "next_slice_id": stage_result["route"]["next_slice_id"],
+        },
+        dedupe_fields={
+            "artifact_dir": stage_result["artifact_dir"],
+            "slice_id": current_story_id,
+            "stage": stage_name,
+        },
+    )
+    _queue_event_if_missing(
         events,
-        event_type="boundary_started",
-        slice_id=current_story_id,
-        stage=stage_name,
-    ):
-        _append_event(
-            events_path,
-            {
-                "ts": timestamp,
-                "type": "boundary_started",
-                "slice_id": current_story_id,
-                "stage": stage_name,
-            },
-        )
+        {
+            "ts": timestamp,
+            "type": "boundary_started",
+            "slice_id": current_story_id,
+            "stage": stage_name,
+        },
+        dedupe_fields={"slice_id": current_story_id, "stage": stage_name},
+    )
 
     boundary_stop = _resolve_boundary_stop(
         dirty_paths=dirty_paths,
@@ -437,10 +481,9 @@ def checkpoint_story_boundary(
         run["routing"]["boundary_handoff_path"] = None
         run["timestamps"]["updated_at"] = timestamp
         ledger["timestamps"]["updated_at"] = timestamp
-        _write_json(run_path, run)
-        _write_json(ledger_path, ledger)
-        _append_event(
-            events_path,
+
+        _queue_event_if_missing(
+            events,
             {
                 "ts": timestamp,
                 "type": "boundary_blocked",
@@ -448,6 +491,16 @@ def checkpoint_story_boundary(
                 "reason_code": reason_code,
                 "reason": reason,
             },
+            dedupe_fields={"slice_id": current_story_id, "reason_code": reason_code},
+        )
+        _commit_story_state(
+            repo_root=repo_root,
+            timestamp=timestamp,
+            operation="checkpoint_story_boundary_blocked",
+            run=run,
+            ledger=ledger,
+            events=events,
+            metadata={"slice_id": current_story_id, "reason_code": reason_code},
         )
         return
 
@@ -463,11 +516,15 @@ def checkpoint_story_boundary(
         "commit_meta": commit_meta,
         "generated_at": timestamp,
     }
+    handoff_markdown = _render_handoff_markdown(
+        current_story_id,
+        next_story_id,
+        handoff_data,
+        commit_meta or {},
+    )
 
-    _write_json(repo_root / handoff_json_rel, handoff_payload)
-    _write_markdown(repo_root / handoff_md_rel, current_story_id, next_story_id, handoff_data, commit_meta)
-    _append_event(
-        events_path,
+    _queue_event_if_missing(
+        events,
         {
             "ts": timestamp,
             "type": "boundary_checkpointed",
@@ -475,6 +532,7 @@ def checkpoint_story_boundary(
             "next_slice_id": next_story_id,
             "handoff_path": handoff_json_rel,
         },
+        dedupe_fields={"slice_id": current_story_id, "handoff_path": handoff_json_rel},
     )
 
     current_story["status"] = "completed"
@@ -521,8 +579,8 @@ def checkpoint_story_boundary(
             run["routing"]["next_slice_id"] = next_story_id
             run["routing"]["stop_reason_code"] = reason_code
             run["routing"]["reason"] = reason
-            _append_event(
-                events_path,
+            _queue_event_if_missing(
+                events,
                 {
                     "ts": timestamp,
                     "type": "story_activation_cancelled",
@@ -531,6 +589,7 @@ def checkpoint_story_boundary(
                     "reason_code": reason_code,
                     "reason": reason,
                 },
+                dedupe_fields={"slice_id": next_story_id, "from_slice_id": current_story_id, "reason_code": reason_code},
             )
         elif execution_mode == "autopilot":
             next_story["status"] = "active"
@@ -543,21 +602,16 @@ def checkpoint_story_boundary(
             run["routing"]["next_slice_id"] = None
             run["routing"]["stop_reason_code"] = None
             run["routing"]["reason"] = f"{next_story_id} activated from durable story-boundary state."
-            if not _event_exists(
+            _queue_event_if_missing(
                 events,
-                event_type="story_activated",
-                slice_id=next_story_id,
-                from_slice_id=current_story_id,
-            ):
-                _append_event(
-                    events_path,
-                    {
-                        "ts": timestamp,
-                        "type": "story_activated",
-                        "slice_id": next_story_id,
-                        "from_slice_id": current_story_id,
-                    },
-                )
+                {
+                    "ts": timestamp,
+                    "type": "story_activated",
+                    "slice_id": next_story_id,
+                    "from_slice_id": current_story_id,
+                },
+                dedupe_fields={"slice_id": next_story_id, "from_slice_id": current_story_id},
+            )
     else:
         ledger["stories"]["active"] = None
         run["status"] = "completed"
@@ -572,8 +626,19 @@ def checkpoint_story_boundary(
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
 
-    _write_json(run_path, run)
-    _write_json(ledger_path, ledger)
+    _commit_story_state(
+        repo_root=repo_root,
+        timestamp=timestamp,
+        operation="checkpoint_story_boundary",
+        run=run,
+        ledger=ledger,
+        events=events,
+        handoff_payload=handoff_payload,
+        handoff_json_rel=handoff_json_rel,
+        handoff_markdown_text=handoff_markdown,
+        handoff_markdown_rel=handoff_md_rel,
+        metadata={"slice_id": current_story_id, "next_slice_id": next_story_id},
+    )
 
 
 def pause_autopilot_for_stage_result(
@@ -583,15 +648,14 @@ def pause_autopilot_for_stage_result(
     timestamp: str,
 ) -> bool:
     repo_root = repo_root.resolve()
-    run_path = repo_root / ".praxis" / "run.json"
-    ledger_path = repo_root / ".praxis" / "story-ledger.json"
-    events_path = repo_root / ".praxis" / "events.jsonl"
-    stage_result_full_path = repo_root / stage_result_path
+    recover_pending_transaction(repo_root)
 
-    run = _load_json(run_path)
-    ledger = _load_json(ledger_path)
-    stage_result = _load_json(stage_result_full_path)
+    run = _load_json(repo_root / ".praxis" / "run.json")
+    ledger = _load_json(repo_root / ".praxis" / "story-ledger.json")
+    stage_result = _load_json(repo_root / stage_result_path)
+    events = _load_events(repo_root / ".praxis" / "events.jsonl")
 
+    validate_state_payloads(run=run, ledger=ledger, stage_result=stage_result, events=events)
     if _resolve_execution_mode(run, ledger) != "autopilot":
         return False
 
@@ -622,19 +686,26 @@ def pause_autopilot_for_stage_result(
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
 
-    _write_json(run_path, run)
-    _write_json(ledger_path, ledger)
-    _append_event(
-        events_path,
+    _queue_event_if_missing(
+        events,
         {
             "ts": timestamp,
             "type": "autopilot_stopped",
             "slice_id": current_story_id,
-            "stage": stage_result_full_path.stem,
+            "stage": stage_result["stage"],
             "reason_code": reason_code,
             "reason": reason,
             "next_stage": next_stage,
         },
+    )
+    _commit_story_state(
+        repo_root=repo_root,
+        timestamp=timestamp,
+        operation="pause_autopilot_for_stage_result",
+        run=run,
+        ledger=ledger,
+        events=events,
+        metadata={"slice_id": current_story_id, "reason_code": reason_code},
     )
     return True
 
@@ -662,14 +733,13 @@ def checkpoint_manual_story_boundary(
 
 def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> None:
     repo_root = repo_root.resolve()
-    run_path = repo_root / ".praxis" / "run.json"
-    ledger_path = repo_root / ".praxis" / "story-ledger.json"
-    events_path = repo_root / ".praxis" / "events.jsonl"
+    recover_pending_transaction(repo_root)
 
-    run = _load_json(run_path)
-    ledger = _load_json(ledger_path)
-    events = _load_events(events_path)
+    run = _load_json(repo_root / ".praxis" / "run.json")
+    ledger = _load_json(repo_root / ".praxis" / "story-ledger.json")
+    events = _load_events(repo_root / ".praxis" / "events.jsonl")
 
+    validate_state_payloads(run=run, ledger=ledger, events=events)
     next_story_id = ledger["stories"]["active"]
     if not next_story_id:
         raise ValueError("Cannot activate the next story without an active story in the ledger.")
@@ -679,6 +749,12 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
             "Can only activate a checkpointed next story; "
             f"got status={next_story['status']!r}."
         )
+
+    handoff_path = _handoff_path_for_story(ledger, next_story_id)
+    if not handoff_path or not (repo_root / handoff_path).exists():
+        raise ValueError(f"Cannot activate {next_story_id} without a durable handoff artifact.")
+    validate_handoff_file(repo_root / handoff_path)
+
     from_story_id = next_story.get("carry_forward_from")
     next_story["status"] = "active"
     next_story["boundary_status"] = "in_progress"
@@ -697,45 +773,53 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
     run["routing"]["next_slice_id"] = None
     run["routing"]["stop_reason_code"] = None
     run["routing"]["reason"] = f"{next_story_id} activated from durable story-boundary state."
-    run["routing"]["boundary_handoff_path"] = _handoff_path_for_story(ledger, next_story_id)
+    run["routing"]["boundary_handoff_path"] = handoff_path
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
 
-    _write_json(run_path, run)
-    _write_json(ledger_path, ledger)
-    if not _event_exists(
+    _queue_event_if_missing(
         events,
-        event_type="story_activated",
-        slice_id=next_story_id,
-        from_slice_id=from_story_id,
-    ):
-        _append_event(
-            events_path,
-            {
-                "ts": timestamp,
-                "type": "story_activated",
-                "slice_id": next_story_id,
-                "from_slice_id": from_story_id,
-            },
-        )
+        {
+            "ts": timestamp,
+            "type": "story_activated",
+            "slice_id": next_story_id,
+            "from_slice_id": from_story_id,
+        },
+        dedupe_fields={"slice_id": next_story_id, "from_slice_id": from_story_id},
+    )
+    _commit_story_state(
+        repo_root=repo_root,
+        timestamp=timestamp,
+        operation="activate_next_story_from_boundary",
+        run=run,
+        ledger=ledger,
+        events=events,
+        metadata={"slice_id": next_story_id, "from_slice_id": from_story_id},
+    )
 
 
 def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
     repo_root = repo_root.resolve()
-    run_path = repo_root / ".praxis" / "run.json"
-    ledger_path = repo_root / ".praxis" / "story-ledger.json"
-    events_path = repo_root / ".praxis" / "events.jsonl"
+    recover_pending_transaction(repo_root)
 
-    run = _load_json(run_path)
-    ledger = _load_json(ledger_path)
-    events = _load_events(events_path)
+    run = _load_json(repo_root / ".praxis" / "run.json")
+    ledger = _load_json(repo_root / ".praxis" / "story-ledger.json")
+    events = _load_events(repo_root / ".praxis" / "events.jsonl")
 
+    validate_state_payloads(run=run, ledger=ledger, events=events)
     active_story_id = ledger["stories"]["active"]
     if not active_story_id:
         if run["status"] in {"completed", "cancelled"}:
             run["routing"]["boundary_handoff_path"] = run["routing"].get("boundary_handoff_path")
             run["timestamps"]["updated_at"] = timestamp
-            _write_json(run_path, run)
+            validate_state_payloads(run=run)
+            commit_transaction(
+                repo_root=repo_root,
+                operation="resume_terminal_story_run",
+                files={".praxis/run.json": dump_json(run)},
+                timestamp=timestamp,
+                metadata={"status": run["status"]},
+            )
             return "resume_terminal"
         raise ValueError("Cannot resume without an active story in the ledger.")
 
@@ -748,11 +832,10 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
             "Repair run.current.slice_id or story-ledger.json before resuming."
         )
         _write_resume_stop(
-            run_path=run_path,
-            ledger_path=ledger_path,
-            events_path=events_path,
+            repo_root=repo_root,
             run=run,
             ledger=ledger,
+            events=events,
             status="failed",
             active_story_id=active_story_id,
             reason_code="inconsistent_state",
@@ -771,11 +854,10 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
         if f"Resolve {reason_code}" not in reason:
             reason = f"{reason} Resolve {reason_code} before resuming {active_story_id}."
         _write_resume_stop(
-            run_path=run_path,
-            ledger_path=ledger_path,
-            events_path=events_path,
+            repo_root=repo_root,
             run=run,
             ledger=ledger,
+            events=events,
             status="waiting_for_user",
             active_story_id=active_story_id,
             reason_code=reason_code,
@@ -792,11 +874,10 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
                 "Repair the handoff file before resuming."
             )
             _write_resume_stop(
-                run_path=run_path,
-                ledger_path=ledger_path,
-                events_path=events_path,
+                repo_root=repo_root,
                 run=run,
                 ledger=ledger,
+                events=events,
                 status="failed",
                 active_story_id=active_story_id,
                 reason_code="inconsistent_state",
@@ -804,6 +885,8 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
                 timestamp=timestamp,
             )
             return "resume_inconsistent"
+
+        validate_handoff_file(repo_root / handoff_path)
 
         if run["status"] == "cancelled" or run["routing"].get("stop_reason_code") == "cancelled":
             run["current"]["scope"] = "slice"
@@ -822,8 +905,15 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
             )
             run["timestamps"]["updated_at"] = timestamp
             ledger["timestamps"]["updated_at"] = timestamp
-            _write_json(run_path, run)
-            _write_json(ledger_path, ledger)
+            _commit_story_state(
+                repo_root=repo_root,
+                timestamp=timestamp,
+                operation="resume_story_run_cancelled",
+                run=run,
+                ledger=ledger,
+                events=events,
+                metadata={"slice_id": active_story_id},
+            )
             return "resume_cancelled"
 
         run["current"]["scope"] = "slice"
@@ -841,8 +931,15 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
             run["routing"]["reason"] = f"{active_story_id} is checkpointed and awaiting manual confirmation."
             run["timestamps"]["updated_at"] = timestamp
             ledger["timestamps"]["updated_at"] = timestamp
-            _write_json(run_path, run)
-            _write_json(ledger_path, ledger)
+            _commit_story_state(
+                repo_root=repo_root,
+                timestamp=timestamp,
+                operation="resume_story_run_manual_wait",
+                run=run,
+                ledger=ledger,
+                events=events,
+                metadata={"slice_id": active_story_id},
+            )
             return "resume_manual_wait"
 
         if _event_exists(
@@ -889,8 +986,15 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
         run["timestamps"]["updated_at"] = timestamp
         ledger["timestamps"]["updated_at"] = timestamp
 
-        _write_json(run_path, run)
-        _write_json(ledger_path, ledger)
+        _commit_story_state(
+            repo_root=repo_root,
+            timestamp=timestamp,
+            operation="resume_story_run_waiting",
+            run=run,
+            ledger=ledger,
+            events=events,
+            metadata={"slice_id": active_story_id, "reason_code": reason_code},
+        )
         return "resume_waiting"
 
     run["status"] = "running"
@@ -905,24 +1009,30 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
 
-    _write_json(run_path, run)
-    _write_json(ledger_path, ledger)
+    _commit_story_state(
+        repo_root=repo_root,
+        timestamp=timestamp,
+        operation="resume_story_run_active",
+        run=run,
+        ledger=ledger,
+        events=events,
+        metadata={"slice_id": active_story_id},
+    )
     return "resume_active"
 
 
 def _load_optional_json(path: str | None) -> dict[str, Any] | None:
-    if path is None:
-        return None
-    return _load_json(Path(path))
+    return _load_optional_json_file(path)
 
 
 def _print_result(*, repo_root: Path, extra: dict[str, Any] | None = None) -> None:
+    recover_pending_transaction(repo_root)
     run = _load_json(repo_root / ".praxis" / "run.json")
     ledger_path = repo_root / ".praxis" / "story-ledger.json"
     payload = _state_snapshot(run, _load_json(ledger_path)) if ledger_path.exists() else _state_snapshot(run, {"stories": {}})
     if extra:
         payload.update(extra)
-    print(json.dumps(payload, indent=2))
+    print(dump_json(payload), end="")
 
 
 def main(argv: list[str] | None = None) -> int:

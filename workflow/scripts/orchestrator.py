@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import argparse
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .durable_state import (
+    commit_transaction,
+    dump_json,
+    load_json as _load_json,
+    load_optional_json,
+    recover_pending_transaction,
+    validate_state_payloads,
+)
 from .routing import resolve_next_stage_for_result
 from .run_state import update_run_from_stage_result
 from .story_boundary import (
@@ -15,15 +22,6 @@ from .story_boundary import (
     pause_autopilot_for_stage_result,
     resume_story_run_from_disk,
 )
-
-
-def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text())
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
 def _utc_now() -> str:
@@ -76,6 +74,7 @@ def _requires_boundary_transition(
 
 
 def _snapshot(repo_root: Path) -> dict[str, Any]:
+    recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
     payload = {
         "workflow": run.get("workflow"),
@@ -100,6 +99,7 @@ def _snapshot(repo_root: Path) -> dict[str, Any]:
 
 
 def _dispatch(repo_root: Path) -> dict[str, Any]:
+    recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
     current = run["current"]
     routing = run["routing"]
@@ -135,7 +135,18 @@ def _print_result(
     payload["dispatch"] = _dispatch(repo_root)
     if transition_action is not None:
         payload["transition_action"] = transition_action
-    print(json.dumps(payload, indent=2))
+    print(dump_json(payload), end="")
+
+
+def _commit_run_only(*, repo_root: Path, run: dict[str, Any], timestamp: str, operation: str, metadata: dict[str, Any] | None = None) -> None:
+    validate_state_payloads(run=run)
+    commit_transaction(
+        repo_root=repo_root,
+        operation=operation,
+        files={".praxis/run.json": dump_json(run)},
+        timestamp=timestamp,
+        metadata=metadata or {},
+    )
 
 
 def initialize_run(
@@ -149,6 +160,7 @@ def initialize_run(
     timestamp: str,
 ) -> None:
     repo_root = repo_root.resolve()
+    recover_pending_transaction(repo_root)
     run_path = _run_path(repo_root)
 
     if run_path.exists():
@@ -199,7 +211,13 @@ def initialize_run(
         },
     }
 
-    _write_json(run_path, run)
+    _commit_run_only(
+        repo_root=repo_root,
+        run=run,
+        timestamp=timestamp,
+        operation="initialize_run",
+        metadata={"workflow": workflow, "adapter": adapter},
+    )
 
 
 def advance_run(
@@ -215,9 +233,11 @@ def advance_run(
     timestamp: str,
 ) -> str:
     repo_root = repo_root.resolve()
+    recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
     stage_result = _load_json(repo_root / stage_result_path)
 
+    validate_state_payloads(run=run, stage_result=stage_result)
     _validate_stage_alignment(run, stage_result)
 
     if (
@@ -272,8 +292,9 @@ def advance_run(
 
 
 def continue_pause_after_queue_init(*, repo_root: Path, timestamp: str) -> None:
-    run_path = _run_path(repo_root)
-    run = _load_json(run_path)
+    repo_root = repo_root.resolve()
+    recover_pending_transaction(repo_root)
+    run = _load_json(_run_path(repo_root))
 
     run["status"] = "waiting_for_user"
     run["routing"]["next_action"] = "confirm_then_run"
@@ -284,13 +305,20 @@ def continue_pause_after_queue_init(*, repo_root: Path, timestamp: str) -> None:
         f"Story queue initialized. Awaiting confirmation to begin {run['current']['slice_id']}."
     )
     run["timestamps"]["updated_at"] = timestamp
-    _write_json(run_path, run)
+
+    _commit_run_only(
+        repo_root=repo_root,
+        run=run,
+        timestamp=timestamp,
+        operation="continue_pause_after_queue_init",
+        metadata={"slice_id": run["current"].get("slice_id")},
+    )
 
 
 def continue_run(*, repo_root: Path, timestamp: str) -> str:
     repo_root = repo_root.resolve()
-    run_path = _run_path(repo_root)
-    run = _load_json(run_path)
+    recover_pending_transaction(repo_root)
+    run = _load_json(_run_path(repo_root))
 
     if run["routing"]["next_action"] != "confirm_then_run":
         raise ValueError(
@@ -318,14 +346,21 @@ def continue_run(*, repo_root: Path, timestamp: str) -> str:
     run["routing"]["stop_reason_code"] = None
     run["routing"]["reason"] = f"Manual confirmation received. Continue to {next_stage}."
     run["timestamps"]["updated_at"] = timestamp
-    _write_json(run_path, run)
+
+    _commit_run_only(
+        repo_root=repo_root,
+        run=run,
+        timestamp=timestamp,
+        operation="continue_run",
+        metadata={"next_stage": next_stage},
+    )
     return "run_stage"
 
 
 def resume_run(*, repo_root: Path, timestamp: str) -> str:
     repo_root = repo_root.resolve()
-    run_path = _run_path(repo_root)
-    run = _load_json(run_path)
+    recover_pending_transaction(repo_root)
+    run = _load_json(_run_path(repo_root))
 
     if _ledger_path(repo_root).exists() and run["mode"] == "multi_slice":
         return resume_story_run_from_disk(repo_root=repo_root, timestamp=timestamp)
@@ -335,7 +370,13 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
 
     if run["status"] in {"completed", "cancelled"} or next_action in {"finish", "idle"}:
         run["timestamps"]["updated_at"] = timestamp
-        _write_json(run_path, run)
+        _commit_run_only(
+            repo_root=repo_root,
+            run=run,
+            timestamp=timestamp,
+            operation="resume_terminal_run",
+            metadata={"status": run["status"]},
+        )
         return "resume_terminal"
 
     if current_stage is None:
@@ -348,7 +389,13 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
         run["routing"]["stop_reason_code"] = None
         run["routing"]["reason"] = f"Awaiting confirmation to continue to {current_stage}."
         run["timestamps"]["updated_at"] = timestamp
-        _write_json(run_path, run)
+        _commit_run_only(
+            repo_root=repo_root,
+            run=run,
+            timestamp=timestamp,
+            operation="resume_waiting_confirmation",
+            metadata={"current_stage": current_stage},
+        )
         return "resume_waiting_confirmation"
 
     if next_action == "ask_user" or run["routing"].get("stop_reason_code"):
@@ -356,7 +403,13 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
         run["routing"]["next_action"] = "ask_user"
         run["routing"]["next_stage"] = current_stage
         run["timestamps"]["updated_at"] = timestamp
-        _write_json(run_path, run)
+        _commit_run_only(
+            repo_root=repo_root,
+            run=run,
+            timestamp=timestamp,
+            operation="resume_waiting_single_story",
+            metadata={"current_stage": current_stage},
+        )
         return "resume_waiting"
 
     run["status"] = "running"
@@ -366,7 +419,13 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
     run["routing"]["stop_reason_code"] = None
     run["routing"]["reason"] = f"Resumed {run['workflow']} run from durable state."
     run["timestamps"]["updated_at"] = timestamp
-    _write_json(run_path, run)
+    _commit_run_only(
+        repo_root=repo_root,
+        run=run,
+        timestamp=timestamp,
+        operation="resume_active_single_story",
+        metadata={"current_stage": current_stage},
+    )
     return "resume_active"
 
 
@@ -427,8 +486,8 @@ def main(argv: list[str] | None = None) -> int:
             repo_root=repo_root,
             stage_result_path=Path(args.stage_result_path),
             slice_map_path=Path(args.slice_map_path),
-            commit_meta=_load_json(Path(args.commit_meta_path)) if args.commit_meta_path else None,
-            handoff_data=_load_json(Path(args.handoff_data_path)) if args.handoff_data_path else None,
+            commit_meta=load_optional_json(args.commit_meta_path),
+            handoff_data=load_optional_json(args.handoff_data_path),
             dirty_paths=args.dirty_path or None,
             gate_failures=args.gate_failure or None,
             cancel_requested=args.cancel_requested,

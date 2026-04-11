@@ -76,6 +76,7 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
                             "type": "boundary_checkpointed",
                             "slice_id": "S-001",
                             "next_slice_id": "S-002",
+                            "handoff_path": ".praxis/slices/S-001/handoff.json",
                         }
                     ),
                     json.dumps(
@@ -358,6 +359,7 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
                             "type": "boundary_checkpointed",
                             "slice_id": "S-001",
                             "next_slice_id": "S-002",
+                            "handoff_path": ".praxis/slices/S-001/handoff.json",
                         }
                     ),
                     json.dumps(
