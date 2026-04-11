@@ -2,96 +2,27 @@
 
 Spec-driven software engineering workflows for Claude Code.
 
-Claude commands under `commands/` are thin adapters over the shared Praxis v3 workflow files in `workflow/`. If a Claude wrapper and a shared workflow file disagree, the shared workflow file wins.
+Claude commands under `commands/` are thin adapters over the shared Praxis workflow files in `workflow/`. If a Claude wrapper and a shared workflow file disagree, the shared workflow file wins.
 
-## Workflow
+## Commands
 
-`/craft`: `clarifying-intent` -> [`slicing-stories`] -> `sketching-design` -> `driving-tdd` -> `code-reviewing` -> `code-improving` -> `verifying-and-adapting`
-
-`/forge`: `clarifying-intent` -> [`slicing-stories`] -> `sketching-design` -> `rapid-implementing` -> `code-reviewing` -> `code-improving`
+- `/craft`
+- `/forge`
 
 Execution policy is separate from workflow shape:
-
 - `workflow`: `craft` or `forge`
 - `mode`: `single_story` or `multi_slice`
 - `run.execution.mode`: `manual` or `autopilot`
 
-## Shared Runtime Files
+## Canonical References
 
-- `workflow/pipelines/craft.md`
-- `workflow/pipelines/forge.md`
-- `workflow/contracts/run.schema.json`
-- `workflow/contracts/stage-result.schema.json`
-- `workflow/contracts/story-ledger.schema.json`
-- `workflow/contracts/adapter-harness.schema.json`
-- `workflow/contracts/worker-launch.schema.json`
-- `workflow/scripts/orchestrator.py`
-- `workflow/scripts/harness_config.py`
-- `workflow/scripts/eval_pack.py`
-- `workflow/scripts/run_state.py`
-- `workflow/scripts/routing.py`
-- `workflow/scripts/story_boundary.py`
-
-Use `workflow/scripts/orchestrator.py` as the shared runtime entrypoint for initializing runs, advancing stage results, handling manual confirmations, and resuming from `.praxis/`.
-
-Use `workflow/scripts/story_boundary.py` as the lower-level runtime helper for:
-
-- initializing a multi-story queue after `slicing-stories`
-- checkpointing a completed story boundary
-- pausing `autopilot` on operator-required stage results
-- activating the next story after manual confirmation
-- resuming an interrupted multi-story run from `.praxis/`
-
-Use `workflow/scripts/run_state.py` as the lower-level helper for ordinary stage-to-stage `run.json` updates.
-
-Use `workflow/scripts/harness_config.py` to load repo-scoped Claude harness config from `.claude-plugin/adapter.json` and to build the worker-launch payload for fresh worker contexts.
-
-Use `workflow/scripts/eval_pack.py` to run the local eval fixtures for routing, resume, stop reasons, handoff budget enforcement, and adapter parity.
-
-Do not re-implement these transitions in Claude-specific wrappers.
-
-Read-side handoff contract:
-
-- Before launching any fresh worker context, build the worker-launch payload with `workflow/scripts/harness_config.py`.
-- If `inputs.boundary_handoff` is present in that payload, pass it into the fresh worker context as explicit input.
-- Treat that handoff as the only cross-story carry-forward context; do not rely on old transcript continuity.
-- `workflow/scripts/run_state.py` clears `run.routing.boundary_handoff_path` once `clarifying-intent` advances beyond itself. If clarification loops back to itself, the handoff path remains available for the retry.
-
-Repo-scoped extension points live under `.claude-plugin/`:
-
-- `adapter.json` declares settings, hooks, subagent patterns, and optional extension paths.
-- `hooks/` holds repo-local automation entrypoints.
-- `subagents/` holds repo-local subagent patterns.
-- `extensions.md` documents optional MCP/resources/tool integrations without hardcoding them into shared Praxis skills.
+- Shared runtime reference: `workflow/reference/runtime-reference.md`
+- Shared Claude wrapper guidance: `workflow/reference/claude-wrapper.md`
+- Shared workflows: `workflow/pipelines/craft.md`, `workflow/pipelines/forge.md`
+- Shared runtime helpers: `workflow/scripts/orchestrator.py`, `workflow/scripts/harness_config.py`, `workflow/scripts/run_state.py`, `workflow/scripts/story_boundary.py`, `workflow/scripts/eval_pack.py`
 
 ## Artifact Paths
 
-Human-readable artifacts:
+Use `.praxis/results/<stage>.json`, `run.json`, and `story-ledger.json` as the routing source of truth. Human-readable artifacts remain the reading surface.
 
-| Artifact | Path | Producer |
-| --- | --- | --- |
-| Feature Brief | `brief.md` | `clarifying-intent` |
-| Slice Map | `slice-map.json`, `slice-map.md` | `slicing-stories` |
-| Story-Level Spec | `spec.md` | `clarifying-intent` |
-| Design Sketch | `sketch.md` | `sketching-design` |
-| TDD Session | `tdd.md` | `driving-tdd` |
-| Implementation Summary | `implementation.md` | `rapid-implementing` |
-| Code Review | `review.md` | `code-reviewing` |
-| Improvement | `improvement.md` | `code-improving` |
-| Verification | `verification.md` | `verifying-and-adapting` |
-| Story Handoff | `handoff.json`, `handoff.md` | story-boundary helper |
-
-Structured runtime artifacts:
-
-| Artifact | Path | Purpose |
-| --- | --- | --- |
-| Run State | `run.json` | Active workflow cursor |
-| Story Ledger | `story-ledger.json` | Durable queue owner for multi-slice runs |
-| Lifecycle Events | `events.jsonl` | Resume and audit trail |
-| Stage Result | `results/<stage>.json` | Stage routing and outcome state |
-
-Single-story artifacts live at `.praxis/`. Multi-slice artifacts live under `.praxis/slices/{slice-id}/`. Feature-level artifacts always live at `.praxis/` root.
-
-Use the markdown artifact as the reading surface for the user, but use `.praxis/results/<stage>.json`, `run.json`, and `story-ledger.json` as the routing source of truth.
-
-`workflow/scripts/orchestrator.py show-run` also surfaces a `trace` block that summarizes the current dispatch, recent boundary and stop events, and recovery state.
+`show-run` also surfaces a `trace` block for dispatch, recent boundary and stop signals, and recovery state.
