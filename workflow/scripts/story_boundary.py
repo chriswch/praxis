@@ -378,30 +378,44 @@ def checkpoint_story_boundary(
         current_story_id=current_story_id,
         next_stage=next_stage,
     )
-    stage_name = stage_result_full_path.stem
+    stage_name = stage_result["stage"]
 
-    _append_event(
-        events_path,
-        {
-            "ts": timestamp,
-            "type": "stage_completed",
-            "artifact_dir": stage_result["artifact_dir"],
-            "slice_id": current_story_id,
-            "stage": stage_name,
-            "outcome_code": stage_result["data"]["outcome_code"],
-            "next_stage": next_stage,
-            "next_slice_id": stage_result["route"]["next_slice_id"],
-        },
-    )
-    _append_event(
-        events_path,
-        {
-            "ts": timestamp,
-            "type": "boundary_started",
-            "slice_id": current_story_id,
-            "stage": stage_name,
-        },
-    )
+    # Boundary retries should not duplicate the same lifecycle events.
+    if not _event_exists(
+        events,
+        event_type="stage_completed",
+        artifact_dir=stage_result["artifact_dir"],
+        slice_id=current_story_id,
+        stage=stage_name,
+    ):
+        _append_event(
+            events_path,
+            {
+                "ts": timestamp,
+                "type": "stage_completed",
+                "artifact_dir": stage_result["artifact_dir"],
+                "slice_id": current_story_id,
+                "stage": stage_name,
+                "outcome_code": stage_result["data"]["outcome_code"],
+                "next_stage": next_stage,
+                "next_slice_id": stage_result["route"]["next_slice_id"],
+            },
+        )
+    if not _event_exists(
+        events,
+        event_type="boundary_started",
+        slice_id=current_story_id,
+        stage=stage_name,
+    ):
+        _append_event(
+            events_path,
+            {
+                "ts": timestamp,
+                "type": "boundary_started",
+                "slice_id": current_story_id,
+                "stage": stage_name,
+            },
+        )
 
     boundary_stop = _resolve_boundary_stop(
         dirty_paths=dirty_paths,
