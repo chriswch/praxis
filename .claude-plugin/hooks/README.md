@@ -1,10 +1,5 @@
-# Claude Hooks
+# Claude Compatibility Hooks
 
-Repo-scoped hook entrypoints live here.
+Praxis now uses `.claude/settings.json` plus `.claude/hooks/` as the authoritative Claude hook surface.
 
-Suggested hook responsibilities:
-- Before stage launch: read the worker-launch payload and confirm the target stage, artifact dir, and handoff path.
-- Before slice-level `clarifying-intent`: inject `inputs.boundary_handoff` when present.
-- After stage completion: write `{artifact-dir}/results/<stage>.json` before asking the orchestrator to advance.
-
-Praxis does not commit team-specific commands here by default. Add local hook scripts in this folder when a repo needs them.
+This directory remains available only as a compatibility extension point during migration. Do not rely on it for the shared Praxis runtime path.

@@ -21,8 +21,8 @@ def session_start_hook(*, repo_root: Path, recorded_at: str | None = None) -> in
 
     try:
         payload = build_worker_launch_payload(repo_root=repo_root)
-        if payload["adapter"] != "codex":
-            raise ValueError(f"Codex session-start hook received non-codex adapter {payload['adapter']!r}.")
+        if payload["adapter"] != "claude":
+            raise ValueError(f"Claude session-start hook received non-claude adapter {payload['adapter']!r}.")
         record_rel, _ = write_native_launch_record(
             repo_root=repo_root,
             payload=payload,
@@ -33,18 +33,18 @@ def session_start_hook(*, repo_root: Path, recorded_at: str | None = None) -> in
             additional_context=build_session_start_additional_context(
                 payload=payload,
                 record_rel=record_rel,
-                label="Praxis Codex launch context",
+                label="Praxis Claude launch context",
             )
         )
     except Exception as exc:
-        response = failure_response(f"Praxis could not prepare the native Codex launch: {exc}")
+        response = failure_response(f"Praxis could not prepare the native Claude launch: {exc}")
 
     print(dump_json(response), end="")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Bridge native Codex hooks to shared Praxis runtime helpers.")
+    parser = argparse.ArgumentParser(description="Bridge native Claude hooks to shared Praxis runtime helpers.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     session_start_parser = subparsers.add_parser("session-start")

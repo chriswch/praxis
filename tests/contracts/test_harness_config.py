@@ -80,10 +80,10 @@ class HarnessConfigContractTest(unittest.TestCase):
         payload = {
             "version": 1,
             "adapter": "claude",
-            "instructions_path": ".claude-plugin/settings.md",
-            "project_config_path": None,
-            "hooks_path": ".claude-plugin/hooks",
-            "agents_path": ".claude-plugin/subagents",
+            "instructions_path": "CLAUDE.md",
+            "project_config_path": ".claude/settings.json",
+            "hooks_path": ".claude/hooks",
+            "agents_path": ".claude/agents",
             "worker_launch_command": "python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .",
             "extension_points": {
                 "mcp_config_path": ".claude-plugin/extensions.md",
@@ -91,10 +91,19 @@ class HarnessConfigContractTest(unittest.TestCase):
                 "tool_overrides_path": None,
                 "notes_path": ".claude-plugin/extensions.md",
             },
-            "compatibility": None,
+            "compatibility": {
+                "settings_path": ".claude-plugin/settings.md",
+                "hooks_path": ".claude-plugin/hooks",
+                "subagents_path": ".claude-plugin/subagents",
+            },
         }
         self._write_json(".claude-plugin/adapter.json", payload)
-        self._write_text(".claude-plugin/settings.md", "settings\n")
+        if not omit_native_doc:
+            self._write_text("CLAUDE.md", "native claude instructions\n")
+        self._write_text(".claude/settings.json", "{}\n")
+        self._ensure_path(".claude/hooks")
+        self._ensure_path(".claude/agents")
+        self._write_text(".claude-plugin/settings.md", "compat settings\n")
         self._ensure_path(".claude-plugin/hooks")
         self._ensure_path(".claude-plugin/subagents")
         self._write_text(".claude-plugin/extensions.md", "extensions\n")
@@ -115,6 +124,12 @@ class HarnessConfigContractTest(unittest.TestCase):
 
         with self.assertRaisesRegex(FileNotFoundError, "AGENTS.md"):
             load_adapter_harness(repo_root=self.repo_root, adapter="codex")
+
+    def test_claude_harness_fails_closed_when_native_artifact_is_missing(self) -> None:
+        self._write_adapter_harness("claude", omit_native_doc=True)
+
+        with self.assertRaisesRegex(FileNotFoundError, "CLAUDE.md"):
+            load_adapter_harness(repo_root=self.repo_root, adapter="claude")
 
     def test_build_worker_launch_payload_includes_dispatch_handoff_and_bounded_context_policy(self) -> None:
         self._write_adapter_harness("codex")
@@ -171,7 +186,7 @@ class HarnessConfigContractTest(unittest.TestCase):
         self.assertEqual(payload["harness"]["agents_path"], ".codex/agents")
         self.assertEqual(payload["harness"]["compatibility"]["settings_path"], ".codex-plugin/settings.md")
 
-    def test_cli_build_worker_launch_reports_repo_scoped_harness(self) -> None:
+    def test_cli_build_worker_launch_reports_repo_scoped_claude_harness(self) -> None:
         self._write_adapter_harness("claude")
         initialize_run(
             repo_root=self.repo_root,
@@ -202,9 +217,11 @@ class HarnessConfigContractTest(unittest.TestCase):
         self.assertEqual(result["adapter"], "claude")
         self.assertEqual(result["dispatch"]["workflow"], "craft")
         self.assertEqual(result["harness"]["config_path"], ".claude-plugin/adapter.json")
-        self.assertEqual(result["harness"]["instructions_path"], ".claude-plugin/settings.md")
-        self.assertIsNone(result["harness"]["project_config_path"])
-        self.assertIsNone(result["harness"]["compatibility"])
+        self.assertEqual(result["harness"]["instructions_path"], "CLAUDE.md")
+        self.assertEqual(result["harness"]["project_config_path"], ".claude/settings.json")
+        self.assertEqual(result["harness"]["hooks_path"], ".claude/hooks")
+        self.assertEqual(result["harness"]["agents_path"], ".claude/agents")
+        self.assertEqual(result["harness"]["compatibility"]["settings_path"], ".claude-plugin/settings.md")
         self.assertIsNone(result["inputs"]["boundary_handoff"])
 
 

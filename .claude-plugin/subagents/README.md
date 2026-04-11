@@ -1,11 +1,5 @@
-# Claude Subagent Patterns
+# Claude Compatibility Agent Notes
 
-Repo-scoped subagent patterns live here.
+Praxis now uses `.claude/agents/` as the authoritative Claude agent surface.
 
-Recommended roles:
-- `spec-writer`: tightens a story-level spec without changing workflow routing.
-- `design-mapper`: maps the clarified story onto affected files.
-- `implementer`: performs bounded code changes for one stage.
-- `reviewer`: reviews changed files against the current spec.
-
-These are placeholders, not shared Praxis semantics. Teams can add or replace patterns here without changing `workflow/`.
+This directory remains available only as a compatibility extension point during migration. Do not rely on it for the shared Praxis runtime path.

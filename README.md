@@ -38,7 +38,7 @@ Execution policy stays separate from workflow shape:
 
 - Claude uses `commands/craft.md` and `commands/forge.md`.
 - Codex uses `skills/craft/SKILL.md` and `skills/forge/SKILL.md`.
-- Claude repo-scoped harness behavior lives under `.claude-plugin/`.
+- Claude repo-scoped harness behavior lives under `CLAUDE.md` and `.claude/`, with `.claude-plugin/` kept as a compatibility mirror during migration.
 - Codex repo-scoped harness behavior lives under `AGENTS.md` and `.codex/`, with `.codex-plugin/` kept as a compatibility mirror during migration.
 
 ## Eval Pack

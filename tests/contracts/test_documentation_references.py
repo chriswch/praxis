@@ -24,6 +24,14 @@ class DocumentationReferenceContractTest(unittest.TestCase):
         for rel in ["skills/craft/SKILL.md", "skills/forge/SKILL.md"]:
             self.assertIn("workflow/reference/codex-wrapper.md", (ROOT / rel).read_text())
 
+    def test_docs_reference_native_claude_repo_surfaces(self) -> None:
+        self.assertIn("CLAUDE.md", (ROOT / "README.md").read_text())
+        runtime_ref = (ROOT / "workflow/reference/runtime-reference.md").read_text()
+        self.assertIn("CLAUDE.md", runtime_ref)
+        self.assertIn(".claude/settings.json", runtime_ref)
+        self.assertIn(".claude/hooks/", runtime_ref)
+        self.assertIn(".claude/agents/", runtime_ref)
+
     def test_docs_reference_native_codex_repo_surfaces(self) -> None:
         self.assertIn("AGENTS.md", (ROOT / "README.md").read_text())
         runtime_ref = (ROOT / "workflow/reference/runtime-reference.md").read_text()

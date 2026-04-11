@@ -1,10 +1,10 @@
 {
   "version": 1,
   "adapter": "claude",
-  "instructions_path": ".claude-plugin/settings.md",
-  "project_config_path": null,
-  "hooks_path": ".claude-plugin/hooks",
-  "agents_path": ".claude-plugin/subagents",
+  "instructions_path": "CLAUDE.md",
+  "project_config_path": ".claude/settings.json",
+  "hooks_path": ".claude/hooks",
+  "agents_path": ".claude/agents",
   "worker_launch_command": "python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .",
   "extension_points": {
     "mcp_config_path": ".claude-plugin/extensions.md",
@@ -12,5 +12,9 @@
     "tool_overrides_path": null,
     "notes_path": ".claude-plugin/extensions.md"
   },
-  "compatibility": null
+  "compatibility": {
+    "settings_path": ".claude-plugin/settings.md",
+    "hooks_path": ".claude-plugin/hooks",
+    "subagents_path": ".claude-plugin/subagents"
+  }
 }

@@ -147,7 +147,10 @@
       "if": {
         "properties": {
           "adapter": {
-            "const": "codex"
+            "enum": [
+              "claude",
+              "codex"
+            ]
           }
         }
       },
