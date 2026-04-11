@@ -194,7 +194,7 @@
           ]
         },
         "boundary_handoff_path": {
-          "description": "Path to the current story-boundary handoff artifact that should seed the next story.",
+          "description": "Path to the unconsumed story-boundary handoff artifact that should seed the next slice-level clarifying-intent run.",
           "anyOf": [
             {
               "type": "string",

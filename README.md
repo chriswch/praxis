@@ -74,7 +74,7 @@ Execution semantics:
 - `workflow` still means `craft` or `forge`.
 - `mode` still means `single_story` or `multi_slice`.
 - `run.routing.stop_reason_code` records why `autopilot` paused, blocked, or cancelled.
-- `run.routing.boundary_handoff_path` points at the handoff artifact that seeds the next story.
+- `run.routing.boundary_handoff_path` points at the unconsumed handoff artifact that seeds the next story's `clarifying-intent`.
 
 Feature-level artifacts always live at `.praxis/` root:
 
@@ -157,6 +157,13 @@ Boundary helper JSON inputs:
 ```
 
 The helper prints a machine-readable state summary after each command so wrappers can inspect the updated cursor and queue state.
+
+Read-side handoff contract:
+
+- Before launching slice-level `clarifying-intent` for a newly activated story, load `.praxis/run.json`.
+- If `run.routing.boundary_handoff_path` is set, load that handoff JSON and pass it into the fresh worker context as explicit input.
+- Treat that handoff as the only cross-story carry-forward context; do not rely on old transcript continuity.
+- `workflow/scripts/run_state.py` clears `run.routing.boundary_handoff_path` once `clarifying-intent` advances beyond itself. If clarification loops back to itself, the handoff path remains available for the retry.
 
 ## Plugin Structure
 

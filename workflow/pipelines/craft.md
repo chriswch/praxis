@@ -97,6 +97,27 @@ python3 -m workflow.scripts.run_state update-run-from-stage-result \
 
 This command resolves `next_stage` from the shared workflow routing table and updates `.praxis/run.json` without trusting workflow-specific `route.next_stage` values from stage skills.
 
+### Read-side story handoff before next-story `clarifying-intent`
+
+When a story boundary activates the next slice, `run.routing.boundary_handoff_path`
+points at the previous story's `.praxis/slices/<slice-id>/handoff.json`.
+
+Before launching slice-level `clarifying-intent` in a fresh worker context, the
+orchestrator must:
+
+1. read `.praxis/run.json`
+2. if `run.current.scope = slice`, `run.current.stage = clarifying-intent`, and
+   `run.routing.boundary_handoff_path` is non-null, load that handoff JSON
+3. pass the loaded handoff into the fresh `clarifying-intent` worker context as
+   explicit input together with the new slice task
+4. treat that handoff as the only cross-story carry-forward context; do not
+   rely on transcript continuity from the previous story
+
+`workflow/scripts/run_state.py` clears `run.routing.boundary_handoff_path` once
+`clarifying-intent` advances beyond itself. If `clarifying-intent` routes back
+to itself for more user input, the handoff path stays in place so the retry can
+be seeded from the same durable context.
+
 ### Initialize the queue after `slicing-stories`
 
 When a slice map is accepted for a multi-slice run, initialize the durable queue before starting the first story:

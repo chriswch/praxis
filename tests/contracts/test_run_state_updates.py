@@ -16,6 +16,7 @@ class RunStateUpdateContractTest(unittest.TestCase):
         self.repo_root = Path(self.temp_dir.name)
         (self.repo_root / ".praxis" / "results").mkdir(parents=True)
         (self.repo_root / ".praxis" / "slices" / "S-001" / "results").mkdir(parents=True)
+        (self.repo_root / ".praxis" / "slices" / "S-002" / "results").mkdir(parents=True)
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -173,6 +174,151 @@ class RunStateUpdateContractTest(unittest.TestCase):
         self.assertEqual(run["current"]["stage"], "driving-tdd")
         self.assertEqual(run["routing"]["next_action"], "run_stage")
         self.assertEqual(run["routing"]["next_stage"], "driving-tdd")
+
+    def test_clears_story_boundary_handoff_after_next_story_clarification_advances(self) -> None:
+        self._write_run(
+            {
+                "version": 3,
+                "workflow": "forge",
+                "status": "running",
+                "entry_task": "Clarify next slice from handoff",
+                "mode": "multi_slice",
+                "runtime": {
+                    "adapter": "codex",
+                    "entrypoint": "praxis:forge",
+                },
+                "execution": {
+                    "mode": "autopilot",
+                },
+                "current": {
+                    "scope": "slice",
+                    "slice_id": "S-002",
+                    "artifact_dir": ".praxis/slices/S-002",
+                    "stage": "clarifying-intent",
+                },
+                "routing": {
+                    "next_action": "run_stage",
+                    "next_stage": "clarifying-intent",
+                    "next_slice_id": None,
+                    "reason": "S-002 is active from the last boundary.",
+                    "stop_reason_code": None,
+                    "boundary_handoff_path": ".praxis/slices/S-001/handoff.json",
+                },
+                "timestamps": {
+                    "created_at": "2026-04-12T00:00:00Z",
+                    "updated_at": "2026-04-12T00:00:00Z",
+                },
+            }
+        )
+        stage_result_path = self._write_stage_result(
+            ".praxis/slices/S-002/results/clarifying-intent.json",
+            {
+                "version": 2,
+                "stage": "clarifying-intent",
+                "artifact_dir": ".praxis/slices/S-002",
+                "status": "completed",
+                "summary_path": ".praxis/slices/S-002/spec.md",
+                "artifacts_written": [".praxis/slices/S-002/spec.md"],
+                "route": {
+                    "kind": "proceed",
+                    "next_stage": None,
+                    "next_slice_id": None,
+                    "reason": "S-002 is clarified and ready for design.",
+                },
+                "data": {
+                    "outcome_code": "story_spec_ready",
+                },
+                "needs_user_input": False,
+                "needs_confirmation": False,
+            },
+        )
+
+        action = update_run_from_stage_result(
+            repo_root=self.repo_root,
+            stage_result_path=stage_result_path,
+            timestamp="2026-04-12T00:12:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+
+        self.assertEqual(action, "confirm_then_run")
+        self.assertEqual(run["current"]["stage"], "sketching-design")
+        self.assertEqual(run["routing"]["next_stage"], "sketching-design")
+        self.assertIsNone(run["routing"]["boundary_handoff_path"])
+
+    def test_preserves_story_boundary_handoff_while_clarification_reasks_user(self) -> None:
+        self._write_run(
+            {
+                "version": 3,
+                "workflow": "forge",
+                "status": "running",
+                "entry_task": "Clarify next slice from handoff",
+                "mode": "multi_slice",
+                "runtime": {
+                    "adapter": "codex",
+                    "entrypoint": "praxis:forge",
+                },
+                "execution": {
+                    "mode": "autopilot",
+                },
+                "current": {
+                    "scope": "slice",
+                    "slice_id": "S-002",
+                    "artifact_dir": ".praxis/slices/S-002",
+                    "stage": "clarifying-intent",
+                },
+                "routing": {
+                    "next_action": "run_stage",
+                    "next_stage": "clarifying-intent",
+                    "next_slice_id": None,
+                    "reason": "S-002 is active from the last boundary.",
+                    "stop_reason_code": None,
+                    "boundary_handoff_path": ".praxis/slices/S-001/handoff.json",
+                },
+                "timestamps": {
+                    "created_at": "2026-04-12T00:00:00Z",
+                    "updated_at": "2026-04-12T00:00:00Z",
+                },
+            }
+        )
+        stage_result_path = self._write_stage_result(
+            ".praxis/slices/S-002/results/clarifying-intent.json",
+            {
+                "version": 2,
+                "stage": "clarifying-intent",
+                "artifact_dir": ".praxis/slices/S-002",
+                "status": "blocked",
+                "summary_path": ".praxis/slices/S-002/spec.md",
+                "artifacts_written": [".praxis/slices/S-002/spec.md"],
+                "route": {
+                    "kind": "ask_user",
+                    "next_stage": None,
+                    "next_slice_id": None,
+                    "reason": "Need one more clarification before finalizing S-002.",
+                },
+                "data": {
+                    "outcome_code": "clarification_needed",
+                },
+                "needs_user_input": True,
+                "needs_confirmation": False,
+            },
+        )
+
+        action = update_run_from_stage_result(
+            repo_root=self.repo_root,
+            stage_result_path=stage_result_path,
+            timestamp="2026-04-12T00:13:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+
+        self.assertEqual(action, "ask_user")
+        self.assertEqual(run["current"]["stage"], "clarifying-intent")
+        self.assertEqual(run["routing"]["next_stage"], "clarifying-intent")
+        self.assertEqual(
+            run["routing"]["boundary_handoff_path"],
+            ".praxis/slices/S-001/handoff.json",
+        )
 
     def test_finishes_single_story_run_when_stage_result_is_terminal(self) -> None:
         self._write_run(

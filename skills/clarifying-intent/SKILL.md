@@ -51,6 +51,22 @@ changes, `summary_path` may be `null`.
 Even if the stage stops early, is skipped, or needs user clarification, still
 write the result JSON.
 
+## Story-Boundary Handoff Input
+
+When this skill runs for a slice that just started from a story boundary, the
+orchestrator should provide the handoff artifact referenced by
+`run.routing.boundary_handoff_path` as explicit input.
+
+- Read that handoff first.
+- Use its `summary`, `carry_forward_context`, `changed_paths`, and
+  `commit_meta` fields as bounded carry-forward context for the new story.
+- Treat the handoff as the canonical cross-story seed. Do not rely on old
+  transcript history from the previous story.
+- Do not let the handoff widen the new story's scope. It informs the next
+  clarification pass; it does not replace the new story request.
+- If clarification loops back to `clarifying-intent` after user input, reuse the
+  same handoff until the story advances to another stage.
+
 ## Workflow
 
 1. Triage: assess input size and route.

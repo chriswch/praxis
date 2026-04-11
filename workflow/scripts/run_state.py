@@ -119,6 +119,24 @@ def _default_reason(
     return f"{stage_name} updated the run state."
 
 
+def _should_clear_boundary_handoff(
+    *,
+    run: dict[str, Any],
+    stage_result: dict[str, Any],
+    next_stage: str | None,
+) -> bool:
+    if run["current"].get("scope") != "slice":
+        return False
+
+    if stage_result["stage"] != "clarifying-intent":
+        return False
+
+    if not run["routing"].get("boundary_handoff_path"):
+        return False
+
+    return next_stage != "clarifying-intent"
+
+
 def update_run_from_stage_result(
     *,
     repo_root: Path,
@@ -151,7 +169,14 @@ def update_run_from_stage_result(
 
     run["current"]["artifact_dir"] = stage_result["artifact_dir"]
     run["routing"]["next_slice_id"] = route.get("next_slice_id")
-    run["routing"]["boundary_handoff_path"] = run["routing"].get("boundary_handoff_path")
+    if _should_clear_boundary_handoff(
+        run=run,
+        stage_result=stage_result,
+        next_stage=next_stage,
+    ):
+        run["routing"]["boundary_handoff_path"] = None
+    else:
+        run["routing"]["boundary_handoff_path"] = run["routing"].get("boundary_handoff_path")
 
     if _is_terminal_single_story(run=run, stage_result=stage_result, next_stage=next_stage):
         action = "finish"

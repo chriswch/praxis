@@ -39,6 +39,13 @@ Use `workflow/scripts/story_boundary.py` as the shared runtime helper for:
 
 Do not re-implement these transitions in Claude-specific wrappers.
 
+Read-side handoff contract:
+
+- Before launching slice-level `clarifying-intent` for a newly activated story, load `.praxis/run.json`.
+- If `run.routing.boundary_handoff_path` is set, load that handoff JSON and pass it into the fresh worker context as explicit input.
+- Treat that handoff as the only cross-story carry-forward context; do not rely on old transcript continuity.
+- `workflow/scripts/run_state.py` clears `run.routing.boundary_handoff_path` once `clarifying-intent` advances beyond itself. If clarification loops back to itself, the handoff path remains available for the retry.
+
 ## Artifact Paths
 
 Human-readable artifacts:

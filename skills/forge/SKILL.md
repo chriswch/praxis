@@ -45,4 +45,5 @@ Also use these shared contracts and helpers:
 - Use `{artifact-dir}/results/<stage>.json` as the routing API. Do not rely only on human-readable markers in Markdown.
 - Use `../../workflow/scripts/run_state.py` as the runtime API for non-boundary stage-to-stage `run.json` updates.
 - For multi-slice runs, use `../../workflow/scripts/story_boundary.py` as the runtime API for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume. Do not re-implement those transitions in this wrapper.
+- Before invoking slice-level `clarifying-intent` for a newly activated story, load `.praxis/run.json`; if `routing.boundary_handoff_path` is set, load that handoff JSON and include it in the fresh worker context.
 - If this wrapper and `../../workflow/pipelines/forge.md` ever disagree, the shared pipeline file wins for workflow semantics.
