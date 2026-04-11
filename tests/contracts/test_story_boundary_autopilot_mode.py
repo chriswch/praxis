@@ -75,6 +75,42 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(ledger["stories"]["items"]["S-002"]["carry_forward_from"], "S-001")
         self.assertEqual(handoff["next_story_id"], "S-002")
 
+    def test_autopilot_stops_when_a_boundary_gate_fails(self) -> None:
+        checkpoint_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/verifying-and-adapting.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "S-001 completed.",
+                "carry_forward_context": [],
+                "changed_paths": ["workflow/scripts/story_boundary.py"],
+            },
+            dirty_paths=[],
+            gate_failures=["test_gate_failed"],
+            timestamp="2026-04-11T03:05:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(run["status"], "waiting_for_user")
+        self.assertEqual(run["routing"]["next_action"], "ask_user")
+        self.assertEqual(run["routing"]["stop_reason_code"], "test_gate_failed")
+        self.assertEqual(run["current"]["slice_id"], "S-001")
+
+        self.assertEqual(ledger["stories"]["active"], "S-001")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "active")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["boundary_status"], "blocked")
+        self.assertEqual(
+            ledger["stories"]["items"]["S-001"]["boundary_reason_code"],
+            "test_gate_failed",
+        )
+        self.assertFalse((self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

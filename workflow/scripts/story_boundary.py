@@ -25,6 +25,33 @@ def _resolve_execution_mode(run: dict[str, Any], ledger: dict[str, Any]) -> str:
     return run_mode or ledger_mode or "manual"
 
 
+def _boundary_stop(reason_code: str) -> str:
+    reasons = {
+        "dirty_worktree": "Dirty product worktree blocks story boundary.",
+        "missing_commit_metadata": "Missing commit metadata blocks story boundary.",
+        "test_gate_failed": "A failed test gate blocks story boundary.",
+        "commit_gate_failed": "A failed commit gate blocks story boundary.",
+        "cancelled": "Autopilot cancellation stopped story advancement before activation.",
+    }
+    return reasons[reason_code]
+
+
+def _resolve_boundary_stop(
+    *,
+    dirty_paths: list[str] | None,
+    commit_meta: dict[str, Any] | None,
+    gate_failures: list[str] | None,
+) -> tuple[str, str] | None:
+    if dirty_paths:
+        return "dirty_worktree", _boundary_stop("dirty_worktree")
+    if not commit_meta or not commit_meta.get("end_commit"):
+        return "missing_commit_metadata", _boundary_stop("missing_commit_metadata")
+    if gate_failures:
+        reason_code = gate_failures[0]
+        return reason_code, _boundary_stop(reason_code)
+    return None
+
+
 def _validate_completion_result(stage_result: dict[str, Any]) -> tuple[str, str | None]:
     route_kind = stage_result["route"]["kind"]
     outcome_code = stage_result["data"]["outcome_code"]
@@ -78,6 +105,8 @@ def checkpoint_story_boundary(
     commit_meta: dict[str, Any] | None,
     handoff_data: dict[str, Any],
     dirty_paths: list[str] | None,
+    gate_failures: list[str] | None = None,
+    cancel_requested: bool = False,
     timestamp: str,
 ) -> None:
     repo_root = repo_root.resolve()
@@ -95,15 +124,22 @@ def checkpoint_story_boundary(
     current_story = ledger["stories"]["items"][current_story_id]
     route_kind, next_story_id = _validate_completion_result(stage_result)
 
-    if dirty_paths or not commit_meta or not commit_meta.get("end_commit"):
-        reason = "Dirty product worktree blocks story boundary." if dirty_paths else "Missing commit metadata blocks story boundary."
+    boundary_stop = _resolve_boundary_stop(
+        dirty_paths=dirty_paths,
+        commit_meta=commit_meta,
+        gate_failures=gate_failures,
+    )
+    if boundary_stop:
+        reason_code, reason = boundary_stop
         current_story["boundary_status"] = "blocked"
+        current_story["boundary_reason_code"] = reason_code
         current_story["boundary_reason"] = reason
         ledger["stories"]["active"] = current_story_id
         run["status"] = "waiting_for_user"
         run["routing"]["next_action"] = "ask_user"
         run["routing"]["next_stage"] = None
         run["routing"]["next_slice_id"] = None
+        run["routing"]["stop_reason_code"] = reason_code
         run["routing"]["reason"] = reason
         run["routing"]["boundary_handoff_path"] = None
         run["slices"]["active"] = current_story_id
@@ -131,6 +167,7 @@ def checkpoint_story_boundary(
 
     current_story["status"] = "completed"
     current_story["boundary_status"] = "checkpointed"
+    current_story["boundary_reason_code"] = None
     current_story["boundary_reason"] = None
     current_story["handoff_path"] = handoff_json_rel
     current_story["handoff_markdown_path"] = handoff_md_rel
@@ -153,15 +190,30 @@ def checkpoint_story_boundary(
         run["routing"]["next_slice_id"] = next_story_id
         run["routing"]["reason"] = f"{current_story_id} checkpointed. Awaiting confirmation to begin {next_story_id}."
         run["routing"]["boundary_handoff_path"] = handoff_json_rel
+        run["routing"]["stop_reason_code"] = None
         run["slices"]["active"] = next_story_id
 
-        if execution_mode == "autopilot":
+        if execution_mode == "autopilot" and cancel_requested:
+            reason_code = "cancelled"
+            reason = _boundary_stop(reason_code)
+            next_story["boundary_reason_code"] = reason_code
+            next_story["boundary_reason"] = reason
+            run["status"] = "cancelled"
+            run["routing"]["next_action"] = "idle"
+            run["routing"]["next_stage"] = None
+            run["routing"]["next_slice_id"] = next_story_id
+            run["routing"]["stop_reason_code"] = reason_code
+            run["routing"]["reason"] = reason
+        elif execution_mode == "autopilot":
             next_story["status"] = "active"
             next_story["boundary_status"] = "in_progress"
+            next_story["boundary_reason_code"] = None
+            next_story["boundary_reason"] = None
             run["status"] = "running"
             run["routing"]["next_action"] = "run_stage"
             run["routing"]["next_stage"] = "clarifying-intent"
             run["routing"]["next_slice_id"] = None
+            run["routing"]["stop_reason_code"] = None
             run["routing"]["reason"] = f"{next_story_id} activated from durable story-boundary state."
     else:
         ledger["stories"]["active"] = None
@@ -169,6 +221,7 @@ def checkpoint_story_boundary(
         run["routing"]["next_action"] = "finish"
         run["routing"]["next_stage"] = None
         run["routing"]["next_slice_id"] = None
+        run["routing"]["stop_reason_code"] = None
         run["routing"]["reason"] = f"{current_story_id} checkpointed as the final completed story."
         run["routing"]["boundary_handoff_path"] = handoff_json_rel
         run["slices"]["active"] = None
@@ -188,6 +241,7 @@ def checkpoint_manual_story_boundary(
     commit_meta: dict[str, Any] | None,
     handoff_data: dict[str, Any],
     dirty_paths: list[str] | None,
+    gate_failures: list[str] | None = None,
     timestamp: str,
 ) -> None:
     checkpoint_story_boundary(
@@ -196,6 +250,7 @@ def checkpoint_manual_story_boundary(
         commit_meta=commit_meta,
         handoff_data=handoff_data,
         dirty_paths=dirty_paths,
+        gate_failures=gate_failures,
         timestamp=timestamp,
     )
 
