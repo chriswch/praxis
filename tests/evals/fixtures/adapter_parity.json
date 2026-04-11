@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "name": "adapter_parity",
+  "kind": "adapter_parity",
+  "input": {
+    "codex_harness": {
+      "version": 1,
+      "adapter": "codex",
+      "settings_path": ".codex-plugin/settings.md",
+      "hooks_path": ".codex-plugin/hooks",
+      "subagents_path": ".codex-plugin/subagents",
+      "worker_launch_command": "python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .",
+      "extension_points": {
+        "mcp_config_path": ".codex-plugin/extensions.md",
+        "resources_path": null,
+        "tool_overrides_path": null,
+        "notes_path": ".codex-plugin/extensions.md"
+      }
+    },
+    "claude_harness": {
+      "version": 1,
+      "adapter": "claude",
+      "settings_path": ".claude-plugin/settings.md",
+      "hooks_path": ".claude-plugin/hooks",
+      "subagents_path": ".claude-plugin/subagents",
+      "worker_launch_command": "python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .",
+      "extension_points": {
+        "mcp_config_path": ".claude-plugin/extensions.md",
+        "resources_path": null,
+        "tool_overrides_path": null,
+        "notes_path": ".claude-plugin/extensions.md"
+      }
+    },
+    "run": {
+      "version": 3,
+      "workflow": "forge",
+      "status": "running",
+      "entry_task": "Check adapter parity",
+      "mode": "multi_slice",
+      "runtime": {
+        "adapter": "codex",
+        "entrypoint": "praxis:forge"
+      },
+      "execution": {
+        "mode": "autopilot",
+        "fresh_context_per_story": true
+      },
+      "current": {
+        "scope": "slice",
+        "slice_id": "S-002",
+        "artifact_dir": ".praxis/slices/S-002",
+        "stage": "clarifying-intent"
+      },
+      "routing": {
+        "next_action": "run_stage",
+        "next_stage": "clarifying-intent",
+        "next_slice_id": null,
+        "reason": "S-002 activated from durable state.",
+        "stop_reason_code": null,
+        "boundary_handoff_path": ".praxis/slices/S-001/handoff.json"
+      },
+      "timestamps": {
+        "created_at": "2026-04-12T00:00:00Z",
+        "updated_at": "2026-04-12T00:00:00Z"
+      }
+    },
+    "handoff_path": ".praxis/slices/S-001/handoff.json",
+    "handoff_seed": {
+      "story_id": "S-001",
+      "next_story_id": "S-002",
+      "summary": "S-001 completed.",
+      "carry_forward_context": [
+        "Only the bounded handoff should cross the story boundary."
+      ],
+      "changed_paths": [
+        "workflow/scripts/harness_config.py"
+      ],
+      "commit_meta": {
+        "end_commit": "def2222"
+      },
+      "generated_at": "2026-04-12T04:25:00Z"
+    }
+  },
+  "expected": {
+    "semantic_parity": true
+  }
+}

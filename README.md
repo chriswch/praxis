@@ -53,6 +53,7 @@ Praxis v3 separates workflow semantics from runtime adapters:
 - `workflow/contracts/` defines machine-readable state and result contracts.
 - `workflow/scripts/orchestrator.py` is the shared runtime entrypoint for run initialization, stage-result advancement, manual confirmations, and durable resume.
 - `workflow/scripts/harness_config.py` loads repo-scoped adapter harness config and builds the fresh-worker launch payload for Claude/Codex wrappers.
+- `workflow/scripts/eval_pack.py` runs the local eval pack for routing, resume, handoff, stop-reason, and adapter-parity checks.
 - `workflow/scripts/run_state.py` is the shared runtime helper for normal stage-to-stage `run.json` updates.
 - `workflow/scripts/story_boundary.py` is the shared runtime helper for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume.
 - `commands/` and `skills/craft` / `skills/forge` are thin Claude/Codex adapters over those shared files.
@@ -156,7 +157,7 @@ Boundary helper JSON inputs for `advance-run` story completion:
 }
 ```
 
-The orchestrator prints a machine-readable state summary plus a dispatch block after each command so wrappers can inspect the updated cursor and the next stage to run.
+The orchestrator prints a machine-readable state summary plus a dispatch block after each command so wrappers can inspect the updated cursor and the next stage to run. `show-run` also includes a `trace` block summarizing dispatch, recent boundary/stop signals, and recovery state from durable artifacts.
 
 Read-side handoff contract:
 
@@ -179,6 +180,22 @@ Repo-scoped harness surfaces:
 - `.codex-plugin/extensions.md`
 
 Those files define repo-local settings, hook entrypoints, subagent patterns, and neutral extension points for MCP/resources/tools without putting team-specific assumptions into shared Praxis skills.
+
+## Eval Pack
+
+Run the local eval pack with:
+
+```bash
+python3 -m workflow.scripts.eval_pack run --fixtures-dir tests/evals/fixtures
+```
+
+The bundled fixtures grade:
+
+- routing outcomes
+- resume behavior
+- fail-closed boundary stops
+- handoff budget enforcement
+- Claude/Codex semantic parity
 
 ## Plugin Structure
 

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "name": "handoff_budget_compaction",
+  "kind": "handoff_budget",
+  "input": {
+    "story_id": "S-001",
+    "next_story_id": "S-002",
+    "summary": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+    "carry_forward_context": [
+      "Context item 1",
+      "Context item 2",
+      "Context item 3",
+      "Context item 4",
+      "Context item 5",
+      "Context item 6"
+    ],
+    "changed_paths": [
+      "workflow/scripts/a.py",
+      "workflow/scripts/b.py",
+      "workflow/scripts/c.py",
+      "workflow/scripts/d.py",
+      "workflow/scripts/e.py",
+      "workflow/scripts/f.py",
+      "workflow/scripts/g.py",
+      "workflow/scripts/h.py",
+      "workflow/scripts/i.py"
+    ],
+    "commit_meta": {
+      "end_commit": "def2222"
+    },
+    "generated_at": "2026-04-12T04:20:00Z"
+  },
+  "expected": {
+    "within_budget": true,
+    "compaction_applied": true
+  }
+}

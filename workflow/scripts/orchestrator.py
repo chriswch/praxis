@@ -23,6 +23,7 @@ from .story_boundary import (
     pause_autopilot_for_stage_result,
     resume_story_run_from_disk,
 )
+from .trace_summary import build_trace_summary
 
 
 def _utc_now() -> str:
@@ -77,6 +78,7 @@ def _requires_boundary_transition(
 def _snapshot(repo_root: Path) -> dict[str, Any]:
     recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
+    dispatch = build_dispatch(repo_root)
     payload = {
         "workflow": run.get("workflow"),
         "run_status": run.get("status"),
@@ -91,6 +93,7 @@ def _snapshot(repo_root: Path) -> dict[str, Any]:
         "boundary_handoff_path": run.get("routing", {}).get("boundary_handoff_path"),
         "stop_reason_code": run.get("routing", {}).get("stop_reason_code"),
         "reason": run.get("routing", {}).get("reason"),
+        "trace": build_trace_summary(repo_root=repo_root, dispatch=dispatch),
     }
     handoff_path = run.get("routing", {}).get("boundary_handoff_path")
     if handoff_path:
@@ -145,7 +148,7 @@ def _print_result(
 ) -> None:
     payload = _snapshot(repo_root)
     payload["command"] = command
-    payload["dispatch"] = build_dispatch(repo_root)
+    payload["dispatch"] = payload["trace"]["dispatch"]
     if transition_action is not None:
         payload["transition_action"] = transition_action
     print(dump_json(payload), end="")

@@ -27,6 +27,7 @@ Execution policy is separate from workflow shape:
 - `workflow/contracts/worker-launch.schema.json`
 - `workflow/scripts/orchestrator.py`
 - `workflow/scripts/harness_config.py`
+- `workflow/scripts/eval_pack.py`
 - `workflow/scripts/run_state.py`
 - `workflow/scripts/routing.py`
 - `workflow/scripts/story_boundary.py`
@@ -44,6 +45,8 @@ Use `workflow/scripts/story_boundary.py` as the lower-level runtime helper for:
 Use `workflow/scripts/run_state.py` as the lower-level helper for ordinary stage-to-stage `run.json` updates.
 
 Use `workflow/scripts/harness_config.py` to load repo-scoped Claude harness config from `.claude-plugin/adapter.json` and to build the worker-launch payload for fresh worker contexts.
+
+Use `workflow/scripts/eval_pack.py` to run the local eval fixtures for routing, resume, stop reasons, handoff budget enforcement, and adapter parity.
 
 Do not re-implement these transitions in Claude-specific wrappers.
 
@@ -90,3 +93,5 @@ Structured runtime artifacts:
 Single-story artifacts live at `.praxis/`. Multi-slice artifacts live under `.praxis/slices/{slice-id}/`. Feature-level artifacts always live at `.praxis/` root.
 
 Use the markdown artifact as the reading surface for the user, but use `.praxis/results/<stage>.json`, `run.json`, and `story-ledger.json` as the routing source of truth.
+
+`workflow/scripts/orchestrator.py show-run` also surfaces a `trace` block that summarizes the current dispatch, recent boundary and stop events, and recovery state.
