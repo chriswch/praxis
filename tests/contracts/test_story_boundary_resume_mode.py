@@ -297,6 +297,101 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(ledger["stories"]["items"]["S-002"]["boundary_status"], "in_progress")
         self.assertEqual(len(lines), 2)
 
+    def test_stops_closed_when_boundary_block_reason_is_unresolved(self) -> None:
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "failed"
+        run["current"]["slice_id"] = "S-001"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-001"
+        run["current"]["stage"] = "verifying-and-adapting"
+        run["slices"]["active"] = "S-001"
+        run["routing"]["next_action"] = "run_stage"
+        run["routing"]["next_stage"] = "verifying-and-adapting"
+        run["routing"]["reason"] = "Interrupted during a blocked boundary."
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["active"] = "S-001"
+        ledger["stories"]["items"]["S-001"]["status"] = "active"
+        ledger["stories"]["items"]["S-001"]["boundary_status"] = "blocked"
+        ledger["stories"]["items"]["S-001"]["boundary_reason_code"] = "test_gate_failed"
+        ledger["stories"]["items"]["S-001"]["boundary_reason"] = "A failed test gate blocks story boundary."
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        action = resume_story_run_from_disk(
+            repo_root=self.repo_root,
+            timestamp="2026-04-11T03:30:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(action, "resume_blocked")
+        self.assertEqual(run["status"], "waiting_for_user")
+        self.assertEqual(run["routing"]["next_action"], "ask_user")
+        self.assertEqual(run["routing"]["next_stage"], None)
+        self.assertEqual(run["routing"]["stop_reason_code"], "test_gate_failed")
+        self.assertIn("Resolve test_gate_failed", run["routing"]["reason"])
+        self.assertEqual(run["slices"]["active"], "S-001")
+        self.assertEqual(ledger["stories"]["active"], "S-001")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "active")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["boundary_status"], "blocked")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "queued")
+
+    def test_fails_closed_when_cursor_and_ledger_disagree_about_active_story(self) -> None:
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "failed"
+        run["current"]["slice_id"] = "S-001"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-001"
+        run["current"]["stage"] = "clarifying-intent"
+        run["slices"]["active"] = "S-001"
+        run["routing"]["next_action"] = "run_stage"
+        run["routing"]["next_stage"] = "clarifying-intent"
+        run["routing"]["reason"] = "Interrupted with mismatched cursor state."
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["active"] = "S-002"
+        ledger["stories"]["last_completed"] = "S-001"
+        ledger["stories"]["items"]["S-001"]["status"] = "completed"
+        ledger["stories"]["items"]["S-001"]["boundary_status"] = "checkpointed"
+        ledger["stories"]["items"]["S-001"]["handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        ledger["stories"]["items"]["S-002"]["status"] = "active"
+        ledger["stories"]["items"]["S-002"]["boundary_status"] = "in_progress"
+        ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        handoff = {
+            "version": 1,
+            "story_id": "S-001",
+            "next_story_id": "S-002",
+            "summary": "S-001 completed.",
+            "carry_forward_context": ["Cursor and ledger disagree."],
+            "changed_paths": ["workflow/scripts/story_boundary.py"],
+            "commit_meta": {"end_commit": "def2222"},
+            "generated_at": "2026-04-11T03:31:00Z",
+        }
+        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
+            json.dumps(handoff, indent=2) + "\n"
+        )
+
+        action = resume_story_run_from_disk(
+            repo_root=self.repo_root,
+            timestamp="2026-04-11T03:32:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(action, "resume_inconsistent")
+        self.assertEqual(run["status"], "failed")
+        self.assertEqual(run["routing"]["next_action"], "ask_user")
+        self.assertEqual(run["routing"]["next_stage"], None)
+        self.assertEqual(run["routing"]["stop_reason_code"], "inconsistent_state")
+        self.assertIn("run.current.slice_id", run["routing"]["reason"])
+        self.assertEqual(run["current"]["slice_id"], "S-001")
+        self.assertEqual(run["slices"]["active"], "S-002")
+        self.assertEqual(ledger["stories"]["active"], "S-002")
+
 
 if __name__ == "__main__":
     unittest.main()

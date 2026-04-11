@@ -36,6 +36,44 @@ def _event_exists(events: list[dict[str, Any]], *, event_type: str, **fields: An
     return False
 
 
+def _write_resume_stop(
+    *,
+    run_path: Path,
+    ledger_path: Path,
+    events_path: Path,
+    run: dict[str, Any],
+    ledger: dict[str, Any],
+    status: str,
+    active_story_id: str,
+    reason_code: str,
+    reason: str,
+    timestamp: str,
+) -> None:
+    run["status"] = status
+    run["routing"]["next_action"] = "ask_user"
+    run["routing"]["next_stage"] = None
+    run["routing"]["next_slice_id"] = None
+    run["routing"]["stop_reason_code"] = reason_code
+    run["routing"]["reason"] = reason
+    run["routing"]["boundary_handoff_path"] = _handoff_path_for_story(ledger, active_story_id)
+    run["slices"]["active"] = active_story_id
+    run["timestamps"]["updated_at"] = timestamp
+    ledger["timestamps"]["updated_at"] = timestamp
+
+    _write_json(run_path, run)
+    _write_json(ledger_path, ledger)
+    _append_event(
+        events_path,
+        {
+            "ts": timestamp,
+            "type": "resume_blocked" if status == "waiting_for_user" else "resume_failed",
+            "slice_id": active_story_id,
+            "reason_code": reason_code,
+            "reason": reason,
+        },
+    )
+
+
 def _append_unique(items: list[str], value: str) -> None:
     if value not in items:
         items.append(value)
@@ -420,11 +458,92 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
     if not active_story_id:
         raise ValueError("Cannot resume without an active story in the ledger.")
 
+    current_slice_id = run["current"].get("slice_id")
+    mirrored_active_story_id = run.get("slices", {}).get("active")
+    if current_slice_id and current_slice_id != active_story_id:
+        reason = (
+            "Inconsistent durable state: "
+            f"run.current.slice_id={current_slice_id!r} but "
+            f"story-ledger active={active_story_id!r}. "
+            "Repair run.current.slice_id or story-ledger.json before resuming."
+        )
+        _write_resume_stop(
+            run_path=run_path,
+            ledger_path=ledger_path,
+            events_path=events_path,
+            run=run,
+            ledger=ledger,
+            status="failed",
+            active_story_id=active_story_id,
+            reason_code="inconsistent_state",
+            reason=reason,
+            timestamp=timestamp,
+        )
+        return "resume_inconsistent"
+    if mirrored_active_story_id and mirrored_active_story_id != active_story_id:
+        reason = (
+            "Inconsistent durable state: "
+            f"run.slices.active={mirrored_active_story_id!r} but "
+            f"story-ledger active={active_story_id!r}. "
+            "Repair the compatibility mirror before resuming."
+        )
+        _write_resume_stop(
+            run_path=run_path,
+            ledger_path=ledger_path,
+            events_path=events_path,
+            run=run,
+            ledger=ledger,
+            status="failed",
+            active_story_id=active_story_id,
+            reason_code="inconsistent_state",
+            reason=reason,
+            timestamp=timestamp,
+        )
+        return "resume_inconsistent"
+
     active_story = ledger["stories"]["items"][active_story_id]
+    if active_story.get("boundary_status") == "blocked":
+        reason_code = active_story.get("boundary_reason_code") or "boundary_blocked"
+        reason = (
+            active_story.get("boundary_reason")
+            or f"Resolve {reason_code} before resuming {active_story_id}."
+        )
+        if f"Resolve {reason_code}" not in reason:
+            reason = f"{reason} Resolve {reason_code} before resuming {active_story_id}."
+        _write_resume_stop(
+            run_path=run_path,
+            ledger_path=ledger_path,
+            events_path=events_path,
+            run=run,
+            ledger=ledger,
+            status="waiting_for_user",
+            active_story_id=active_story_id,
+            reason_code=reason_code,
+            reason=reason,
+            timestamp=timestamp,
+        )
+        return "resume_blocked"
+
     if active_story["status"] == "active_next":
         handoff_path = _handoff_path_for_story(ledger, active_story_id)
         if not handoff_path or not (repo_root / handoff_path).exists():
-            raise ValueError(f"Cannot resume {active_story_id} without a boundary handoff artifact.")
+            reason = (
+                f"Cannot resume {active_story_id} because the boundary handoff artifact is missing. "
+                "Repair the handoff file before resuming."
+            )
+            _write_resume_stop(
+                run_path=run_path,
+                ledger_path=ledger_path,
+                events_path=events_path,
+                run=run,
+                ledger=ledger,
+                status="failed",
+                active_story_id=active_story_id,
+                reason_code="inconsistent_state",
+                reason=reason,
+                timestamp=timestamp,
+            )
+            return "resume_inconsistent"
 
         run["current"]["scope"] = "slice"
         run["current"]["slice_id"] = active_story_id
