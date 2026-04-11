@@ -185,6 +185,8 @@ def checkpoint_story_boundary(
     current_story["boundary_status"] = "checkpointed"
     current_story["boundary_reason_code"] = None
     current_story["boundary_reason"] = None
+    current_story["stop_reason_code"] = None
+    current_story["stop_reason"] = None
     current_story["handoff_path"] = handoff_json_rel
     current_story["handoff_markdown_path"] = handoff_md_rel
     current_story["commit_meta"] = commit_meta
@@ -195,6 +197,8 @@ def checkpoint_story_boundary(
         next_story = ledger["stories"]["items"][next_story_id]
         next_story["status"] = "active_next"
         next_story["carry_forward_from"] = current_story_id
+        next_story["stop_reason_code"] = None
+        next_story["stop_reason"] = None
         ledger["stories"]["active"] = next_story_id
         run["status"] = "waiting_for_user"
         run["current"]["scope"] = "slice"
@@ -330,6 +334,8 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
     next_story = ledger["stories"]["items"][next_story_id]
     next_story["status"] = "active"
     next_story["boundary_status"] = "in_progress"
+    next_story["stop_reason_code"] = None
+    next_story["stop_reason"] = None
 
     run["status"] = "running"
     run["current"]["scope"] = "slice"
@@ -339,6 +345,7 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
     run["routing"]["next_action"] = "run_stage"
     run["routing"]["next_stage"] = "clarifying-intent"
     run["routing"]["next_slice_id"] = None
+    run["routing"]["stop_reason_code"] = None
     run["routing"]["reason"] = f"{next_story_id} activated from durable story-boundary state."
     run["routing"]["boundary_handoff_path"] = next_story.get("carry_forward_from") and ledger["stories"]["items"][next_story["carry_forward_from"]]["handoff_path"]
     run["slices"]["active"] = next_story_id

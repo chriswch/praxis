@@ -158,6 +158,84 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["stop_reason_code"], "route_rework")
         self.assertEqual(ledger["stories"]["items"]["S-001"]["stop_reason_code"], "route_rework")
 
+    def test_autopilot_cancellation_stops_before_next_story_activation(self) -> None:
+        checkpoint_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/verifying-and-adapting.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "S-001 completed.",
+                "carry_forward_context": [],
+                "changed_paths": ["workflow/scripts/story_boundary.py"],
+            },
+            dirty_paths=[],
+            cancel_requested=True,
+            timestamp="2026-04-11T03:15:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(run["status"], "cancelled")
+        self.assertEqual(run["current"]["slice_id"], "S-002")
+        self.assertEqual(run["routing"]["next_action"], "idle")
+        self.assertEqual(run["routing"]["stop_reason_code"], "cancelled")
+
+        self.assertEqual(ledger["stories"]["active"], "S-002")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active_next")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["boundary_reason_code"], "cancelled")
+
+    def test_autopilot_finishes_cleanly_after_the_last_story(self) -> None:
+        shutil.copy(
+            FIXTURES / "final_done_result.json",
+            self.repo_root / ".praxis" / "slices" / "S-001" / "results" / "verifying-and-adapting.json",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["slices"]["order"] = ["S-001"]
+        run["slices"]["active"] = "S-001"
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["order"] = ["S-001"]
+        ledger["stories"]["items"].pop("S-002", None)
+        ledger["stories"]["active"] = "S-001"
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        checkpoint_story_boundary(
+            repo_root=self.repo_root,
+            stage_result_path=Path(".praxis/slices/S-001/results/verifying-and-adapting.json"),
+            commit_meta={
+                "start_commit": "abc1111",
+                "end_commit": "def2222",
+                "commits": ["abc1111", "def2222"],
+            },
+            handoff_data={
+                "summary": "Final story completed.",
+                "carry_forward_context": [],
+                "changed_paths": ["workflow/pipelines/craft.md"],
+            },
+            dirty_paths=[],
+            timestamp="2026-04-11T03:18:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["routing"]["next_action"], "finish")
+        self.assertIsNone(run["routing"]["next_stage"])
+        self.assertEqual(run["current"]["slice_id"], "S-001")
+        self.assertIsNone(run["current"]["stage"])
+
+        self.assertIsNone(ledger["stories"]["active"])
+        self.assertEqual(ledger["stories"]["last_completed"], "S-001")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "completed")
+
 
 if __name__ == "__main__":
     unittest.main()

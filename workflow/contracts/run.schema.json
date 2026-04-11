@@ -215,6 +215,18 @@
             }
           ]
         },
+        "stop_reason_code": {
+          "description": "Machine-readable reason why autopilot paused, blocked, or cancelled progression.",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "boundary_handoff_path": {
           "description": "Path to the current story-boundary handoff artifact that should seed the next story.",
           "anyOf": [

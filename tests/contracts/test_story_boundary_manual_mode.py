@@ -148,12 +148,14 @@ class ManualStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["next_action"], "ask_user")
         self.assertIsNone(run["routing"]["next_stage"])
         self.assertIsNone(run["routing"]["next_slice_id"])
+        self.assertEqual(run["routing"]["stop_reason_code"], "dirty_worktree")
         self.assertEqual(run["current"]["slice_id"], "S-001")
 
         self.assertEqual(ledger["stories"]["active"], "S-001")
         self.assertEqual(ledger["stories"]["last_completed"], None)
         self.assertEqual(ledger["stories"]["items"]["S-001"]["status"], "active")
         self.assertEqual(ledger["stories"]["items"]["S-001"]["boundary_status"], "blocked")
+        self.assertEqual(ledger["stories"]["items"]["S-001"]["boundary_reason_code"], "dirty_worktree")
         self.assertIn("Dirty product worktree", ledger["stories"]["items"]["S-001"]["boundary_reason"])
         self.assertFalse((self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").exists())
 

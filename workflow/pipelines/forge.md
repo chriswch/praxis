@@ -250,10 +250,12 @@ Shared story-boundary rules:
   Keep it synchronized, but do not treat it as the queue owner.
 - Use `.praxis/slices/<slice-id>/handoff.json` and `handoff.md` as the bounded
   carry-forward context for the next story.
-- Do not advance past the boundary if the product worktree is dirty or required
-  commit metadata is missing.
+- Do not advance past the boundary if the product worktree is dirty, required
+  commit metadata is missing, or the test or commit gate fails.
 - `forge` may auto-advance across the boundary only when the configured
   execution mode permits it; the durable checkpoint still happens first.
+- Record `autopilot` stop reasons in `run.routing.stop_reason_code` and the
+  active story entry in `.praxis/story-ledger.json`.
 
 Completion for `forge` should summarize:
 

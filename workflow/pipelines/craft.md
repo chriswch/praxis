@@ -78,7 +78,9 @@ For each step of the workflow, the orchestrator should:
 
 `craft` is stage-by-stage and artifact-driven.
 
-- Pause after every completed non-trivial stage.
+- In `manual` execution mode, pause after every completed non-trivial stage.
+- In `autopilot` execution mode, auto-run `proceed` and `next_slice` routes
+  when no stop condition exists.
 - Always pause when `needs_user_input` is `true`.
 - Always honor `route.kind`.
 - Present summaries, not full artifacts, unless the user asks for the full
@@ -248,16 +250,17 @@ Routing:
 
 - `done` -> confirm the verification summary and finish the run if this is a
   single story or the last slice
-- `next_slice` -> confirm, mark the current slice complete in `.praxis/run.json`,
-  checkpoint the completed story into `.praxis/story-ledger.json`, write
-  `.praxis/slices/<slice-id>/handoff.json` and `handoff.md`, then arm the next
-  slice behind a manual confirmation before `clarifying-intent` runs
+- `next_slice` -> confirm in `manual` mode, mark the current slice complete in
+  `.praxis/run.json`, checkpoint the completed story into
+  `.praxis/story-ledger.json`, write `.praxis/slices/<slice-id>/handoff.json`
+  and `handoff.md`, then either arm the next slice behind manual confirmation
+  or activate it immediately in `autopilot`
 - `rework` -> confirm the gap, then return to `driving-tdd` for the same
   artifact directory
 - `escalate` -> confirm the scope issue, switch back to root scope `.praxis/`,
   and run `clarifying-intent` at feature level
 
-Manual story-boundary rules for multi-slice runs:
+Execution-mode story-boundary rules for multi-slice runs:
 
 - Treat `.praxis/run.json` as the active cursor and `.praxis/story-ledger.json`
   as the durable queue owner / history record.
@@ -266,10 +269,15 @@ Manual story-boundary rules for multi-slice runs:
 - When a story completes and another slice remains, do not rely on transcript
   continuity; write bounded carry-forward context to the story handoff
   artifacts.
-- Do not activate the next story if the product worktree is dirty or required
-  commit metadata is missing.
-- In manual mode, stop after boundary checkpointing with
+- In `manual`, stop after boundary checkpointing with
   `routing.next_action = confirm_then_run`.
+- In `autopilot`, activate the next story immediately only after the durable
+  checkpoint succeeds.
+- Stop `autopilot` when a stage needs user input, a route asks for rework or
+  escalation, the worktree is dirty, commit metadata is missing, the test or
+  commit gate fails, or the run is cancelled.
+- Record `autopilot` stop reasons in `run.routing.stop_reason_code` and the
+  active story entry in `.praxis/story-ledger.json`.
 
 ## Run State Updates
 

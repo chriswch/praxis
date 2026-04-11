@@ -135,6 +135,13 @@ Core workflow files:
   multi-story runs.
 - `.praxis/run.json.slices` remains a compatibility mirror during the v3
   transition; queue ownership lives in `.praxis/story-ledger.json`.
+- `run.execution.mode` selects `manual` or `autopilot` without changing the
+  meanings of `workflow` or story-shape `mode`.
+- `run.routing.stop_reason_code` records why `autopilot` paused, blocked, or
+  cancelled progression.
+- Story entries in `.praxis/story-ledger.json` record both boundary stop codes
+  and non-boundary autopilot stop codes so the queue owner explains why the run
+  paused.
 - `.praxis/results/<stage>.json` is the routing result written by each stage.
 - Human-readable artifacts such as `.praxis/spec.md`, `.praxis/sketch.md`, `.praxis/tdd.md`, and `.praxis/verification.md` remain the reading surface for the user.
 

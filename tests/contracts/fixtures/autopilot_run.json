@@ -31,6 +31,7 @@
     "next_stage": "verifying-and-adapting",
     "next_slice_id": null,
     "reason": "S-001 is completing.",
+    "stop_reason_code": null,
     "boundary_handoff_path": null
   },
   "timestamps": {

@@ -76,7 +76,10 @@
               "handoff_markdown_path",
               "carry_forward_from",
               "commit_meta",
-              "boundary_reason"
+              "boundary_reason_code",
+              "boundary_reason",
+              "stop_reason_code",
+              "stop_reason"
             ],
             "properties": {
               "artifact_dir": {
@@ -144,7 +147,42 @@
                   }
                 ]
               },
+              "boundary_reason_code": {
+                "description": "Machine-readable boundary stop code when story advancement is blocked at a boundary.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "boundary_reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "stop_reason_code": {
+                "description": "Machine-readable pause code for non-boundary autopilot stops such as needs_user_input, rework, escalate, or cancellation.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "stop_reason": {
                 "anyOf": [
                   {
                     "type": "string",

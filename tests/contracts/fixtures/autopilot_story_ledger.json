@@ -17,7 +17,10 @@
         "handoff_markdown_path": null,
         "carry_forward_from": null,
         "commit_meta": null,
-        "boundary_reason": null
+        "boundary_reason_code": null,
+        "boundary_reason": null,
+        "stop_reason_code": null,
+        "stop_reason": null
       },
       "S-002": {
         "artifact_dir": ".praxis/slices/S-002",
@@ -27,7 +30,10 @@
         "handoff_markdown_path": null,
         "carry_forward_from": null,
         "commit_meta": null,
-        "boundary_reason": null
+        "boundary_reason_code": null,
+        "boundary_reason": null,
+        "stop_reason_code": null,
+        "stop_reason": null
       }
     }
   },
