@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "execution_mode": "autopilot",
+  "stories": {
+    "order": [
+      "S-001",
+      "S-002"
+    ],
+    "active": "S-001",
+    "last_completed": null,
+    "items": {
+      "S-001": {
+        "artifact_dir": ".praxis/slices/S-001",
+        "status": "active",
+        "boundary_status": "in_progress",
+        "handoff_path": null,
+        "handoff_markdown_path": null,
+        "carry_forward_from": null,
+        "commit_meta": null,
+        "boundary_reason": null
+      },
+      "S-002": {
+        "artifact_dir": ".praxis/slices/S-002",
+        "status": "queued",
+        "boundary_status": "pending",
+        "handoff_path": null,
+        "handoff_markdown_path": null,
+        "carry_forward_from": null,
+        "commit_meta": null,
+        "boundary_reason": null
+      }
+    }
+  },
+  "timestamps": {
+    "updated_at": "2026-04-10T17:17:38Z"
+  }
+}

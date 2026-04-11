@@ -19,6 +19,12 @@ def _append_unique(items: list[str], value: str) -> None:
         items.append(value)
 
 
+def _resolve_execution_mode(run: dict[str, Any], ledger: dict[str, Any]) -> str:
+    run_mode = run.get("execution", {}).get("mode")
+    ledger_mode = ledger.get("execution_mode")
+    return run_mode or ledger_mode or "manual"
+
+
 def _validate_completion_result(stage_result: dict[str, Any]) -> tuple[str, str | None]:
     route_kind = stage_result["route"]["kind"]
     outcome_code = stage_result["data"]["outcome_code"]
@@ -65,7 +71,7 @@ def _write_markdown(path: Path, story_id: str, next_story_id: str | None, handof
     path.write_text("\n".join(lines).rstrip() + "\n")
 
 
-def checkpoint_manual_story_boundary(
+def checkpoint_story_boundary(
     *,
     repo_root: Path,
     stage_result_path: Path,
@@ -82,6 +88,8 @@ def checkpoint_manual_story_boundary(
     run = _load_json(run_path)
     ledger = _load_json(ledger_path)
     stage_result = _load_json(stage_result_full_path)
+    execution_mode = _resolve_execution_mode(run, ledger)
+    ledger["execution_mode"] = execution_mode
 
     current_story_id = run["current"]["slice_id"]
     current_story = ledger["stories"]["items"][current_story_id]
@@ -146,6 +154,15 @@ def checkpoint_manual_story_boundary(
         run["routing"]["reason"] = f"{current_story_id} checkpointed. Awaiting confirmation to begin {next_story_id}."
         run["routing"]["boundary_handoff_path"] = handoff_json_rel
         run["slices"]["active"] = next_story_id
+
+        if execution_mode == "autopilot":
+            next_story["status"] = "active"
+            next_story["boundary_status"] = "in_progress"
+            run["status"] = "running"
+            run["routing"]["next_action"] = "run_stage"
+            run["routing"]["next_stage"] = "clarifying-intent"
+            run["routing"]["next_slice_id"] = None
+            run["routing"]["reason"] = f"{next_story_id} activated from durable story-boundary state."
     else:
         ledger["stories"]["active"] = None
         run["status"] = "completed"
@@ -162,6 +179,25 @@ def checkpoint_manual_story_boundary(
 
     _write_json(run_path, run)
     _write_json(ledger_path, ledger)
+
+
+def checkpoint_manual_story_boundary(
+    *,
+    repo_root: Path,
+    stage_result_path: Path,
+    commit_meta: dict[str, Any] | None,
+    handoff_data: dict[str, Any],
+    dirty_paths: list[str] | None,
+    timestamp: str,
+) -> None:
+    checkpoint_story_boundary(
+        repo_root=repo_root,
+        stage_result_path=stage_result_path,
+        commit_meta=commit_meta,
+        handoff_data=handoff_data,
+        dirty_paths=dirty_paths,
+        timestamp=timestamp,
+    )
 
 
 def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> None:
