@@ -121,6 +121,14 @@ def _write_markdown(path: Path, story_id: str, next_story_id: str | None, handof
     path.write_text("\n".join(lines).rstrip() + "\n")
 
 
+def _handoff_path_for_story(ledger: dict[str, Any], story_id: str) -> str | None:
+    story = ledger["stories"]["items"][story_id]
+    carry_forward_from = story.get("carry_forward_from")
+    if carry_forward_from:
+        return ledger["stories"]["items"][carry_forward_from]["handoff_path"]
+    return story.get("handoff_path")
+
+
 def checkpoint_story_boundary(
     *,
     repo_root: Path,
@@ -380,9 +388,37 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
         raise ValueError("Cannot resume without an active story in the ledger.")
 
     active_story = ledger["stories"]["items"][active_story_id]
+    if active_story["status"] == "active_next":
+        handoff_path = _handoff_path_for_story(ledger, active_story_id)
+        if not handoff_path or not (repo_root / handoff_path).exists():
+            raise ValueError(f"Cannot resume {active_story_id} without a boundary handoff artifact.")
+
+        run["current"]["scope"] = "slice"
+        run["current"]["slice_id"] = active_story_id
+        run["current"]["artifact_dir"] = active_story["artifact_dir"]
+        run["current"]["stage"] = "clarifying-intent"
+        run["routing"]["boundary_handoff_path"] = handoff_path
+        run["routing"]["stop_reason_code"] = None
+        run["slices"]["active"] = active_story_id
+
+        if _resolve_execution_mode(run, ledger) == "manual":
+            run["status"] = "waiting_for_user"
+            run["routing"]["next_action"] = "confirm_then_run"
+            run["routing"]["next_stage"] = "clarifying-intent"
+            run["routing"]["next_slice_id"] = active_story_id
+            run["routing"]["reason"] = f"{active_story_id} is checkpointed and awaiting manual confirmation."
+            run["timestamps"]["updated_at"] = timestamp
+            ledger["timestamps"]["updated_at"] = timestamp
+            _write_json(run_path, run)
+            _write_json(ledger_path, ledger)
+            return "resume_manual_wait"
+
+        activate_next_story_from_boundary(repo_root=repo_root, timestamp=timestamp)
+        return "resume_autopilot_activation"
+
     if active_story["status"] != "active":
         raise ValueError(
-            "Resume currently expects an already-activated story; "
+            "Resume currently expects an active or checkpointed-next story; "
             f"got status={active_story['status']!r}."
         )
 

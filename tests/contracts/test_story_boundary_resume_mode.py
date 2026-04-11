@@ -108,6 +108,115 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(run["slices"]["active"], "S-002")
         self.assertEqual(len(lines), 2)
 
+    def test_resumes_checkpointed_autopilot_story_by_activating_once(self) -> None:
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "failed"
+        run["current"]["slice_id"] = "S-002"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-002"
+        run["current"]["stage"] = "clarifying-intent"
+        run["slices"]["active"] = "S-002"
+        run["routing"]["next_action"] = "confirm_then_run"
+        run["routing"]["next_stage"] = "clarifying-intent"
+        run["routing"]["next_slice_id"] = "S-002"
+        run["routing"]["reason"] = "Interrupted after checkpoint."
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["active"] = "S-002"
+        ledger["stories"]["last_completed"] = "S-001"
+        ledger["stories"]["items"]["S-001"]["status"] = "completed"
+        ledger["stories"]["items"]["S-001"]["boundary_status"] = "checkpointed"
+        ledger["stories"]["items"]["S-001"]["handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        ledger["stories"]["items"]["S-002"]["status"] = "active_next"
+        ledger["stories"]["items"]["S-002"]["boundary_status"] = "pending"
+        ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        handoff = {
+            "version": 1,
+            "story_id": "S-001",
+            "next_story_id": "S-002",
+            "summary": "S-001 completed.",
+            "carry_forward_context": ["Resume from checkpointed state."],
+            "changed_paths": ["workflow/scripts/story_boundary.py"],
+            "commit_meta": {"end_commit": "def2222"},
+            "generated_at": "2026-04-11T03:23:00Z",
+        }
+        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
+            json.dumps(handoff, indent=2) + "\n"
+        )
+
+        action = resume_story_run_from_disk(
+            repo_root=self.repo_root,
+            timestamp="2026-04-11T03:24:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(action, "resume_autopilot_activation")
+        self.assertEqual(run["status"], "running")
+        self.assertEqual(run["current"]["slice_id"], "S-002")
+        self.assertEqual(run["routing"]["next_action"], "run_stage")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["boundary_status"], "in_progress")
+
+    def test_resumes_checkpointed_manual_story_by_waiting_for_confirmation(self) -> None:
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["execution"]["mode"] = "manual"
+        run["status"] = "failed"
+        run["current"]["slice_id"] = "S-002"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-002"
+        run["current"]["stage"] = "clarifying-intent"
+        run["slices"]["active"] = "S-002"
+        run["routing"]["next_action"] = "confirm_then_run"
+        run["routing"]["next_stage"] = "clarifying-intent"
+        run["routing"]["next_slice_id"] = "S-002"
+        run["routing"]["reason"] = "Interrupted after checkpoint."
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["execution_mode"] = "manual"
+        ledger["stories"]["active"] = "S-002"
+        ledger["stories"]["last_completed"] = "S-001"
+        ledger["stories"]["items"]["S-001"]["status"] = "completed"
+        ledger["stories"]["items"]["S-001"]["boundary_status"] = "checkpointed"
+        ledger["stories"]["items"]["S-001"]["handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        ledger["stories"]["items"]["S-002"]["status"] = "active_next"
+        ledger["stories"]["items"]["S-002"]["boundary_status"] = "pending"
+        ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        handoff = {
+            "version": 1,
+            "story_id": "S-001",
+            "next_story_id": "S-002",
+            "summary": "S-001 completed.",
+            "carry_forward_context": ["Resume after manual checkpoint."],
+            "changed_paths": ["workflow/scripts/story_boundary.py"],
+            "commit_meta": {"end_commit": "def2222"},
+            "generated_at": "2026-04-11T03:25:00Z",
+        }
+        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
+            json.dumps(handoff, indent=2) + "\n"
+        )
+
+        action = resume_story_run_from_disk(
+            repo_root=self.repo_root,
+            timestamp="2026-04-11T03:26:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+
+        self.assertEqual(action, "resume_manual_wait")
+        self.assertEqual(run["status"], "waiting_for_user")
+        self.assertEqual(run["routing"]["next_action"], "confirm_then_run")
+        self.assertEqual(run["routing"]["next_stage"], "clarifying-intent")
+        self.assertEqual(run["routing"]["next_slice_id"], "S-002")
+        self.assertEqual(run["routing"]["boundary_handoff_path"], ".praxis/slices/S-001/handoff.json")
+        self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active_next")
+
 
 if __name__ == "__main__":
     unittest.main()
