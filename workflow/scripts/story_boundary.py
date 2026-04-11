@@ -14,6 +14,13 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
+def _load_events(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    lines = [line for line in path.read_text().splitlines() if line.strip()]
+    return [json.loads(line) for line in lines]
+
+
 def _append_unique(items: list[str], value: str) -> None:
     if value not in items:
         items.append(value)
@@ -356,3 +363,42 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
 
     _write_json(run_path, run)
     _write_json(ledger_path, ledger)
+
+
+def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
+    repo_root = repo_root.resolve()
+    run_path = repo_root / ".praxis" / "run.json"
+    ledger_path = repo_root / ".praxis" / "story-ledger.json"
+    events_path = repo_root / ".praxis" / "events.jsonl"
+
+    run = _load_json(run_path)
+    ledger = _load_json(ledger_path)
+    _load_events(events_path)
+
+    active_story_id = ledger["stories"]["active"]
+    if not active_story_id:
+        raise ValueError("Cannot resume without an active story in the ledger.")
+
+    active_story = ledger["stories"]["items"][active_story_id]
+    if active_story["status"] != "active":
+        raise ValueError(
+            "Resume currently expects an already-activated story; "
+            f"got status={active_story['status']!r}."
+        )
+
+    run["status"] = "running"
+    run["current"]["scope"] = "slice"
+    run["current"]["slice_id"] = active_story_id
+    run["current"]["artifact_dir"] = active_story["artifact_dir"]
+    run["routing"]["next_action"] = "run_stage"
+    run["routing"]["next_stage"] = run["current"]["stage"]
+    run["routing"]["next_slice_id"] = None
+    run["routing"]["stop_reason_code"] = None
+    run["routing"]["reason"] = f"{active_story_id} resumed from durable story-boundary state."
+    run["slices"]["active"] = active_story_id
+    run["timestamps"]["updated_at"] = timestamp
+    ledger["timestamps"]["updated_at"] = timestamp
+
+    _write_json(run_path, run)
+    _write_json(ledger_path, ledger)
+    return "resume_active"

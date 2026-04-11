@@ -1,0 +1,113 @@
+import json
+import shutil
+import tempfile
+import unittest
+from pathlib import Path
+
+from workflow.scripts.story_boundary import resume_story_run_from_disk
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def load_json(path: Path):
+    return json.loads(path.read_text())
+
+
+class ResumeStoryBoundaryContractTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo_root = Path(self.temp_dir.name)
+        (self.repo_root / ".praxis" / "slices" / "S-001").mkdir(parents=True)
+        (self.repo_root / ".praxis" / "slices" / "S-002").mkdir(parents=True)
+        shutil.copy(FIXTURES / "autopilot_run.json", self.repo_root / ".praxis" / "run.json")
+        shutil.copy(
+            FIXTURES / "autopilot_story_ledger.json",
+            self.repo_root / ".praxis" / "story-ledger.json",
+        )
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_resumes_an_already_activated_story_without_replaying_boundary(self) -> None:
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "failed"
+        run["current"]["slice_id"] = "S-002"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-002"
+        run["current"]["stage"] = "clarifying-intent"
+        run["slices"]["active"] = "S-002"
+        run["routing"]["next_action"] = "ask_user"
+        run["routing"]["next_stage"] = None
+        run["routing"]["next_slice_id"] = None
+        run["routing"]["reason"] = "Process stopped unexpectedly."
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+        ledger = load_json(self.repo_root / ".praxis" / "story-ledger.json")
+        ledger["stories"]["active"] = "S-002"
+        ledger["stories"]["last_completed"] = "S-001"
+        ledger["stories"]["items"]["S-001"]["status"] = "completed"
+        ledger["stories"]["items"]["S-001"]["boundary_status"] = "checkpointed"
+        ledger["stories"]["items"]["S-001"]["handoff_path"] = ".praxis/slices/S-001/handoff.json"
+        ledger["stories"]["items"]["S-002"]["status"] = "active"
+        ledger["stories"]["items"]["S-002"]["boundary_status"] = "in_progress"
+        ledger["stories"]["items"]["S-002"]["carry_forward_from"] = "S-001"
+        (self.repo_root / ".praxis" / "story-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+
+        handoff = {
+            "version": 1,
+            "story_id": "S-001",
+            "next_story_id": "S-002",
+            "summary": "S-001 completed.",
+            "carry_forward_context": ["Resume from durable state."],
+            "changed_paths": ["workflow/scripts/story_boundary.py"],
+            "commit_meta": {"end_commit": "def2222"},
+            "generated_at": "2026-04-11T03:20:00Z",
+        }
+        (self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").write_text(
+            json.dumps(handoff, indent=2) + "\n"
+        )
+
+        events_path = self.repo_root / ".praxis" / "events.jsonl"
+        events_path.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "ts": "2026-04-11T03:20:00Z",
+                            "type": "boundary_checkpointed",
+                            "slice_id": "S-001",
+                            "next_slice_id": "S-002",
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "ts": "2026-04-11T03:21:00Z",
+                            "type": "story_activated",
+                            "slice_id": "S-002",
+                            "from_slice_id": "S-001",
+                        }
+                    ),
+                ]
+            )
+            + "\n"
+        )
+
+        action = resume_story_run_from_disk(
+            repo_root=self.repo_root,
+            timestamp="2026-04-11T03:22:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        lines = events_path.read_text().strip().splitlines()
+
+        self.assertEqual(action, "resume_active")
+        self.assertEqual(run["status"], "running")
+        self.assertEqual(run["current"]["slice_id"], "S-002")
+        self.assertEqual(run["current"]["stage"], "clarifying-intent")
+        self.assertEqual(run["routing"]["next_action"], "run_stage")
+        self.assertEqual(run["slices"]["active"], "S-002")
+        self.assertEqual(len(lines), 2)
+
+
+if __name__ == "__main__":
+    unittest.main()
