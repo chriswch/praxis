@@ -109,12 +109,24 @@ Run the local eval pack with:
 python3 -m workflow.scripts.eval_pack run --fixtures-dir tests/evals/fixtures
 ```
 
+Run the fail-closed native harness gate with:
+
+```bash
+python3 -m workflow.scripts.eval_pack native-gate --fixtures-dir tests/evals/fixtures
+```
+
 The bundled eval fixtures currently grade:
 - routing outcomes
 - resume behavior
 - fail-closed boundary stops
 - handoff budget enforcement
-- Claude/Codex semantic parity
+- native Claude and Codex session-start hooks through the shared harness entrypoints
+- `show-run` trace reconstruction for pause and resume paths
+- Claude/Codex semantic parity over native launch and handoff outcomes
+
+`native-gate` is the CI-friendly subset. It only selects `native_harness`,
+`native_trace`, and `adapter_parity` fixtures, and it fails closed when any of
+those kinds are missing or regressing.
 
 `python3 -m workflow.scripts.orchestrator show-run --repo-root .` also returns a `trace` block that summarizes:
 - current dispatch

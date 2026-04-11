@@ -28,7 +28,9 @@
         "resume",
         "boundary_stop",
         "handoff_budget",
-        "adapter_parity"
+        "adapter_parity",
+        "native_harness",
+        "native_trace"
       ]
     },
     "input": {

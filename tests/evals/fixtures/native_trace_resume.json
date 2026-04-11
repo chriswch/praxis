@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "name": "native_trace_resume",
+  "kind": "native_trace",
+  "input": {
+    "run": {
+      "version": 3,
+      "workflow": "forge",
+      "status": "running",
+      "entry_task": "Check trace reconstruction",
+      "mode": "multi_slice",
+      "runtime": {
+        "adapter": "codex",
+        "entrypoint": "praxis:forge"
+      },
+      "execution": {
+        "mode": "autopilot",
+        "fresh_context_per_story": true
+      },
+      "current": {
+        "scope": "slice",
+        "slice_id": "S-004",
+        "artifact_dir": ".praxis/slices/S-004",
+        "stage": "clarifying-intent"
+      },
+      "routing": {
+        "next_action": "run_stage",
+        "next_stage": "clarifying-intent",
+        "next_slice_id": null,
+        "reason": "S-004 is running.",
+        "stop_reason_code": null,
+        "boundary_handoff_path": null
+      },
+      "timestamps": {
+        "created_at": "2026-04-12T00:00:00Z",
+        "updated_at": "2026-04-12T00:00:00Z"
+      }
+    },
+    "story_ledger": {
+      "version": 2,
+      "execution_mode": "autopilot",
+      "stories": {
+        "order": [
+          "S-004",
+          "S-005"
+        ],
+        "active": "S-004",
+        "last_completed": "S-003",
+        "items": {
+          "S-004": {
+            "artifact_dir": ".praxis/slices/S-004",
+            "status": "active",
+            "boundary_status": "in_progress",
+            "handoff_path": null,
+            "handoff_markdown_path": null,
+            "carry_forward_from": "S-003",
+            "commit_meta": null,
+            "boundary_reason_code": null,
+            "boundary_reason": null,
+            "stop_reason_code": null,
+            "stop_reason": null
+          },
+          "S-005": {
+            "artifact_dir": ".praxis/slices/S-005",
+            "status": "queued",
+            "boundary_status": "pending",
+            "handoff_path": null,
+            "handoff_markdown_path": null,
+            "carry_forward_from": null,
+            "commit_meta": null,
+            "boundary_reason_code": null,
+            "boundary_reason": null,
+            "stop_reason_code": null,
+            "stop_reason": null
+          }
+        }
+      },
+      "timestamps": {
+        "created_at": "2026-04-12T00:00:00Z",
+        "updated_at": "2026-04-12T00:00:00Z"
+      }
+    },
+    "stage_result": {
+      "version": 2,
+      "stage": "clarifying-intent",
+      "artifact_dir": ".praxis/slices/S-004",
+      "status": "blocked",
+      "summary_path": ".praxis/slices/S-004/spec.md",
+      "artifacts_written": [
+        ".praxis/slices/S-004/spec.md"
+      ],
+      "route": {
+        "kind": "ask_user",
+        "next_stage": null,
+        "next_slice_id": null,
+        "reason": "A maintainer decision is still required."
+      },
+      "data": {
+        "outcome_code": "clarification_needed"
+      },
+      "needs_user_input": true,
+      "needs_confirmation": false
+    },
+    "pause_timestamp": "2026-04-12T04:35:00Z",
+    "resume_timestamp": "2026-04-12T04:36:00Z"
+  },
+  "expected": {
+    "pause_action": "ask_user",
+    "resume_action": "resume_waiting",
+    "run_status": "waiting_for_user",
+    "last_stop_event_type": "autopilot_stopped",
+    "last_stop_reason_code": "needs_user_input",
+    "last_resume_event_type": "run_resumed",
+    "last_resume_action": "resume_waiting",
+    "trace_stop_reason_code": null
+  }
+}

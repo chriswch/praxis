@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "name": "native_claude_harness",
+  "kind": "native_harness",
+  "input": {
+    "adapter": "claude",
+    "harness": {
+      "version": 1,
+      "adapter": "claude",
+      "instructions_path": "CLAUDE.md",
+      "project_config_path": ".claude/settings.json",
+      "hooks_path": ".claude/hooks",
+      "agents_path": ".claude/agents",
+      "worker_launch_command": "python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .",
+      "extension_points": {
+        "mcp_config_path": ".claude-plugin/extensions.md",
+        "resources_path": null,
+        "tool_overrides_path": null,
+        "notes_path": ".claude-plugin/extensions.md"
+      },
+      "compatibility": {
+        "settings_path": ".claude-plugin/settings.md",
+        "hooks_path": ".claude-plugin/hooks",
+        "subagents_path": ".claude-plugin/subagents"
+      }
+    },
+    "run": {
+      "version": 3,
+      "workflow": "forge",
+      "status": "running",
+      "entry_task": "Check native claude harness",
+      "mode": "multi_slice",
+      "runtime": {
+        "adapter": "claude",
+        "entrypoint": "praxis:forge"
+      },
+      "execution": {
+        "mode": "autopilot",
+        "fresh_context_per_story": true
+      },
+      "current": {
+        "scope": "slice",
+        "slice_id": "S-002",
+        "artifact_dir": ".praxis/slices/S-002",
+        "stage": "clarifying-intent"
+      },
+      "routing": {
+        "next_action": "run_stage",
+        "next_stage": "clarifying-intent",
+        "next_slice_id": null,
+        "reason": "S-002 activated from durable state.",
+        "stop_reason_code": null,
+        "boundary_handoff_path": ".praxis/slices/S-001/handoff.json"
+      },
+      "timestamps": {
+        "created_at": "2026-04-12T00:00:00Z",
+        "updated_at": "2026-04-12T00:00:00Z"
+      }
+    },
+    "handoff_path": ".praxis/slices/S-001/handoff.json",
+    "handoff_seed": {
+      "story_id": "S-001",
+      "next_story_id": "S-002",
+      "summary": "S-001 completed.",
+      "carry_forward_context": [
+        "Only the bounded handoff should cross the story boundary."
+      ],
+      "changed_paths": [
+        "workflow/scripts/harness_config.py"
+      ],
+      "commit_meta": {
+        "end_commit": "def2222"
+      },
+      "generated_at": "2026-04-12T04:25:00Z"
+    },
+    "timestamp": "2026-04-12T04:31:00Z"
+  },
+  "expected": {
+    "response_continue": true,
+    "recorded_launch": true,
+    "launch_record_count": 1,
+    "slice_id": "S-002",
+    "stage": "clarifying-intent",
+    "handoff_injected": true,
+    "handoff_story_id": "S-001",
+    "handoff_next_story_id": "S-002",
+    "launch_event_type": "native_launch_recorded",
+    "launch_reason_code": "native_launch_recorded",
+    "trace_launch_event_type": "native_launch_recorded",
+    "trace_handoff_event_type": "handoff_validated",
+    "trace_resume_event_type": null,
+    "trace_stop_reason_code": null
+  }
+}
