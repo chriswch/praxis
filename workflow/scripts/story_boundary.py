@@ -216,10 +216,12 @@ def checkpoint_story_boundary(
         {
             "ts": timestamp,
             "type": "stage_completed",
+            "artifact_dir": f".praxis/slices/{current_story_id}",
             "slice_id": current_story_id,
             "stage": stage_name,
             "outcome_code": stage_result["data"]["outcome_code"],
-            "route_kind": stage_result["route"]["kind"],
+            "next_stage": stage_result["route"]["next_stage"],
+            "next_slice_id": stage_result["route"]["next_slice_id"],
         },
     )
     _append_event(
@@ -490,6 +492,8 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
     from_story_id = next_story.get("carry_forward_from")
     next_story["status"] = "active"
     next_story["boundary_status"] = "in_progress"
+    next_story["boundary_reason_code"] = None
+    next_story["boundary_reason"] = None
     next_story["stop_reason_code"] = None
     next_story["stop_reason"] = None
 
