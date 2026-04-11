@@ -23,19 +23,22 @@ Execution policy is separate from workflow shape:
 - `workflow/contracts/run.schema.json`
 - `workflow/contracts/stage-result.schema.json`
 - `workflow/contracts/story-ledger.schema.json`
+- `workflow/scripts/orchestrator.py`
 - `workflow/scripts/run_state.py`
 - `workflow/scripts/routing.py`
 - `workflow/scripts/story_boundary.py`
 
-Use `workflow/scripts/run_state.py` as the shared runtime helper for normal stage-to-stage `run.json` updates.
+Use `workflow/scripts/orchestrator.py` as the shared runtime entrypoint for initializing runs, advancing stage results, handling manual confirmations, and resuming from `.praxis/`.
 
-Use `workflow/scripts/story_boundary.py` as the shared runtime helper for:
+Use `workflow/scripts/story_boundary.py` as the lower-level runtime helper for:
 
 - initializing a multi-story queue after `slicing-stories`
 - checkpointing a completed story boundary
 - pausing `autopilot` on operator-required stage results
 - activating the next story after manual confirmation
 - resuming an interrupted multi-story run from `.praxis/`
+
+Use `workflow/scripts/run_state.py` as the lower-level helper for ordinary stage-to-stage `run.json` updates.
 
 Do not re-implement these transitions in Claude-specific wrappers.
 

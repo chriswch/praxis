@@ -51,6 +51,7 @@ Praxis v3 separates workflow semantics from runtime adapters:
 
 - `workflow/pipelines/` defines shared `craft` and `forge` orchestration rules.
 - `workflow/contracts/` defines machine-readable state and result contracts.
+- `workflow/scripts/orchestrator.py` is the shared runtime entrypoint for run initialization, stage-result advancement, manual confirmations, and durable resume.
 - `workflow/scripts/run_state.py` is the shared runtime helper for normal stage-to-stage `run.json` updates.
 - `workflow/scripts/story_boundary.py` is the shared runtime helper for queue initialization, story-boundary checkpointing, activation, autopilot pauses, and resume.
 - `commands/` and `skills/craft` / `skills/forge` are thin Claude/Codex adapters over those shared files.
@@ -100,41 +101,39 @@ Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write st
 
 The markdown artifact is for people. The result JSON is for orchestration.
 
-## Story-Boundary Helper
+## Orchestrator
 
-Use `workflow/scripts/story_boundary.py` as the shared runtime API for multi-story execution. Do not re-implement story-boundary transitions in wrappers.
+Use `workflow/scripts/orchestrator.py` as the shared runtime API for end-to-end workflow execution. Do not re-implement orchestration in wrappers.
 
-Use `workflow/scripts/run_state.py` as the shared runtime API for non-boundary stage-to-stage `run.json` updates. Do not re-implement ordinary stage routing in wrappers.
+Use `workflow/scripts/run_state.py` and `workflow/scripts/story_boundary.py` as lower-level building blocks behind the shared orchestrator.
 
 Available commands:
 
 ```bash
-python3 -m workflow.scripts.story_boundary initialize-story-queue \
+python3 -m workflow.scripts.orchestrator initialize-run \
   --repo-root . \
-  --slice-map-path .praxis/slice-map.json
+  --workflow forge \
+  --entry-task "Add a real orchestrator entrypoint" \
+  --adapter codex \
+  --execution-mode autopilot
 
-python3 -m workflow.scripts.run_state update-run-from-stage-result \
+python3 -m workflow.scripts.orchestrator advance-run \
   --repo-root . \
   --stage-result-path .praxis/results/sketching-design.json
 
-python3 -m workflow.scripts.story_boundary checkpoint-story-boundary \
+python3 -m workflow.scripts.orchestrator continue-run \
   --repo-root . \
-  --stage-result-path .praxis/slices/S-001/results/verifying-and-adapting.json \
-  --commit-meta-path /tmp/commit-meta.json \
-  --handoff-data-path /tmp/handoff-data.json
+  --timestamp 2026-04-12T00:00:00Z
 
-python3 -m workflow.scripts.story_boundary pause-autopilot-for-stage-result \
+python3 -m workflow.scripts.orchestrator resume-run \
   --repo-root . \
-  --stage-result-path .praxis/slices/S-001/results/clarifying-intent.json
+  --timestamp 2026-04-12T00:00:00Z
 
-python3 -m workflow.scripts.story_boundary activate-next-story-from-boundary \
-  --repo-root .
-
-python3 -m workflow.scripts.story_boundary resume-story-run-from-disk \
+python3 -m workflow.scripts.orchestrator show-run \
   --repo-root .
 ```
 
-Boundary helper JSON inputs:
+Boundary helper JSON inputs for `advance-run` story completion:
 
 ```json
 {
@@ -156,7 +155,7 @@ Boundary helper JSON inputs:
 }
 ```
 
-The helper prints a machine-readable state summary after each command so wrappers can inspect the updated cursor and queue state.
+The orchestrator prints a machine-readable state summary plus a dispatch block after each command so wrappers can inspect the updated cursor and the next stage to run.
 
 Read-side handoff contract:
 
@@ -178,6 +177,7 @@ praxis/
 │   │   ├── craft.md
 │   │   └── forge.md
 │   └── scripts/
+│       ├── orchestrator.py
 │       ├── run_state.py
 │       ├── routing.py
 │       └── story_boundary.py
@@ -205,7 +205,7 @@ praxis/
 
 - Claude uses `commands/` as thin wrappers over `workflow/pipelines/`.
 - Codex uses `skills/craft/SKILL.md` and `skills/forge/SKILL.md` as thin wrappers over the same shared workflow files.
-- Both runtimes use the same run contract, story-ledger contract, shared run-state helper, shared routing table, and story-boundary helper.
+- Both runtimes use the same run contract, story-ledger contract, shared orchestrator, shared run-state helper, shared routing table, and story-boundary helper.
 
 ## License
 
