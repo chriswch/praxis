@@ -66,7 +66,7 @@ class WorkerDispatchContractTest(unittest.TestCase):
                 "project_config_path": ".codex/config.toml",
                 "hooks_path": ".codex/hooks.json",
                 "agents_path": ".codex/agents",
-                "worker_launch_command": "python3 -m workflow.scripts.orchestrator dispatch-worker --repo-root .",
+                "worker_launch_command": "praxis dispatch --json",
                 "extension_points": {
                     "mcp_config_path": ".codex-plugin/extensions.md",
                     "resources_path": None,

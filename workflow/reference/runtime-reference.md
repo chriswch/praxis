@@ -5,7 +5,7 @@ This file is the shared reference for the current Praxis runtime.
 Use it as the canonical prose source for:
 - runtime architecture
 - `.praxis/` durable-state semantics
-- orchestrator commands
+- public CLI commands
 - handoff and harness launch contracts
 - eval and trace entrypoints
 
@@ -23,12 +23,13 @@ rules in full.
 
 - `workflow/pipelines/` defines shared `craft` and `forge` orchestration rules.
 - `workflow/contracts/` defines machine-readable state, result, harness, handoff, and eval fixture contracts.
-- `workflow/scripts/orchestrator.py` is the shared runtime entrypoint for run initialization, stage-result advancement, bounded-worker dispatch, manual confirmations, resume, and `show-run` snapshots.
+- `workflow/scripts/praxis_cli.py` exposes the stable `praxis` command tree and JSON envelope.
+- `workflow/scripts/orchestrator.py` is the shared implementation entrypoint behind `praxis run`, `praxis submit-stage-result`, `praxis continue`, `praxis resume`, `praxis dispatch`, and `praxis status`.
 - `workflow/scripts/harness_config.py` loads repo-scoped adapter harness config and builds the fresh-worker launch payload.
 - `workflow/scripts/run_state.py` handles ordinary stage-to-stage `run.json` updates.
 - `workflow/scripts/story_boundary.py` handles queue initialization, story-boundary checkpointing, activation, autopilot pauses, and multi-slice resume.
 - `workflow/scripts/eval_pack.py` runs the local workflow eval suite.
-- `workflow/scripts/trace_summary.py` builds the richer trace block surfaced by `show-run`.
+- `workflow/scripts/trace_summary.py` builds the richer trace block surfaced by `praxis status`.
 
 Shared workflow semantics live in `workflow/`. Adapter wrappers stay thin and
 defer to these runtime surfaces.
@@ -56,50 +57,57 @@ Execution semantics:
 
 Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write story-local artifacts under `.praxis/slices/{slice-id}/`.
 
-## Orchestrator Commands
+## Public CLI
 
-Use the shared orchestrator instead of re-implementing transitions in wrappers.
+Use the installed `praxis` CLI instead of re-implementing transitions in wrappers.
 
 ```bash
-python3 -m workflow.scripts.orchestrator initialize-run \
+praxis run \
   --repo-root . \
   --workflow forge \
   --entry-task "Clarify and deliver a workflow change" \
   --adapter codex \
-  --execution-mode manual
+  --execution-mode manual \
+  --json
 
-python3 -m workflow.scripts.orchestrator advance-run \
+praxis submit-stage-result \
   --repo-root . \
-  --stage-result-path .praxis/results/sketching-design.json
+  --stage-result-path .praxis/results/sketching-design.json \
+  --json
 
-python3 -m workflow.scripts.orchestrator continue-run \
+praxis continue \
   --repo-root . \
-  --timestamp 2026-04-12T00:00:00Z
+  --timestamp 2026-04-12T00:00:00Z \
+  --json
 
-python3 -m workflow.scripts.orchestrator dispatch-worker \
+praxis dispatch \
   --repo-root . \
-  --timestamp 2026-04-12T00:00:00Z
+  --timestamp 2026-04-12T00:00:00Z \
+  --json
 
-python3 -m workflow.scripts.orchestrator resume-run \
+praxis resume \
   --repo-root . \
-  --timestamp 2026-04-12T00:00:00Z
+  --timestamp 2026-04-12T00:00:00Z \
+  --json
 
-python3 -m workflow.scripts.orchestrator show-run \
-  --repo-root .
+praxis status --repo-root . --json
 ```
+
+Lower-level helpers in `workflow/scripts/` remain internal implementation
+surfaces behind that stable command tree.
 
 ## Handoff and Harness Launch Contract
 
 Before launching any fresh worker context:
 
-1. build the worker-launch payload with `python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .`
+1. build the worker-launch payload with `praxis build-worker-launch --repo-root . --json`
 2. pass `inputs.boundary_handoff` into the fresh worker context when present
 3. treat that handoff as the only cross-story carry-forward input
 4. load repo-scoped settings, hook config or hook entrypoints, agent patterns,
    and extension points from the active adapter harness config
 
 When `run.routing.pending_worker_action = resume_or_launch`, use
-`python3 -m workflow.scripts.orchestrator dispatch-worker --repo-root .` to let
+`praxis dispatch --repo-root . --json` to let
 the control plane execute that intent. The dispatcher rebuilds context from
 durable Praxis state first, records an explicit `resume_fallback_used` event
 when provider resume is unavailable, and then records the fresh native launch.
@@ -155,14 +163,14 @@ The bundled eval fixtures currently grade:
 - fail-closed boundary stops
 - handoff budget enforcement
 - native Claude and Codex session-start hooks through the shared harness entrypoints
-- `show-run` trace reconstruction for pause and resume paths
+- `status` trace reconstruction for pause and resume paths
 - Claude/Codex semantic parity over native launch and handoff outcomes
 
 `native-gate` is the CI-friendly subset. It only selects `native_harness`,
 `native_trace`, and `adapter_parity` fixtures, and it fails closed when any of
 those kinds are missing or regressing.
 
-`python3 -m workflow.scripts.orchestrator show-run --repo-root .` also returns a `trace` block that summarizes:
+`praxis status --repo-root . --json` also returns a `trace` block that summarizes:
 - current dispatch
 - recent boundary signals
 - recent stop signals

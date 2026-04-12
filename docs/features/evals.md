@@ -30,7 +30,7 @@ The bundled fixtures currently exercise:
 - fail-closed boundary stops
 - handoff budget enforcement
 - native Claude and Codex session-start hooks
-- `show-run` trace reconstruction
+- `status` trace reconstruction
 - Claude/Codex semantic parity for native launch and handoff outcomes
 
 ## Contract Tests

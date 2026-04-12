@@ -46,7 +46,7 @@ class ProviderResumeContractTest(unittest.TestCase):
                 "project_config_path": ".claude/settings.json",
                 "hooks_path": ".claude/hooks",
                 "agents_path": ".claude/agents",
-                "worker_launch_command": "python3 -m workflow.scripts.orchestrator dispatch-worker --repo-root .",
+                "worker_launch_command": "praxis dispatch --json",
                 "extension_points": {
                     "mcp_config_path": ".claude-plugin/extensions.md",
                     "resources_path": None,

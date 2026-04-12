@@ -6,6 +6,12 @@ Praxis keeps the shared workflow semantics in `workflow/` and keeps adapter wrap
 
 ## How To Use
 
+### Install
+
+```bash
+python3 -m pip install -e .
+```
+
 ### Native entry points
 
 - Claude: `/craft`, `/forge`
@@ -14,14 +20,15 @@ Praxis keeps the shared workflow semantics in `workflow/` and keeps adapter wrap
 ### Runtime commands
 
 ```bash
-python3 -m workflow.scripts.orchestrator initialize-run \
+praxis run \
   --repo-root . \
   --workflow forge \
   --entry-task "Describe the change" \
   --adapter codex \
-  --execution-mode manual
+  --execution-mode manual \
+  --json
 
-python3 -m workflow.scripts.orchestrator show-run --repo-root .
+praxis status --repo-root . --json
 
 python3 -m workflow.scripts.eval_pack run --fixtures-dir tests/evals/fixtures
 ```

@@ -18,9 +18,9 @@ Core runtime artifacts:
 Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write
 story-local artifacts under `.praxis/slices/<slice-id>/`.
 
-## Orchestrator
+## CLI
 
-The shared runtime entrypoint is `workflow/scripts/orchestrator.py`.
+The stable runtime entrypoint is the installed `praxis` CLI.
 
 It currently provides:
 
@@ -28,17 +28,20 @@ It currently provides:
 - stage-result advancement
 - manual continue flow
 - resume from durable state
-- `show-run` snapshots with trace data
+- status snapshots with trace data
 
 Primary commands:
 
 ```bash
-python3 -m workflow.scripts.orchestrator initialize-run ...
-python3 -m workflow.scripts.orchestrator advance-run ...
-python3 -m workflow.scripts.orchestrator continue-run ...
-python3 -m workflow.scripts.orchestrator resume-run ...
-python3 -m workflow.scripts.orchestrator show-run ...
+praxis run ...
+praxis submit-stage-result ...
+praxis continue ...
+praxis resume ...
+praxis status ...
 ```
+
+The Python modules under `workflow/scripts/` remain the shared implementation
+behind that public CLI.
 
 ## Story Boundary
 
@@ -78,7 +81,7 @@ Praxis currently supports:
 - atomic state transactions for runtime files
 - recovery from partially written transactions
 - event-log based run inspection
-- `show-run` trace summaries for recent launch, handoff, boundary, stop, and
+- `status` trace summaries for recent launch, handoff, boundary, stop, and
   resume signals
 
 Primary shared sources:

@@ -18,7 +18,7 @@ Like `craft`, the orchestrator stays in the main session and stage skills do bou
 4. `.praxis/story-ledger.json` is the durable queue owner for multi-slice runs.
 5. Each stage writes a structured result file to `{artifact-dir}/results/<stage>.json`.
 6. Human-readable artifacts remain the reading surface for the user, but JSON result files, `run.json`, and `story-ledger.json` are the routing source of truth.
-7. Prefer `../scripts/orchestrator.py` as the shared runtime entrypoint for run initialization, stage-result advancement, manual confirmations, and resume. Use `../scripts/run_state.py` and `../scripts/story_boundary.py` as lower-level helpers behind it. Do not re-implement those transitions in runtime wrappers.
+7. Prefer the installed `praxis` CLI as the shared runtime entrypoint for run initialization, stage-result advancement, manual confirmations, resume, dispatch, and worker-launch payloads. Use `../scripts/orchestrator.py`, `../scripts/run_state.py`, and `../scripts/story_boundary.py` as lower-level helpers behind it. Do not re-implement those transitions in runtime wrappers.
 
 ## Shared Contracts
 
@@ -86,13 +86,13 @@ Supported route kinds:
 
 ### Shared orchestrator entrypoint
 
-For normal wrapper execution, prefer the shared orchestrator:
+For normal wrapper execution, prefer the public `praxis` CLI:
 
 ```bash
-python3 -m workflow.scripts.orchestrator initialize-run ...
-python3 -m workflow.scripts.orchestrator advance-run ...
-python3 -m workflow.scripts.orchestrator continue-run ...
-python3 -m workflow.scripts.orchestrator resume-run ...
+praxis run ...
+praxis submit-stage-result ...
+praxis continue ...
+praxis resume ...
 ```
 
 It initializes `.praxis/run.json`, routes stage results, invokes the lower-level helpers, and reconstructs the next action from durable state.
@@ -126,7 +126,7 @@ points at the previous story's `.praxis/slices/<slice-id>/handoff.json`.
 
 Before launching slice-level `clarifying-intent` in a fresh worker context, the
 orchestrator must build the worker-launch payload with
-`workflow/scripts/harness_config.py build-worker-launch --repo-root .`.
+`praxis build-worker-launch --repo-root . --json`.
 
 That launch payload must:
 
