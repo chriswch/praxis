@@ -9,11 +9,14 @@ out of the committed project docs.
 
 ## Current Feature Docs
 
+- `docs/features/cli.md` - the shipped `praxis` command tree, JSON envelopes,
+  exit-code families, and current public boundary
 - `docs/features/workflows.md` - the shipped `craft` and `forge` workflows,
   plus execution modes
-- `docs/features/runtime.md` - durable state, orchestration, handoffs, resume,
-  and trace behavior
-- `docs/features/adapters.md` - current Claude and Codex integration surfaces
+- `docs/features/runtime.md` - durable state, worker planning, launch payloads,
+  boundary handoffs, dispatch bookkeeping, and resume behavior
+- `docs/features/adapters.md` - current Claude and Codex integration surfaces,
+  session-start hooks, and harness config
 - `docs/features/evals.md` - eval and contract-test coverage available in the repo
 
 ## Update Rule

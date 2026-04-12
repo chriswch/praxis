@@ -2,7 +2,7 @@
 
 Spec-driven software engineering workflows for Claude Code and Codex.
 
-Praxis keeps the shared workflow semantics in `workflow/` and keeps adapter wrappers thin. The project currently provides shared `craft` and `forge` workflows, durable `.praxis` runtime state, story-boundary handoffs, native adapter hooks, launch records, and a local eval pack.
+Praxis keeps the shared workflow semantics in `workflow/` and keeps adapter wrappers thin. The project currently provides shared `craft` and `forge` workflows, an installed `praxis` CLI, durable `.praxis` runtime state, worker-launch payloads, provider-native resume records, story-boundary handoffs, native adapter hooks, and a local eval pack.
 
 ## How To Use
 
@@ -65,13 +65,16 @@ Execution policy stays separate from workflow shape:
 
 ## Core Features
 
+- Installed `praxis` CLI for run control, status, dispatch bookkeeping, and harness inspection
 - Durable `.praxis` state for routing, resume, and inspection
+- Provider-native resume bridges with durable launch, session, and resume evidence
 - Story-boundary checkpoints with bounded handoff artifacts
-- Native Claude and Codex session-start hooks with launch evidence
+- Native Claude and Codex session-start hooks with launch and resume validation
 - Local eval coverage for routing, boundary, resume, trace, and adapter parity
 
 ### Feature Docs
 
+- `docs/features/cli.md`
 - `docs/features/workflows.md`
 - `docs/features/runtime.md`
 - `docs/features/adapters.md`
@@ -85,7 +88,7 @@ Execution policy stays separate from workflow shape:
 - `workflow/scripts/` implements the runtime control plane, durable-state
   helpers, story-boundary logic, hooks, and eval tooling.
 - `.praxis/` is the runtime state area for run cursors, story ledgers, results,
-  events, launch records, worker records, session records, and traces.
+  events, launch records, worker records, session records, resume records, and traces.
 - Claude-native repo surfaces live in `CLAUDE.md` and `.claude/`.
 - Codex-native repo surfaces live in `AGENTS.md` and `.codex/`.
 

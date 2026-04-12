@@ -24,7 +24,10 @@ rules in full.
 - `workflow/pipelines/` defines shared `craft` and `forge` orchestration rules.
 - `workflow/contracts/` defines machine-readable state, result, harness, handoff, and eval fixture contracts.
 - `workflow/scripts/praxis_cli.py` exposes the stable `praxis` command tree and JSON envelope.
-- `workflow/scripts/orchestrator.py` is the shared implementation entrypoint behind `praxis run`, `praxis submit-stage-result`, `praxis continue`, `praxis resume`, `praxis dispatch`, and `praxis status`.
+- `workflow/scripts/orchestrator.py` is the shared implementation entrypoint behind `praxis run`, `praxis submit-stage-result`, `praxis continue`, `praxis resume`, and `praxis status`.
+- `workflow/scripts/worker_runtime.py` selects the current worker plan and keeps the worker cursor consistent with `run.json`.
+- `workflow/scripts/worker_dispatch.py` resolves `resume_or_launch` for the current `session_worker` plan.
+- `workflow/scripts/provider_resume.py` runs provider-native resume safety checks and adapter-specific resume bridges.
 - `workflow/scripts/harness_config.py` loads repo-scoped adapter harness config and builds the fresh-worker launch payload.
 - `workflow/scripts/run_state.py` handles ordinary stage-to-stage `run.json` updates.
 - `workflow/scripts/story_boundary.py` handles queue initialization, story-boundary checkpointing, activation, autopilot pauses, and multi-slice resume.
@@ -44,6 +47,7 @@ Core runtime artifacts:
 - `.praxis/runtime/launches/<adapter>/...` - native launch records
 - `.praxis/runtime/workers/<worker-id>.json` - worker records
 - `.praxis/runtime/sessions/<adapter>/<session-id>.json` - provider session records
+- `.praxis/runtime/resumes/<adapter>/...` - provider resume attempt records
 - `.praxis/runtime/traces/<worker-id>.jsonl` - worker trace streams
 
 Execution semantics:
@@ -55,7 +59,8 @@ Execution semantics:
 - `run.current.worker_id` and `run.current.session_id` identify the active worker plan
 - `run.routing.pending_worker_action` and `run.routing.resume_strategy` make launch vs resume intent explicit
 
-Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write story-local artifacts under `.praxis/slices/{slice-id}/`.
+Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write
+story-local artifacts under `.praxis/slices/{slice-id}/`.
 
 ## Public CLI
 
@@ -96,7 +101,7 @@ praxis status --repo-root . --json
 Lower-level helpers in `workflow/scripts/` remain internal implementation
 surfaces behind that stable command tree.
 
-## Handoff and Harness Launch Contract
+## Handoff And Harness Launch Contract
 
 Before launching any fresh worker context:
 
@@ -111,6 +116,10 @@ When `run.routing.pending_worker_action = resume_or_launch`, use
 the control plane execute that intent. The dispatcher rebuilds context from
 durable Praxis state first, records an explicit `resume_fallback_used` event
 when provider resume is unavailable, and then records the fresh native launch.
+
+Current boundary: `praxis dispatch` records launch or resume outcomes and keeps
+run state aligned, but it does not yet shell out to start a brand-new provider
+process on its own.
 
 Repo-scoped harness surfaces:
 - `.claude/adapter.json`
@@ -143,7 +152,7 @@ surfaces.
 Shared skills should stay neutral about MCP servers, resources, and tool
 wrappers.
 
-## Eval and Trace Entry Points
+## Eval And Trace Entry Points
 
 Run the local eval pack with:
 
@@ -162,6 +171,7 @@ The bundled eval fixtures currently grade:
 - resume behavior
 - fail-closed boundary stops
 - handoff budget enforcement
+- worker dispatch bookkeeping and provider-native resume outcomes
 - native Claude and Codex session-start hooks through the shared harness entrypoints
 - `status` trace reconstruction for pause and resume paths
 - Claude/Codex semantic parity over native launch and handoff outcomes

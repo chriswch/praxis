@@ -26,9 +26,9 @@ Primary shared source:
 The bundled fixtures currently exercise:
 
 - routing outcomes
-- resume behavior
-- fail-closed boundary stops
-- handoff budget enforcement
+- story-boundary stop and handoff budget enforcement
+- worker dispatch bookkeeping and resume fallbacks
+- provider-native resume success and failure paths
 - native Claude and Codex session-start hooks
 - `status` trace reconstruction
 - Claude/Codex semantic parity for native launch and handoff outcomes
@@ -39,14 +39,14 @@ The repo also includes contract-style unit coverage under `tests/contracts/`.
 
 Current coverage areas include:
 
+- public CLI behavior and packaging smoke tests
 - orchestrator runtime behavior
-- story-boundary transitions
-- harness configuration loading
-- hook integration
-- trace summaries
-- documentation references
+- worker planning, dispatch, and provider resume
+- story-boundary transitions and recovery
+- harness configuration loading and hook integration
+- trace summaries and documentation references
 
 ## Fixtures
 
 The eval fixtures live under `tests/evals/fixtures/` and are designed to verify
-the shared runtime behavior instead of one adapter-specific transcript.
+shared runtime behavior instead of one adapter-specific transcript.

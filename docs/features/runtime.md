@@ -1,6 +1,7 @@
 # Runtime
 
-Praxis currently uses `.praxis/` as its durable runtime area.
+Praxis keeps control-plane truth under `.praxis/` and rebuilds execution
+context from durable state instead of transcript continuity.
 
 ## Durable State
 
@@ -13,35 +14,76 @@ Core runtime artifacts:
 - `.praxis/runtime/launches/<adapter>/...`
 - `.praxis/runtime/workers/<worker-id>.json`
 - `.praxis/runtime/sessions/<adapter>/<session-id>.json`
+- `.praxis/runtime/resumes/<adapter>/...`
 - `.praxis/runtime/traces/<worker-id>.jsonl`
 
 Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write
 story-local artifacts under `.praxis/slices/<slice-id>/`.
 
-## CLI
+## Worker Planning
 
-The stable runtime entrypoint is the installed `praxis` CLI.
+Praxis currently plans workers through `workflow/scripts/worker_runtime.py`.
 
-It currently provides:
+Shipped worker classes:
 
-- run initialization
-- stage-result advancement
-- manual continue flow
-- resume from durable state
-- status snapshots with trace data
+- `interactive_orchestrator` for root `clarifying-intent` in manual runs
+- `session_worker` for slice work, implementation reuse inside a story, and
+  fresh review or verification workers
 
-Primary commands:
+Current worker-planning rules:
 
-```bash
-praxis run ...
-praxis submit-stage-result ...
-praxis continue ...
-praxis resume ...
-praxis status ...
-```
+- implementation stages can reuse the active story worker
+- `code-reviewing` and `verifying-and-adapting` get fresh `session_worker`
+  plans when review independence is required
+- only `interactive_orchestrator` and `session_worker` are currently implemented
 
-The Python modules under `workflow/scripts/` remain the shared implementation
-behind that public CLI.
+## Launch Payloads And Handoffs
+
+`praxis build-worker-launch --repo-root . --json` returns the bounded launch
+payload defined by `workflow/contracts/worker-launch.schema.json`.
+
+Current payload areas include:
+
+- `dispatch`
+- `inputs`
+- `context_policy`
+- `harness`
+- `worker`
+- `permissions`
+- `budgets`
+- `artifact_inputs`
+- `artifact_outputs_expected`
+- `resume`
+
+Fresh worker context may read only:
+
+- the current dispatch
+- run metadata from `.praxis/run.json`
+- the active boundary handoff when one exists
+
+`inputs.boundary_handoff` is the only supported cross-story carry-forward input.
+
+## Dispatch And Provider Resume
+
+`praxis dispatch` is the current control-plane entrypoint for
+`run.routing.pending_worker_action = resume_or_launch`.
+
+Current shipped behavior:
+
+- it dispatches `session_worker` plans only
+- it may attempt provider-native resume through
+  `workflow/scripts/provider_resume.py`
+- successful resume writes a resume record, updates the durable session record,
+  appends `provider_resume_requested`, `provider_resume_succeeded`, and
+  `worker_resumed`, and keeps the run in `await_stage_result`
+- unsafe or rejected resume records `resume_fallback_used` before Praxis writes
+  fresh launch, worker, and session bookkeeping
+
+Current boundary:
+
+- fresh relaunch bookkeeping is implemented
+- the control plane does not yet start a brand-new external Claude or Codex
+  worker process on its own
 
 ## Story Boundary
 
@@ -59,30 +101,15 @@ Primary shared source:
 
 - `workflow/scripts/story_boundary.py`
 
-## Handoff Rules
-
-Praxis currently keeps cross-story context bounded.
-
-Implemented rules:
-
-- the next story reads only the active boundary handoff plus current dispatch and
-  run metadata
-- handoff payloads are budgeted and validated
-- handoff inspection and validation are fail-closed
-
-Primary shared source:
-
-- `workflow/scripts/handoff_policy.py`
-
 ## Recovery And Trace
 
 Praxis currently supports:
 
 - atomic state transactions for runtime files
-- recovery from partially written transactions
+- recovery from partially written transactions on the next command
 - event-log based run inspection
-- `status` trace summaries for recent launch, handoff, boundary, stop, and
-  resume signals
+- `praxis status` trace summaries for recent boundary, launch, resume, stop,
+  and recovery signals
 
 Primary shared sources:
 
