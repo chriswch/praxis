@@ -147,11 +147,7 @@ def _run_native_session_start(
     response = json.loads(completed.stdout)
 
     launch_dir = repo_root / ".praxis" / "runtime" / "launches" / adapter
-    if launch_dir.exists():
-        launch_records = sorted(launch_dir.glob("*.json"))
-    else:
-        legacy_dir = repo_root / ".praxis" / "runtime" / f"{adapter}-launches"
-        launch_records = sorted(legacy_dir.glob("*.json")) if legacy_dir.exists() else []
+    launch_records = sorted(launch_dir.glob("*.json")) if launch_dir.exists() else []
     record = load_json(launch_records[0]) if launch_records else None
     events = load_events(repo_root / ".praxis" / "events.jsonl")
     show_run = _show_run(repo_root)
