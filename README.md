@@ -2,7 +2,31 @@
 
 Spec-driven software engineering workflows for Claude Code and Codex.
 
-Praxis keeps the shared workflow semantics in `workflow/` and keeps adapter wrappers thin. Start here for the high-level entrypoints, then use `workflow/reference/runtime-reference.md` for the canonical runtime reference.
+Praxis keeps the shared workflow semantics in `workflow/` and keeps adapter wrappers thin. The project currently provides shared `craft` and `forge` workflows, durable `.praxis` runtime state, story-boundary handoffs, native adapter hooks, launch records, and a local eval pack.
+
+## How To Use
+
+### Native entry points
+
+- Claude: `/craft`, `/forge`
+- Codex: `skills/craft/SKILL.md`, `skills/forge/SKILL.md`
+
+### Runtime commands
+
+```bash
+python3 -m workflow.scripts.orchestrator initialize-run \
+  --repo-root . \
+  --workflow forge \
+  --entry-task "Describe the change" \
+  --adapter codex \
+  --execution-mode manual
+
+python3 -m workflow.scripts.orchestrator show-run --repo-root .
+
+python3 -m workflow.scripts.eval_pack run --fixtures-dir tests/evals/fixtures
+```
+
+For the full command surface, use `workflow/reference/runtime-reference.md`.
 
 ## Workflows
 
@@ -21,11 +45,38 @@ clarifying-intent -> [slicing-stories] -> sketching-design -> rapid-implementing
 ```
 
 Execution policy stays separate from workflow shape:
+
 - `workflow`: `craft` or `forge`
 - `mode`: `single_story` or `multi_slice`
 - `run.execution.mode`: `manual` or `autopilot`
 
-## Primary References
+## Core Features
+
+- Durable `.praxis` state for routing, resume, and inspection
+- Story-boundary checkpoints with bounded handoff artifacts
+- Native Claude and Codex session-start hooks with launch evidence
+- Local eval coverage for routing, boundary, resume, trace, and adapter parity
+
+### Feature Docs
+
+- `docs/features/workflows.md`
+- `docs/features/runtime.md`
+- `docs/features/adapters.md`
+- `docs/features/evals.md`
+
+## Architecture
+
+- `workflow/pipelines/` defines the shared `craft` and `forge` workflow shape.
+- `workflow/contracts/` defines machine-readable state, result, handoff, and
+  harness contracts.
+- `workflow/scripts/` implements the runtime control plane, durable-state
+  helpers, story-boundary logic, hooks, and eval tooling.
+- `.praxis/` is the runtime state area for run cursors, story ledgers, results,
+  events, launch records, worker records, session records, and traces.
+- Claude-native repo surfaces live in `CLAUDE.md` and `.claude/`.
+- Codex-native repo surfaces live in `AGENTS.md` and `.codex/`.
+
+## Developer References
 
 - Runtime reference: `workflow/reference/runtime-reference.md`
 - Claude wrapper reference: `workflow/reference/claude-wrapper.md`
@@ -33,13 +84,6 @@ Execution policy stays separate from workflow shape:
 - Shared workflows: `workflow/pipelines/craft.md`, `workflow/pipelines/forge.md`
 - Shared contracts: `workflow/contracts/`
 - Shared runtime helpers: `workflow/scripts/`
-
-## Adapter Entry Points
-
-- Claude uses `commands/craft.md` and `commands/forge.md`.
-- Codex uses `skills/craft/SKILL.md` and `skills/forge/SKILL.md`.
-- Claude repo-scoped harness behavior lives under `CLAUDE.md` and `.claude/`, with `.claude-plugin/` kept as a compatibility mirror during migration.
-- Codex repo-scoped harness behavior lives under `AGENTS.md` and `.codex/`, with `.codex-plugin/` kept as a compatibility mirror during migration.
 
 ## Eval Pack
 
