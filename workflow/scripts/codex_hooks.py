@@ -19,6 +19,12 @@ from .native_launch import (
 
 def session_start_hook(*, repo_root: Path, recorded_at: str | None = None) -> int:
     ts = recorded_at or utc_now()
+
+    if not (repo_root / ".praxis" / "run.json").exists():
+        response = success_response(additional_context="No active Praxis run.")
+        print(dump_json(response), end="")
+        return 0
+
     hook_request: dict[str, object] = {}
     launch_context: dict[str, object] | None = None
 

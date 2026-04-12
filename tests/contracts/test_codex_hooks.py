@@ -159,6 +159,30 @@ class CodexHooksContractTest(unittest.TestCase):
         self.assertTrue(events[1]["handoff_injected"])
         self.assertEqual(events[1]["reason_code"], "native_launch_recorded")
 
+    def test_session_start_hook_passes_through_when_no_run_exists(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "workflow.scripts.codex_hooks",
+                "session-start",
+                "--repo-root",
+                str(self.repo_root),
+                "--timestamp",
+                "2026-04-12T04:00:00Z",
+            ],
+            cwd=PROJECT_ROOT,
+            input="{}",
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        response = json.loads(completed.stdout)
+        self.assertTrue(response["continue"])
+        self.assertEqual(response["hookSpecificOutput"]["hookEventName"], "SessionStart")
+        self.assertIn("No active Praxis run", response["hookSpecificOutput"]["additionalContext"])
+
     def test_session_start_hook_records_failure_telemetry_for_an_invalid_handoff(self) -> None:
         initialize_run(
             repo_root=self.repo_root,
