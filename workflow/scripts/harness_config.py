@@ -175,7 +175,7 @@ def build_worker_launch_payload(*, repo_root: Path) -> dict[str, Any]:
             "agents_path": harness["agents_path"],
             "worker_launch_command": harness["worker_launch_command"],
             "extension_points": harness["extension_points"],
-            "compatibility": harness["compatibility"],
+            "compatibility": harness.get("compatibility"),
         },
         "worker": {
             "worker_id": run["current"]["worker_id"],
@@ -242,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
                     "agents_path": payload["agents_path"],
                     "worker_launch_command": payload["worker_launch_command"],
                     "extension_points": payload["extension_points"],
-                    "compatibility": payload["compatibility"],
+                    "compatibility": payload.get("compatibility"),
                 }
             ),
             end="",

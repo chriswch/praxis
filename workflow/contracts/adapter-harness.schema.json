@@ -13,8 +13,7 @@
     "hooks_path",
     "agents_path",
     "worker_launch_command",
-    "extension_points",
-    "compatibility"
+    "extension_points"
   ],
   "properties": {
     "version": {
@@ -159,9 +158,6 @@
           "project_config_path": {
             "type": "string",
             "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
-          },
-          "compatibility": {
-            "type": "object"
           }
         }
       }

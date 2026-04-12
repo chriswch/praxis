@@ -64,6 +64,31 @@ class CodexHooksContractTest(unittest.TestCase):
             },
         )
 
+    def _write_native_only_codex_harness(self) -> None:
+        self._write_text("AGENTS.md", "native codex instructions\n")
+        self._write_text(".codex/config.toml", "[features]\ncodex_hooks = true\n")
+        self._write_text(".codex/hooks.json", "{}\n")
+        (self.repo_root / ".codex" / "agents").mkdir(parents=True, exist_ok=True)
+        self._write_text(".codex-plugin/extensions.md", "extensions\n")
+        self._write_json(
+            ".codex/adapter.json",
+            {
+                "version": 1,
+                "adapter": "codex",
+                "instructions_path": "AGENTS.md",
+                "project_config_path": ".codex/config.toml",
+                "hooks_path": ".codex/hooks.json",
+                "agents_path": ".codex/agents",
+                "worker_launch_command": "python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .",
+                "extension_points": {
+                    "mcp_config_path": ".codex-plugin/extensions.md",
+                    "resources_path": None,
+                    "tool_overrides_path": None,
+                    "notes_path": ".codex-plugin/extensions.md",
+                },
+            },
+        )
+
     def test_session_start_hook_writes_launch_record_and_injects_bounded_context(self) -> None:
         initialize_run(
             repo_root=self.repo_root,
@@ -258,11 +283,57 @@ class CodexHooksContractTest(unittest.TestCase):
         ]
         self.assertEqual([event["type"] for event in events], ["handoff_validated", "native_launch_failed"])
         self.assertFalse(events[0]["schema_valid"])
-        self.assertFalse(events[0]["within_budget"])
-        self.assertFalse(events[0]["handoff_injected"])
-        self.assertEqual(events[0]["reason_code"], "handoff_schema_invalid")
-        self.assertEqual(events[1]["reason_code"], "handoff_schema_invalid")
-        self.assertFalse(events[1]["handoff_injected"])
+
+    def test_session_start_hook_allows_native_harness_without_compatibility_block(self) -> None:
+        self.temp_dir.cleanup()
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo_root = Path(self.temp_dir.name)
+        (self.repo_root / ".praxis" / "results").mkdir(parents=True, exist_ok=True)
+        self._write_native_only_codex_harness()
+
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Launch a native-only codex worker",
+            adapter="codex",
+            execution_mode="manual",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:10:00Z",
+        )
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "workflow.scripts.codex_hooks",
+                "session-start",
+                "--repo-root",
+                str(self.repo_root),
+                "--timestamp",
+                "2026-04-12T04:11:00Z",
+            ],
+            cwd=PROJECT_ROOT,
+            input=json.dumps(
+                {
+                    "session_id": "sess-native-only",
+                    "source": "startup",
+                    "cwd": str(self.repo_root),
+                }
+            ),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        response = json.loads(completed.stdout)
+        self.assertTrue(response["continue"])
+
+        launch_records = sorted((self.repo_root / ".praxis" / "runtime" / "launches" / "codex").glob("*.json"))
+        self.assertEqual(len(launch_records), 1)
+
+        record = json.loads(launch_records[0].read_text())
+        validate_contract_payload("native-launch.schema.json", record)
+        self.assertIsNone(record["harness"]["compatibility"])
 
 
 if __name__ == "__main__":

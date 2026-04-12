@@ -43,7 +43,13 @@ class HarnessConfigContractTest(unittest.TestCase):
             return
         path.mkdir(parents=True, exist_ok=True)
 
-    def _write_adapter_harness(self, adapter: str, *, omit_native_doc: bool = False) -> None:
+    def _write_adapter_harness(
+        self,
+        adapter: str,
+        *,
+        omit_native_doc: bool = False,
+        include_compatibility: bool = True,
+    ) -> None:
         if adapter == "codex":
             payload = {
                 "version": 1,
@@ -59,22 +65,24 @@ class HarnessConfigContractTest(unittest.TestCase):
                     "tool_overrides_path": None,
                     "notes_path": ".codex-plugin/extensions.md",
                 },
-                "compatibility": {
+            }
+            if include_compatibility:
+                payload["compatibility"] = {
                     "settings_path": ".codex-plugin/settings.md",
                     "hooks_path": ".codex-plugin/hooks",
                     "subagents_path": ".codex-plugin/subagents",
-                },
-            }
+                }
             self._write_json(".codex/adapter.json", payload)
             if not omit_native_doc:
                 self._write_text("AGENTS.md", "native codex instructions\n")
             self._write_text(".codex/config.toml", "[features]\ncodex_hooks = true\n")
             self._write_text(".codex/hooks.json", "{}\n")
             self._ensure_path(".codex/agents")
-            self._write_text(".codex-plugin/settings.md", "compat settings\n")
-            self._ensure_path(".codex-plugin/hooks")
-            self._ensure_path(".codex-plugin/subagents")
             self._write_text(".codex-plugin/extensions.md", "extensions\n")
+            if include_compatibility:
+                self._write_text(".codex-plugin/settings.md", "compat settings\n")
+                self._ensure_path(".codex-plugin/hooks")
+                self._ensure_path(".codex-plugin/subagents")
             return
 
         payload = {
@@ -91,22 +99,24 @@ class HarnessConfigContractTest(unittest.TestCase):
                 "tool_overrides_path": None,
                 "notes_path": ".claude-plugin/extensions.md",
             },
-            "compatibility": {
+        }
+        if include_compatibility:
+            payload["compatibility"] = {
                 "settings_path": ".claude-plugin/settings.md",
                 "hooks_path": ".claude-plugin/hooks",
                 "subagents_path": ".claude-plugin/subagents",
-            },
-        }
+            }
         self._write_json(".claude/adapter.json", payload)
         if not omit_native_doc:
             self._write_text("CLAUDE.md", "native claude instructions\n")
         self._write_text(".claude/settings.json", "{}\n")
         self._ensure_path(".claude/hooks")
         self._ensure_path(".claude/agents")
-        self._write_text(".claude-plugin/settings.md", "compat settings\n")
-        self._ensure_path(".claude-plugin/hooks")
-        self._ensure_path(".claude-plugin/subagents")
         self._write_text(".claude-plugin/extensions.md", "extensions\n")
+        if include_compatibility:
+            self._write_text(".claude-plugin/settings.md", "compat settings\n")
+            self._ensure_path(".claude-plugin/hooks")
+            self._ensure_path(".claude-plugin/subagents")
 
     def test_loads_repo_scoped_adapter_harness(self) -> None:
         self._write_adapter_harness("codex")
@@ -130,6 +140,14 @@ class HarnessConfigContractTest(unittest.TestCase):
 
         with self.assertRaisesRegex(FileNotFoundError, "CLAUDE.md"):
             load_adapter_harness(repo_root=self.repo_root, adapter="claude")
+
+    def test_loads_native_harness_without_compatibility_mirrors(self) -> None:
+        self._write_adapter_harness("codex", include_compatibility=False)
+
+        config_path, payload = load_adapter_harness(repo_root=self.repo_root, adapter="codex")
+
+        self.assertEqual(config_path, ".codex/adapter.json")
+        self.assertNotIn("compatibility", payload)
 
     def test_build_worker_launch_payload_includes_dispatch_handoff_and_bounded_context_policy(self) -> None:
         self._write_adapter_harness("codex")
@@ -185,6 +203,23 @@ class HarnessConfigContractTest(unittest.TestCase):
         self.assertEqual(payload["harness"]["hooks_path"], ".codex/hooks.json")
         self.assertEqual(payload["harness"]["agents_path"], ".codex/agents")
         self.assertEqual(payload["harness"]["compatibility"]["settings_path"], ".codex-plugin/settings.md")
+
+    def test_build_worker_launch_payload_sets_null_compatibility_when_native_run_does_not_declare_it(self) -> None:
+        self._write_adapter_harness("claude", include_compatibility=False)
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Launch a native-only claude worker",
+            adapter="claude",
+            execution_mode="manual",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T03:05:00Z",
+        )
+
+        result = build_worker_launch_payload(repo_root=self.repo_root)
+
+        self.assertEqual(result["harness"]["config_path"], ".claude/adapter.json")
+        self.assertIsNone(result["harness"]["compatibility"])
 
     def test_cli_build_worker_launch_reports_repo_scoped_claude_harness(self) -> None:
         self._write_adapter_harness("claude")
