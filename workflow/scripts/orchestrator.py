@@ -309,7 +309,6 @@ def initialize_run(
         "policy": {
             "default_permission_profile": "planning",
             "require_fresh_review_worker": True,
-            "require_worktree_for_parallel_writes": True,
         },
         "checkpoints": {
             "pending_user_decision": None,

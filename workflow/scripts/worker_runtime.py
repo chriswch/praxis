@@ -63,7 +63,6 @@ def default_policy() -> dict[str, Any]:
     return {
         "default_permission_profile": "implementation",
         "require_fresh_review_worker": True,
-        "require_worktree_for_parallel_writes": True,
     }
 
 
@@ -108,7 +107,7 @@ def bump_transition_id(run: dict[str, Any]) -> str:
 
 
 def _default_resume_strategy(worker_class: str) -> str | None:
-    if worker_class in {"session_worker", "worktree_worker"}:
+    if worker_class == "session_worker":
         return "prefer_resume_then_relaunch"
     return None
 
@@ -144,8 +143,6 @@ def _worker_reason(
         return f"Reuse the current story worker for {stage} to preserve dense local context."
     if worker_class == "interactive_orchestrator":
         return "Use the interactive adapter session because this stage benefits from live operator collaboration."
-    if worker_class == "worktree_worker":
-        return "Use an isolated worktree worker because this stage may need risky or parallel code writes."
     return f"Use a fresh {worker_class} for {stage}."
 
 
@@ -168,7 +165,6 @@ def build_worker_plan(run: dict[str, Any], *, stage: str | None = None) -> dict[
     slice_id = current.get("slice_id")
     execution_mode = execution.get("mode", "manual")
     review_independence = stage_name in _FRESH_REVIEW_STAGES and bool(policy.get("require_fresh_review_worker", True))
-    parallelism_required = bool(routing.get("parallelism_required"))
     boundary_transition = _boundary_transition(run, stage_name)
 
     worktree_mode = "shared"
@@ -194,16 +190,6 @@ def build_worker_plan(run: dict[str, Any], *, stage: str | None = None) -> dict[
         fresh_context = True
         if stage_name == "clarifying-intent" and scope == "slice":
             reuse_policy = "new_story_worker"
-
-    if (
-        policy.get("require_worktree_for_parallel_writes")
-        and parallelism_required
-        and stage_name in {"rapid-implementing", "code-improving", "driving-tdd"}
-    ):
-        worker_class = "worktree_worker"
-        worktree_mode = "isolated"
-        reuse_policy = "none"
-        fresh_context = True
 
     transition_id = run.get("control", {}).get("last_transition_id") or "tx_001"
     scope_slug = _scope_slug(scope, slice_id)
@@ -330,7 +316,6 @@ def ensure_run_vnext_defaults(run: dict[str, Any], *, timestamp: str | None = No
     policy = run.setdefault("policy", {})
     policy.setdefault("default_permission_profile", stage_permission_profile(current.get("stage")))
     policy.setdefault("require_fresh_review_worker", True)
-    policy.setdefault("require_worktree_for_parallel_writes", True)
     checkpoints = run.setdefault("checkpoints", {})
     checkpoints.setdefault("pending_user_decision", None)
     checkpoints.setdefault("pending_review_gate", None)

@@ -247,9 +247,6 @@
         },
         "require_fresh_review_worker": {
           "type": "boolean"
-        },
-        "require_worktree_for_parallel_writes": {
-          "type": "boolean"
         }
       }
     },
@@ -325,8 +322,7 @@
           "policy": {
             "required": [
               "default_permission_profile",
-              "require_fresh_review_worker",
-              "require_worktree_for_parallel_writes"
+              "require_fresh_review_worker"
             ]
           },
           "checkpoints": {
