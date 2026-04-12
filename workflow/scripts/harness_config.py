@@ -23,8 +23,8 @@ def _utc_now() -> str:
 
 def _adapter_config_relpaths(adapter: str) -> list[str]:
     mapping = {
-        "claude": [".claude/adapter.json", ".claude-plugin/adapter.json"],
-        "codex": [".codex/adapter.json", ".codex-plugin/adapter.json"],
+        "claude": [".claude/adapter.json"],
+        "codex": [".codex/adapter.json"],
     }
     try:
         return mapping[adapter]

@@ -41,7 +41,7 @@ class CodexHooksContractTest(unittest.TestCase):
         (self.repo_root / ".codex-plugin" / "subagents").mkdir(parents=True, exist_ok=True)
         self._write_text(".codex-plugin/extensions.md", "extensions\n")
         self._write_json(
-            ".codex-plugin/adapter.json",
+            ".codex/adapter.json",
             {
                 "version": 1,
                 "adapter": "codex",

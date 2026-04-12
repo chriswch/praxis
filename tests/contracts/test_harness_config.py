@@ -65,7 +65,7 @@ class HarnessConfigContractTest(unittest.TestCase):
                     "subagents_path": ".codex-plugin/subagents",
                 },
             }
-            self._write_json(".codex-plugin/adapter.json", payload)
+            self._write_json(".codex/adapter.json", payload)
             if not omit_native_doc:
                 self._write_text("AGENTS.md", "native codex instructions\n")
             self._write_text(".codex/config.toml", "[features]\ncodex_hooks = true\n")
@@ -97,7 +97,7 @@ class HarnessConfigContractTest(unittest.TestCase):
                 "subagents_path": ".claude-plugin/subagents",
             },
         }
-        self._write_json(".claude-plugin/adapter.json", payload)
+        self._write_json(".claude/adapter.json", payload)
         if not omit_native_doc:
             self._write_text("CLAUDE.md", "native claude instructions\n")
         self._write_text(".claude/settings.json", "{}\n")
@@ -113,7 +113,7 @@ class HarnessConfigContractTest(unittest.TestCase):
 
         config_path, payload = load_adapter_harness(repo_root=self.repo_root, adapter="codex")
 
-        self.assertEqual(config_path, ".codex-plugin/adapter.json")
+        self.assertEqual(config_path, ".codex/adapter.json")
         self.assertEqual(payload["instructions_path"], "AGENTS.md")
         self.assertEqual(payload["project_config_path"], ".codex/config.toml")
         self.assertEqual(payload["agents_path"], ".codex/agents")
@@ -179,7 +179,7 @@ class HarnessConfigContractTest(unittest.TestCase):
             ["dispatch", "run_metadata", "boundary_handoff"],
         )
         self.assertTrue(payload["context_policy"]["handoff_injected"])
-        self.assertEqual(payload["harness"]["config_path"], ".codex-plugin/adapter.json")
+        self.assertEqual(payload["harness"]["config_path"], ".codex/adapter.json")
         self.assertEqual(payload["harness"]["instructions_path"], "AGENTS.md")
         self.assertEqual(payload["harness"]["project_config_path"], ".codex/config.toml")
         self.assertEqual(payload["harness"]["hooks_path"], ".codex/hooks.json")
@@ -216,7 +216,7 @@ class HarnessConfigContractTest(unittest.TestCase):
         result = json.loads(completed.stdout)
         self.assertEqual(result["adapter"], "claude")
         self.assertEqual(result["dispatch"]["workflow"], "craft")
-        self.assertEqual(result["harness"]["config_path"], ".claude-plugin/adapter.json")
+        self.assertEqual(result["harness"]["config_path"], ".claude/adapter.json")
         self.assertEqual(result["harness"]["instructions_path"], "CLAUDE.md")
         self.assertEqual(result["harness"]["project_config_path"], ".claude/settings.json")
         self.assertEqual(result["harness"]["hooks_path"], ".claude/hooks")

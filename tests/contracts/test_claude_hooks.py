@@ -41,7 +41,7 @@ class ClaudeHooksContractTest(unittest.TestCase):
         (self.repo_root / ".claude-plugin" / "subagents").mkdir(parents=True, exist_ok=True)
         self._write_text(".claude-plugin/extensions.md", "extensions\n")
         self._write_json(
-            ".claude-plugin/adapter.json",
+            ".claude/adapter.json",
             {
                 "version": 1,
                 "adapter": "claude",
