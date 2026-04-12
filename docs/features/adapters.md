@@ -34,7 +34,7 @@ Current Claude surfaces:
 
 Current behavior:
 
-- the session-start hook calls `workflow/scripts/claude_hooks.py`
+- the session-start hook calls `src/praxis/runtime/adapters/claude/hooks.py`
 - startup records native launch metadata under `.praxis/runtime/`
 - resume validates the durable Praxis session cursor before allowing the native
   session to continue
@@ -55,7 +55,7 @@ Current Codex surfaces:
 
 Current behavior:
 
-- the session-start hook calls `workflow/scripts/codex_hooks.py`
+- the session-start hook calls `src/praxis/runtime/adapters/codex/hooks.py`
 - startup records native launch metadata under `.praxis/runtime/`
 - resume validates the durable Praxis session cursor before allowing the native
   session to continue
@@ -65,11 +65,11 @@ Current behavior:
 
 Praxis currently shares these adapter behaviors across Claude and Codex:
 
-- repo-scoped harness config loaded by `workflow/scripts/harness_config.py`
+- repo-scoped harness config loaded by `src/praxis/runtime/adapters/harness.py`
 - worker-launch payload generation through `praxis build-worker-launch`
-- session-start launch bookkeeping written by `workflow/scripts/native_launch.py`
-- provider-native resume bookkeeping written by `workflow/scripts/native_resume.py`
-- manual resume safety checks implemented in `workflow/scripts/provider_resume.py`
+- session-start launch bookkeeping written by `src/praxis/runtime/adapters/native_launch.py`
+- provider-native resume bookkeeping written by `src/praxis/runtime/adapters/native_resume.py`
+- manual resume safety checks implemented in `src/praxis/runtime/adapters/provider_resume.py`
 - fresh worker context rebuilt from dispatch, run metadata, and the active
   boundary handoff only
 

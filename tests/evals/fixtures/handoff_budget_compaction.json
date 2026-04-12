@@ -15,15 +15,15 @@
       "Context item 6"
     ],
     "changed_paths": [
-      "workflow/scripts/a.py",
-      "workflow/scripts/b.py",
-      "workflow/scripts/c.py",
-      "workflow/scripts/d.py",
-      "workflow/scripts/e.py",
-      "workflow/scripts/f.py",
-      "workflow/scripts/g.py",
-      "workflow/scripts/h.py",
-      "workflow/scripts/i.py"
+      "src/praxis/runtime/a.py",
+      "src/praxis/runtime/b.py",
+      "src/praxis/runtime/c.py",
+      "src/praxis/runtime/d.py",
+      "src/praxis/runtime/e.py",
+      "src/praxis/runtime/f.py",
+      "src/praxis/runtime/g.py",
+      "src/praxis/runtime/h.py",
+      "src/praxis/runtime/i.py"
     ],
     "commit_meta": {
       "end_commit": "def2222"

@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.handoff_policy import HANDOFF_POLICY
-from workflow.scripts.story_boundary import checkpoint_manual_story_boundary, checkpoint_story_boundary
+from praxis.runtime.handoff_policy import HANDOFF_POLICY
+from praxis.runtime.story_boundary import checkpoint_manual_story_boundary, checkpoint_story_boundary
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -48,7 +48,7 @@ class HandoffBudgetingContractTest(unittest.TestCase):
 
     def _run_orchestrator_cli(self, *args: str) -> dict:
         completed = subprocess.run(
-            [sys.executable, "-m", "workflow.scripts.orchestrator", *args],
+            [sys.executable, "-m", "praxis.runtime.orchestrator", *args],
             cwd=PROJECT_ROOT,
             check=True,
             capture_output=True,
@@ -73,7 +73,7 @@ class HandoffBudgetingContractTest(unittest.TestCase):
                     f"Carry forward item {index}" for index in range(HANDOFF_POLICY["max_carry_forward_items"] + 3)
                 ],
                 "changed_paths": [
-                    f"workflow/scripts/file_{index}.py" for index in range(HANDOFF_POLICY["max_changed_paths"] + 4)
+                    f"src/praxis/runtime/file_{index}.py" for index in range(HANDOFF_POLICY["max_changed_paths"] + 4)
                 ],
             },
             dirty_paths=[],
@@ -117,7 +117,7 @@ class HandoffBudgetingContractTest(unittest.TestCase):
                 "summary": "Compact only what is optional.",
                 "carry_forward_context": required_context,
                 "required_context": required_context,
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             timestamp="2026-04-12T02:05:00Z",
@@ -149,7 +149,7 @@ class HandoffBudgetingContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed.",
                 "carry_forward_context": ["Keep the next story context compact and validated."],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             timestamp="2026-04-12T02:10:00Z",
@@ -185,7 +185,7 @@ class HandoffBudgetingContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed.",
                 "carry_forward_context": ["Resume should show the validated handoff budget."],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             timestamp="2026-04-12T02:15:00Z",

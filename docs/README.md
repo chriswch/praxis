@@ -25,5 +25,5 @@ When shipped behavior changes:
 
 1. Update `README.md` for the project-level overview.
 2. Update the matching file in `docs/features/`.
-3. Update `workflow/reference/runtime-reference.md` if the runtime contract or
+3. Update `src/praxis/workflows/reference/runtime-reference.md` if the runtime contract or
    operational semantics changed.

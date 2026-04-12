@@ -5,9 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.handoff_policy import build_handoff_payload
-from workflow.scripts.harness_config import build_worker_launch_payload, load_adapter_harness
-from workflow.scripts.orchestrator import initialize_run
+from praxis.runtime.handoff_policy import build_handoff_payload
+from praxis.runtime.adapters.harness import build_worker_launch_payload, load_adapter_harness
+from praxis.runtime.orchestrator import initialize_run
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -177,7 +177,7 @@ class HarnessConfigContractTest(unittest.TestCase):
             next_story_id="S-002",
             summary="S-001 completed.",
             carry_forward_context=["Only the bounded handoff should cross the story boundary."],
-            changed_paths=["workflow/scripts/harness_config.py"],
+            changed_paths=["src/praxis/runtime/adapters/harness.py"],
             commit_meta={"end_commit": "def2222"},
             generated_at="2026-04-12T03:01:00Z",
         )
@@ -237,7 +237,7 @@ class HarnessConfigContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.harness_config",
+                "praxis.runtime.adapters.harness",
                 "build-worker-launch",
                 "--repo-root",
                 str(self.repo_root),

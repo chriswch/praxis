@@ -66,7 +66,7 @@
         "Only the bounded handoff should cross the story boundary."
       ],
       "changed_paths": [
-        "workflow/scripts/harness_config.py"
+        "src/praxis/runtime/adapters/harness.py"
       ],
       "commit_meta": {
         "end_commit": "def2222"

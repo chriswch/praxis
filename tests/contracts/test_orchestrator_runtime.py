@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.orchestrator import (
+from praxis.runtime.orchestrator import (
     advance_run,
     continue_run,
     initialize_run,
@@ -371,7 +371,7 @@ class OrchestratorRuntimeContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 is complete.",
                 "carry_forward_context": ["S-002 should start from durable state."],
-                "changed_paths": ["workflow/scripts/orchestrator.py"],
+                "changed_paths": ["src/praxis/runtime/orchestrator.py"],
             },
             dirty_paths=[],
             gate_failures=None,
@@ -525,7 +525,7 @@ class OrchestratorCliContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.orchestrator",
+                "praxis.runtime.orchestrator",
                 "initialize-run",
                 "--repo-root",
                 str(self.repo_root),

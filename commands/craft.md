@@ -12,17 +12,17 @@ $ARGUMENTS
 ## Shared Sources
 
 Load and follow:
-- `../workflow/pipelines/craft.md`
-- `../workflow/reference/claude-wrapper.md`
+- `../src/praxis/workflows/craft.md`
+- `../src/praxis/workflows/reference/claude-wrapper.md`
 
 Use these shared helpers and contracts:
-- `../workflow/contracts/run.schema.json`
-- `../workflow/contracts/stage-result.schema.json`
-- `../workflow/contracts/story-ledger.schema.json`
-- `../workflow/scripts/orchestrator.py`
-- `../workflow/scripts/harness_config.py`
-- `../workflow/scripts/run_state.py`
-- `../workflow/scripts/story_boundary.py`
+- `../src/praxis/contracts/run.schema.json`
+- `../src/praxis/contracts/stage-result.schema.json`
+- `../src/praxis/contracts/story-ledger.schema.json`
+- `../src/praxis/runtime/orchestrator.py`
+- `../src/praxis/runtime/adapters/harness.py`
+- `../src/praxis/runtime/run_state.py`
+- `../src/praxis/runtime/story_boundary.py`
 
 ## Claude-Specific Delta
 

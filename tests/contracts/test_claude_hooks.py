@@ -6,10 +6,10 @@ import unittest
 from pathlib import Path
 from typing import Optional
 
-from workflow.scripts.contract_validation import validate_contract_payload
-from workflow.scripts.handoff_policy import build_handoff_payload
-from workflow.scripts.orchestrator import initialize_run
-from workflow.scripts.worker_dispatch import dispatch_worker
+from praxis.runtime.state.contract_validation import validate_contract_payload
+from praxis.runtime.handoff_policy import build_handoff_payload
+from praxis.runtime.orchestrator import initialize_run
+from praxis.runtime.workers.dispatch import dispatch_worker
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -104,7 +104,7 @@ class ClaudeHooksContractTest(unittest.TestCase):
             next_story_id="S-003",
             summary="S-002 completed.",
             carry_forward_context=["Carry only the clarified summary and changed paths."],
-            changed_paths=["workflow/scripts/claude_hooks.py"],
+            changed_paths=["src/praxis/runtime/adapters/claude/hooks.py"],
             commit_meta={"end_commit": "abc1234"},
             generated_at="2026-04-12T03:01:00Z",
         )
@@ -114,7 +114,7 @@ class ClaudeHooksContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.claude_hooks",
+                "praxis.runtime.adapters.claude.hooks",
                 "session-start",
                 "--repo-root",
                 str(self.repo_root),
@@ -208,7 +208,7 @@ class ClaudeHooksContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.claude_hooks",
+                "praxis.runtime.adapters.claude.hooks",
                 "session-start",
                 "--repo-root",
                 str(self.repo_root),
@@ -271,7 +271,7 @@ class ClaudeHooksContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.claude_hooks",
+                "praxis.runtime.adapters.claude.hooks",
                 "session-start",
                 "--repo-root",
                 str(self.repo_root),

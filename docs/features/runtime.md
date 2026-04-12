@@ -22,7 +22,7 @@ story-local artifacts under `.praxis/slices/<slice-id>/`.
 
 ## Worker Planning
 
-Praxis currently plans workers through `workflow/scripts/worker_runtime.py`.
+Praxis currently plans workers through `src/praxis/runtime/workers/planning.py`.
 
 Shipped worker classes:
 
@@ -40,7 +40,7 @@ Current worker-planning rules:
 ## Launch Payloads And Handoffs
 
 `praxis build-worker-launch --repo-root . --json` returns the bounded launch
-payload defined by `workflow/contracts/worker-launch.schema.json`.
+payload defined by `src/praxis/contracts/worker-launch.schema.json`.
 
 Current payload areas include:
 
@@ -72,7 +72,7 @@ Current shipped behavior:
 
 - it dispatches `session_worker` plans only
 - it may attempt provider-native resume through
-  `workflow/scripts/provider_resume.py`
+  `src/praxis/runtime/adapters/provider_resume.py`
 - successful resume writes a resume record, updates the durable session record,
   appends `provider_resume_requested`, `provider_resume_succeeded`, and
   `worker_resumed`, and keeps the run in `await_stage_result`
@@ -99,7 +99,7 @@ Implemented behavior:
 
 Primary shared source:
 
-- `workflow/scripts/story_boundary.py`
+- `src/praxis/runtime/story_boundary.py`
 
 ## Recovery And Trace
 
@@ -113,5 +113,5 @@ Praxis currently supports:
 
 Primary shared sources:
 
-- `workflow/scripts/durable_state.py`
-- `workflow/scripts/trace_summary.py`
+- `src/praxis/runtime/state/durable_state.py`
+- `src/praxis/runtime/observability/trace_summary.py`

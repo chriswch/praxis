@@ -20,7 +20,7 @@ Ensure `{artifact-dir}/results/` exists and write the structured result to
 
 ## Result Contract
 
-Follow `../../workflow/contracts/stage-result.schema.json`.
+Follow `../../src/praxis/contracts/stage-result.schema.json`.
 
 The result JSON is the routing source of truth.
 Leave `route.next_stage = null`; the shared workflow resolves the canonical

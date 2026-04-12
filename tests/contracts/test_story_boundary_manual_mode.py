@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.story_boundary import (
+from praxis.runtime.story_boundary import (
     activate_next_story_from_boundary,
     checkpoint_manual_story_boundary,
 )
@@ -51,8 +51,8 @@ class ManualStoryBoundaryContractTest(unittest.TestCase):
                     "Execution mode is modeled separately from workflow and story shape."
                 ],
                 "changed_paths": [
-                    "workflow/contracts/run.schema.json",
-                    "workflow/contracts/story-ledger.schema.json"
+                    "src/praxis/contracts/run.schema.json",
+                    "src/praxis/contracts/story-ledger.schema.json"
                 ]
             },
             dirty_paths=[],
@@ -98,7 +98,7 @@ class ManualStoryBoundaryContractTest(unittest.TestCase):
                     "Execution mode is modeled separately from workflow and story shape."
                 ],
                 "changed_paths": [
-                    "workflow/contracts/run.schema.json"
+                    "src/praxis/contracts/run.schema.json"
                 ]
             },
             dirty_paths=[],
@@ -182,7 +182,7 @@ class ManualStoryBoundaryContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "Final story completed.",
                 "carry_forward_context": [],
-                "changed_paths": ["workflow/pipelines/craft.md"],
+                "changed_paths": ["src/praxis/workflows/craft.md"],
             },
             dirty_paths=[],
             timestamp="2026-04-10T18:15:00Z",

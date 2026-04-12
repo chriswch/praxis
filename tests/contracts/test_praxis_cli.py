@@ -5,11 +5,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.orchestrator import initialize_run
+from praxis.runtime.orchestrator import initialize_run
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CLI = [sys.executable, "-m", "workflow.scripts.praxis_cli"]
+CLI = [sys.executable, "-m", "praxis.cli.main"]
 
 
 def load_json(path: Path):

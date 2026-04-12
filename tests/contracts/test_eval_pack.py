@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.eval_pack import run_eval_pack
+from praxis.runtime.observability.eval_pack import run_eval_pack
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -26,7 +26,7 @@ class EvalPackContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.eval_pack",
+                "praxis.runtime.observability.eval_pack",
                 "run",
                 "--fixtures-dir",
                 str(FIXTURES_DIR),
@@ -46,7 +46,7 @@ class EvalPackContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.eval_pack",
+                "praxis.runtime.observability.eval_pack",
                 "native-gate",
                 "--fixtures-dir",
                 str(FIXTURES_DIR),
@@ -77,7 +77,7 @@ class EvalPackContractTest(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "workflow.scripts.eval_pack",
+                    "praxis.runtime.observability.eval_pack",
                     "native-gate",
                     "--fixtures-dir",
                     str(fixtures_dir),

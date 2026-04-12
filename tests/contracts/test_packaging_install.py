@@ -115,9 +115,9 @@ class PackagingInstallContractTest(unittest.TestCase):
         with zipfile.ZipFile(self.wheel_path) as archive:
             names = set(archive.namelist())
 
-        self.assertIn("workflow/contracts/run.schema.json", names)
-        self.assertIn("workflow/pipelines/forge.md", names)
-        self.assertIn("workflow/reference/runtime-reference.md", names)
+        self.assertIn("praxis/contracts/run.schema.json", names)
+        self.assertIn("praxis/workflows/forge.md", names)
+        self.assertIn("praxis/workflows/reference/runtime-reference.md", names)
 
     def test_installed_wheel_exposes_working_praxis_cli(self) -> None:
         venv_dir = self.temp_path / "venv"

@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.orchestrator import initialize_run
-from workflow.scripts.worker_runtime import build_worker_plan, ensure_run_vnext_defaults, mark_worker_resumed
+from praxis.runtime.orchestrator import initialize_run
+from praxis.runtime.workers.planning import build_worker_plan, ensure_run_vnext_defaults, mark_worker_resumed
 
 
 def load_json(path: Path):

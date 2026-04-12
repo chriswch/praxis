@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.story_boundary import checkpoint_story_boundary
+from praxis.runtime.story_boundary import checkpoint_story_boundary
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -137,7 +137,7 @@ class GitBoundaryVerificationContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.story_boundary",
+                "praxis.runtime.story_boundary",
                 "checkpoint-story-boundary",
                 "--repo-root",
                 str(self.repo_root),

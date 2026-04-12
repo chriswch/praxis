@@ -6,14 +6,15 @@ setup(
     version="0.1.0",
     description="Spec-driven software engineering workflows for Claude Code and Codex.",
     python_requires=">=3.9",
-    packages=find_packages(include=["workflow", "workflow.*"]),
+    package_dir={"": "src"},
+    packages=find_packages(where="src", include=["praxis", "praxis.*"]),
     include_package_data=True,
     package_data={
-        "workflow": ["contracts/*.json", "pipelines/*.md", "reference/*.md"],
+        "praxis": ["contracts/*.json", "workflows/*.md", "workflows/reference/*.md"],
     },
     entry_points={
         "console_scripts": [
-            "praxis=workflow.scripts.praxis_cli:main",
+            "praxis=praxis.cli.main:main",
         ]
     },
 )

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.run_state import update_run_from_stage_result
+from praxis.runtime.run_state import update_run_from_stage_result
 
 
 def load_json(path: Path):

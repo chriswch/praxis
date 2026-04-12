@@ -1,6 +1,6 @@
 import unittest
 
-from workflow.scripts.routing import resolve_next_stage_for_result
+from praxis.runtime.routing import resolve_next_stage_for_result
 
 
 class SharedRoutingContractTest(unittest.TestCase):

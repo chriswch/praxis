@@ -114,7 +114,7 @@
       "summary": "S-001 completed.",
       "carry_forward_context": [],
       "changed_paths": [
-        "workflow/scripts/story_boundary.py"
+        "src/praxis/runtime/story_boundary.py"
       ]
     },
     "dirty_paths": [],

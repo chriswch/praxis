@@ -26,7 +26,7 @@ class StoryBoundaryCliContractTest(unittest.TestCase):
 
     def _run_cli(self, *args: str) -> dict:
         completed = subprocess.run(
-            [sys.executable, "-m", "workflow.scripts.story_boundary", *args],
+            [sys.executable, "-m", "praxis.runtime.story_boundary", *args],
             cwd=PROJECT_ROOT,
             check=True,
             capture_output=True,
@@ -140,7 +140,7 @@ class StoryBoundaryCliContractTest(unittest.TestCase):
         handoff_data = {
             "summary": "S-001 completed.",
             "carry_forward_context": ["Autopilot should continue from durable state."],
-            "changed_paths": ["workflow/scripts/story_boundary.py"],
+            "changed_paths": ["src/praxis/runtime/story_boundary.py"],
         }
         (self.repo_root / "commit-meta.json").write_text(json.dumps(commit_meta, indent=2) + "\n")
         (self.repo_root / "handoff-data.json").write_text(json.dumps(handoff_data, indent=2) + "\n")

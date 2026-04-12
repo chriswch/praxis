@@ -4,10 +4,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from workflow.scripts.harness_config import build_worker_launch_payload
-from workflow.scripts.orchestrator import initialize_run, resume_run
-from workflow.scripts.provider_resume import attempt_provider_resume
-from workflow.scripts.worker_dispatch import dispatch_worker
+from praxis.runtime.adapters.harness import build_worker_launch_payload
+from praxis.runtime.orchestrator import initialize_run, resume_run
+from praxis.runtime.adapters.provider_resume import attempt_provider_resume
+from praxis.runtime.workers.dispatch import dispatch_worker
 
 
 class ProviderResumeContractTest(unittest.TestCase):
@@ -89,7 +89,7 @@ class ProviderResumeContractTest(unittest.TestCase):
         )
 
         with patch(
-            "workflow.scripts.provider_resume._run_command",
+            "praxis.runtime.adapters.provider_resume._run_command",
             return_value={
                 "ok": True,
                 "returncode": 0,

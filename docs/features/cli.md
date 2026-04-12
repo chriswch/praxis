@@ -1,7 +1,7 @@
 # CLI
 
 Praxis ships an installed `praxis` console command backed by
-`workflow/scripts/praxis_cli.py`.
+`src/praxis/cli/main.py`.
 
 ## Stable Command Tree
 

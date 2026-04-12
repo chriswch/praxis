@@ -8,18 +8,18 @@ runtime behavior.
 Run the full local eval pack with:
 
 ```bash
-python3 -m workflow.scripts.eval_pack run --fixtures-dir tests/evals/fixtures
+python3 -m praxis.runtime.observability.eval_pack run --fixtures-dir tests/evals/fixtures
 ```
 
 Run the native-harness CI subset with:
 
 ```bash
-python3 -m workflow.scripts.eval_pack native-gate --fixtures-dir tests/evals/fixtures
+python3 -m praxis.runtime.observability.eval_pack native-gate --fixtures-dir tests/evals/fixtures
 ```
 
 Primary shared source:
 
-- `workflow/scripts/eval_pack.py`
+- `src/praxis/runtime/observability/eval_pack.py`
 
 ## Current Eval Coverage
 

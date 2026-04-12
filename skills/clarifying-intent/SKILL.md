@@ -23,7 +23,7 @@ If `$ARGUMENTS` is provided, use it as the artifact directory (for example,
 
 ## Result Contract
 
-Follow `../../workflow/contracts/stage-result.schema.json`.
+Follow `../../src/praxis/contracts/stage-result.schema.json`.
 
 The result JSON is the routing source of truth. Human-readable artifacts such as
 `brief.md` and `spec.md` remain for people; the orchestrator should route from

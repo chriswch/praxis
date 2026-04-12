@@ -44,7 +44,7 @@ Also write the structured result file to `.praxis/results/slicing-stories.json`.
 
 ## Result Contract
 
-Follow `../../workflow/contracts/stage-result.schema.json`.
+Follow `../../src/praxis/contracts/stage-result.schema.json`.
 
 The result JSON is the routing source of truth. If you also include a human
 section such as `## Blocking Questions`, keep it consistent with the JSON
@@ -128,4 +128,4 @@ When updating, re-validate (step 5) and re-confirm with the requester. Don't tre
 - Output schema: `references/slice-map.spec.md`
 - Validator: `python3 scripts/validate_slice_map.py .praxis/slice-map.json`
 - Markdown renderer: `python3 scripts/render_slice_map_markdown.py .praxis/slice-map.json`
-- Result schema: `../../workflow/contracts/stage-result.schema.json`
+- Result schema: `../../src/praxis/contracts/stage-result.schema.json`

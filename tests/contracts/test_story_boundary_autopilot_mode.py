@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.story_boundary import (
+from praxis.runtime.story_boundary import (
     checkpoint_story_boundary,
     pause_autopilot_for_stage_result,
 )
@@ -59,7 +59,7 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
                     "Autopilot should continue from durable state."
                 ],
                 "changed_paths": [
-                    "workflow/scripts/story_boundary.py"
+                    "src/praxis/runtime/story_boundary.py"
                 ]
             },
             dirty_paths=[],
@@ -97,7 +97,7 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed.",
                 "carry_forward_context": ["Autopilot should continue from durable state."],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             timestamp="2026-04-11T03:40:00Z",
@@ -171,7 +171,7 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed through forge improvements.",
                 "carry_forward_context": ["Continue forge from the durable checkpoint."],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             timestamp="2026-04-11T03:41:30Z",
@@ -249,7 +249,7 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "Final forge story completed after review skip.",
                 "carry_forward_context": [],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             timestamp="2026-04-11T03:41:45Z",
@@ -283,7 +283,7 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed.",
                 "carry_forward_context": [],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             gate_failures=["test_gate_failed"],
@@ -319,7 +319,7 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed.",
                 "carry_forward_context": [],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             gate_failures=["test_gate_failed"],
@@ -399,7 +399,7 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed.",
                 "carry_forward_context": [],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             cancel_requested=True,
@@ -430,7 +430,7 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed.",
                 "carry_forward_context": [],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             cancel_requested=True,
@@ -476,7 +476,7 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "Final story completed.",
                 "carry_forward_context": [],
-                "changed_paths": ["workflow/pipelines/craft.md"],
+                "changed_paths": ["src/praxis/workflows/craft.md"],
             },
             dirty_paths=[],
             timestamp="2026-04-11T03:18:00Z",

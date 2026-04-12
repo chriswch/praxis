@@ -11,13 +11,15 @@ requires-python = ">=3.9"
 license = { text = "MIT" }
 
 [project.scripts]
-praxis = "workflow.scripts.praxis_cli:main"
+praxis = "praxis.cli.main:main"
 
 [tool.setuptools]
+package-dir = {"" = "src"}
 include-package-data = true
 
 [tool.setuptools.package-data]
-workflow = ["contracts/*.json", "pipelines/*.md", "reference/*.md"]
+praxis = ["contracts/*.json", "workflows/*.md", "workflows/reference/*.md"]
 
 [tool.setuptools.packages.find]
-include = ["workflow", "workflow.*"]
+where = ["src"]
+include = ["praxis", "praxis.*"]

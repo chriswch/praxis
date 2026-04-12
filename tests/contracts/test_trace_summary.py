@@ -114,7 +114,7 @@ class TraceSummaryContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.orchestrator",
+                "praxis.runtime.orchestrator",
                 "show-run",
                 "--repo-root",
                 str(self.repo_root),
@@ -192,7 +192,7 @@ class TraceSummaryContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.orchestrator",
+                "praxis.runtime.orchestrator",
                 "show-run",
                 "--repo-root",
                 str(self.repo_root),
@@ -285,7 +285,7 @@ class TraceSummaryContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.orchestrator",
+                "praxis.runtime.orchestrator",
                 "show-run",
                 "--repo-root",
                 str(self.repo_root),

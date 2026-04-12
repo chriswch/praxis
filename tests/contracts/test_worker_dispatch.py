@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Optional
 from unittest.mock import patch
 
-from workflow.scripts.contract_validation import validate_contract_payload
-from workflow.scripts.orchestrator import initialize_run, resume_run
-from workflow.scripts.worker_dispatch import dispatch_worker
+from praxis.runtime.state.contract_validation import validate_contract_payload
+from praxis.runtime.orchestrator import initialize_run, resume_run
+from praxis.runtime.workers.dispatch import dispatch_worker
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -192,7 +192,7 @@ class WorkerDispatchContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.orchestrator",
+                "praxis.runtime.orchestrator",
                 "show-run",
                 "--repo-root",
                 str(self.repo_root),
@@ -250,7 +250,7 @@ class WorkerDispatchContractTest(unittest.TestCase):
                 "args": args,
             }
 
-        with patch("workflow.scripts.provider_resume._run_command", side_effect=fake_run_command):
+        with patch("praxis.runtime.adapters.provider_resume._run_command", side_effect=fake_run_command):
             action = dispatch_worker(
                 repo_root=self.repo_root,
                 timestamp="2026-04-12T05:43:00Z",
@@ -293,7 +293,7 @@ class WorkerDispatchContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.orchestrator",
+                "praxis.runtime.orchestrator",
                 "show-run",
                 "--repo-root",
                 str(self.repo_root),

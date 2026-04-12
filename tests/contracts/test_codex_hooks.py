@@ -6,10 +6,10 @@ import unittest
 from pathlib import Path
 from typing import Optional
 
-from workflow.scripts.contract_validation import validate_contract_payload
-from workflow.scripts.handoff_policy import build_handoff_payload
-from workflow.scripts.orchestrator import initialize_run
-from workflow.scripts.worker_dispatch import dispatch_worker
+from praxis.runtime.state.contract_validation import validate_contract_payload
+from praxis.runtime.handoff_policy import build_handoff_payload
+from praxis.runtime.orchestrator import initialize_run
+from praxis.runtime.workers.dispatch import dispatch_worker
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -129,7 +129,7 @@ class CodexHooksContractTest(unittest.TestCase):
             next_story_id="S-002",
             summary="S-001 completed.",
             carry_forward_context=["Carry only the clarified summary and changed paths."],
-            changed_paths=["workflow/scripts/codex_hooks.py"],
+            changed_paths=["src/praxis/runtime/adapters/codex/hooks.py"],
             commit_meta={"end_commit": "abc1234"},
             generated_at="2026-04-12T03:01:00Z",
         )
@@ -139,7 +139,7 @@ class CodexHooksContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.codex_hooks",
+                "praxis.runtime.adapters.codex.hooks",
                 "session-start",
                 "--repo-root",
                 str(self.repo_root),
@@ -212,7 +212,7 @@ class CodexHooksContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.codex_hooks",
+                "praxis.runtime.adapters.codex.hooks",
                 "session-start",
                 "--repo-root",
                 str(self.repo_root),
@@ -252,7 +252,7 @@ class CodexHooksContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.codex_hooks",
+                "praxis.runtime.adapters.codex.hooks",
                 "session-start",
                 "--repo-root",
                 str(self.repo_root),
@@ -299,7 +299,7 @@ class CodexHooksContractTest(unittest.TestCase):
             next_story_id="S-002",
             summary="S-001 completed.",
             carry_forward_context=["Carry only the bounded handoff should cross the story boundary."],
-            changed_paths=["workflow/scripts/codex_hooks.py"],
+            changed_paths=["src/praxis/runtime/adapters/codex/hooks.py"],
             commit_meta={"end_commit": "abc1234"},
             generated_at="2026-04-12T03:11:00Z",
         )
@@ -310,7 +310,7 @@ class CodexHooksContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.codex_hooks",
+                "praxis.runtime.adapters.codex.hooks",
                 "session-start",
                 "--repo-root",
                 str(self.repo_root),
@@ -363,7 +363,7 @@ class CodexHooksContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.codex_hooks",
+                "praxis.runtime.adapters.codex.hooks",
                 "session-start",
                 "--repo-root",
                 str(self.repo_root),
@@ -415,7 +415,7 @@ class CodexHooksContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "workflow.scripts.codex_hooks",
+                "praxis.runtime.adapters.codex.hooks",
                 "session-start",
                 "--repo-root",
                 str(self.repo_root),

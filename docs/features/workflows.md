@@ -21,7 +21,7 @@ Current characteristics:
 
 Primary shared source:
 
-- `workflow/pipelines/craft.md`
+- `src/praxis/workflows/craft.md`
 
 ## Forge
 
@@ -41,7 +41,7 @@ Current characteristics:
 
 Primary shared source:
 
-- `workflow/pipelines/forge.md`
+- `src/praxis/workflows/forge.md`
 
 ## Scope Modes
 
@@ -67,7 +67,7 @@ Praxis currently routes from:
 
 - `route.kind`
 - `data.outcome_code`
-- the shared routing table in `workflow/scripts/routing.py`
+- the shared routing table in `src/praxis/runtime/routing.py`
 
 Human-readable markdown remains the reading surface, but the JSON result files
 drive progression.

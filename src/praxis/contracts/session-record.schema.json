@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/src/praxis/contracts/session-record.schema.json",
+  "title": "Praxis Session Record",
+  "description": "Best-effort durable metadata for a provider session used by a Praxis worker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "session_id",
+    "adapter",
+    "run_id",
+    "worker_id",
+    "cwd",
+    "resumable",
+    "last_seen_at",
+    "provider_metadata"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "enum": [1, 2]
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter": {
+      "type": "string",
+      "enum": ["claude", "codex"]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "worker_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cwd": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workspace_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resumable": {
+      "type": "boolean"
+    },
+    "session_origin": {
+      "type": "string",
+      "enum": [
+        "interactive_start",
+        "interactive_resume",
+        "headless_start",
+        "headless_resume"
+      ]
+    },
+    "provider_resume_supported": {
+      "type": "boolean"
+    },
+    "provider_resume_mode": {
+      "type": "string",
+      "enum": ["none", "interactive", "headless", "either"]
+    },
+    "provider_locator": {
+      "type": "string",
+      "minLength": 1
+    },
+    "worker_signature": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "context_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "boundary_handoff_fingerprint": {
+      "anyOf": [
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        { "type": "null" }
+      ]
+    },
+    "current_scope": {
+      "type": "string",
+      "enum": ["root", "feature", "slice"]
+    },
+    "current_slice_id": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+    "current_artifact_dir": {
+      "type": "string",
+      "pattern": "^\\.praxis(?:/.*)?$"
+    },
+    "current_stage": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+    "permission_profile": {
+      "type": "string",
+      "enum": ["planning", "design", "implementation", "review", "verification"]
+    },
+    "worktree_mode": {
+      "type": "string",
+      "enum": ["shared", "isolated"]
+    },
+    "last_seen_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_resume_at": {
+      "anyOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "last_resume_outcome": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+    "provider_metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "version": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "workspace_root",
+          "session_origin",
+          "provider_resume_supported",
+          "provider_resume_mode",
+          "provider_locator",
+          "worker_signature",
+          "context_fingerprint",
+          "boundary_handoff_fingerprint",
+          "current_scope",
+          "current_slice_id",
+          "current_artifact_dir",
+          "current_stage",
+          "permission_profile",
+          "worktree_mode",
+          "last_resume_at",
+          "last_resume_outcome"
+        ]
+      }
+    }
+  ]
+}

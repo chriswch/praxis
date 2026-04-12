@@ -1,4 +1,4 @@
 include README.md
-recursive-include workflow/contracts *.json
-recursive-include workflow/pipelines *.md
-recursive-include workflow/reference *.md
+recursive-include src/praxis/contracts *.json
+recursive-include src/praxis/workflows *.md
+recursive-include src/praxis/workflows/reference *.md

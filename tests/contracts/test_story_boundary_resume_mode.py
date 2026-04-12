@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workflow.scripts.handoff_policy import build_handoff_payload
-from workflow.scripts.story_boundary import resume_story_run_from_disk
+from praxis.runtime.handoff_policy import build_handoff_payload
+from praxis.runtime.story_boundary import resume_story_run_from_disk
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -36,7 +36,7 @@ class ResumeStoryBoundaryContractTest(unittest.TestCase):
             next_story_id="S-002",
             summary=summary,
             carry_forward_context=carry_forward_context,
-            changed_paths=["workflow/scripts/story_boundary.py"],
+            changed_paths=["src/praxis/runtime/story_boundary.py"],
             commit_meta={"end_commit": "def2222"},
             generated_at=generated_at,
         )

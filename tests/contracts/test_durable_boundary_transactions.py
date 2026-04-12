@@ -5,9 +5,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from workflow.scripts.contract_validation import ContractValidationError
-from workflow.scripts.durable_state import validate_event_log, validate_handoff_payload
-from workflow.scripts.story_boundary import (
+from praxis.runtime.state.contract_validation import ContractValidationError
+from praxis.runtime.state.durable_state import validate_event_log, validate_handoff_payload
+from praxis.runtime.story_boundary import (
     activate_next_story_from_boundary,
     checkpoint_manual_story_boundary,
     checkpoint_story_boundary,
@@ -61,10 +61,10 @@ class DurableBoundaryTransactionContractTest(unittest.TestCase):
         handoff_data = {
             "summary": "S-001 completed.",
             "carry_forward_context": ["Resume from the staged durable transaction."],
-            "changed_paths": ["workflow/scripts/story_boundary.py"],
+            "changed_paths": ["src/praxis/runtime/story_boundary.py"],
         }
 
-        from workflow.scripts import durable_state
+        from praxis.runtime.state import durable_state
 
         original_replace = durable_state._replace_target_with_staged_copy
         call_count = {"value": 0}
@@ -77,7 +77,7 @@ class DurableBoundaryTransactionContractTest(unittest.TestCase):
 
         with self.assertRaises(OSError):
             with patch(
-                "workflow.scripts.durable_state._replace_target_with_staged_copy",
+                "praxis.runtime.state.durable_state._replace_target_with_staged_copy",
                 side_effect=flaky_replace,
             ):
                 checkpoint_story_boundary(
@@ -127,7 +127,7 @@ class DurableBoundaryTransactionContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed.",
                 "carry_forward_context": ["Manual activation should validate the handoff first."],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             timestamp="2026-04-12T01:10:00Z",
@@ -165,7 +165,7 @@ class DurableBoundaryTransactionContractTest(unittest.TestCase):
             handoff_data={
                 "summary": "S-001 completed.",
                 "carry_forward_context": ["Only validated carry-forward context should persist."],
-                "changed_paths": ["workflow/scripts/story_boundary.py"],
+                "changed_paths": ["src/praxis/runtime/story_boundary.py"],
             },
             dirty_paths=[],
             timestamp="2026-04-12T01:20:00Z",
