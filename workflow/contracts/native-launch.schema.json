@@ -18,7 +18,7 @@
   "properties": {
     "version": {
       "type": "integer",
-      "const": 1
+      "enum": [1, 2]
     },
     "recorded_at": {
       "type": "string",
@@ -26,10 +26,7 @@
     },
     "adapter": {
       "type": "string",
-      "enum": [
-        "codex",
-        "claude"
-      ]
+      "enum": ["codex", "claude"]
     },
     "kind": {
       "type": "string",
@@ -38,11 +35,7 @@
     "session": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id",
-        "source",
-        "cwd"
-      ],
+      "required": ["id", "source", "cwd"],
       "properties": {
         "id": {
           "type": "string",
@@ -55,45 +48,29 @@
         "cwd": {
           "type": "string",
           "minLength": 1
+        },
+        "resumable": {
+          "type": "boolean"
         }
       }
     },
     "dispatch": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workflow",
-        "scope",
-        "slice_id",
-        "artifact_dir",
-        "stage",
-        "boundary_handoff_path"
-      ],
+      "required": ["workflow", "scope", "slice_id", "artifact_dir", "stage", "boundary_handoff_path"],
       "properties": {
         "workflow": {
           "type": "string",
-          "enum": [
-            "craft",
-            "forge"
-          ]
+          "enum": ["craft", "forge"]
         },
         "scope": {
           "type": "string",
-          "enum": [
-            "root",
-            "feature",
-            "slice"
-          ]
+          "enum": ["root", "feature", "slice"]
         },
         "slice_id": {
           "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
           ]
         },
         "artifact_dir": {
@@ -102,24 +79,14 @@
         },
         "stage": {
           "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
           ]
         },
         "boundary_handoff_path": {
           "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^\\.praxis(?:/.*)?$"
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "pattern": "^\\.praxis(?:/.*)?$" },
+            { "type": "null" }
           ]
         }
       }
@@ -147,11 +114,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "dispatch",
-              "run_metadata",
-              "boundary_handoff"
-            ]
+            "enum": ["dispatch", "run_metadata", "boundary_handoff"]
           },
           "uniqueItems": true
         },
@@ -160,24 +123,67 @@
         },
         "boundary_handoff_story_id": {
           "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
           ]
         },
         "boundary_handoff_next_story_id": {
           "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worker_class": {
+          "type": "string",
+          "enum": ["interactive_orchestrator", "subagent_worker", "session_worker", "worktree_worker"]
+        },
+        "permission_profile": {
+          "type": "string",
+          "enum": ["planning", "design", "implementation", "review", "verification"]
+        },
+        "worktree_mode": {
+          "type": "string",
+          "enum": ["shared", "isolated"]
+        },
+        "worktree_path": {
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "resume": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attempted": {
+          "type": "boolean"
+        },
+        "outcome": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strategy": {
+          "anyOf": [
+            { "type": "string", "enum": ["prefer_resume_then_relaunch", "relaunch_only"] },
+            { "type": "null" }
+          ]
+        },
+        "previous_session_id": {
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
           ]
         }
       }
@@ -200,13 +206,8 @@
         },
         "project_config_path": {
           "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
+            { "type": "null" }
           ]
         },
         "hooks_path": {
@@ -219,18 +220,18 @@
         },
         "launch_record_path": {
           "type": "string",
-          "pattern": "^\\.praxis/runtime/(?:codex|claude)-launches/.*\\.json$"
+          "pattern": "^\\.praxis/runtime/(?:(?:launches/(?:codex|claude))|(?:(?:codex|claude)-launches))/.*\\.json$"
+        },
+        "trace_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/traces/.*\\.jsonl$"
         },
         "compatibility": {
           "anyOf": [
             {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "settings_path",
-                "hooks_path",
-                "subagents_path"
-              ],
+              "required": ["settings_path", "hooks_path", "subagents_path"],
               "properties": {
                 "settings_path": {
                   "type": "string",
@@ -246,12 +247,46 @@
                 }
               }
             },
-            {
-              "type": "null"
-            }
+            { "type": "null" }
           ]
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "version": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "required": ["worker", "resume"],
+        "properties": {
+          "session": {
+            "required": ["id", "source", "cwd", "resumable"]
+          },
+          "worker": {
+            "required": ["worker_id", "worker_class", "permission_profile", "worktree_mode", "worktree_path"]
+          },
+          "resume": {
+            "required": ["attempted", "outcome", "strategy", "previous_session_id"]
+          },
+          "harness": {
+            "required": [
+              "instructions_path",
+              "project_config_path",
+              "hooks_path",
+              "agents_path",
+              "launch_record_path",
+              "trace_path",
+              "compatibility"
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

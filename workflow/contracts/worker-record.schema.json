@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/workflow/contracts/worker-record.schema.json",
+  "title": "Praxis Worker Record",
+  "description": "Durable record for one planned or launched worker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "worker_id",
+    "run_id",
+    "adapter",
+    "worker_class",
+    "launch_reason",
+    "permission_profile",
+    "worktree_mode",
+    "worktree_path",
+    "session_id",
+    "launch_record_path",
+    "trace_path",
+    "status"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "worker_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter": {
+      "type": "string",
+      "enum": ["claude", "codex"]
+    },
+    "worker_class": {
+      "type": "string",
+      "enum": ["interactive_orchestrator", "subagent_worker", "session_worker", "worktree_worker"]
+    },
+    "launch_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "permission_profile": {
+      "type": "string",
+      "enum": ["planning", "design", "implementation", "review", "verification"]
+    },
+    "worktree_mode": {
+      "type": "string",
+      "enum": ["shared", "isolated"]
+    },
+    "worktree_path": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+    "session_id": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+    "launch_record_path": {
+      "type": "string",
+      "pattern": "^\\.praxis/runtime/launches/(?:codex|claude)/.*\\.json$"
+    },
+    "trace_path": {
+      "type": "string",
+      "pattern": "^\\.praxis/runtime/traces/.*\\.jsonl$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["planned", "running", "completed", "failed"]
+    }
+  }
+}

@@ -127,8 +127,12 @@ class CodexHooksContractTest(unittest.TestCase):
         self.assertIn("boundary_handoff_path: .praxis/slices/S-001/handoff.json", response["hookSpecificOutput"]["additionalContext"])
         self.assertIn("carry-forward rule: use only this dispatch plus the active boundary handoff", response["hookSpecificOutput"]["additionalContext"])
 
-        launch_records = sorted((self.repo_root / ".praxis" / "runtime" / "codex-launches").glob("*.json"))
+        launch_records = sorted((self.repo_root / ".praxis" / "runtime" / "launches" / "codex").glob("*.json"))
         self.assertEqual(len(launch_records), 1)
+        worker_records = sorted((self.repo_root / ".praxis" / "runtime" / "workers").glob("*.json"))
+        session_records = sorted((self.repo_root / ".praxis" / "runtime" / "sessions" / "codex").glob("*.json"))
+        self.assertEqual(len(worker_records), 1)
+        self.assertEqual(len(session_records), 1)
 
         record = json.loads(launch_records[0].read_text())
         validate_contract_payload("native-launch.schema.json", record)
@@ -138,8 +142,10 @@ class CodexHooksContractTest(unittest.TestCase):
         self.assertTrue(record["context"]["fresh_context"])
         self.assertTrue(record["context"]["handoff_injected"])
         self.assertEqual(record["context"]["boundary_handoff_story_id"], "S-001")
+        self.assertEqual(record["worker"]["worker_class"], "session_worker")
         self.assertEqual(record["harness"]["instructions_path"], "AGENTS.md")
         self.assertEqual(record["harness"]["project_config_path"], ".codex/config.toml")
+        self.assertEqual(record["harness"]["trace_path"], ".praxis/runtime/traces/wrk_S002_clarify_01.jsonl")
 
         events = [
             json.loads(line)
@@ -243,7 +249,7 @@ class CodexHooksContractTest(unittest.TestCase):
 
         response = json.loads(completed.stdout)
         self.assertFalse(response["continue"])
-        self.assertFalse((self.repo_root / ".praxis" / "runtime" / "codex-launches").exists())
+        self.assertFalse((self.repo_root / ".praxis" / "runtime" / "launches" / "codex").exists())
 
         events = [
             json.loads(line)

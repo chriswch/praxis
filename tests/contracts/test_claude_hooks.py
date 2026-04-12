@@ -128,8 +128,12 @@ class ClaudeHooksContractTest(unittest.TestCase):
         self.assertIn("boundary_handoff_path: .praxis/slices/S-002/handoff.json", response["hookSpecificOutput"]["additionalContext"])
         self.assertIn("carry-forward rule: use only this dispatch plus the active boundary handoff", response["hookSpecificOutput"]["additionalContext"])
 
-        launch_records = sorted((self.repo_root / ".praxis" / "runtime" / "claude-launches").glob("*.json"))
+        launch_records = sorted((self.repo_root / ".praxis" / "runtime" / "launches" / "claude").glob("*.json"))
         self.assertEqual(len(launch_records), 1)
+        worker_records = sorted((self.repo_root / ".praxis" / "runtime" / "workers").glob("*.json"))
+        session_records = sorted((self.repo_root / ".praxis" / "runtime" / "sessions" / "claude").glob("*.json"))
+        self.assertEqual(len(worker_records), 1)
+        self.assertEqual(len(session_records), 1)
 
         record = json.loads(launch_records[0].read_text())
         validate_contract_payload("native-launch.schema.json", record)
@@ -140,10 +144,12 @@ class ClaudeHooksContractTest(unittest.TestCase):
         self.assertTrue(record["context"]["fresh_context"])
         self.assertTrue(record["context"]["handoff_injected"])
         self.assertEqual(record["context"]["boundary_handoff_story_id"], "S-002")
+        self.assertEqual(record["worker"]["worker_class"], "session_worker")
         self.assertEqual(record["harness"]["instructions_path"], "CLAUDE.md")
         self.assertEqual(record["harness"]["project_config_path"], ".claude/settings.json")
         self.assertEqual(record["harness"]["hooks_path"], ".claude/hooks")
         self.assertEqual(record["harness"]["agents_path"], ".claude/agents")
+        self.assertEqual(record["harness"]["trace_path"], ".praxis/runtime/traces/wrk_S003_clarify_01.jsonl")
 
         events = [
             json.loads(line)

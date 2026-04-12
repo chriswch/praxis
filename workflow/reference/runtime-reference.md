@@ -31,6 +31,10 @@ Core runtime artifacts:
 - `.praxis/story-ledger.json` - durable queue owner for multi-slice runs
 - `.praxis/events.jsonl` - lifecycle event log
 - `.praxis/results/<stage>.json` - routing result written by each stage
+- `.praxis/runtime/launches/<adapter>/...` - native launch records
+- `.praxis/runtime/workers/<worker-id>.json` - worker records
+- `.praxis/runtime/sessions/<adapter>/<session-id>.json` - provider session records
+- `.praxis/runtime/traces/<worker-id>.jsonl` - worker trace streams
 
 Execution semantics:
 - `workflow` is `craft` or `forge`
@@ -38,6 +42,8 @@ Execution semantics:
 - `run.execution.mode` is `manual` or `autopilot`
 - `run.routing.stop_reason_code` records why progression paused, blocked, or cancelled
 - `run.routing.boundary_handoff_path` points at the unconsumed handoff artifact for the next story
+- `run.current.worker_id` and `run.current.session_id` identify the active worker plan
+- `run.routing.pending_worker_action` and `run.routing.resume_strategy` make launch vs resume intent explicit
 
 Single-story runs write stage artifacts at `.praxis/`. Multi-slice runs write story-local artifacts under `.praxis/slices/{slice-id}/`.
 
@@ -79,7 +85,7 @@ Before launching any fresh worker context:
 4. load repo-scoped settings, hook config or hook entrypoints, agent patterns, and extension points from the active adapter harness config
 
 Repo-scoped harness surfaces:
-- `.claude-plugin/adapter.json`
+- `.claude/adapter.json`
 - `CLAUDE.md`
 - `.claude/settings.json`
 - `.claude/hooks/`
@@ -88,7 +94,7 @@ Repo-scoped harness surfaces:
 - `.claude-plugin/hooks/`
 - `.claude-plugin/subagents/`
 - `.claude-plugin/extensions.md`
-- `.codex-plugin/adapter.json`
+- `.codex/adapter.json`
 - `AGENTS.md`
 - `.codex/config.toml`
 - `.codex/hooks.json`

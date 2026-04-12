@@ -13,6 +13,12 @@ from .durable_state import (
     validate_state_payloads,
 )
 from .routing import resolve_next_stage_for_result, resolve_stop_reason_for_stage_result
+from .worker_runtime import (
+    bump_transition_id,
+    ensure_run_vnext_defaults,
+    ensure_stage_result_vnext_defaults,
+    sync_worker_cursor,
+)
 
 
 
@@ -28,11 +34,15 @@ def _state_snapshot(run: dict[str, Any]) -> dict[str, Any]:
         "current_scope": current.get("scope"),
         "current_slice_id": current.get("slice_id"),
         "current_stage": current.get("stage"),
+        "current_worker_id": current.get("worker_id"),
+        "current_session_id": current.get("session_id"),
         "next_action": routing.get("next_action"),
         "next_stage": routing.get("next_stage"),
         "next_slice_id": routing.get("next_slice_id"),
         "boundary_handoff_path": routing.get("boundary_handoff_path"),
         "stop_reason_code": routing.get("stop_reason_code"),
+        "pending_worker_action": routing.get("pending_worker_action"),
+        "resume_strategy": routing.get("resume_strategy"),
     }
 
 
@@ -148,6 +158,8 @@ def update_run_from_stage_result(
     recover_pending_transaction(repo_root)
     run = _load_json(run_path)
     stage_result = _load_json(stage_result_full_path)
+    ensure_run_vnext_defaults(run)
+    stage_result = ensure_stage_result_vnext_defaults(stage_result, run=run)
 
     validate_state_payloads(run=run, stage_result=stage_result)
     _validate_stage_alignment(run, stage_result)
@@ -215,6 +227,8 @@ def update_run_from_stage_result(
         next_stage=run["routing"]["next_stage"],
     )
     run["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     validate_state_payloads(run=run)
     commit_transaction(
@@ -230,6 +244,7 @@ def update_run_from_stage_result(
 def _print_result(*, repo_root: Path, extra: dict[str, Any] | None = None) -> None:
     recover_pending_transaction(repo_root)
     run = _load_json(repo_root / ".praxis" / "run.json")
+    ensure_run_vnext_defaults(run)
     payload = _state_snapshot(run)
     if extra:
         payload.update(extra)

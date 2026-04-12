@@ -20,6 +20,12 @@ from .durable_state import (
 from .git_boundary import GitBoundaryError, collect_boundary_evidence, current_git_head, current_worktree_metadata
 from .handoff_policy import HandoffBudgetError, build_handoff_payload
 from .routing import resolve_next_stage_for_result, resolve_stop_reason_for_stage_result
+from .worker_runtime import (
+    bump_transition_id,
+    ensure_run_vnext_defaults,
+    ensure_stage_result_vnext_defaults,
+    sync_worker_cursor,
+)
 
 
 def _event_exists(events: list[dict[str, Any]], *, event_type: str, **fields: Any) -> bool:
@@ -66,11 +72,15 @@ def _state_snapshot(repo_root: Path, run: dict[str, Any], ledger: dict[str, Any]
         "current_scope": current.get("scope"),
         "current_slice_id": current.get("slice_id"),
         "current_stage": current.get("stage"),
+        "current_worker_id": current.get("worker_id"),
+        "current_session_id": current.get("session_id"),
         "next_action": routing.get("next_action"),
         "next_stage": routing.get("next_stage"),
         "next_slice_id": routing.get("next_slice_id"),
         "boundary_handoff_path": routing.get("boundary_handoff_path"),
         "stop_reason_code": routing.get("stop_reason_code"),
+        "pending_worker_action": routing.get("pending_worker_action"),
+        "resume_strategy": routing.get("resume_strategy"),
         "ledger_active_story": stories.get("active"),
         "ledger_last_completed": stories.get("last_completed"),
     }
@@ -94,6 +104,7 @@ def _commit_story_state(
     handoff_markdown_rel: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> None:
+    ensure_run_vnext_defaults(run, timestamp=timestamp)
     files = {
         ".praxis/run.json": dump_json(run),
         ".praxis/story-ledger.json": dump_json(ledger),
@@ -142,6 +153,8 @@ def _write_resume_stop(
     run["routing"]["boundary_handoff_path"] = _handoff_path_for_story(ledger, active_story_id)
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     _queue_event_if_missing(
         events,
@@ -362,6 +375,7 @@ def initialize_story_queue(
     repo_root = repo_root.resolve()
     recover_pending_transaction(repo_root)
     run = _load_json(repo_root / ".praxis" / "run.json")
+    ensure_run_vnext_defaults(run)
     slice_map = _load_json(repo_root / slice_map_path)
     events = _load_events(repo_root / ".praxis" / "events.jsonl")
 
@@ -413,7 +427,7 @@ def initialize_story_queue(
         },
     }
 
-    run["version"] = 3
+    run["version"] = 4
     run["mode"] = "multi_slice"
     run.setdefault("execution", {})
     run["execution"]["mode"] = resolved_execution_mode
@@ -421,6 +435,8 @@ def initialize_story_queue(
     run["current"]["slice_id"] = first_story_id
     run["current"]["artifact_dir"] = f".praxis/slices/{first_story_id}"
     run["current"]["stage"] = "clarifying-intent"
+    run["current"]["worker_id"] = None
+    run["current"]["session_id"] = None
     run["status"] = "running"
     run["routing"]["next_action"] = "run_stage"
     run["routing"]["next_stage"] = "clarifying-intent"
@@ -429,6 +445,8 @@ def initialize_story_queue(
     run["routing"]["stop_reason_code"] = None
     run["routing"]["boundary_handoff_path"] = None
     run["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     _queue_event_if_missing(
         events,
@@ -469,6 +487,10 @@ def checkpoint_story_boundary(
     ledger = _load_json(repo_root / ".praxis" / "story-ledger.json")
     stage_result = _load_json(repo_root / stage_result_path)
     events = _load_events(repo_root / ".praxis" / "events.jsonl")
+    ensure_run_vnext_defaults(run)
+    stage_result = ensure_stage_result_vnext_defaults(stage_result, run=run)
+    ensure_run_vnext_defaults(run)
+    stage_result = ensure_stage_result_vnext_defaults(stage_result, run=run)
 
     validate_state_payloads(run=run, ledger=ledger, stage_result=stage_result, events=events)
     execution_mode = _resolve_execution_mode(run, ledger)
@@ -570,6 +592,8 @@ def checkpoint_story_boundary(
             },
             dedupe_fields={"slice_id": current_story_id, "reason_code": reason_code},
         )
+        bump_transition_id(run)
+        sync_worker_cursor(run)
         _commit_story_state(
             repo_root=repo_root,
             timestamp=timestamp,
@@ -752,6 +776,8 @@ def checkpoint_story_boundary(
 
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     _commit_story_state(
         repo_root=repo_root,
@@ -812,6 +838,8 @@ def pause_autopilot_for_stage_result(
     run["routing"]["reason"] = reason
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     _queue_event_if_missing(
         events,
@@ -865,6 +893,7 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
     run = _load_json(repo_root / ".praxis" / "run.json")
     ledger = _load_json(repo_root / ".praxis" / "story-ledger.json")
     events = _load_events(repo_root / ".praxis" / "events.jsonl")
+    ensure_run_vnext_defaults(run)
 
     validate_state_payloads(run=run, ledger=ledger, events=events)
     next_story_id = ledger["stories"]["active"]
@@ -908,6 +937,8 @@ def activate_next_story_from_boundary(*, repo_root: Path, timestamp: str) -> Non
     run["routing"]["boundary_handoff_path"] = handoff_path
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     _queue_event_if_missing(
         events,
@@ -939,6 +970,7 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
     run = _load_json(repo_root / ".praxis" / "run.json")
     ledger = _load_json(repo_root / ".praxis" / "story-ledger.json")
     events = _load_events(repo_root / ".praxis" / "events.jsonl")
+    ensure_run_vnext_defaults(run)
 
     validate_state_payloads(run=run, ledger=ledger, events=events)
     active_story_id = ledger["stories"]["active"]
@@ -946,6 +978,8 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
         if run["status"] in {"completed", "cancelled"}:
             run["routing"]["boundary_handoff_path"] = run["routing"].get("boundary_handoff_path")
             run["timestamps"]["updated_at"] = timestamp
+            bump_transition_id(run)
+            sync_worker_cursor(run)
             validate_state_payloads(run=run)
             commit_transaction(
                 repo_root=repo_root,
@@ -1039,6 +1073,8 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
             )
             run["timestamps"]["updated_at"] = timestamp
             ledger["timestamps"]["updated_at"] = timestamp
+            bump_transition_id(run)
+            sync_worker_cursor(run)
             events.append(
                 _resume_event(
                     run=run,
@@ -1072,6 +1108,8 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
             run["routing"]["reason"] = f"{active_story_id} is checkpointed and awaiting manual confirmation."
             run["timestamps"]["updated_at"] = timestamp
             ledger["timestamps"]["updated_at"] = timestamp
+            bump_transition_id(run)
+            sync_worker_cursor(run)
             events.append(
                 _resume_event(
                     run=run,
@@ -1133,6 +1171,8 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
         active_story["stop_reason"] = reason
         run["timestamps"]["updated_at"] = timestamp
         ledger["timestamps"]["updated_at"] = timestamp
+        bump_transition_id(run)
+        sync_worker_cursor(run)
 
         events.append(
             _resume_event(
@@ -1163,6 +1203,8 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
     run["routing"]["reason"] = f"{active_story_id} resumed from durable story-boundary state."
     run["timestamps"]["updated_at"] = timestamp
     ledger["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     events.append(
         _resume_event(
@@ -1190,6 +1232,7 @@ def _load_optional_json(path: str | None) -> dict[str, Any] | None:
 def _print_result(*, repo_root: Path, extra: dict[str, Any] | None = None) -> None:
     recover_pending_transaction(repo_root)
     run = _load_json(repo_root / ".praxis" / "run.json")
+    ensure_run_vnext_defaults(run)
     ledger_path = repo_root / ".praxis" / "story-ledger.json"
     payload = (
         _state_snapshot(repo_root, run, _load_json(ledger_path))

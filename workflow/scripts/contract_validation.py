@@ -133,6 +133,7 @@ def _validate_type(instance: Any, expected_type: str, path: str) -> None:
         "array": lambda value: isinstance(value, list),
         "string": lambda value: isinstance(value, str),
         "integer": lambda value: isinstance(value, int) and not isinstance(value, bool),
+        "number": lambda value: (isinstance(value, int) or isinstance(value, float)) and not isinstance(value, bool),
         "boolean": lambda value: isinstance(value, bool),
         "null": lambda value: value is None,
     }

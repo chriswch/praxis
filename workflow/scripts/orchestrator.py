@@ -26,6 +26,12 @@ from .story_boundary import (
     resume_story_run_from_disk,
 )
 from .trace_summary import build_trace_summary
+from .worker_runtime import (
+    bump_transition_id,
+    ensure_run_vnext_defaults,
+    ensure_stage_result_vnext_defaults,
+    sync_worker_cursor,
+)
 
 
 def _utc_now() -> str:
@@ -80,21 +86,29 @@ def _requires_boundary_transition(
 def _snapshot(repo_root: Path) -> dict[str, Any]:
     recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
-    dispatch = build_dispatch(repo_root)
+    ensure_run_vnext_defaults(run)
+    sync_worker_cursor(run)
+    dispatch = build_dispatch(repo_root, run=run)
     payload = {
         "workflow": run.get("workflow"),
+        "workflow_version": run.get("workflow_version"),
+        "run_id": run.get("run_id"),
         "run_status": run.get("status"),
         "mode": run.get("mode"),
         "execution_mode": run.get("execution", {}).get("mode"),
         "current_scope": run.get("current", {}).get("scope"),
         "current_slice_id": run.get("current", {}).get("slice_id"),
         "current_stage": run.get("current", {}).get("stage"),
+        "current_worker_id": run.get("current", {}).get("worker_id"),
+        "current_session_id": run.get("current", {}).get("session_id"),
         "next_action": run.get("routing", {}).get("next_action"),
         "next_stage": run.get("routing", {}).get("next_stage"),
         "next_slice_id": run.get("routing", {}).get("next_slice_id"),
         "boundary_handoff_path": run.get("routing", {}).get("boundary_handoff_path"),
         "stop_reason_code": run.get("routing", {}).get("stop_reason_code"),
         "reason": run.get("routing", {}).get("reason"),
+        "pending_worker_action": run.get("routing", {}).get("pending_worker_action"),
+        "resume_strategy": run.get("routing", {}).get("resume_strategy"),
         "trace": build_trace_summary(repo_root=repo_root, dispatch=dispatch),
     }
     handoff_path = run.get("routing", {}).get("boundary_handoff_path")
@@ -116,19 +130,21 @@ def _snapshot(repo_root: Path) -> dict[str, Any]:
     return payload
 
 
-def build_dispatch(repo_root: Path) -> dict[str, Any]:
+def build_dispatch(repo_root: Path, *, run: dict[str, Any] | None = None) -> dict[str, Any]:
     recover_pending_transaction(repo_root)
-    run = _load_json(_run_path(repo_root))
-    current = run["current"]
-    routing = run["routing"]
+    payload = run or _load_json(_run_path(repo_root))
+    ensure_run_vnext_defaults(payload)
+    sync_worker_cursor(payload)
+    current = payload["current"]
+    routing = payload["routing"]
     stage = routing.get("next_stage") or current.get("stage")
     artifact_dir = current.get("artifact_dir")
 
     dispatch = {
         "action": routing.get("next_action"),
-        "workflow": run.get("workflow"),
-        "adapter": run.get("runtime", {}).get("adapter"),
-        "entrypoint": run.get("runtime", {}).get("entrypoint"),
+        "workflow": payload.get("workflow"),
+        "adapter": payload.get("runtime", {}).get("adapter"),
+        "entrypoint": payload.get("runtime", {}).get("entrypoint"),
         "scope": current.get("scope"),
         "slice_id": current.get("slice_id"),
         "artifact_dir": artifact_dir,
@@ -157,6 +173,7 @@ def _print_result(
 
 
 def _commit_run_only(*, repo_root: Path, run: dict[str, Any], timestamp: str, operation: str, metadata: dict[str, Any] | None = None) -> None:
+    ensure_run_vnext_defaults(run, timestamp=timestamp)
     validate_state_payloads(run=run)
     commit_transaction(
         repo_root=repo_root,
@@ -203,6 +220,7 @@ def _commit_run_with_events(
     metadata: dict[str, Any] | None = None,
 ) -> None:
     events = extend_event_log(repo_root, new_events)
+    ensure_run_vnext_defaults(run, timestamp=timestamp)
     validate_state_payloads(run=run, events=events)
     commit_transaction(
         repo_root=repo_root,
@@ -245,7 +263,7 @@ def initialize_run(
     (praxis_dir / "results").mkdir(parents=True, exist_ok=True)
 
     run = {
-        "version": 3,
+        "version": 4,
         "workflow": workflow,
         "status": "running",
         "entry_task": entry_task,
@@ -263,6 +281,8 @@ def initialize_run(
             "slice_id": None,
             "artifact_dir": ".praxis",
             "stage": "clarifying-intent",
+            "worker_id": None,
+            "session_id": None,
         },
         "routing": {
             "next_action": "run_stage",
@@ -271,12 +291,38 @@ def initialize_run(
             "reason": "Run initialized. Start with clarifying-intent.",
             "stop_reason_code": None,
             "boundary_handoff_path": None,
+            "pending_worker_action": None,
+            "resume_strategy": None,
+        },
+        "control": {
+            "owner": "workflow.scripts.orchestrator",
+            "manual_session_required": execution_mode == "manual",
+            "last_transition_id": None,
+            "recovery_status": "clean",
+        },
+        "budgets": {
+            "run_max_turns": 400,
+            "run_max_workers": 40,
+            "soft_cost_usd": 25.0,
+            "hard_cost_usd": 40.0,
+        },
+        "policy": {
+            "default_permission_profile": "planning",
+            "require_fresh_review_worker": True,
+            "require_worktree_for_parallel_writes": True,
+        },
+        "checkpoints": {
+            "pending_user_decision": None,
+            "pending_review_gate": None,
         },
         "timestamps": {
             "created_at": timestamp,
             "updated_at": timestamp,
         },
     }
+    ensure_run_vnext_defaults(run, timestamp=timestamp)
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     _commit_run_only(
         repo_root=repo_root,
@@ -303,6 +349,8 @@ def advance_run(
     recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
     stage_result = _load_json(repo_root / stage_result_path)
+    ensure_run_vnext_defaults(run)
+    stage_result = ensure_stage_result_vnext_defaults(stage_result, run=run)
 
     validate_state_payloads(run=run, stage_result=stage_result)
     _validate_stage_alignment(run, stage_result)
@@ -362,6 +410,7 @@ def continue_pause_after_queue_init(*, repo_root: Path, timestamp: str) -> None:
     repo_root = repo_root.resolve()
     recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
+    ensure_run_vnext_defaults(run)
 
     run["status"] = "waiting_for_user"
     run["routing"]["next_action"] = "confirm_then_run"
@@ -372,6 +421,8 @@ def continue_pause_after_queue_init(*, repo_root: Path, timestamp: str) -> None:
         f"Story queue initialized. Awaiting confirmation to begin {run['current']['slice_id']}."
     )
     run["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     _commit_run_only(
         repo_root=repo_root,
@@ -386,6 +437,7 @@ def continue_run(*, repo_root: Path, timestamp: str) -> str:
     repo_root = repo_root.resolve()
     recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
+    ensure_run_vnext_defaults(run)
 
     if run["routing"]["next_action"] != "confirm_then_run":
         raise ValueError(
@@ -413,6 +465,8 @@ def continue_run(*, repo_root: Path, timestamp: str) -> str:
     run["routing"]["stop_reason_code"] = None
     run["routing"]["reason"] = f"Manual confirmation received. Continue to {next_stage}."
     run["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
 
     _commit_run_with_events(
         repo_root=repo_root,
@@ -436,6 +490,7 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
     repo_root = repo_root.resolve()
     recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
+    ensure_run_vnext_defaults(run)
 
     if _ledger_path(repo_root).exists() and run["mode"] == "multi_slice":
         return resume_story_run_from_disk(repo_root=repo_root, timestamp=timestamp)
@@ -445,6 +500,8 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
 
     if run["status"] in {"completed", "cancelled"} or next_action in {"finish", "idle"}:
         run["timestamps"]["updated_at"] = timestamp
+        bump_transition_id(run)
+        sync_worker_cursor(run)
         _commit_run_with_events(
             repo_root=repo_root,
             run=run,
@@ -472,6 +529,8 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
         run["routing"]["stop_reason_code"] = None
         run["routing"]["reason"] = f"Awaiting confirmation to continue to {current_stage}."
         run["timestamps"]["updated_at"] = timestamp
+        bump_transition_id(run)
+        sync_worker_cursor(run)
         _commit_run_with_events(
             repo_root=repo_root,
             run=run,
@@ -494,6 +553,8 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
         run["routing"]["next_action"] = "ask_user"
         run["routing"]["next_stage"] = current_stage
         run["timestamps"]["updated_at"] = timestamp
+        bump_transition_id(run)
+        sync_worker_cursor(run)
         _commit_run_with_events(
             repo_root=repo_root,
             run=run,
@@ -518,6 +579,8 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
     run["routing"]["stop_reason_code"] = None
     run["routing"]["reason"] = f"Resumed {run['workflow']} run from durable state."
     run["timestamps"]["updated_at"] = timestamp
+    bump_transition_id(run)
+    sync_worker_cursor(run)
     _commit_run_with_events(
         repo_root=repo_root,
         run=run,

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/workflow/contracts/session-record.schema.json",
+  "title": "Praxis Session Record",
+  "description": "Best-effort metadata for a provider session used by a Praxis worker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "session_id",
+    "adapter",
+    "run_id",
+    "worker_id",
+    "cwd",
+    "resumable",
+    "last_seen_at",
+    "provider_metadata"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter": {
+      "type": "string",
+      "enum": ["claude", "codex"]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "worker_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cwd": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resumable": {
+      "type": "boolean"
+    },
+    "last_seen_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "provider_metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

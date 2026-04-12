@@ -457,7 +457,7 @@
           },
           "launch_record_path": {
             "type": "string",
-            "pattern": "^\\.praxis/runtime/(?:codex|claude)-launches/.*\\.json$"
+            "pattern": "^\\.praxis/runtime/(?:(?:launches/(?:codex|claude))|(?:(?:codex|claude)-launches))/.*\\.json$"
           },
           "source": {
             "type": "string",

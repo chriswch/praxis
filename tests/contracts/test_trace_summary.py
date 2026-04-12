@@ -91,7 +91,7 @@ class TraceSummaryContractTest(unittest.TestCase):
                 "boundary_handoff_path": ".praxis/slices/S-001/handoff.json",
                 "handoff_present": True,
                 "handoff_injected": True,
-                "launch_record_path": ".praxis/runtime/codex-launches/20260412T001040Z-session.json",
+                "launch_record_path": ".praxis/runtime/launches/codex/20260412T001040Z-wrk_S002_clarify_01.json",
                 "source": "startup",
                 "reason_code": "native_launch_recorded",
                 "reason": "Native launch context prepared from durable Praxis state."

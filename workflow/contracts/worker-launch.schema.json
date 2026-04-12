@@ -17,21 +17,15 @@
   "properties": {
     "version": {
       "type": "integer",
-      "const": 1
+      "enum": [1, 2]
     },
     "workflow": {
       "type": "string",
-      "enum": [
-        "craft",
-        "forge"
-      ]
+      "enum": ["craft", "forge"]
     },
     "adapter": {
       "type": "string",
-      "enum": [
-        "claude",
-        "codex"
-      ]
+      "enum": ["claude", "codex"]
     },
     "dispatch": {
       "type": "object",
@@ -50,57 +44,32 @@
       "properties": {
         "action": {
           "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
           ]
         },
         "workflow": {
           "type": "string",
-          "enum": [
-            "craft",
-            "forge"
-          ]
+          "enum": ["craft", "forge"]
         },
         "adapter": {
           "type": "string",
-          "enum": [
-            "claude",
-            "codex"
-          ]
+          "enum": ["claude", "codex"]
         },
         "entrypoint": {
           "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
           ]
         },
         "scope": {
           "type": "string",
-          "enum": [
-            "root",
-            "feature",
-            "slice"
-          ]
+          "enum": ["root", "feature", "slice"]
         },
         "slice_id": {
           "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
           ]
         },
         "artifact_dir": {
@@ -109,35 +78,20 @@
         },
         "stage": {
           "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
           ]
         },
         "boundary_handoff_path": {
           "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^\\.praxis(?:/.*)?$"
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "pattern": "^\\.praxis(?:/.*)?$" },
+            { "type": "null" }
           ]
         },
         "stage_result_path": {
           "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^\\.praxis(?:/.*)?$"
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "pattern": "^\\.praxis(?:/.*)?$" },
+            { "type": "null" }
           ]
         }
       }
@@ -145,11 +99,7 @@
     "inputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_path",
-        "boundary_handoff_path",
-        "boundary_handoff"
-      ],
+      "required": ["run_path", "boundary_handoff_path", "boundary_handoff"],
       "properties": {
         "run_path": {
           "type": "string",
@@ -157,23 +107,14 @@
         },
         "boundary_handoff_path": {
           "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^\\.praxis(?:/.*)?$"
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "pattern": "^\\.praxis(?:/.*)?$" },
+            { "type": "null" }
           ]
         },
         "boundary_handoff": {
           "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
+            { "type": "object" },
+            { "type": "null" }
           ]
         }
       }
@@ -199,11 +140,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "dispatch",
-              "run_metadata",
-              "boundary_handoff"
-            ]
+            "enum": ["dispatch", "run_metadata", "boundary_handoff"]
           },
           "uniqueItems": true
         },
@@ -236,13 +173,8 @@
         },
         "project_config_path": {
           "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
-            },
-            {
-              "type": "null"
-            }
+            { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
+            { "type": "null" }
           ]
         },
         "hooks_path": {
@@ -260,55 +192,30 @@
         "extension_points": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "mcp_config_path",
-            "resources_path",
-            "tool_overrides_path",
-            "notes_path"
-          ],
+          "required": ["mcp_config_path", "resources_path", "tool_overrides_path", "notes_path"],
           "properties": {
             "mcp_config_path": {
               "anyOf": [
-                {
-                  "type": "string",
-                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
-                },
-                {
-                  "type": "null"
-                }
+                { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
+                { "type": "null" }
               ]
             },
             "resources_path": {
               "anyOf": [
-                {
-                  "type": "string",
-                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
-                },
-                {
-                  "type": "null"
-                }
+                { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
+                { "type": "null" }
               ]
             },
             "tool_overrides_path": {
               "anyOf": [
-                {
-                  "type": "string",
-                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
-                },
-                {
-                  "type": "null"
-                }
+                { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
+                { "type": "null" }
               ]
             },
             "notes_path": {
               "anyOf": [
-                {
-                  "type": "string",
-                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
-                },
-                {
-                  "type": "null"
-                }
+                { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
+                { "type": "null" }
               ]
             }
           }
@@ -318,11 +225,7 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "settings_path",
-                "hooks_path",
-                "subagents_path"
-              ],
+              "required": ["settings_path", "hooks_path", "subagents_path"],
               "properties": {
                 "settings_path": {
                   "type": "string",
@@ -338,12 +241,171 @@
                 }
               }
             },
-            {
-              "type": "null"
-            }
+            { "type": "null" }
           ]
         }
       }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worker_class": {
+          "type": "string",
+          "enum": ["interactive_orchestrator", "subagent_worker", "session_worker", "worktree_worker"]
+        },
+        "reuse_policy": {
+          "type": "string",
+          "enum": ["none", "reuse_story_worker", "new_story_worker"]
+        },
+        "review_independence": {
+          "type": "boolean"
+        },
+        "worktree_mode": {
+          "type": "string",
+          "enum": ["shared", "isolated"]
+        },
+        "fresh_context": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "type": "string",
+          "enum": ["planning", "design", "implementation", "review", "verification"]
+        },
+        "filesystem_scope": {
+          "type": "string",
+          "enum": ["workspace-write", "read-only", "danger-full-access", "inherit"]
+        },
+        "network_access": {
+          "type": "string",
+          "enum": ["restricted", "enabled", "inherit"]
+        },
+        "destructive_commands_allowed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run_max_turns": {
+          "type": "integer"
+        },
+        "run_max_workers": {
+          "type": "integer"
+        },
+        "soft_cost_usd": {
+          "type": "number"
+        },
+        "hard_cost_usd": {
+          "type": "number"
+        },
+        "worker_timeout_minutes": {
+          "type": "integer"
+        }
+      }
+    },
+    "artifact_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^\\.praxis(?:/.*)?$"
+      },
+      "uniqueItems": true
+    },
+    "artifact_outputs_expected": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^\\.praxis(?:/.*)?$"
+      },
+      "uniqueItems": true
+    },
+    "resume": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "anyOf": [
+            { "type": "string", "enum": ["prefer_resume_then_relaunch", "relaunch_only"] },
+            { "type": "null" }
+          ]
+        },
+        "session_id": {
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "resumable": {
+          "type": "boolean"
+        },
+        "resume_attempted": {
+          "type": "boolean"
+        },
+        "trace_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/traces/.*\\.jsonl$"
+        }
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "version": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "worker",
+          "permissions",
+          "budgets",
+          "artifact_inputs",
+          "artifact_outputs_expected",
+          "resume"
+        ],
+        "properties": {
+          "worker": {
+            "required": [
+              "worker_id",
+              "worker_class",
+              "reuse_policy",
+              "review_independence",
+              "worktree_mode",
+              "fresh_context",
+              "reason"
+            ]
+          },
+          "permissions": {
+            "required": ["profile", "filesystem_scope", "network_access", "destructive_commands_allowed"]
+          },
+          "budgets": {
+            "required": ["run_max_turns", "run_max_workers", "soft_cost_usd", "hard_cost_usd", "worker_timeout_minutes"]
+          },
+          "resume": {
+            "required": ["strategy", "session_id", "resumable", "resume_attempted", "trace_path"]
+          }
+        }
+      }
+    }
+  ]
 }
