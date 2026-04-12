@@ -1,0 +1,4 @@
+include README.md
+recursive-include workflow/contracts *.json
+recursive-include workflow/pipelines *.md
+recursive-include workflow/reference *.md

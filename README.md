@@ -9,6 +9,12 @@ Praxis keeps the shared workflow semantics in `workflow/` and keeps adapter wrap
 ### Install
 
 ```bash
+python3 -m pip install .
+```
+
+For local development:
+
+```bash
 python3 -m pip install -e .
 ```
 
