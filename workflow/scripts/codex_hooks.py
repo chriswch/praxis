@@ -15,6 +15,7 @@ from .native_launch import (
     write_native_launch_failure,
     write_native_launch_record,
 )
+from .provider_resume import reconcile_manual_resume
 
 
 def session_start_hook(*, repo_root: Path, recorded_at: str | None = None) -> int:
@@ -34,20 +35,43 @@ def session_start_hook(*, repo_root: Path, recorded_at: str | None = None) -> in
         payload = build_worker_launch_payload(repo_root=repo_root)
         if payload["adapter"] != "codex":
             raise ValueError(f"Codex session-start hook received non-codex adapter {payload['adapter']!r}.")
-        record_rel, _ = write_native_launch_record(
-            repo_root=repo_root,
-            payload=payload,
-            hook_request=hook_request,
-            recorded_at=ts,
-            handoff_status=launch_context.get("handoff_status") if launch_context else None,
-        )
-        response = success_response(
-            additional_context=build_session_start_additional_context(
+        if str(hook_request.get("source") or "") == "resume":
+            result = reconcile_manual_resume(
+                repo_root=repo_root,
                 payload=payload,
-                record_rel=record_rel,
-                label="Praxis Codex launch context",
+                hook_request=hook_request,
+                recorded_at=ts,
             )
-        )
+            if not result["allowed"]:
+                response = failure_response(f"Praxis blocked the native Codex resume: {result['reason']}")
+            else:
+                response = success_response(
+                    additional_context=build_session_start_additional_context(
+                        payload=payload,
+                        record_rel=result["resume_record_path"],
+                        label="Praxis Codex resume context",
+                        record_field_label="resume_record",
+                        extra_lines=[
+                            f"- resumed_session_id: {result['session_id']}",
+                            "- resume_mode: interactive",
+                        ],
+                    )
+                )
+        else:
+            record_rel, _ = write_native_launch_record(
+                repo_root=repo_root,
+                payload=payload,
+                hook_request=hook_request,
+                recorded_at=ts,
+                handoff_status=launch_context.get("handoff_status") if launch_context else None,
+            )
+            response = success_response(
+                additional_context=build_session_start_additional_context(
+                    payload=payload,
+                    record_rel=record_rel,
+                    label="Praxis Codex launch context",
+                )
+            )
     except Exception as exc:
         if launch_context is None:
             try:

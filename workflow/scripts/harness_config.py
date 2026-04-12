@@ -206,6 +206,7 @@ def build_worker_launch_payload(*, repo_root: Path) -> dict[str, Any]:
             "session_id": run["current"]["session_id"],
             "resumable": run["current"]["session_id"] is not None,
             "resume_attempted": False,
+            "mode": "headless" if run["execution"]["mode"] == "autopilot" else "interactive",
             "trace_path": trace_path,
         },
     }

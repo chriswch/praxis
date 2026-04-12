@@ -28,6 +28,10 @@
         "resume_blocked",
         "resume_failed",
         "resume_fallback_used",
+        "provider_resume_requested",
+        "provider_resume_succeeded",
+        "provider_resume_failed",
+        "worker_resumed",
         "native_launch_recorded",
         "native_launch_failed",
         "handoff_validated",
@@ -459,6 +463,232 @@
               "prefer_resume_then_relaunch",
               "relaunch_only"
             ]
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "provider_resume_requested",
+              "provider_resume_succeeded",
+              "provider_resume_failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "adapter",
+          "scope",
+          "artifact_dir",
+          "stage",
+          "boundary_handoff_path",
+          "worker_id",
+          "requested_session_id",
+          "resolved_session_id",
+          "resume_mode",
+          "resume_record_path",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "root",
+              "feature",
+              "slice"
+            ]
+          },
+          "slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boundary_handoff_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\.praxis(?:/.*)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worker_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requested_session_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resolved_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resume_mode": {
+            "type": "string",
+            "enum": [
+              "interactive",
+              "headless"
+            ]
+          },
+          "resume_record_path": {
+            "type": "string",
+            "pattern": "^\\.praxis/runtime/resumes/(?:codex|claude)/.*\\.json$"
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "worker_resumed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "adapter",
+          "scope",
+          "artifact_dir",
+          "stage",
+          "boundary_handoff_path",
+          "worker_id",
+          "session_id",
+          "resume_mode",
+          "resume_record_path",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "root",
+              "feature",
+              "slice"
+            ]
+          },
+          "slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boundary_handoff_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\.praxis(?:/.*)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worker_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "session_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resume_mode": {
+            "type": "string",
+            "enum": [
+              "interactive",
+              "headless"
+            ]
+          },
+          "resume_record_path": {
+            "type": "string",
+            "pattern": "^\\.praxis/runtime/resumes/(?:codex|claude)/.*\\.json$"
           },
           "reason_code": {
             "type": "string",

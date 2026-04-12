@@ -4,10 +4,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Optional
 
 from workflow.scripts.contract_validation import validate_contract_payload
 from workflow.scripts.handoff_policy import build_handoff_payload
 from workflow.scripts.orchestrator import initialize_run
+from workflow.scripts.worker_dispatch import dispatch_worker
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +32,17 @@ class ClaudeHooksContractTest(unittest.TestCase):
 
     def _write_json(self, rel_path: str, payload: dict) -> None:
         self._write_text(rel_path, json.dumps(payload, indent=2) + "\n")
+
+    def _set_stage_worker(self, *, stage: str, worker_id: str, session_id: Optional[str] = None) -> None:
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = json.loads(run_path.read_text())
+        run["current"]["stage"] = stage
+        run["current"]["worker_id"] = worker_id
+        run["routing"]["next_action"] = "run_stage"
+        run["routing"]["next_stage"] = stage
+        if session_id is not None:
+            run["current"]["session_id"] = session_id
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
 
     def _write_claude_harness(self) -> None:
         self._write_text("CLAUDE.md", "native claude instructions\n")
@@ -137,14 +150,18 @@ class ClaudeHooksContractTest(unittest.TestCase):
 
         record = json.loads(launch_records[0].read_text())
         validate_contract_payload("native-launch.schema.json", record)
+        self.assertEqual(record["version"], 3)
         self.assertEqual(record["adapter"], "claude")
         self.assertEqual(record["session"]["id"], "claude-sess-123")
+        self.assertEqual(record["session"]["origin"], "interactive_start")
         self.assertEqual(record["dispatch"]["slice_id"], "S-003")
         self.assertEqual(record["dispatch"]["stage"], "clarifying-intent")
         self.assertTrue(record["context"]["fresh_context"])
         self.assertTrue(record["context"]["handoff_injected"])
+        self.assertIsNotNone(record["context"]["context_fingerprint"])
         self.assertEqual(record["context"]["boundary_handoff_story_id"], "S-002")
         self.assertEqual(record["worker"]["worker_class"], "session_worker")
+        self.assertIsNotNone(record["worker"]["worker_signature"])
         self.assertEqual(record["harness"]["instructions_path"], "CLAUDE.md")
         self.assertEqual(record["harness"]["project_config_path"], ".claude/settings.json")
         self.assertEqual(record["harness"]["hooks_path"], ".claude/hooks")
@@ -168,6 +185,85 @@ class ClaudeHooksContractTest(unittest.TestCase):
         self.assertTrue(events[1]["handoff_present"])
         self.assertTrue(events[1]["handoff_injected"])
         self.assertEqual(events[1]["reason_code"], "native_launch_recorded")
+
+    def test_session_start_hook_reconciles_manual_resume_and_rotated_session_id(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Resume a claude worker manually",
+            adapter="claude",
+            execution_mode="manual",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:20:00Z",
+        )
+        self._set_stage_worker(stage="rapid-implementing", worker_id="wrk_root_impl_01")
+
+        dispatch_worker(
+            repo_root=self.repo_root,
+            timestamp="2026-04-12T04:21:00Z",
+            session_id="claude-prev-123",
+        )
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "workflow.scripts.claude_hooks",
+                "session-start",
+                "--repo-root",
+                str(self.repo_root),
+                "--timestamp",
+                "2026-04-12T04:22:00Z",
+            ],
+            cwd=PROJECT_ROOT,
+            input=json.dumps(
+                {
+                    "session_id": "claude-rotated-456",
+                    "source": "resume",
+                    "cwd": str(self.repo_root),
+                }
+            ),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        response = json.loads(completed.stdout)
+        self.assertTrue(response["continue"])
+        self.assertIn("Praxis Claude resume context", response["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("resume_record:", response["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("resumed_session_id: claude-rotated-456", response["hookSpecificOutput"]["additionalContext"])
+
+        resume_records = sorted((self.repo_root / ".praxis" / "runtime" / "resumes" / "claude").glob("*.json"))
+        self.assertEqual(len(resume_records), 1)
+        resume_record = json.loads(resume_records[0].read_text())
+        validate_contract_payload("native-resume.schema.json", resume_record)
+        self.assertEqual(resume_record["outcome"], "resumed")
+        self.assertEqual(resume_record["resolved_session_id"], "claude-rotated-456")
+
+        rotated_session_path = self.repo_root / ".praxis" / "runtime" / "sessions" / "claude" / "claude-rotated-456.json"
+        self.assertTrue(rotated_session_path.exists())
+        session_record = json.loads(rotated_session_path.read_text())
+        self.assertEqual(session_record["session_id"], "claude-rotated-456")
+        self.assertEqual(session_record["session_origin"], "interactive_resume")
+        self.assertEqual(session_record["last_resume_outcome"], "resumed")
+
+        run = json.loads((self.repo_root / ".praxis" / "run.json").read_text())
+        self.assertEqual(run["current"]["session_id"], "claude-rotated-456")
+        self.assertEqual(
+            run["routing"]["reason"],
+            "Awaiting rapid-implementing stage results from resumed worker wrk_root_impl_01.",
+        )
+
+        events = [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(
+            [event["type"] for event in events][-3:],
+            ["provider_resume_requested", "provider_resume_succeeded", "worker_resumed"],
+        )
 
 
     def test_session_start_hook_passes_through_when_no_run_exists(self) -> None:

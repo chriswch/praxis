@@ -9,6 +9,14 @@ from typing import Any
 
 from .contract_validation import validate_contract_payload
 from .durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json, validate_state_payloads
+from .native_resume import (
+    boundary_handoff_fingerprint_from_payload,
+    build_session_record,
+    classify_session_origin,
+    context_fingerprint_from_payload,
+    worker_record_relpath,
+    worker_signature_from_payload,
+)
 from .worker_runtime import ensure_run_vnext_defaults, mark_worker_started
 
 
@@ -37,20 +45,13 @@ def _record_relpath(*, adapter: str, recorded_at: str, worker_id: str) -> str:
     return f".praxis/runtime/launches/{adapter}/{ts}-{worker_slug}.json"
 
 
-def _worker_record_relpath(worker_id: str) -> str:
-    return f".praxis/runtime/workers/{_slug(worker_id, fallback='worker')}.json"
-
-
-def _session_record_relpath(adapter: str, session_id: str) -> str:
-    return f".praxis/runtime/sessions/{adapter}/{_slug(session_id, fallback='session')}.json"
-
-
 def _trace_relpath(payload: dict[str, Any]) -> str:
     return payload["resume"]["trace_path"]
 
 
 def build_native_launch_record(
     *,
+    run: dict[str, Any],
     payload: dict[str, Any],
     hook_request: dict[str, Any],
     recorded_at: str,
@@ -65,7 +66,7 @@ def build_native_launch_record(
     if not isinstance(resume_outcome, str) or not resume_outcome:
         resume_outcome = "resume_not_attempted" if not resume_attempted else "resume_requested"
     record = {
-        "version": 2,
+        "version": 3,
         "recorded_at": recorded_at,
         "adapter": adapter,
         "kind": "session_start",
@@ -74,6 +75,8 @@ def build_native_launch_record(
             "source": str(hook_request.get("source") or "unknown"),
             "cwd": str(hook_request.get("cwd") or "."),
             "resumable": bool(payload["resume"].get("resumable")),
+            "origin": classify_session_origin(str(hook_request.get("source") or "unknown")),
+            "provider_locator": session_id,
         },
         "dispatch": {
             "workflow": payload["workflow"],
@@ -90,6 +93,8 @@ def build_native_launch_record(
             "handoff_injected": payload["context_policy"]["handoff_injected"],
             "boundary_handoff_story_id": handoff["story_id"] if handoff else None,
             "boundary_handoff_next_story_id": handoff["next_story_id"] if handoff else None,
+            "context_fingerprint": context_fingerprint_from_payload(payload),
+            "boundary_handoff_fingerprint": boundary_handoff_fingerprint_from_payload(payload),
         },
         "worker": {
             "worker_id": worker["worker_id"],
@@ -97,12 +102,17 @@ def build_native_launch_record(
             "permission_profile": payload["permissions"]["profile"],
             "worktree_mode": worker["worktree_mode"],
             "worktree_path": str(hook_request.get("cwd")) if hook_request.get("cwd") else None,
+            "worker_signature": worker_signature_from_payload(
+                run_id=run["run_id"],
+                payload=payload,
+            ),
         },
         "resume": {
             "attempted": resume_attempted,
             "outcome": resume_outcome,
             "strategy": payload["resume"].get("strategy"),
             "previous_session_id": payload["resume"].get("session_id"),
+            "mode": payload["resume"].get("mode"),
         },
         "harness": {
             "instructions_path": payload["harness"]["instructions_path"],
@@ -120,7 +130,7 @@ def build_native_launch_record(
 
 def build_worker_record(*, run: dict[str, Any], payload: dict[str, Any], record: dict[str, Any], record_rel: str) -> tuple[str, dict[str, Any]]:
     worker_id = payload["worker"]["worker_id"]
-    rel = _worker_record_relpath(worker_id)
+    rel = worker_record_relpath(worker_id)
     worker_record = {
         "version": 1,
         "worker_id": worker_id,
@@ -138,29 +148,6 @@ def build_worker_record(*, run: dict[str, Any], payload: dict[str, Any], record:
     }
     validate_contract_payload("worker-record.schema.json", worker_record)
     return rel, worker_record
-
-
-def build_session_record(*, run: dict[str, Any], payload: dict[str, Any], record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    session_id = record["session"]["id"]
-    rel = _session_record_relpath(payload["adapter"], session_id)
-    session_record = {
-        "version": 1,
-        "session_id": session_id,
-        "adapter": payload["adapter"],
-        "run_id": run["run_id"],
-        "worker_id": payload["worker"]["worker_id"],
-        "cwd": record["session"]["cwd"],
-        "resumable": record["session"]["resumable"],
-        "last_seen_at": record["recorded_at"],
-        "provider_metadata": {
-            "source": record["session"]["source"],
-            "workflow": record["dispatch"]["workflow"],
-            "scope": record["dispatch"]["scope"],
-            "stage": record["dispatch"]["stage"],
-        },
-    }
-    validate_contract_payload("session-record.schema.json", session_record)
-    return rel, session_record
 
 
 def derive_native_launch_failure_code(
@@ -302,12 +289,18 @@ def write_native_launch_record(
     run = load_json(repo_root / ".praxis" / "run.json")
     ensure_run_vnext_defaults(run)
     record_rel, record = build_native_launch_record(
+        run=run,
         payload=payload,
         hook_request=hook_request,
         recorded_at=recorded_at,
     )
     worker_rel, worker_record = build_worker_record(run=run, payload=payload, record=record, record_rel=record_rel)
-    session_rel, session_record = build_session_record(run=run, payload=payload, record=record)
+    session_rel, session_record = build_session_record(
+        run=run,
+        payload=payload,
+        record=record,
+        record_rel=record_rel,
+    )
 
     mark_worker_started(run, session_id=record["session"]["id"])
     run["timestamps"]["updated_at"] = recorded_at
@@ -410,7 +403,14 @@ def write_native_launch_failure(
     )
 
 
-def build_session_start_additional_context(*, payload: dict[str, Any], record_rel: str, label: str) -> str:
+def build_session_start_additional_context(
+    *,
+    payload: dict[str, Any],
+    record_rel: str,
+    label: str,
+    record_field_label: str = "launch_record",
+    extra_lines: list[str] | None = None,
+) -> str:
     dispatch = payload["dispatch"]
     handoff = payload["inputs"]["boundary_handoff"]
     lines = [
@@ -425,10 +425,12 @@ def build_session_start_additional_context(*, payload: dict[str, Any], record_re
         f"- worker_class: {payload['worker']['worker_class']}",
         f"- permission_profile: {payload['permissions']['profile']}",
         f"- run_metadata: {payload['inputs']['run_path']}",
-        f"- launch_record: {record_rel}",
+        f"- {record_field_label}: {record_rel}",
         f"- trace_path: {payload['resume']['trace_path']}",
         "- carry-forward rule: use only this dispatch plus the active boundary handoff",
     ]
+    if extra_lines:
+        lines.extend(extra_lines)
     if handoff is None:
         lines.append("- boundary_handoff: none")
         return "\n".join(lines)

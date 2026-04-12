@@ -370,26 +370,33 @@ def _evaluate_native_harness_case(case: dict[str, Any]) -> dict[str, Any]:
 def _evaluate_native_trace_case(case: dict[str, Any]) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as tmp:
         repo_root = Path(tmp)
-        stage_result = case["input"]["stage_result"]
         _write_json(repo_root, ".praxis/run.json", case["input"]["run"])
-        _write_json(repo_root, ".praxis/story-ledger.json", case["input"]["story_ledger"])
-        _write_json(repo_root, f"{stage_result['artifact_dir']}/results/{stage_result['stage']}.json", stage_result)
+        if "events" in case["input"]:
+            (repo_root / ".praxis" / "events.jsonl").write_text(
+                "\n".join(json.dumps(event) for event in case["input"]["events"]) + "\n"
+            )
+            pause_action = None
+            resume_action = None
+        else:
+            stage_result = case["input"]["stage_result"]
+            _write_json(repo_root, ".praxis/story-ledger.json", case["input"]["story_ledger"])
+            _write_json(repo_root, f"{stage_result['artifact_dir']}/results/{stage_result['stage']}.json", stage_result)
 
-        pause_action = advance_run(
-            repo_root=repo_root,
-            stage_result_path=Path(f"{stage_result['artifact_dir']}/results/{stage_result['stage']}.json"),
-            slice_map_path=Path(".praxis/slice-map.json"),
-            commit_meta=None,
-            handoff_data=None,
-            dirty_paths=None,
-            gate_failures=None,
-            cancel_requested=False,
-            timestamp=case["input"].get("pause_timestamp", "2026-04-12T04:35:00Z"),
-        )
-        resume_action = resume_run(
-            repo_root=repo_root,
-            timestamp=case["input"].get("resume_timestamp", "2026-04-12T04:36:00Z"),
-        )
+            pause_action = advance_run(
+                repo_root=repo_root,
+                stage_result_path=Path(f"{stage_result['artifact_dir']}/results/{stage_result['stage']}.json"),
+                slice_map_path=Path(".praxis/slice-map.json"),
+                commit_meta=None,
+                handoff_data=None,
+                dirty_paths=None,
+                gate_failures=None,
+                cancel_requested=False,
+                timestamp=case["input"].get("pause_timestamp", "2026-04-12T04:35:00Z"),
+            )
+            resume_action = resume_run(
+                repo_root=repo_root,
+                timestamp=case["input"].get("resume_timestamp", "2026-04-12T04:36:00Z"),
+            )
         show_run = _show_run(repo_root)
 
     view = {

@@ -11,6 +11,7 @@ from .native_launch import (
     write_native_launch_failure,
     write_native_launch_record,
 )
+from .provider_resume import attempt_provider_resume
 from .worker_runtime import ensure_run_vnext_defaults
 
 
@@ -25,11 +26,18 @@ def _synthetic_session_id(*, adapter: str, worker_id: str, timestamp: str) -> st
     return f"{adapter}-session-{compact_ts}-{worker_slug}"
 
 
-def _resume_fallback_event(*, payload: dict[str, Any], recorded_at: str, reason_code: str, reason: str) -> dict[str, Any]:
+def _resume_fallback_event(
+    *,
+    payload: dict[str, Any],
+    recorded_at: str,
+    reason_code: str,
+    reason: str,
+    resume_record_path: str | None = None,
+) -> dict[str, Any]:
     dispatch = payload["dispatch"]
     worker = payload["worker"]
     resume = payload["resume"]
-    return {
+    event = {
         "ts": recorded_at,
         "type": "resume_fallback_used",
         "adapter": payload["adapter"],
@@ -44,6 +52,9 @@ def _resume_fallback_event(*, payload: dict[str, Any], recorded_at: str, reason_
         "reason_code": reason_code,
         "reason": reason,
     }
+    if resume_record_path is not None:
+        event["resume_record_path"] = resume_record_path
+    return event
 
 
 def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None = None) -> str:
@@ -84,12 +95,20 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
         resume.get("strategy") == "prefer_resume_then_relaunch"
         and resume.get("session_id")
     ):
-        reason_code = "provider_resume_unavailable"
-        reason = (
-            "Provider session resume is not wired yet, so the control plane is relaunching "
-            "the worker from durable Praxis state."
-        )
         resume["resume_attempted"] = True
+        resume["mode"] = "headless"
+        result = attempt_provider_resume(
+            repo_root=repo_root,
+            payload=payload,
+            timestamp=timestamp,
+        )
+        if result["status"] == "resumed":
+            return "worker_resumed"
+        if result["status"] == "failed":
+            raise RuntimeError(result["reason"])
+
+        reason_code = str(result.get("reason_code") or "provider_resume_failed")
+        reason = str(result.get("reason") or "Provider-native resume fell back to a fresh launch.")
         resume["resume_outcome"] = "resume_fallback_to_relaunch"
         extra_events.append(
             _resume_fallback_event(
@@ -97,6 +116,7 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
                 recorded_at=timestamp,
                 reason_code=reason_code,
                 reason=reason,
+                resume_record_path=result.get("resume_record_path"),
             )
         )
         transition_action = "resume_fallback_relaunch"

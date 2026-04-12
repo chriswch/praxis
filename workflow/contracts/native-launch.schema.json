@@ -18,7 +18,7 @@
   "properties": {
     "version": {
       "type": "integer",
-      "enum": [1, 2]
+      "enum": [1, 2, 3]
     },
     "recorded_at": {
       "type": "string",
@@ -51,6 +51,19 @@
         },
         "resumable": {
           "type": "boolean"
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "interactive_start",
+            "interactive_resume",
+            "headless_start",
+            "headless_resume"
+          ]
+        },
+        "provider_locator": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -132,6 +145,16 @@
             { "type": "string", "minLength": 1 },
             { "type": "null" }
           ]
+        },
+        "context_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "boundary_handoff_fingerprint": {
+          "anyOf": [
+            { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            { "type": "null" }
+          ]
         }
       }
     },
@@ -160,6 +183,10 @@
             { "type": "string", "minLength": 1 },
             { "type": "null" }
           ]
+        },
+        "worker_signature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       }
     },
@@ -183,6 +210,12 @@
         "previous_session_id": {
           "anyOf": [
             { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "mode": {
+          "anyOf": [
+            { "type": "string", "enum": ["interactive", "headless"] },
             { "type": "null" }
           ]
         }
@@ -284,6 +317,31 @@
               "trace_path",
               "compatibility"
             ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "version": {
+            "const": 3
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "session": {
+            "required": ["origin", "provider_locator"]
+          },
+          "context": {
+            "required": ["context_fingerprint", "boundary_handoff_fingerprint"]
+          },
+          "worker": {
+            "required": ["worker_signature"]
+          },
+          "resume": {
+            "required": ["mode"]
           }
         }
       }

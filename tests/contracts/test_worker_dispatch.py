@@ -4,6 +4,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Optional
+from unittest.mock import patch
 
 from workflow.scripts.contract_validation import validate_contract_payload
 from workflow.scripts.orchestrator import initialize_run, resume_run
@@ -34,6 +36,17 @@ class WorkerDispatchContractTest(unittest.TestCase):
 
     def _write_json(self, rel_path: str, payload: dict) -> None:
         self._write_text(rel_path, json.dumps(payload, indent=2) + "\n")
+
+    def _set_stage_worker(self, *, stage: str, worker_id: str, session_id: Optional[str] = None) -> None:
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = load_json(run_path)
+        run["current"]["stage"] = stage
+        run["current"]["worker_id"] = worker_id
+        run["routing"]["next_stage"] = stage
+        run["routing"]["next_action"] = "run_stage"
+        if session_id is not None:
+            run["current"]["session_id"] = session_id
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
 
     def _write_codex_harness(self) -> None:
         self._write_text("AGENTS.md", "native codex instructions\n")
@@ -128,12 +141,11 @@ class WorkerDispatchContractTest(unittest.TestCase):
         )
 
         run_path = self.repo_root / ".praxis" / "run.json"
-        run = load_json(run_path)
-        run["current"]["stage"] = "rapid-implementing"
-        run["current"]["worker_id"] = "wrk_root_impl_01"
-        run["current"]["session_id"] = "sess-prev-123"
-        run["routing"]["next_stage"] = "rapid-implementing"
-        run_path.write_text(json.dumps(run, indent=2) + "\n")
+        self._set_stage_worker(
+            stage="rapid-implementing",
+            worker_id="wrk_root_impl_01",
+            session_id="sess-prev-123",
+        )
 
         action = dispatch_worker(
             repo_root=self.repo_root,
@@ -155,6 +167,12 @@ class WorkerDispatchContractTest(unittest.TestCase):
         self.assertEqual(record["resume"]["previous_session_id"], "sess-prev-123")
         self.assertEqual(record["session"]["source"], "control_plane_resume_fallback")
 
+        resume_records = sorted((self.repo_root / ".praxis" / "runtime" / "resumes" / "codex").glob("*.json"))
+        self.assertEqual(len(resume_records), 1)
+        resume_record = load_json(resume_records[0])
+        self.assertEqual(resume_record["outcome"], "session_missing")
+        self.assertEqual(resume_record["reason_code"], "session_missing")
+
         events = [
             json.loads(line)
             for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
@@ -162,7 +180,12 @@ class WorkerDispatchContractTest(unittest.TestCase):
         ]
         self.assertEqual(
             [event["type"] for event in events],
-            ["resume_fallback_used", "native_launch_recorded"],
+            [
+                "provider_resume_requested",
+                "provider_resume_failed",
+                "resume_fallback_used",
+                "native_launch_recorded",
+            ],
         )
 
         completed = subprocess.run(
@@ -182,6 +205,106 @@ class WorkerDispatchContractTest(unittest.TestCase):
         trace = json.loads(completed.stdout)["trace"]
         self.assertEqual(trace["last_resume_event"]["type"], "resume_fallback_used")
         self.assertEqual(trace["last_launch_event"]["type"], "native_launch_recorded")
+
+    def test_dispatch_worker_resumes_codex_headless_session_when_provider_succeeds(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Resume a codex worker headlessly",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T05:40:00Z",
+        )
+        self._set_stage_worker(
+            stage="rapid-implementing",
+            worker_id="wrk_root_impl_01",
+        )
+
+        dispatch_worker(
+            repo_root=self.repo_root,
+            timestamp="2026-04-12T05:41:00Z",
+            session_id="sess-prev-123",
+        )
+        resume_run(
+            repo_root=self.repo_root,
+            timestamp="2026-04-12T05:42:00Z",
+        )
+
+        def fake_run_command(args: list[str], *, cwd: Path) -> dict:
+            self._write_json(
+                ".praxis/results/rapid-implementing.json",
+                {
+                    "version": 3,
+                    "stage": "rapid-implementing",
+                    "artifact_dir": ".praxis",
+                    "route": {"kind": "proceed", "next_stage": None},
+                },
+            )
+            return {
+                "ok": True,
+                "returncode": 0,
+                "stdout": json.dumps({"session_id": "sess-prev-123"}) + "\n",
+                "stderr": "",
+                "error": None,
+                "args": args,
+            }
+
+        with patch("workflow.scripts.provider_resume._run_command", side_effect=fake_run_command):
+            action = dispatch_worker(
+                repo_root=self.repo_root,
+                timestamp="2026-04-12T05:43:00Z",
+            )
+
+        self.assertEqual(action, "worker_resumed")
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        self.assertEqual(run["current"]["session_id"], "sess-prev-123")
+        self.assertEqual(run["routing"]["pending_worker_action"], "await_stage_result")
+        self.assertEqual(
+            run["routing"]["reason"],
+            "Awaiting rapid-implementing stage results from resumed worker wrk_root_impl_01.",
+        )
+
+        resume_records = sorted((self.repo_root / ".praxis" / "runtime" / "resumes" / "codex").glob("*.json"))
+        self.assertEqual(len(resume_records), 1)
+        resume_record = load_json(resume_records[0])
+        validate_contract_payload("native-resume.schema.json", resume_record)
+        self.assertEqual(resume_record["outcome"], "resumed")
+        self.assertEqual(resume_record["resume_mode"], "headless")
+
+        session_record = load_json(
+            sorted((self.repo_root / ".praxis" / "runtime" / "sessions" / "codex").glob("*.json"))[0]
+        )
+        self.assertEqual(session_record["last_resume_outcome"], "resumed")
+        self.assertEqual(session_record["session_origin"], "headless_resume")
+
+        events = [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(
+            [event["type"] for event in events][-3:],
+            ["provider_resume_requested", "provider_resume_succeeded", "worker_resumed"],
+        )
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "workflow.scripts.orchestrator",
+                "show-run",
+                "--repo-root",
+                str(self.repo_root),
+            ],
+            cwd=PROJECT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        trace = json.loads(completed.stdout)["trace"]
+        self.assertEqual(trace["last_resume_event"]["type"], "worker_resumed")
 
     def test_resume_run_rehydrates_a_dispatched_worker_back_to_resume_or_launch(self) -> None:
         initialize_run(

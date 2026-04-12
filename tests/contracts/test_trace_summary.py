@@ -208,6 +208,99 @@ class TraceSummaryContractTest(unittest.TestCase):
         self.assertEqual(result["trace"]["last_resume_event"]["type"], "story_activated")
         self.assertIsNone(result["trace"]["stop_reason_code"])
 
+    def test_show_run_treats_worker_resumed_as_the_strongest_resume_signal(self) -> None:
+        run = {
+            "version": 4,
+            "workflow": "forge",
+            "status": "running",
+            "entry_task": "Inspect provider resume traces",
+            "mode": "single_story",
+            "runtime": {
+                "adapter": "codex",
+                "entrypoint": "praxis:forge"
+            },
+            "execution": {
+                "mode": "autopilot",
+                "fresh_context_per_story": True
+            },
+            "current": {
+                "scope": "root",
+                "slice_id": None,
+                "artifact_dir": ".praxis",
+                "stage": "rapid-implementing"
+            },
+            "routing": {
+                "next_action": "run_stage",
+                "next_stage": "rapid-implementing",
+                "next_slice_id": None,
+                "reason": "Awaiting resumed worker output.",
+                "stop_reason_code": None,
+                "boundary_handoff_path": None
+            },
+            "timestamps": {
+                "created_at": "2026-04-12T00:00:00Z",
+                "updated_at": "2026-04-12T00:20:00Z"
+            }
+        }
+        events = [
+            {
+                "ts": "2026-04-12T00:05:00Z",
+                "type": "provider_resume_failed",
+                "adapter": "codex",
+                "scope": "root",
+                "slice_id": None,
+                "artifact_dir": ".praxis",
+                "stage": "rapid-implementing",
+                "boundary_handoff_path": None,
+                "worker_id": "wrk_root_impl_01",
+                "requested_session_id": "sess-prev-123",
+                "resolved_session_id": None,
+                "resume_mode": "headless",
+                "resume_record_path": ".praxis/runtime/resumes/codex/20260412T000500Z-wrk_root_impl_01.json",
+                "reason_code": "provider_rejected",
+                "reason": "The provider resume command failed."
+            },
+            {
+                "ts": "2026-04-12T00:06:00Z",
+                "type": "worker_resumed",
+                "adapter": "codex",
+                "scope": "root",
+                "slice_id": None,
+                "artifact_dir": ".praxis",
+                "stage": "rapid-implementing",
+                "boundary_handoff_path": None,
+                "worker_id": "wrk_root_impl_01",
+                "session_id": "sess-prev-123",
+                "resume_mode": "headless",
+                "resume_record_path": ".praxis/runtime/resumes/codex/20260412T000600Z-wrk_root_impl_01.json",
+                "reason_code": "worker_resumed",
+                "reason": "The worker resumed safely."
+            }
+        ]
+
+        (self.repo_root / ".praxis" / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+        (self.repo_root / ".praxis" / "events.jsonl").write_text("\n".join(json.dumps(event) for event in events) + "\n")
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "workflow.scripts.orchestrator",
+                "show-run",
+                "--repo-root",
+                str(self.repo_root),
+            ],
+            cwd=PROJECT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        result = json.loads(completed.stdout)
+        self.assertEqual(result["trace"]["last_stop_event"]["type"], "provider_resume_failed")
+        self.assertEqual(result["trace"]["last_resume_event"]["type"], "worker_resumed")
+        self.assertIsNone(result["trace"]["stop_reason_code"])
+
 
 if __name__ == "__main__":
     unittest.main()

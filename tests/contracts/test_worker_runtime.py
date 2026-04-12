@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from workflow.scripts.orchestrator import initialize_run
-from workflow.scripts.worker_runtime import build_worker_plan, ensure_run_vnext_defaults
+from workflow.scripts.worker_runtime import build_worker_plan, ensure_run_vnext_defaults, mark_worker_resumed
 
 
 def load_json(path: Path):
@@ -112,6 +112,31 @@ class WorkerRuntimeContractTest(unittest.TestCase):
         self.assertEqual(run["policy"]["default_permission_profile"], "planning")
         self.assertTrue(run["policy"]["require_fresh_review_worker"])
         self.assertNotIn("require_worktree_for_parallel_writes", run["policy"])
+
+    def test_mark_worker_resumed_updates_cursor_reason(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Resume a worker",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T00:30:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["current"]["stage"] = "rapid-implementing"
+        run["current"]["worker_id"] = "wrk_root_impl_01"
+        run["routing"]["next_stage"] = "rapid-implementing"
+
+        mark_worker_resumed(run, session_id="sess-prev-123")
+
+        self.assertEqual(run["current"]["session_id"], "sess-prev-123")
+        self.assertEqual(run["routing"]["pending_worker_action"], "await_stage_result")
+        self.assertEqual(
+            run["routing"]["reason"],
+            "Awaiting rapid-implementing stage results from resumed worker wrk_root_impl_01.",
+        )
 
 
 if __name__ == "__main__":

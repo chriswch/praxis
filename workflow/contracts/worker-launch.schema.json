@@ -358,6 +358,10 @@
         "resume_attempted": {
           "type": "boolean"
         },
+        "mode": {
+          "type": "string",
+          "enum": ["interactive", "headless"]
+        },
         "trace_path": {
           "type": "string",
           "pattern": "^\\.praxis/runtime/traces/.*\\.jsonl$"
@@ -402,7 +406,7 @@
             "required": ["run_max_turns", "run_max_workers", "soft_cost_usd", "hard_cost_usd", "worker_timeout_minutes"]
           },
           "resume": {
-            "required": ["strategy", "session_id", "resumable", "resume_attempted", "trace_path"]
+            "required": ["strategy", "session_id", "resumable", "resume_attempted", "mode", "trace_path"]
           }
         }
       }

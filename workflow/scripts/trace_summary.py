@@ -26,12 +26,16 @@ _HANDOFF_EVENT_TYPES = {
 _RESUME_EVENT_TYPES = {
     "run_resumed",
     "story_activated",
+    "provider_resume_succeeded",
+    "worker_resumed",
     "resume_fallback_used",
 }
 
 _RECOVERY_SIGNAL_EVENT_TYPES = {
     "run_resumed",
     "story_activated",
+    "provider_resume_succeeded",
+    "worker_resumed",
     "resume_fallback_used",
     "native_launch_recorded",
 }
@@ -41,6 +45,7 @@ _STOP_EVENT_TYPES = {
     "autopilot_stopped",
     "resume_blocked",
     "resume_failed",
+    "provider_resume_failed",
     "story_activation_cancelled",
     "native_launch_failed",
 }
