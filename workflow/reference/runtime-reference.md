@@ -1,6 +1,6 @@
 # Praxis Runtime Reference
 
-This file is the shared runtime reference for Praxis.
+This file is the shared reference for the current Praxis runtime.
 
 Use it as the canonical prose source for:
 - runtime architecture
@@ -9,7 +9,15 @@ Use it as the canonical prose source for:
 - handoff and harness launch contracts
 - eval and trace entrypoints
 
-If `README.md`, `CLAUDE.md`, `commands/*.md`, or `skills/*/SKILL.md` need to describe these behaviors, they should point here instead of restating the same rules in full.
+Use `README.md` for the project overview and `docs/` for committed feature docs.
+Use this file when you need the operational runtime contract.
+
+Do not use this file for target-state planning or migration-gap notes. Keep
+local WIP runtime notes under `.praxis/runtime/docs/` instead.
+
+If `README.md`, `CLAUDE.md`, `commands/*.md`, or `skills/*/SKILL.md` need to
+describe these behaviors, they should point here instead of restating the same
+rules in full.
 
 ## Runtime Architecture
 
@@ -22,7 +30,8 @@ If `README.md`, `CLAUDE.md`, `commands/*.md`, or `skills/*/SKILL.md` need to des
 - `workflow/scripts/eval_pack.py` runs the local workflow eval suite.
 - `workflow/scripts/trace_summary.py` builds the richer trace block surfaced by `show-run`.
 
-Shared workflow semantics live in `workflow/`. Adapter wrappers should stay thin.
+Shared workflow semantics live in `workflow/`. Adapter wrappers stay thin and
+defer to these runtime surfaces.
 
 ## `.praxis/` Durable State
 
@@ -55,9 +64,9 @@ Use the shared orchestrator instead of re-implementing transitions in wrappers.
 python3 -m workflow.scripts.orchestrator initialize-run \
   --repo-root . \
   --workflow forge \
-  --entry-task "Add a real orchestrator entrypoint" \
+  --entry-task "Clarify and deliver a workflow change" \
   --adapter codex \
-  --execution-mode autopilot
+  --execution-mode manual
 
 python3 -m workflow.scripts.orchestrator advance-run \
   --repo-root . \
@@ -82,7 +91,8 @@ Before launching any fresh worker context:
 1. build the worker-launch payload with `python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .`
 2. pass `inputs.boundary_handoff` into the fresh worker context when present
 3. treat that handoff as the only cross-story carry-forward input
-4. load repo-scoped settings, hook config or hook entrypoints, agent patterns, and extension points from the active adapter harness config
+4. load repo-scoped settings, hook config or hook entrypoints, agent patterns,
+   and extension points from the active adapter harness config
 
 Repo-scoped harness surfaces:
 - `.claude/adapter.json`
@@ -104,8 +114,16 @@ Repo-scoped harness surfaces:
 - `.codex-plugin/subagents/`
 - `.codex-plugin/extensions.md`
 
-For Claude, `CLAUDE.md` and `.claude/` are the authoritative native repo surfaces. `.claude-plugin/` remains a compatibility mirror during migration.
-For Codex, `AGENTS.md` and `.codex/` are the authoritative native repo surfaces. `.codex-plugin/` remains a compatibility mirror during migration. Shared skills should stay neutral about MCP servers, resources, and tool wrappers.
+For Claude, `CLAUDE.md` and `.claude/` are the authoritative native repo
+surfaces. The current runtime also includes `.claude-plugin/` compatibility
+surfaces.
+
+For Codex, `AGENTS.md` and `.codex/` are the authoritative native repo
+surfaces. The current runtime also includes `.codex-plugin/` compatibility
+surfaces.
+
+Shared skills should stay neutral about MCP servers, resources, and tool
+wrappers.
 
 ## Eval and Trace Entry Points
 
