@@ -32,6 +32,10 @@ def session_start_hook(*, repo_root: Path, recorded_at: str | None = None) -> in
     try:
         hook_request = load_hook_request()
         launch_context = inspect_worker_launch_context(repo_root=repo_root)
+        if launch_context.get("worker_plan") is None or launch_context.get("dispatch", {}).get("stage") is None:
+            response = success_response(additional_context="No active Praxis stage.")
+            print(dump_json(response), end="")
+            return 0
         payload = build_worker_launch_payload(repo_root=repo_root)
         if payload["adapter"] != "codex":
             raise ValueError(f"Codex session-start hook received non-codex adapter {payload['adapter']!r}.")

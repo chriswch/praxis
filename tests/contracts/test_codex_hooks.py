@@ -231,6 +231,47 @@ class CodexHooksContractTest(unittest.TestCase):
         self.assertEqual(response["hookSpecificOutput"]["hookEventName"], "SessionStart")
         self.assertIn("No active Praxis run", response["hookSpecificOutput"]["additionalContext"])
 
+    def test_session_start_hook_passes_through_when_run_has_no_active_stage(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Open an idle codex session",
+            adapter="codex",
+            execution_mode="manual",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:05:00Z",
+        )
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = json.loads(run_path.read_text())
+        run["current"]["stage"] = None
+        run["routing"]["next_action"] = "idle"
+        run["routing"]["next_stage"] = None
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "workflow.scripts.codex_hooks",
+                "session-start",
+                "--repo-root",
+                str(self.repo_root),
+                "--timestamp",
+                "2026-04-12T04:06:00Z",
+            ],
+            cwd=PROJECT_ROOT,
+            input=json.dumps({"session_id": "sess-idle", "source": "startup", "cwd": str(self.repo_root)}),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        response = json.loads(completed.stdout)
+        self.assertTrue(response["continue"])
+        self.assertEqual(response["hookSpecificOutput"]["hookEventName"], "SessionStart")
+        self.assertIn("No active Praxis stage", response["hookSpecificOutput"]["additionalContext"])
+        self.assertFalse((self.repo_root / ".praxis" / "runtime" / "launches" / "codex").exists())
+
     def test_session_start_hook_records_failure_telemetry_for_an_invalid_handoff(self) -> None:
         initialize_run(
             repo_root=self.repo_root,
