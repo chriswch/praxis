@@ -630,6 +630,11 @@ def main(argv: list[str] | None = None) -> int:
     resume_parser.add_argument("--repo-root", default=".")
     resume_parser.add_argument("--timestamp")
 
+    dispatch_parser = subparsers.add_parser("dispatch-worker")
+    dispatch_parser.add_argument("--repo-root", default=".")
+    dispatch_parser.add_argument("--timestamp")
+    dispatch_parser.add_argument("--session-id")
+
     show_parser = subparsers.add_parser("show-run")
     show_parser.add_argument("--repo-root", default=".")
 
@@ -680,6 +685,21 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "resume-run":
         transition_action = resume_run(repo_root=repo_root, timestamp=timestamp)
+        _print_result(
+            repo_root=repo_root,
+            command=args.command,
+            transition_action=transition_action,
+        )
+        return 0
+
+    if args.command == "dispatch-worker":
+        from .worker_dispatch import dispatch_worker
+
+        transition_action = dispatch_worker(
+            repo_root=repo_root,
+            timestamp=timestamp,
+            session_id=args.session_id,
+        )
         _print_result(
             repo_root=repo_root,
             command=args.command,

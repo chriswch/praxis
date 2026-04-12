@@ -27,6 +27,7 @@
         "story_activation_cancelled",
         "resume_blocked",
         "resume_failed",
+        "resume_fallback_used",
         "native_launch_recorded",
         "native_launch_failed",
         "handoff_validated",
@@ -358,6 +359,106 @@
           "slice_id": {
             "type": "string",
             "minLength": 1
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "resume_fallback_used"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "adapter",
+          "scope",
+          "artifact_dir",
+          "stage",
+          "boundary_handoff_path",
+          "worker_id",
+          "previous_session_id",
+          "resume_strategy",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "root",
+              "feature",
+              "slice"
+            ]
+          },
+          "slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boundary_handoff_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\.praxis(?:/.*)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worker_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "previous_session_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resume_strategy": {
+            "type": "string",
+            "enum": [
+              "prefer_resume_then_relaunch",
+              "relaunch_only"
+            ]
           },
           "reason_code": {
             "type": "string",

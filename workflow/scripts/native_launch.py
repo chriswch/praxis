@@ -61,6 +61,9 @@ def build_native_launch_record(
     worker = payload["worker"]
     record_rel = _record_relpath(adapter=adapter, recorded_at=recorded_at, worker_id=worker["worker_id"])
     resume_attempted = bool(payload["resume"].get("resume_attempted"))
+    resume_outcome = payload["resume"].get("resume_outcome")
+    if not isinstance(resume_outcome, str) or not resume_outcome:
+        resume_outcome = "resume_not_attempted" if not resume_attempted else "resume_requested"
     record = {
         "version": 2,
         "recorded_at": recorded_at,
@@ -97,7 +100,7 @@ def build_native_launch_record(
         },
         "resume": {
             "attempted": resume_attempted,
-            "outcome": "resume_not_attempted" if not resume_attempted else "resume_requested",
+            "outcome": resume_outcome,
             "strategy": payload["resume"].get("strategy"),
             "previous_session_id": payload["resume"].get("session_id"),
         },
@@ -293,6 +296,7 @@ def write_native_launch_record(
     hook_request: dict[str, Any],
     recorded_at: str,
     handoff_status: dict[str, Any] | None = None,
+    extra_events: list[dict[str, Any]] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     repo_root = repo_root.resolve()
     run = load_json(repo_root / ".praxis" / "run.json")
@@ -319,7 +323,7 @@ def write_native_launch_record(
         "launch_record_path": record_rel,
     }
 
-    events: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = list(extra_events or [])
     if handoff_status is not None:
         events.append(
             _handoff_validation_event(
@@ -369,9 +373,10 @@ def write_native_launch_failure(
     recorded_at: str,
     reason_code: str,
     reason: str,
+    extra_events: list[dict[str, Any]] | None = None,
 ) -> None:
     repo_root = repo_root.resolve()
-    events: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = list(extra_events or [])
     handoff_status = launch_context.get("handoff_status")
     if handoff_status is not None:
         events.append(

@@ -49,7 +49,7 @@ class ClaudeHooksContractTest(unittest.TestCase):
                 "project_config_path": ".claude/settings.json",
                 "hooks_path": ".claude/hooks",
                 "agents_path": ".claude/agents",
-                "worker_launch_command": "python3 -m workflow.scripts.harness_config build-worker-launch --repo-root .",
+                "worker_launch_command": "python3 -m workflow.scripts.orchestrator dispatch-worker --repo-root .",
                 "extension_points": {
                     "mcp_config_path": ".claude-plugin/extensions.md",
                     "resources_path": None,

@@ -26,11 +26,13 @@ _HANDOFF_EVENT_TYPES = {
 _RESUME_EVENT_TYPES = {
     "run_resumed",
     "story_activated",
+    "resume_fallback_used",
 }
 
 _RECOVERY_SIGNAL_EVENT_TYPES = {
     "run_resumed",
     "story_activated",
+    "resume_fallback_used",
     "native_launch_recorded",
 }
 

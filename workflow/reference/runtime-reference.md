@@ -23,7 +23,7 @@ rules in full.
 
 - `workflow/pipelines/` defines shared `craft` and `forge` orchestration rules.
 - `workflow/contracts/` defines machine-readable state, result, harness, handoff, and eval fixture contracts.
-- `workflow/scripts/orchestrator.py` is the shared runtime entrypoint for run initialization, stage-result advancement, manual confirmations, resume, and `show-run` snapshots.
+- `workflow/scripts/orchestrator.py` is the shared runtime entrypoint for run initialization, stage-result advancement, bounded-worker dispatch, manual confirmations, resume, and `show-run` snapshots.
 - `workflow/scripts/harness_config.py` loads repo-scoped adapter harness config and builds the fresh-worker launch payload.
 - `workflow/scripts/run_state.py` handles ordinary stage-to-stage `run.json` updates.
 - `workflow/scripts/story_boundary.py` handles queue initialization, story-boundary checkpointing, activation, autopilot pauses, and multi-slice resume.
@@ -76,6 +76,10 @@ python3 -m workflow.scripts.orchestrator continue-run \
   --repo-root . \
   --timestamp 2026-04-12T00:00:00Z
 
+python3 -m workflow.scripts.orchestrator dispatch-worker \
+  --repo-root . \
+  --timestamp 2026-04-12T00:00:00Z
+
 python3 -m workflow.scripts.orchestrator resume-run \
   --repo-root . \
   --timestamp 2026-04-12T00:00:00Z
@@ -93,6 +97,12 @@ Before launching any fresh worker context:
 3. treat that handoff as the only cross-story carry-forward input
 4. load repo-scoped settings, hook config or hook entrypoints, agent patterns,
    and extension points from the active adapter harness config
+
+When `run.routing.pending_worker_action = resume_or_launch`, use
+`python3 -m workflow.scripts.orchestrator dispatch-worker --repo-root .` to let
+the control plane execute that intent. The dispatcher rebuilds context from
+durable Praxis state first, records an explicit `resume_fallback_used` event
+when provider resume is unavailable, and then records the fresh native launch.
 
 Repo-scoped harness surfaces:
 - `.claude/adapter.json`

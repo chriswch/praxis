@@ -264,6 +264,9 @@ def mark_worker_started(run: dict[str, Any], *, session_id: str) -> dict[str, An
     plan = build_worker_plan(run)
     run["current"]["session_id"] = session_id
     run["routing"]["pending_worker_action"] = "await_stage_result"
+    stage = run.get("current", {}).get("stage") or "the current stage"
+    worker_id = run.get("current", {}).get("worker_id") or "the active worker"
+    run["routing"]["reason"] = f"Awaiting {stage} stage results from {worker_id}."
     if plan is not None:
         run["routing"]["resume_strategy"] = plan["resume_strategy"]
     return plan
