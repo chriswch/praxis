@@ -34,6 +34,11 @@ class OrchestratorRuntimeContractTest(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2) + "\n")
 
+    def _write_text(self, rel_path: str, text: str) -> None:
+        path = self.repo_root / rel_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
     def test_initialize_run_starts_at_root_clarification(self) -> None:
         initialize_run(
             repo_root=self.repo_root,
@@ -57,6 +62,82 @@ class OrchestratorRuntimeContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["next_action"], "run_stage")
         self.assertEqual(run["routing"]["next_stage"], "clarifying-intent")
         self.assertTrue((self.repo_root / ".praxis" / "results").exists())
+
+    def test_initialize_run_restarts_after_a_completed_run_and_clears_stale_state(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Finish the first run",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T00:00:00Z",
+        )
+        run_path = self.repo_root / ".praxis" / "run.json"
+        completed_run = load_json(run_path)
+        completed_run["status"] = "completed"
+        completed_run["current"]["stage"] = None
+        completed_run["routing"]["next_action"] = "finish"
+        completed_run["routing"]["next_stage"] = None
+        completed_run["routing"]["pending_worker_action"] = None
+        completed_run["routing"]["resume_strategy"] = None
+        completed_run["timestamps"]["updated_at"] = "2026-04-12T00:10:00Z"
+        self._write_json(".praxis/run.json", completed_run)
+        self._write_json(
+            ".praxis/results/clarifying-intent.json",
+            {
+                "version": 3,
+                "stage": "clarifying-intent",
+                "artifact_dir": ".praxis",
+                "status": "completed",
+                "summary_path": ".praxis/spec.md",
+                "artifacts_written": [".praxis/spec.md"],
+                "output_artifacts": [".praxis/results/clarifying-intent.json", ".praxis/spec.md", ".praxis/brief.md"],
+                "route": {
+                    "kind": "proceed",
+                    "next_stage": None,
+                    "next_slice_id": None,
+                    "reason": "Clarification is ready.",
+                },
+                "data": {
+                    "outcome_code": "story_ready",
+                },
+                "needs_user_input": False,
+                "needs_confirmation": False,
+            },
+        )
+        self._write_text(".praxis/runtime/traces/wrk_root_clarify_01.jsonl", "{\"type\":\"session_start\"}\n")
+        self._write_json(
+            ".praxis/runtime/workers/wrk_root_clarify_01.json",
+            {
+                "version": 1,
+                "worker_id": "wrk_root_clarify_01",
+            },
+        )
+        self._write_text(".praxis/slices/S-001/results/clarifying-intent.json", "{}\n")
+
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="craft",
+            entry_task="Start the next run",
+            adapter="claude",
+            execution_mode="manual",
+            entrypoint="praxis:craft",
+            timestamp="2026-04-12T01:00:00Z",
+        )
+
+        restarted_run = load_json(run_path)
+        self.assertEqual(restarted_run["workflow"], "craft")
+        self.assertEqual(restarted_run["status"], "running")
+        self.assertEqual(restarted_run["entry_task"], "Start the next run")
+        self.assertEqual(restarted_run["runtime"]["adapter"], "claude")
+        self.assertEqual(restarted_run["execution"]["mode"], "manual")
+        self.assertEqual(restarted_run["current"]["stage"], "clarifying-intent")
+        self.assertEqual(restarted_run["timestamps"]["created_at"], "2026-04-12T01:00:00Z")
+        self.assertFalse((self.repo_root / ".praxis" / "results" / "clarifying-intent.json").exists())
+        self.assertFalse((self.repo_root / ".praxis" / "runtime" / "traces" / "wrk_root_clarify_01.jsonl").exists())
+        self.assertFalse((self.repo_root / ".praxis" / "runtime" / "workers" / "wrk_root_clarify_01.json").exists())
+        self.assertFalse((self.repo_root / ".praxis" / "slices").exists())
 
     def test_advance_run_updates_a_single_story_stage_result(self) -> None:
         self._write_json(

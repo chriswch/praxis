@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,8 @@ from .workers.planning import (
     sync_worker_cursor,
 )
 
+_TERMINAL_RUN_STATUSES = {"completed", "cancelled", "failed"}
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -44,6 +47,38 @@ def _run_path(repo_root: Path) -> Path:
 
 def _ledger_path(repo_root: Path) -> Path:
     return repo_root / ".praxis" / "story-ledger.json"
+
+
+def _delete_if_exists(path: Path) -> None:
+    if not path.exists():
+        return
+    if path.is_dir():
+        shutil.rmtree(path)
+        return
+    path.unlink()
+
+
+def _clear_terminal_run_state(repo_root: Path) -> None:
+    stale_paths = [
+        ".praxis/run.json",
+        ".praxis/story-ledger.json",
+        ".praxis/events.jsonl",
+        ".praxis/brief.md",
+        ".praxis/spec.md",
+        ".praxis/sketch.md",
+        ".praxis/implementation.md",
+        ".praxis/review.md",
+        ".praxis/improvement.md",
+        ".praxis/verify.md",
+        ".praxis/slice-map.json",
+        ".praxis/slice-map.md",
+        ".praxis/results",
+        ".praxis/slices",
+        ".praxis/runtime/workers",
+        ".praxis/runtime/traces",
+    ]
+    for rel_path in stale_paths:
+        _delete_if_exists(repo_root / rel_path)
 
 
 def _validate_stage_alignment(run: dict[str, Any], stage_result: dict[str, Any]) -> None:
@@ -249,7 +284,12 @@ def initialize_run(
     run_path = _run_path(repo_root)
 
     if run_path.exists():
-        raise ValueError("Cannot initialize a new run because .praxis/run.json already exists.")
+        existing_run = _load_json(run_path)
+        ensure_run_vnext_defaults(existing_run)
+        validate_state_payloads(run=existing_run)
+        if existing_run.get("status") not in _TERMINAL_RUN_STATUSES:
+            raise ValueError("Cannot initialize a new run because .praxis/run.json already exists.")
+        _clear_terminal_run_state(repo_root)
 
     if workflow not in {"craft", "forge"}:
         raise ValueError(f"Unsupported workflow: {workflow!r}.")

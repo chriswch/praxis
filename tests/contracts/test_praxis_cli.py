@@ -152,6 +152,54 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["next_action"], "run_stage")
         self.assertEqual(run["dispatch"]["stage"], "clarifying-intent")
 
+    def test_run_restarts_cleanly_after_a_completed_run(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Finish the first run",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:30:00Z",
+        )
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "completed"
+        run["current"]["stage"] = None
+        run["routing"]["next_action"] = "finish"
+        run["routing"]["next_stage"] = None
+        run["routing"]["pending_worker_action"] = None
+        run["routing"]["resume_strategy"] = None
+        run["timestamps"]["updated_at"] = "2026-04-12T04:31:00Z"
+        self._write_json(".praxis/run.json", run)
+        self._write_text(".praxis/events.jsonl", "{\"ts\":\"2026-04-12T04:31:00Z\",\"type\":\"native_launch_recorded\"}\n")
+
+        completed = self._run_cli(
+            "run",
+            "--repo-root",
+            str(self.repo_root),
+            "--workflow",
+            "craft",
+            "--entry-task",
+            "Start another run",
+            "--adapter",
+            "claude",
+            "--execution-mode",
+            "manual",
+            "--timestamp",
+            "2026-04-12T04:32:00Z",
+            "--json",
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertTrue(result["ok"])
+        run_snapshot = result["data"]["run"]
+        self.assertEqual(run_snapshot["workflow"], "craft")
+        self.assertEqual(run_snapshot["run_status"], "running")
+        self.assertEqual(run_snapshot["execution_mode"], "manual")
+        self.assertEqual(run_snapshot["current"]["stage"], "clarifying-intent")
+        self.assertEqual(run_snapshot["trace"]["event_count"], 0)
+
     def test_status_returns_nested_snapshot(self) -> None:
         initialize_run(
             repo_root=self.repo_root,
