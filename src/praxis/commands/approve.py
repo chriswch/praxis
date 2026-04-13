@@ -20,5 +20,5 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
             details={"next_action": next_action},
             retryable=True,
         )
-    action = continue_run(repo_root=repo_root, timestamp=timestamp)
+    action = continue_run(repo_root=repo_root, timestamp=timestamp, source="approve")
     return {"transition_action": action, "run": build_run_snapshot(repo_root)}

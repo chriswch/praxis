@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from praxis.runtime.orchestrator import initialize_run
+from praxis.runtime.state.contract_validation import validate_contract_payload
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -279,6 +280,7 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(run["current"]["artifact_dir"], ".praxis")
         self.assertEqual(run["routing"]["pending_worker_action"], "resume_or_launch")
         self.assertEqual(run["dispatch"]["action"], "run_stage")
+        self.assertEqual(run["approvals"]["count"], 0)
         self.assertIn("trace", run)
         self.assertIn("event_count", run["trace"])
 
@@ -340,6 +342,12 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["data"]["transition_action"], "run_stage")
         self.assertEqual(result["data"]["run"]["routing"]["next_action"], "run_stage")
+        approvals = result["data"]["run"]["approvals"]
+        self.assertEqual(approvals["count"], 1)
+        self.assertEqual(approvals["latest"]["decision"], "approved")
+        self.assertEqual(approvals["latest"]["source"], "approve")
+        approval_record = load_json(self.repo_root / approvals["latest"]["record_path"])
+        validate_contract_payload("approval-record.schema.json", approval_record)
 
     def test_dispatch_returns_launch_worker_envelope_and_updates_run_snapshot(self) -> None:
         self._write_adapter_harness("codex")
@@ -497,6 +505,12 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(result["data"]["run"]["run_status"], "cancelled")
         self.assertEqual(result["data"]["run"]["routing"]["next_action"], "finish")
         self.assertEqual(result["data"]["run"]["trace"]["last_stop_event"]["type"], "run_cancelled")
+        approvals = result["data"]["run"]["approvals"]
+        self.assertEqual(approvals["count"], 1)
+        self.assertEqual(approvals["latest"]["decision"], "denied")
+        self.assertEqual(approvals["latest"]["source"], "cancel")
+        approval_record = load_json(self.repo_root / approvals["latest"]["record_path"])
+        validate_contract_payload("approval-record.schema.json", approval_record)
 
     def test_cancel_cleans_an_isolated_worktree_and_marks_the_worker_cancelled(self) -> None:
         self._init_git_repo()

@@ -14,6 +14,7 @@ from praxis.cli.exit_codes import (
     OUTPUT_VERSION,
     CliContractError,
 )
+from praxis.runtime.approval_records import approval_history_snapshot
 from praxis.runtime.adapters.harness import compile_dispatch_bundle, load_adapter_harness
 from praxis.runtime.context.bundle import load_dispatch_bundle_status
 from praxis.runtime.observability.trace_summary import build_trace_summary
@@ -192,6 +193,7 @@ def build_run_snapshot(repo_root: Path) -> dict[str, Any]:
 
     handoff_status = build_handoff_status(repo_root, run, ledger)
     dispatch_bundle = load_dispatch_bundle_status(repo_root=repo_root, run=run, dispatch=dispatch)
+    approvals = approval_history_snapshot(repo_root=repo_root)
 
     return {
         "workflow": run.get("workflow"),
@@ -221,6 +223,7 @@ def build_run_snapshot(repo_root: Path) -> dict[str, Any]:
         "ledger": ledger_snapshot,
         "handoff_status": handoff_status,
         "dispatch_bundle": dispatch_bundle,
+        "approvals": approvals,
         "dispatch": dispatch,
         "trace": build_trace_summary(
             repo_root=repo_root,

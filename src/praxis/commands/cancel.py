@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from praxis.commands._support import build_run_snapshot, load_run_or_error
+from praxis.runtime.approval_records import build_approval_record
 from praxis.runtime.adapters.native_resume import worker_record_relpath
 from praxis.runtime.state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json, validate_state_payloads
 from praxis.runtime.workers.planning import bump_transition_id, ensure_run_vnext_defaults
@@ -70,8 +71,17 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
     reason = args.reason or "Operator cancelled the active Praxis run."
     event = _cancel_event(run=run, timestamp=timestamp, reason=reason)
     events = extend_event_log(repo_root, [event])
+    approval_rel, approval_record = build_approval_record(
+        run=run,
+        recorded_at=timestamp,
+        decision="denied",
+        source="cancel",
+        reason_code="approval_denied",
+        reason=reason,
+    )
     files: dict[str, str] = {
         ".praxis/events.jsonl": dump_events(events),
+        approval_rel: dump_json(approval_record),
     }
 
     worker_id = run["current"].get("worker_id")

@@ -17,6 +17,7 @@ from .state.durable_state import (
     recover_pending_transaction,
     validate_state_payloads,
 )
+from .approval_records import build_approval_record
 from .routing import resolve_next_stage_for_result
 from .run_state import update_run_from_stage_result
 from .story_boundary import (
@@ -253,6 +254,7 @@ def _commit_run_with_events(
     timestamp: str,
     operation: str,
     new_events: list[dict[str, Any]],
+    extra_files: dict[str, str] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> None:
     events = extend_event_log(repo_root, new_events)
@@ -264,6 +266,7 @@ def _commit_run_with_events(
         files={
             ".praxis/run.json": dump_json(run),
             ".praxis/events.jsonl": dump_events(events),
+            **(extra_files or {}),
         },
         timestamp=timestamp,
         metadata=metadata or {},
@@ -518,7 +521,7 @@ def continue_pause_after_queue_init(*, repo_root: Path, timestamp: str) -> None:
     )
 
 
-def continue_run(*, repo_root: Path, timestamp: str) -> str:
+def continue_run(*, repo_root: Path, timestamp: str, source: str = "continue") -> str:
     repo_root = repo_root.resolve()
     recover_pending_transaction(repo_root)
     run = _load_json(_run_path(repo_root))
@@ -543,6 +546,14 @@ def continue_run(*, repo_root: Path, timestamp: str) -> str:
     if next_stage is None:
         raise ValueError("Cannot continue a paused run without a current stage.")
 
+    approval_rel, approval_record = build_approval_record(
+        run=run,
+        recorded_at=timestamp,
+        decision="approved",
+        source=source,
+        reason_code="approval_granted",
+        reason=f"Operator approved the pending transition to {next_stage}.",
+    )
     run["status"] = "running"
     run["routing"]["next_action"] = "run_stage"
     run["routing"]["next_stage"] = next_stage
@@ -566,6 +577,7 @@ def continue_run(*, repo_root: Path, timestamp: str) -> str:
                 resume_action="run_stage",
             )
         ],
+        extra_files={approval_rel: dump_json(approval_record)},
         metadata={"next_stage": next_stage},
     )
     return "run_stage"
