@@ -40,6 +40,7 @@ def persist_dispatch_bundle(
     payload: dict[str, Any],
     dispatch_record: dict[str, Any],
     context_manifest: dict[str, Any],
+    extra_files: dict[str, str] | None = None,
     timestamp: str,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
@@ -54,6 +55,7 @@ def persist_dispatch_bundle(
         bundle["worker_launch_path"]: dump_json(payload),
         bundle["dispatch_record_path"]: dump_json(dispatch_record),
         bundle["context_manifest_path"]: dump_json(context_manifest),
+        **(extra_files or {}),
     }
     commit_transaction(
         repo_root=repo_root,

@@ -6,8 +6,9 @@ from typing import Any, Callable
 
 from ..adapters.native_resume import session_record_relpath
 from ..orchestrator import build_dispatch
+from ..policy_records import build_dispatch_policy_records
 from ..state.contract_validation import validate_contract_payload
-from ..state.durable_state import load_json, validate_handoff_file
+from ..state.durable_state import dump_json, load_json, validate_handoff_file
 from ..workers.planning import (
     build_worker_plan,
     ensure_run_vnext_defaults,
@@ -353,16 +354,26 @@ def compile_dispatch_bundle(*, repo_root: Path, harness_loader: HarnessLoader) -
         repo_root=repo_root,
         harness_loader=harness_loader,
     )
+    run = load_json(repo_root / ".praxis" / "run.json")
+    ensure_run_vnext_defaults(run)
+    sync_worker_cursor(run)
+    policy_records = build_dispatch_policy_records(
+        run=run,
+        payload=payload,
+        recorded_at=_utc_now(),
+    )
     status = persist_dispatch_bundle(
         repo_root=repo_root,
         payload=payload,
         dispatch_record=dispatch_record,
         context_manifest=context_manifest,
+        extra_files={path: dump_json(record) for path, record in policy_records},
         timestamp=_utc_now(),
     )
     return {
         "launch": payload,
         "dispatch_record": dispatch_record,
         "context_manifest": context_manifest,
+        "policy_records": [{"record_path": path, "gate_type": record["gate_type"]} for path, record in policy_records],
         "dispatch_bundle": status or load_dispatch_bundle_status(repo_root=repo_root, bundle=payload["bundle"]),
     }

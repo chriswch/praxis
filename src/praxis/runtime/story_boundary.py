@@ -20,6 +20,7 @@ from .state.durable_state import (
 )
 from .checkpoints import GitBoundaryError, collect_boundary_evidence, current_git_head, current_worktree_metadata
 from .handoff_policy import HandoffBudgetError, build_handoff_payload
+from .policy_records import build_boundary_policy_record
 from .routing import resolve_next_stage_for_result, resolve_stop_reason_for_stage_result
 from .workers.planning import (
     bump_transition_id,
@@ -104,6 +105,7 @@ def _commit_story_state(
     handoff_json_rel: str | None = None,
     handoff_markdown_text: str | None = None,
     handoff_markdown_rel: str | None = None,
+    extra_files: dict[str, str] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> None:
     ensure_run_vnext_defaults(run, timestamp=timestamp)
@@ -124,6 +126,8 @@ def _commit_story_state(
         if handoff_markdown_rel is None:
             raise ValueError("handoff_markdown_rel is required when handoff_markdown_text is provided.")
         files[handoff_markdown_rel] = handoff_markdown_text
+    if extra_files:
+        files.update(extra_files)
 
     commit_transaction(
         repo_root=repo_root,
@@ -592,6 +596,13 @@ def checkpoint_story_boundary(
     )
     if boundary_stop:
         reason_code, reason = boundary_stop
+        policy_rel, policy_record = build_boundary_policy_record(
+            run=run,
+            recorded_at=timestamp,
+            decision="denied",
+            reason_code=reason_code,
+            reason=reason,
+        )
         current_story["commit_meta"] = verified_commit_meta
         current_story["boundary_status"] = "blocked"
         current_story["boundary_reason_code"] = reason_code
@@ -627,6 +638,7 @@ def checkpoint_story_boundary(
             run=run,
             ledger=ledger,
             events=events,
+            extra_files={policy_rel: dump_json(policy_record)},
             metadata={"slice_id": current_story_id, "reason_code": reason_code},
         )
         return
@@ -650,6 +662,13 @@ def checkpoint_story_boundary(
     except HandoffBudgetError as exc:
         reason_code = exc.code
         reason = _boundary_stop(reason_code)
+        policy_rel, policy_record = build_boundary_policy_record(
+            run=run,
+            recorded_at=timestamp,
+            decision="denied",
+            reason_code=reason_code,
+            reason=exc.message,
+        )
         current_story["commit_meta"] = verified_commit_meta
         current_story["boundary_status"] = "blocked"
         current_story["boundary_reason_code"] = reason_code
@@ -683,6 +702,7 @@ def checkpoint_story_boundary(
             run=run,
             ledger=ledger,
             events=events,
+            extra_files={policy_rel: dump_json(policy_record)},
             metadata={"slice_id": current_story_id, "reason_code": reason_code},
         )
         return
@@ -692,6 +712,13 @@ def checkpoint_story_boundary(
         next_story_id,
         handoff_view,
         verified_commit_meta or {},
+    )
+    policy_rel, policy_record = build_boundary_policy_record(
+        run=run,
+        recorded_at=timestamp,
+        decision="allowed",
+        reason_code="boundary_checkpoint_ready",
+        reason=f"{current_story_id} satisfied the story-boundary gate and checkpointed successfully.",
     )
 
     _queue_event_if_missing(
@@ -816,6 +843,7 @@ def checkpoint_story_boundary(
         handoff_json_rel=handoff_json_rel,
         handoff_markdown_text=handoff_markdown,
         handoff_markdown_rel=handoff_md_rel,
+        extra_files={policy_rel: dump_json(policy_record)},
         metadata={"slice_id": current_story_id, "next_slice_id": next_story_id},
     )
 

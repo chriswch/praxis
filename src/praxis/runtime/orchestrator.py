@@ -18,6 +18,7 @@ from .state.durable_state import (
     validate_state_payloads,
 )
 from .approval_records import build_approval_record
+from .policy_records import policy_history_snapshot
 from .routing import resolve_next_stage_for_result
 from .run_state import update_run_from_stage_result
 from .story_boundary import (
@@ -147,6 +148,7 @@ def _snapshot(repo_root: Path) -> dict[str, Any]:
         "pending_worker_action": run.get("routing", {}).get("pending_worker_action"),
         "resume_strategy": run.get("routing", {}).get("resume_strategy"),
         "trace": build_trace_summary(repo_root=repo_root, dispatch=dispatch),
+        "policies": policy_history_snapshot(repo_root=repo_root),
     }
     handoff_path = run.get("routing", {}).get("boundary_handoff_path")
     if handoff_path:

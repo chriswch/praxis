@@ -134,6 +134,10 @@ class WorkerDispatchContractTest(unittest.TestCase):
         self.assertTrue((dispatch_bundle_dir / "worker-launch.json").exists())
         self.assertTrue((dispatch_bundle_dir / "dispatch-record.json").exists())
         self.assertTrue((dispatch_bundle_dir / "context-manifest.json").exists())
+        policy_records = sorted((self.repo_root / ".praxis" / "runtime" / "policies").glob("*.json"))
+        self.assertEqual(len(policy_records), 3)
+        for policy_path in policy_records:
+            validate_contract_payload("policy-record.schema.json", load_json(policy_path))
 
         events = [
             json.loads(line)

@@ -281,6 +281,7 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["pending_worker_action"], "resume_or_launch")
         self.assertEqual(run["dispatch"]["action"], "run_stage")
         self.assertEqual(run["approvals"]["count"], 0)
+        self.assertEqual(run["policies"]["count"], 0)
         self.assertIn("trace", run)
         self.assertIn("event_count", run["trace"])
 
@@ -377,6 +378,7 @@ class PraxisCliContractTest(unittest.TestCase):
         run = result["data"]["run"]
         self.assertEqual(run["routing"]["pending_worker_action"], "await_stage_result")
         self.assertIsNotNone(run["current"]["session_id"])
+        self.assertEqual(run["policies"]["count"], 3)
         self.assertEqual(run["trace"]["last_launch_event"]["type"], "native_launch_recorded")
         self.assertTrue(run["dispatch_bundle"]["available"])
         self.assertTrue(run["dispatch_bundle"]["worker_launch_path"].endswith("/worker-launch.json"))

@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from praxis.runtime.state.contract_validation import validate_contract_payload
 from praxis.runtime.story_boundary import (
     checkpoint_story_boundary,
     pause_autopilot_for_stage_result,
@@ -84,6 +85,13 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
         self.assertEqual(ledger["stories"]["items"]["S-002"]["status"], "active")
         self.assertEqual(ledger["stories"]["items"]["S-002"]["carry_forward_from"], "S-001")
         self.assertEqual(handoff["next_story_id"], "S-002")
+        policy_records = sorted((self.repo_root / ".praxis" / "runtime" / "policies").glob("*.json"))
+        self.assertEqual(len(policy_records), 1)
+        policy_record = load_json(policy_records[0])
+        validate_contract_payload("policy-record.schema.json", policy_record)
+        self.assertEqual(policy_record["gate_type"], "story_boundary")
+        self.assertEqual(policy_record["decision"], "allowed")
+        self.assertEqual(policy_record["reason_code"], "boundary_checkpoint_ready")
 
     def test_appends_checkpoint_and_activation_events(self) -> None:
         checkpoint_story_boundary(
@@ -306,6 +314,13 @@ class AutopilotStoryBoundaryContractTest(unittest.TestCase):
             "test_gate_failed",
         )
         self.assertFalse((self.repo_root / ".praxis" / "slices" / "S-001" / "handoff.json").exists())
+        policy_records = sorted((self.repo_root / ".praxis" / "runtime" / "policies").glob("*.json"))
+        self.assertEqual(len(policy_records), 1)
+        policy_record = load_json(policy_records[0])
+        validate_contract_payload("policy-record.schema.json", policy_record)
+        self.assertEqual(policy_record["gate_type"], "story_boundary")
+        self.assertEqual(policy_record["decision"], "denied")
+        self.assertEqual(policy_record["reason_code"], "test_gate_failed")
 
     def test_appends_boundary_block_event_when_gate_fails(self) -> None:
         checkpoint_story_boundary(
