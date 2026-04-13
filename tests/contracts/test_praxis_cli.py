@@ -385,6 +385,16 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertTrue(run["dispatch_bundle"]["worker_launch_path"].endswith("/worker-launch.json"))
         self.assertEqual(run["dispatch_bundle"]["dispatch_status"], "launch_recorded")
         self.assertTrue(run["dispatch_bundle"]["dispatch_resolved"])
+        active_runtime = run["active_runtime"]
+        self.assertTrue(active_runtime["worker_record"]["exists"])
+        self.assertEqual(active_runtime["worker_record"]["status"], "running")
+        self.assertTrue(active_runtime["session_record"]["exists"])
+        self.assertFalse(active_runtime["session_record"]["resumable"])
+        self.assertTrue(active_runtime["launch_record"]["exists"])
+        self.assertEqual(active_runtime["launch_record"]["stage"], "clarifying-intent")
+        self.assertTrue(active_runtime["trace_stream"]["exists"])
+        self.assertEqual(active_runtime["trace_stream"]["event_count"], 1)
+        self.assertEqual(active_runtime["trace_stream"]["last_event_type"], "native_launch_recorded")
 
     def test_build_worker_launch_returns_public_payload(self) -> None:
         self._write_adapter_harness("claude")
@@ -517,6 +527,49 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(active_dispatch_bundle["status"], "error")
         self.assertEqual(active_dispatch_bundle["reason_code"], "dispatch_intent_only")
         self.assertEqual(active_dispatch_bundle["details"]["recovery_state"], "intent_recorded_only")
+        self.assertEqual(checks["active_worker_record"]["status"], "ok")
+        self.assertEqual(checks["active_session_record"]["status"], "ok")
+        self.assertEqual(checks["active_launch_record"]["status"], "ok")
+        self.assertEqual(checks["active_trace_stream"]["status"], "ok")
+        self.assertEqual(checks["active_runtime_consistency"]["status"], "ok")
+
+    def test_doctor_reports_missing_active_runtime_artifacts(self) -> None:
+        self._write_adapter_harness("codex")
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Inspect active runtime linkage",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:36:40Z",
+        )
+
+        dispatch_completed = self._run_cli(
+            "dispatch",
+            "--repo-root",
+            str(self.repo_root),
+            "--timestamp",
+            "2026-04-12T04:36:50Z",
+            "--json",
+        )
+        self.assertEqual(dispatch_completed.returncode, 0, dispatch_completed.stderr)
+        run = json.loads(dispatch_completed.stdout)["data"]["run"]
+        active_runtime = run["active_runtime"]
+        worker_record_path = self.repo_root / active_runtime["worker_record"]["path"]
+        trace_path = self.repo_root / active_runtime["trace_stream"]["path"]
+        worker_record_path.unlink()
+        trace_path.unlink()
+
+        doctor_completed = self._run_cli("doctor", "--repo-root", str(self.repo_root), "--json")
+        self.assertEqual(doctor_completed.returncode, 0, doctor_completed.stderr)
+        doctor_result = json.loads(doctor_completed.stdout)
+        self.assertFalse(doctor_result["data"]["healthy"])
+        checks = {check["name"]: check for check in doctor_result["data"]["checks"]}
+        self.assertEqual(checks["active_worker_record"]["status"], "error")
+        self.assertEqual(checks["active_worker_record"]["reason_code"], "worker_record_missing")
+        self.assertEqual(checks["active_trace_stream"]["status"], "error")
+        self.assertEqual(checks["active_trace_stream"]["reason_code"], "trace_stream_missing")
 
     def test_harness_show_adapter_returns_native_harness_shape(self) -> None:
         self._write_adapter_harness("codex")

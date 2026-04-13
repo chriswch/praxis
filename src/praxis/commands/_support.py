@@ -20,11 +20,12 @@ from praxis.runtime.context.bundle import load_dispatch_bundle_status
 from praxis.runtime.observability.trace_summary import build_trace_summary
 from praxis.runtime.policy_records import policy_history_snapshot
 from praxis.runtime.orchestrator import advance_run, build_dispatch, continue_run, initialize_run, resume_run
-from praxis.runtime.state.contract_validation import ContractValidationError
+from praxis.runtime.state.contract_validation import ContractValidationError, validate_contract_payload
 from praxis.runtime.state.durable_state import (
     RecoveryRequiredError,
     dump_json,
     inspect_handoff_file,
+    load_events,
     load_json,
     recover_pending_transaction,
     validate_state_payloads,
@@ -184,6 +185,203 @@ def build_handoff_status(repo_root: Path, run: dict[str, Any], ledger: dict[str,
     return inspect_handoff_file(repo_root / previous_handoff)
 
 
+def _linked_artifact_summary(
+    *,
+    repo_root: Path,
+    rel_path: str | None,
+    contract_name: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    summary = {
+        "path": rel_path,
+        "linked": rel_path is not None,
+        "exists": False,
+        "schema_valid": None,
+    }
+    if rel_path is None:
+        return summary, None
+
+    artifact_path = repo_root / rel_path
+    if not artifact_path.exists():
+        return summary, None
+
+    summary["exists"] = True
+    try:
+        payload = load_json(artifact_path)
+    except Exception as exc:  # pragma: no cover - load_json normally handles valid JSON files
+        summary["schema_valid"] = False
+        summary["validation_error"] = str(exc)
+        return summary, None
+
+    try:
+        validate_contract_payload(contract_name, payload)
+    except ContractValidationError as exc:
+        summary["schema_valid"] = False
+        summary["validation_error"] = str(exc)
+        return summary, None
+
+    summary["schema_valid"] = True
+    return summary, payload
+
+
+def _summarize_trace_stream(*, repo_root: Path, trace_path: str | None) -> dict[str, Any]:
+    summary = {
+        "path": trace_path,
+        "linked": trace_path is not None,
+        "exists": False,
+        "schema_valid": None,
+    }
+    if trace_path is None:
+        return summary
+
+    full_path = repo_root / trace_path
+    if not full_path.exists():
+        return summary
+
+    summary["exists"] = True
+    try:
+        events = load_events(full_path)
+    except Exception as exc:  # pragma: no cover - load_events only reads local files
+        summary["schema_valid"] = False
+        summary["validation_error"] = str(exc)
+        return summary
+
+    summary["event_count"] = len(events)
+    if events:
+        summary["last_event_type"] = events[-1].get("type")
+        summary["last_event_reason_code"] = events[-1].get("reason_code")
+        summary["last_event_reason"] = events[-1].get("reason")
+        summary["last_event_recorded_at"] = events[-1].get("ts")
+
+    try:
+        for index, event in enumerate(events):
+            validate_contract_payload("trace-event.schema.json", event)
+    except ContractValidationError as exc:
+        summary["schema_valid"] = False
+        summary["validation_error"] = f"events[{index}]: {exc}"
+        return summary
+
+    summary["schema_valid"] = True
+    return summary
+
+
+def build_active_runtime_snapshot(
+    *,
+    repo_root: Path,
+    dispatch_bundle: dict[str, Any] | None,
+) -> dict[str, Any]:
+    bundle = dispatch_bundle or {}
+
+    worker_summary, worker_record = _linked_artifact_summary(
+        repo_root=repo_root,
+        rel_path=bundle.get("worker_record_path"),
+        contract_name="worker-record.schema.json",
+    )
+    if worker_record is not None:
+        worker_summary.update(
+            {
+                "worker_id": worker_record["worker_id"],
+                "run_id": worker_record["run_id"],
+                "status": worker_record["status"],
+                "worker_class": worker_record["worker_class"],
+                "permission_profile": worker_record["permission_profile"],
+                "worktree_mode": worker_record["worktree_mode"],
+                "worktree_path": worker_record["worktree_path"],
+                "session_id": worker_record["session_id"],
+                "dispatch_id": worker_record.get("dispatch_id"),
+                "dispatch_record_path": worker_record.get("dispatch_record_path"),
+                "launch_record_path": worker_record["launch_record_path"],
+                "trace_path": worker_record["trace_path"],
+                "isolation_mode": (worker_record.get("isolation") or {}).get("mode"),
+                "runtime_state_channel": (worker_record.get("isolation") or {}).get("runtime_state_channel"),
+            }
+        )
+
+    session_summary, session_record = _linked_artifact_summary(
+        repo_root=repo_root,
+        rel_path=bundle.get("session_record_path"),
+        contract_name="session-record.schema.json",
+    )
+    if session_record is not None:
+        session_summary.update(
+            {
+                "session_id": session_record["session_id"],
+                "worker_id": session_record["worker_id"],
+                "resumable": session_record["resumable"],
+                "resumable_reason_code": session_record.get("resumable_reason_code"),
+                "resumable_reason": session_record.get("resumable_reason"),
+                "provider_locator_present": session_record.get("provider_locator") is not None,
+                "current_stage": session_record.get("current_stage"),
+                "current_slice_id": session_record.get("current_slice_id"),
+                "permission_profile": session_record.get("permission_profile"),
+                "worktree_mode": session_record.get("worktree_mode"),
+                "last_resume_outcome": session_record.get("last_resume_outcome"),
+            }
+        )
+
+    launch_summary, launch_record = _linked_artifact_summary(
+        repo_root=repo_root,
+        rel_path=bundle.get("native_launch_record_path"),
+        contract_name="native-launch.schema.json",
+    )
+    if launch_record is not None:
+        launch_summary.update(
+            {
+                "recorded_at": launch_record["recorded_at"],
+                "adapter": launch_record["adapter"],
+                "session_id": launch_record["session"]["id"],
+                "stage": launch_record["dispatch"]["stage"],
+                "slice_id": launch_record["dispatch"]["slice_id"],
+                "boundary_handoff_path": launch_record["dispatch"]["boundary_handoff_path"],
+                "handoff_injected": launch_record["context"]["handoff_injected"],
+                "worker_id": (launch_record.get("worker") or {}).get("worker_id"),
+                "worker_class": (launch_record.get("worker") or {}).get("worker_class"),
+                "launch_surface": (launch_record.get("worker") or {}).get("launch_surface"),
+                "worktree_mode": (launch_record.get("worker") or {}).get("worktree_mode"),
+                "dispatch_record_path": (launch_record.get("bundle") or {}).get("dispatch_record_path"),
+                "trace_path": (launch_record.get("harness") or {}).get("trace_path"),
+            }
+        )
+
+    resume_summary, resume_record = _linked_artifact_summary(
+        repo_root=repo_root,
+        rel_path=bundle.get("native_resume_record_path"),
+        contract_name="native-resume.schema.json",
+    )
+    if resume_record is not None:
+        resume_summary.update(
+            {
+                "recorded_at": resume_record["recorded_at"],
+                "adapter": resume_record["adapter"],
+                "worker_id": resume_record["worker_id"],
+                "requested_session_id": resume_record["requested_session_id"],
+                "resolved_session_id": resume_record["resolved_session_id"],
+                "outcome": resume_record["outcome"],
+                "reason_code": resume_record["reason_code"],
+                "reason": resume_record["reason"],
+                "prompt_injected": resume_record["prompt_injected"],
+                "trace_path": resume_record["trace_path"],
+                "session_record_path": resume_record["session_record_path"],
+            }
+        )
+
+    trace_path = None
+    if worker_record is not None:
+        trace_path = worker_record.get("trace_path")
+    elif launch_record is not None:
+        trace_path = (launch_record.get("harness") or {}).get("trace_path")
+    elif resume_record is not None:
+        trace_path = resume_record.get("trace_path")
+    trace_summary = _summarize_trace_stream(repo_root=repo_root, trace_path=trace_path)
+
+    return {
+        "worker_record": worker_summary,
+        "session_record": session_summary,
+        "launch_record": launch_summary,
+        "resume_record": resume_summary,
+        "trace_stream": trace_summary,
+    }
+
+
 def build_run_snapshot(repo_root: Path) -> dict[str, Any]:
     recovery_result = recover_pending_transaction(repo_root)
     run = load_run_or_error(repo_root)
@@ -205,6 +403,10 @@ def build_run_snapshot(repo_root: Path) -> dict[str, Any]:
     dispatch_bundle = load_dispatch_bundle_status(repo_root=repo_root, run=run, dispatch=dispatch)
     approvals = approval_history_snapshot(repo_root=repo_root)
     policies = policy_history_snapshot(repo_root=repo_root)
+    active_runtime = build_active_runtime_snapshot(
+        repo_root=repo_root,
+        dispatch_bundle=dispatch_bundle,
+    )
 
     return {
         "workflow": run.get("workflow"),
@@ -234,6 +436,7 @@ def build_run_snapshot(repo_root: Path) -> dict[str, Any]:
         "ledger": ledger_snapshot,
         "handoff_status": handoff_status,
         "dispatch_bundle": dispatch_bundle,
+        "active_runtime": active_runtime,
         "approvals": approvals,
         "policies": policies,
         "dispatch": dispatch,

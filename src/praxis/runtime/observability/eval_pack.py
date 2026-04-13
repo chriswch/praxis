@@ -93,10 +93,10 @@ def _run_module(*, module: str, argv: list[str], input_text: str | None = None, 
 
 def _show_run(repo_root: Path) -> dict[str, Any]:
     completed = _run_module(
-        module="praxis.runtime.orchestrator",
-        argv=["show-run", "--repo-root", str(repo_root)],
+        module="praxis.cli.main",
+        argv=["status", "--repo-root", str(repo_root), "--json"],
     )
-    return json.loads(completed.stdout)
+    return json.loads(completed.stdout)["data"]["run"]
 
 
 def _last_event(events: list[dict[str, Any]], event_types: set[str]) -> dict[str, Any] | None:
@@ -172,6 +172,11 @@ def _native_harness_view(outcome: dict[str, Any]) -> dict[str, Any]:
         if record is not None
         else launch_event.get("handoff_injected") if launch_event is not None else None
     )
+    active_runtime = show_run.get("active_runtime") or {}
+    worker_record = active_runtime.get("worker_record") or {}
+    session_record = active_runtime.get("session_record") or {}
+    launch_record = active_runtime.get("launch_record") or {}
+    trace_stream = active_runtime.get("trace_stream") or {}
 
     return {
         "response_continue": outcome["response"].get("continue"),
@@ -200,6 +205,11 @@ def _native_harness_view(outcome: dict[str, Any]) -> dict[str, Any]:
             else None
         ),
         "trace_stop_reason_code": show_run["trace"].get("stop_reason_code"),
+        "active_worker_status": worker_record.get("status"),
+        "active_session_resumable": session_record.get("resumable"),
+        "active_launch_handoff_injected": launch_record.get("handoff_injected"),
+        "active_trace_event_count": trace_stream.get("event_count"),
+        "active_trace_last_event_type": trace_stream.get("last_event_type"),
     }
 
 
@@ -234,6 +244,13 @@ def _semantic_native_harness_view(outcome: dict[str, Any]) -> dict[str, Any]:
             "launch_type": show_run["trace"]["last_launch_event"]["type"],
             "launch_reason_code": show_run["trace"]["last_launch_event"]["reason_code"],
             "trace_handoff_event_type": show_run["trace"]["last_handoff_event"]["type"],
+        },
+        "active_runtime": {
+            "worker_status": (show_run.get("active_runtime") or {}).get("worker_record", {}).get("status"),
+            "session_resumable": (show_run.get("active_runtime") or {}).get("session_record", {}).get("resumable"),
+            "launch_handoff_injected": (show_run.get("active_runtime") or {}).get("launch_record", {}).get("handoff_injected"),
+            "trace_event_count": (show_run.get("active_runtime") or {}).get("trace_stream", {}).get("event_count"),
+            "trace_last_event_type": (show_run.get("active_runtime") or {}).get("trace_stream", {}).get("last_event_type"),
         },
     }
 

@@ -89,6 +89,11 @@
     "trace_launch_event_type": "native_launch_recorded",
     "trace_handoff_event_type": "handoff_validated",
     "trace_resume_event_type": null,
-    "trace_stop_reason_code": null
+    "trace_stop_reason_code": null,
+    "active_worker_status": "running",
+    "active_session_resumable": true,
+    "active_launch_handoff_injected": true,
+    "active_trace_event_count": 1,
+    "active_trace_last_event_type": "native_launch_recorded"
   }
 }

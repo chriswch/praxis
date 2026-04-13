@@ -259,6 +259,212 @@ def _worktree_cleanup_event_check(*, repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _artifact_not_required_check(*, name: str, artifact_type: str) -> dict[str, Any]:
+    return _record_check(
+        name=name,
+        status="ok",
+        reason_code=f"{artifact_type}_not_yet_recorded",
+        message=f"The active dispatch has not linked a {artifact_type.replace('_', ' ')} yet.",
+    )
+
+
+def _active_runtime_artifact_check(
+    *,
+    name: str,
+    artifact_type: str,
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    if not summary.get("linked"):
+        return _artifact_not_required_check(name=name, artifact_type=artifact_type)
+    if not summary.get("exists"):
+        return _record_check(
+            name=name,
+            status="error",
+            reason_code=f"{artifact_type}_missing",
+            message=f"The active dispatch links a missing {artifact_type.replace('_', ' ')}.",
+            details=summary,
+        )
+    if summary.get("schema_valid") is False:
+        return _record_check(
+            name=name,
+            status="error",
+            reason_code=f"{artifact_type}_invalid",
+            message=f"The active {artifact_type.replace('_', ' ')} failed schema validation.",
+            details=summary,
+        )
+    return _record_check(
+        name=name,
+        status="ok",
+        reason_code=f"{artifact_type}_available",
+        message=f"The active {artifact_type.replace('_', ' ')} is available and validates.",
+        details=summary,
+    )
+
+
+def _active_trace_stream_check(*, summary: dict[str, Any]) -> dict[str, Any]:
+    if not summary.get("linked"):
+        return _artifact_not_required_check(name="active_trace_stream", artifact_type="trace_stream")
+    if not summary.get("exists"):
+        return _record_check(
+            name="active_trace_stream",
+            status="error",
+            reason_code="trace_stream_missing",
+            message="The active worker links a missing trace stream.",
+            details=summary,
+        )
+    if summary.get("schema_valid") is False:
+        return _record_check(
+            name="active_trace_stream",
+            status="error",
+            reason_code="trace_stream_invalid",
+            message="The active trace stream failed schema validation.",
+            details=summary,
+        )
+    return _record_check(
+        name="active_trace_stream",
+        status="ok",
+        reason_code="trace_stream_available",
+        message="The active trace stream is available and validates.",
+        details=summary,
+    )
+
+
+def _worker_dispatch_consistency_check(
+    *,
+    run: dict[str, Any] | None,
+    dispatch_bundle: dict[str, Any] | None,
+    active_runtime: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if run is None or dispatch_bundle is None or active_runtime is None:
+        return _record_check(
+            name="active_runtime_consistency",
+            status="ok",
+            reason_code="active_runtime_not_required",
+            message="No active runtime artifact linkage requires consistency checks.",
+        )
+
+    expected_worker_id = dispatch_bundle.get("worker_id") or run.get("current", {}).get("worker_id")
+    expected_dispatch_id = dispatch_bundle.get("dispatch_id")
+    expected_dispatch_record_path = dispatch_bundle.get("dispatch_record_path")
+    expected_stage = run.get("current", {}).get("stage")
+    expected_session_id = run.get("current", {}).get("session_id")
+
+    mismatches: list[dict[str, Any]] = []
+    worker_record = active_runtime.get("worker_record") or {}
+    if worker_record.get("schema_valid") and worker_record.get("exists"):
+        if expected_worker_id and worker_record.get("worker_id") != expected_worker_id:
+            mismatches.append(
+                {
+                    "artifact": "worker_record",
+                    "field": "worker_id",
+                    "expected": expected_worker_id,
+                    "actual": worker_record.get("worker_id"),
+                }
+            )
+        if expected_dispatch_id and worker_record.get("dispatch_id") != expected_dispatch_id:
+            mismatches.append(
+                {
+                    "artifact": "worker_record",
+                    "field": "dispatch_id",
+                    "expected": expected_dispatch_id,
+                    "actual": worker_record.get("dispatch_id"),
+                }
+            )
+        if expected_dispatch_record_path and worker_record.get("dispatch_record_path") != expected_dispatch_record_path:
+            mismatches.append(
+                {
+                    "artifact": "worker_record",
+                    "field": "dispatch_record_path",
+                    "expected": expected_dispatch_record_path,
+                    "actual": worker_record.get("dispatch_record_path"),
+                }
+            )
+
+    session_record = active_runtime.get("session_record") or {}
+    if session_record.get("schema_valid") and session_record.get("exists"):
+        if expected_worker_id and session_record.get("worker_id") != expected_worker_id:
+            mismatches.append(
+                {
+                    "artifact": "session_record",
+                    "field": "worker_id",
+                    "expected": expected_worker_id,
+                    "actual": session_record.get("worker_id"),
+                }
+            )
+        if expected_session_id and session_record.get("session_id") != expected_session_id:
+            mismatches.append(
+                {
+                    "artifact": "session_record",
+                    "field": "session_id",
+                    "expected": expected_session_id,
+                    "actual": session_record.get("session_id"),
+                }
+            )
+
+    launch_record = active_runtime.get("launch_record") or {}
+    if launch_record.get("schema_valid") and launch_record.get("exists"):
+        if expected_worker_id and launch_record.get("worker_id") != expected_worker_id:
+            mismatches.append(
+                {
+                    "artifact": "launch_record",
+                    "field": "worker_id",
+                    "expected": expected_worker_id,
+                    "actual": launch_record.get("worker_id"),
+                }
+            )
+        if expected_stage and launch_record.get("stage") != expected_stage:
+            mismatches.append(
+                {
+                    "artifact": "launch_record",
+                    "field": "stage",
+                    "expected": expected_stage,
+                    "actual": launch_record.get("stage"),
+                }
+            )
+        if expected_dispatch_record_path and launch_record.get("dispatch_record_path") != expected_dispatch_record_path:
+            mismatches.append(
+                {
+                    "artifact": "launch_record",
+                    "field": "dispatch_record_path",
+                    "expected": expected_dispatch_record_path,
+                    "actual": launch_record.get("dispatch_record_path"),
+                }
+            )
+
+    resume_record = active_runtime.get("resume_record") or {}
+    if resume_record.get("schema_valid") and resume_record.get("exists") and expected_worker_id:
+        if resume_record.get("worker_id") != expected_worker_id:
+            mismatches.append(
+                {
+                    "artifact": "resume_record",
+                    "field": "worker_id",
+                    "expected": expected_worker_id,
+                    "actual": resume_record.get("worker_id"),
+                }
+            )
+
+    if mismatches:
+        return _record_check(
+            name="active_runtime_consistency",
+            status="error",
+            reason_code="active_runtime_mismatch",
+            message="One or more active runtime artifacts do not match the current dispatch linkage.",
+            details={"mismatches": mismatches},
+        )
+
+    return _record_check(
+        name="active_runtime_consistency",
+        status="ok",
+        reason_code="active_runtime_consistent",
+        message="Linked active runtime artifacts match the current dispatch.",
+        details={
+            "dispatch_id": expected_dispatch_id,
+            "worker_id": expected_worker_id,
+            "session_id": expected_session_id,
+        },
+    )
+
+
 def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[str, Any]:
     del timestamp
     checks: list[dict[str, Any]] = []
@@ -313,6 +519,10 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
             )
         )
 
+    active_runtime: dict[str, Any] | None = None
+    if run_snapshot is not None:
+        active_runtime = run_snapshot.get("active_runtime")
+
     if run is not None and run.get("current", {}).get("stage") is not None and run_snapshot is not None:
         dispatch_bundle = load_dispatch_bundle_status(
             repo_root=repo_root,
@@ -355,6 +565,48 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
                     details=dispatch_bundle or {},
                 )
             )
+
+        if active_runtime is not None:
+            checks.append(
+                _active_runtime_artifact_check(
+                    name="active_worker_record",
+                    artifact_type="worker_record",
+                    summary=active_runtime.get("worker_record") or {},
+                )
+            )
+            checks.append(
+                _active_runtime_artifact_check(
+                    name="active_session_record",
+                    artifact_type="session_record",
+                    summary=active_runtime.get("session_record") or {},
+                )
+            )
+            checks.append(
+                _active_runtime_artifact_check(
+                    name="active_launch_record",
+                    artifact_type="launch_record",
+                    summary=active_runtime.get("launch_record") or {},
+                )
+            )
+            checks.append(
+                _active_runtime_artifact_check(
+                    name="active_resume_record",
+                    artifact_type="resume_record",
+                    summary=active_runtime.get("resume_record") or {},
+                )
+            )
+            checks.append(
+                _active_trace_stream_check(
+                    summary=active_runtime.get("trace_stream") or {},
+                )
+            )
+            checks.append(
+                _worker_dispatch_consistency_check(
+                    run=run,
+                    dispatch_bundle=dispatch_bundle,
+                    active_runtime=active_runtime,
+                )
+            )
     else:
         checks.append(
             _record_check(
@@ -362,6 +614,19 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
                 status="ok",
                 reason_code="dispatch_bundle_not_required",
                 message="No active stage requires a compiled dispatch bundle.",
+            )
+        )
+        checks.append(_artifact_not_required_check(name="active_worker_record", artifact_type="worker_record"))
+        checks.append(_artifact_not_required_check(name="active_session_record", artifact_type="session_record"))
+        checks.append(_artifact_not_required_check(name="active_launch_record", artifact_type="launch_record"))
+        checks.append(_artifact_not_required_check(name="active_resume_record", artifact_type="resume_record"))
+        checks.append(_artifact_not_required_check(name="active_trace_stream", artifact_type="trace_stream"))
+        checks.append(
+            _record_check(
+                name="active_runtime_consistency",
+                status="ok",
+                reason_code="active_runtime_not_required",
+                message="No active runtime artifact linkage requires consistency checks.",
             )
         )
 
