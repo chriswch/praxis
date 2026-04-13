@@ -6,7 +6,13 @@ from typing import Any
 
 from ..dispatch_records import normalize_dispatch_record
 from ..state.contract_validation import validate_contract_payload
-from ..state.durable_state import commit_transaction, dump_json, load_json, recover_pending_transaction
+from ..state.durable_state import (
+    commit_transaction,
+    dump_json,
+    load_json,
+    load_pending_recovery,
+    recover_pending_transaction,
+)
 from ..workers.planning import ensure_run_vnext_defaults
 from ..workers.bookkeeping import dispatch_bundle_paths
 
@@ -71,9 +77,74 @@ def persist_dispatch_bundle(
         operation="persist_dispatch_bundle",
         files=files,
         timestamp=timestamp,
-        metadata={"dispatch_id": bundle["dispatch_id"]},
+        metadata={
+            "kind": "dispatch_bundle",
+            "dispatch_id": bundle["dispatch_id"],
+            "bundle_dir": bundle["bundle_dir"],
+        },
     )
     return load_dispatch_bundle_status(repo_root=repo_root, bundle=bundle)
+
+
+def _pending_recovery_targets_bundle(*, recovery: dict[str, Any] | None, bundle: dict[str, str]) -> bool:
+    if not isinstance(recovery, dict):
+        return False
+    bundle_dir = f"{bundle['bundle_dir']}/"
+    for file_entry in recovery.get("files", []):
+        target_path = file_entry.get("target_path")
+        if isinstance(target_path, str) and target_path.startswith(bundle_dir):
+            return True
+    metadata = recovery.get("metadata")
+    if isinstance(metadata, dict):
+        return metadata.get("dispatch_id") == bundle["dispatch_id"]
+    return False
+
+
+def _classify_bundle_recovery_status(
+    *,
+    recovery: dict[str, Any] | None,
+    bundle: dict[str, str],
+    worker_launch_exists: bool,
+    dispatch_record_exists: bool,
+    context_manifest_exists: bool,
+    tool_manifest_exists: bool,
+    dispatch_status: str | None,
+    dispatch_resolved: bool | None,
+) -> tuple[str, str, str]:
+    if _pending_recovery_targets_bundle(recovery=recovery, bundle=bundle):
+        return (
+            "pending_recovery",
+            "dispatch_bundle_recovery_pending",
+            "A durable transaction is still finalizing this dispatch bundle, so Praxis is failing closed until recovery completes.",
+        )
+
+    if worker_launch_exists and dispatch_record_exists and context_manifest_exists and tool_manifest_exists:
+        return (
+            "clean",
+            "dispatch_bundle_complete",
+            "The dispatch bundle is complete and ready for inspection.",
+        )
+
+    if dispatch_record_exists and not worker_launch_exists and not context_manifest_exists and not tool_manifest_exists:
+        if dispatch_status == "intent_recorded" and dispatch_resolved is False:
+            return (
+                "intent_recorded_only",
+                "dispatch_intent_only",
+                "Praxis recorded dispatch intent, but the compiled dispatch bundle is incomplete. Fail closed and rebuild from durable state.",
+            )
+
+    if worker_launch_exists or dispatch_record_exists or context_manifest_exists or tool_manifest_exists:
+        return (
+            "incomplete_bundle",
+            "dispatch_bundle_incomplete",
+            "The active dispatch bundle is missing one or more required artifacts. Praxis is failing closed for recovery.",
+        )
+
+    return (
+        "not_compiled",
+        "dispatch_bundle_missing",
+        "The active dispatch bundle has not been compiled yet.",
+    )
 
 
 def load_dispatch_bundle_status(
@@ -92,6 +163,8 @@ def load_dispatch_bundle_status(
     worker_launch_path = repo_root / bundle["worker_launch_path"]
     dispatch_record_path = repo_root / bundle["dispatch_record_path"]
     context_manifest_path = repo_root / bundle["context_manifest_path"]
+    tool_manifest_path = repo_root / bundle["tool_manifest_path"]
+    recovery = load_pending_recovery(repo_root)
 
     status = {
         "dispatch_id": bundle["dispatch_id"],
@@ -102,7 +175,9 @@ def load_dispatch_bundle_status(
         "worker_launch_exists": worker_launch_path.exists(),
         "dispatch_record_exists": dispatch_record_path.exists(),
         "context_manifest_exists": context_manifest_path.exists(),
-        "available": worker_launch_path.exists() and dispatch_record_path.exists() and context_manifest_path.exists(),
+        "tool_manifest_path": bundle["tool_manifest_path"],
+        "tool_manifest_exists": tool_manifest_path.exists(),
+        "available": False,
     }
 
     if dispatch_record_path.exists():
@@ -149,12 +224,24 @@ def load_dispatch_bundle_status(
         status["stage_specific_item_count"] = manifest["selection_summary"]["stage_specific_item_count"]
         status["carry_forward_item_count"] = manifest["selection_summary"]["carry_forward_item_count"]
 
-    tool_manifest_path = repo_root / bundle["tool_manifest_path"]
-    status["tool_manifest_path"] = bundle["tool_manifest_path"]
-    status["tool_manifest_exists"] = tool_manifest_path.exists()
     if tool_manifest_path.exists():
         manifest = load_json(tool_manifest_path)
         validate_contract_payload("tool-manifest.schema.json", manifest)
         status["tool_count"] = manifest["tool_count"]
+
+    recovery_state, recovery_reason_code, recovery_reason = _classify_bundle_recovery_status(
+        recovery=recovery,
+        bundle=bundle,
+        worker_launch_exists=status["worker_launch_exists"],
+        dispatch_record_exists=status["dispatch_record_exists"],
+        context_manifest_exists=status["context_manifest_exists"],
+        tool_manifest_exists=status["tool_manifest_exists"],
+        dispatch_status=status.get("dispatch_status"),
+        dispatch_resolved=status.get("dispatch_resolved"),
+    )
+    status["recovery_state"] = recovery_state
+    status["recovery_reason_code"] = recovery_reason_code
+    status["recovery_reason"] = recovery_reason
+    status["available"] = recovery_state == "clean"
 
     return status

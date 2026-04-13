@@ -329,13 +329,29 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
                     details=dispatch_bundle,
                 )
             )
+        elif dispatch_bundle is not None and dispatch_bundle.get("recovery_state") in {"pending_recovery", "intent_recorded_only", "incomplete_bundle"}:
+            checks.append(
+                _record_check(
+                    name="active_dispatch_bundle",
+                    status="error",
+                    reason_code=str(dispatch_bundle.get("recovery_reason_code") or "dispatch_bundle_incomplete"),
+                    message=str(
+                        dispatch_bundle.get("recovery_reason")
+                        or "The active dispatch bundle is incomplete and requires recovery."
+                    ),
+                    details=dispatch_bundle,
+                )
+            )
         else:
             checks.append(
                 _record_check(
                     name="active_dispatch_bundle",
                     status="warn",
-                    reason_code="dispatch_bundle_missing",
-                    message="The active dispatch bundle has not been compiled yet.",
+                    reason_code=str((dispatch_bundle or {}).get("recovery_reason_code") or "dispatch_bundle_missing"),
+                    message=str(
+                        (dispatch_bundle or {}).get("recovery_reason")
+                        or "The active dispatch bundle has not been compiled yet."
+                    ),
                     details=dispatch_bundle or {},
                 )
             )

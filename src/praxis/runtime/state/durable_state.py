@@ -93,6 +93,16 @@ def inspect_handoff_file(path: Path) -> dict[str, Any]:
     return inspect_handoff_artifact(path)
 
 
+def load_pending_recovery(repo_root: Path) -> dict[str, Any] | None:
+    repo_root = repo_root.resolve()
+    recovery_path = repo_root / ".praxis" / "recovery.json"
+    if not recovery_path.exists():
+        return None
+    recovery = load_json(recovery_path)
+    validate_recovery_payload(recovery)
+    return recovery
+
+
 def validate_event_log(events: list[dict[str, Any]]) -> None:
     for index, event in enumerate(events):
         try:

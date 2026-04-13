@@ -9,6 +9,7 @@ import time
 import unittest
 from pathlib import Path
 
+from praxis.runtime.context.bundle import bundle_paths_for_run
 from praxis.runtime.orchestrator import initialize_run
 from praxis.runtime.state.contract_validation import validate_contract_payload
 
@@ -418,6 +419,104 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(bundle["tool_count"], 4)
         self.assertEqual(bundle["dispatch_status"], "intent_recorded")
         self.assertFalse(bundle["dispatch_resolved"])
+
+    def test_status_and_doctor_report_intent_only_dispatch_bundle_recovery(self) -> None:
+        self._write_adapter_harness("codex")
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Inspect dispatch recovery",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:36:30Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        bundle = bundle_paths_for_run(
+            run,
+            {
+                "scope": run["current"]["scope"],
+                "slice_id": run["current"]["slice_id"],
+                "artifact_dir": run["current"]["artifact_dir"],
+                "stage": run["current"]["stage"],
+            },
+            worker_id=run["current"]["worker_id"],
+            worker_class="session_worker",
+        )
+        self._write_json(
+            bundle["dispatch_record_path"],
+            {
+                "version": 1,
+                "dispatch_id": bundle["dispatch_id"],
+                "run_id": run["run_id"],
+                "recorded_at": "2026-04-12T04:36:31Z",
+                "status": "intent_recorded",
+                "dispatch": {
+                    "workflow": "forge",
+                    "adapter": "codex",
+                    "entrypoint": "praxis:forge",
+                    "scope": run["current"]["scope"],
+                    "slice_id": run["current"]["slice_id"],
+                    "artifact_dir": run["current"]["artifact_dir"],
+                    "stage": run["current"]["stage"],
+                    "boundary_handoff_path": None,
+                    "transition_id": str(run["control"]["last_transition_id"]),
+                    "reason": "Recover the active dispatch bundle from durable state.",
+                },
+                "worker": {
+                    "worker_id": run["current"]["worker_id"],
+                    "worker_class": "session_worker",
+                    "reuse_policy": "none",
+                    "permission_profile": "planning",
+                    "worktree_mode": "shared",
+                    "fresh_context": True,
+                },
+                "resume": {
+                    "strategy": "prefer_resume_then_relaunch",
+                    "session_id": None,
+                    "resumable": False,
+                    "mode": "headless",
+                },
+                "bundle": {
+                    "bundle_dir": bundle["bundle_dir"],
+                    "worker_launch_path": bundle["worker_launch_path"],
+                    "dispatch_record_path": bundle["dispatch_record_path"],
+                    "context_manifest_path": bundle["context_manifest_path"],
+                    "tool_manifest_path": bundle["tool_manifest_path"],
+                },
+                "artifact_inputs": [".praxis/run.json"],
+                "artifact_outputs_expected": [".praxis/results/clarifying-intent.json"],
+                "resolution": {
+                    "status": "intent_recorded",
+                    "updated_at": "2026-04-12T04:36:31Z",
+                    "resolved": False,
+                    "reason_code": "intent_recorded",
+                    "reason": "Praxis recorded the dispatch intent before adapter launch or resume began.",
+                    "native_launch_record_path": None,
+                    "native_resume_record_path": None,
+                    "worker_record_path": None,
+                    "session_record_path": None,
+                },
+            },
+        )
+
+        status_completed = self._run_cli("status", "--repo-root", str(self.repo_root), "--json")
+        self.assertEqual(status_completed.returncode, 0, status_completed.stderr)
+        status_result = json.loads(status_completed.stdout)
+        dispatch_bundle = status_result["data"]["run"]["dispatch_bundle"]
+        self.assertFalse(dispatch_bundle["available"])
+        self.assertEqual(dispatch_bundle["recovery_state"], "intent_recorded_only")
+        self.assertEqual(dispatch_bundle["recovery_reason_code"], "dispatch_intent_only")
+
+        doctor_completed = self._run_cli("doctor", "--repo-root", str(self.repo_root), "--json")
+        self.assertEqual(doctor_completed.returncode, 0, doctor_completed.stderr)
+        doctor_result = json.loads(doctor_completed.stdout)
+        checks = {check["name"]: check for check in doctor_result["data"]["checks"]}
+        active_dispatch_bundle = checks["active_dispatch_bundle"]
+        self.assertEqual(active_dispatch_bundle["status"], "error")
+        self.assertEqual(active_dispatch_bundle["reason_code"], "dispatch_intent_only")
+        self.assertEqual(active_dispatch_bundle["details"]["recovery_state"], "intent_recorded_only")
 
     def test_harness_show_adapter_returns_native_harness_shape(self) -> None:
         self._write_adapter_harness("codex")
