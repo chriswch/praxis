@@ -11,7 +11,7 @@ from praxis.commands._support import build_run_snapshot, load_run_or_error
 from praxis.runtime.adapters.native_resume import worker_record_relpath
 from praxis.runtime.state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json, validate_state_payloads
 from praxis.runtime.workers.planning import bump_transition_id, ensure_run_vnext_defaults
-from praxis.runtime.workers.worktree import cleanup_isolated_worktree, isolated_worktree_relpath
+from praxis.runtime.workers.worktree import cleanup_isolated_worktree_event, isolated_worktree_relpath
 
 
 def _cancel_event(*, run: dict[str, Any], timestamp: str, reason: str) -> dict[str, Any]:
@@ -89,27 +89,13 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
 
         worktree_path = repo_root / isolated_worktree_relpath(worker_id)
         if worktree_path.exists():
-            try:
-                cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
-                events.append(
-                    {
-                        "ts": timestamp,
-                        "type": "worktree_cleaned",
-                        "worker_id": worker_id,
-                        "worktree_path": str(worktree_path),
-                    }
-                )
-            except Exception as exc:
-                events.append(
-                    {
-                        "ts": timestamp,
-                        "type": "worktree_cleanup_failed",
-                        "worker_id": worker_id,
-                        "worktree_path": str(worktree_path),
-                        "reason_code": "worktree_cleanup_failed",
-                        "reason": str(exc),
-                    }
-                )
+            cleanup_event = cleanup_isolated_worktree_event(
+                repo_root=repo_root,
+                worker_id=worker_id,
+                recorded_at=timestamp,
+            )
+            if cleanup_event is not None:
+                events.append(cleanup_event)
             files[".praxis/events.jsonl"] = dump_events(events)
 
     run["status"] = "cancelled"

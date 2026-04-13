@@ -182,6 +182,14 @@ class WorkerLauncherContractTest(unittest.TestCase):
             time.sleep(0.05)
         self.fail(f"Timed out waiting for isolated worktree cleanup: {worktree_path}")
 
+    def _wait_for_event(self, event_type: str) -> None:
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            if any(event["type"] == event_type for event in self._events()):
+                return
+            time.sleep(0.05)
+        self.fail(f"Timed out waiting for event: {event_type}")
+
     def _events(self) -> list[dict]:
         return [
             json.loads(line)
@@ -222,6 +230,7 @@ class WorkerLauncherContractTest(unittest.TestCase):
         )
         self.assertEqual(session_record["session_id"], "ctrl-session-123")
         self.assertEqual(session_record["provider_locator"], "provider-session-456")
+        self.assertEqual(session_record["workspace_root"], str(self.repo_root.resolve()))
         self.assertTrue(session_record["resumable"])
         self.assertEqual(session_record["resumable_reason_code"], "provider_locator_recorded")
         self.assertEqual(launch_record["session"]["provider_locator"], "provider-session-456")
@@ -259,6 +268,7 @@ class WorkerLauncherContractTest(unittest.TestCase):
         worker_record = self._wait_for_worker_status("wrk_root_review_01", "completed")
         self.assertEqual(worker_record["status"], "completed")
         self._wait_for_worktree_cleanup("wrk_root_review_01")
+        self._wait_for_event("worktree_cleaned")
 
         events = self._events()
         terminal_events = [event for event in events if event["type"] in {"worker_process_completed", "worker_process_failed"}]
@@ -292,11 +302,43 @@ class WorkerLauncherContractTest(unittest.TestCase):
         worker_record = self._wait_for_worker_status("wrk_root_review_01", "failed")
         self.assertEqual(worker_record["status"], "failed")
         self._wait_for_worktree_cleanup("wrk_root_review_01")
+        self._wait_for_event("worktree_cleaned")
 
         events = self._events()
         terminal_events = [event for event in events if event["type"] in {"worker_process_completed", "worker_process_failed"}]
         self.assertEqual(len(terminal_events), 1)
         self.assertEqual(terminal_events[0]["type"], "worker_process_failed")
+        self.assertIn("worktree_cleaned", [event["type"] for event in events])
+
+    def test_dispatch_cleans_isolated_worktree_when_launcher_cannot_start(self) -> None:
+        self._init_git_repo()
+        self._write_codex_harness()
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Fail before the launcher starts",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T07:30:00Z",
+        )
+        self._set_stage(stage="code-reviewing")
+
+        adapter_path = self.repo_root / ".codex" / "adapter.json"
+        adapter_payload = load_json(adapter_path)
+        adapter_payload["worker_launch_command"] = "missing-praxis-launcher --repo-root ."
+        adapter_path.write_text(json.dumps(adapter_payload, indent=2) + "\n")
+
+        with self.assertRaises(FileNotFoundError):
+            dispatch_worker(
+                repo_root=self.repo_root,
+                timestamp="2026-04-12T07:31:00Z",
+            )
+
+        self.assertFalse((self.repo_root / ".praxis" / "runtime" / "worktrees" / "wrk_root_review_01").exists())
+
+        events = self._events()
+        self.assertIn("native_launch_failed", [event["type"] for event in events])
         self.assertIn("worktree_cleaned", [event["type"] for event in events])
 
 

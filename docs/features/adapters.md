@@ -80,6 +80,8 @@ Praxis currently shares these adapter behaviors across Claude and Codex:
 - manual resume safety checks implemented in `src/praxis/runtime/adapters/provider_resume.py`
 - fresh background launches keep the durable Praxis session cursor separate from
   the provider-issued resume locator
+- successful resume updates the stored provider locator without rotating the
+  durable Praxis cursor
 - the launcher updates launch and session records when the provider later emits
   a real resume locator
 - fresh worker context rebuilt from dispatch, run metadata, and the active

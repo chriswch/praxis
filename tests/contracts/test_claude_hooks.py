@@ -252,15 +252,16 @@ class ClaudeHooksContractTest(unittest.TestCase):
         self.assertEqual(resume_record["outcome"], "resumed")
         self.assertEqual(resume_record["resolved_session_id"], "claude-rotated-456")
 
-        rotated_session_path = self.repo_root / ".praxis" / "runtime" / "sessions" / "claude" / "claude-rotated-456.json"
-        self.assertTrue(rotated_session_path.exists())
-        session_record = json.loads(rotated_session_path.read_text())
-        self.assertEqual(session_record["session_id"], "claude-rotated-456")
+        session_path = self.repo_root / ".praxis" / "runtime" / "sessions" / "claude" / "claude-prev-123.json"
+        self.assertTrue(session_path.exists())
+        session_record = json.loads(session_path.read_text())
+        self.assertEqual(session_record["session_id"], "claude-prev-123")
+        self.assertEqual(session_record["provider_locator"], "claude-rotated-456")
         self.assertEqual(session_record["session_origin"], "interactive_resume")
         self.assertEqual(session_record["last_resume_outcome"], "resumed")
 
         run = json.loads((self.repo_root / ".praxis" / "run.json").read_text())
-        self.assertEqual(run["current"]["session_id"], "claude-rotated-456")
+        self.assertEqual(run["current"]["session_id"], "claude-prev-123")
         self.assertEqual(
             run["routing"]["reason"],
             "Awaiting rapid-implementing stage results from resumed worker wrk_root_impl_01.",

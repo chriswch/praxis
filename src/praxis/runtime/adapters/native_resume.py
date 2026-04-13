@@ -20,7 +20,7 @@ from ..workers.planning import ensure_run_vnext_defaults, mark_worker_resumed
 
 _PROVIDER_RESUME_PROFILES = {
     "codex": {"supported": True, "mode": "either"},
-    "claude": {"supported": True, "mode": "interactive"},
+    "claude": {"supported": True, "mode": "either"},
 }
 
 
@@ -153,6 +153,7 @@ def load_session_record(*, repo_root: Path, adapter: str, session_id: str) -> tu
 
 def build_session_record(
     *,
+    repo_root: Path,
     run: dict[str, Any],
     payload: dict[str, Any],
     record: dict[str, Any],
@@ -175,7 +176,7 @@ def build_session_record(
         "run_id": run["run_id"],
         "worker_id": payload["worker"]["worker_id"],
         "cwd": record["session"]["cwd"],
-        "workspace_root": record["session"]["cwd"],
+        "workspace_root": str(repo_root),
         "resumable": resumable,
         "resumable_reason_code": resumable_reason_code,
         "resumable_reason": resumable_reason,
@@ -196,6 +197,7 @@ def build_session_record(
         "last_resume_at": None,
         "last_resume_outcome": "resume_not_attempted",
         "provider_metadata": {
+            "cwd": record["session"]["cwd"],
             "source": record["session"]["source"],
             "workflow": record["dispatch"]["workflow"],
             "scope": record["dispatch"]["scope"],
@@ -294,8 +296,9 @@ def _updated_session_record(
     profile = provider_resume_profile(payload["adapter"])
     provider_state = dict((existing or {}).get("provider_metadata", {}))
     provider_state.update(provider_metadata)
-    if resolved_session_id != requested_session_id:
-        provider_state["previous_session_id"] = requested_session_id
+    previous_provider_locator = (existing or {}).get("provider_locator")
+    if isinstance(previous_provider_locator, str) and previous_provider_locator and previous_provider_locator != resolved_session_id:
+        provider_state["previous_provider_locator"] = previous_provider_locator
     provider_state.update(
         {
             "source": source,
@@ -314,9 +317,10 @@ def _updated_session_record(
         origin=origin,
         provider_locator=resolved_session_id,
     )
+    stable_session_id = str((existing or {}).get("session_id") or requested_session_id)
     record = {
         "version": 3,
-        "session_id": resolved_session_id,
+        "session_id": stable_session_id,
         "adapter": payload["adapter"],
         "run_id": run["run_id"],
         "worker_id": payload["worker"]["worker_id"],
@@ -417,6 +421,7 @@ def update_session_record_after_launch(
     provider_state = dict(updated_session.get("provider_metadata", {}))
     provider_state.update(provider_metadata or {})
     provider_state["provider_locator_observed_at"] = recorded_at
+    provider_state.setdefault("cwd", str(updated_session.get("cwd") or repo_root))
 
     origin = str(updated_session.get("session_origin") or "headless_start")
     resumable, resumable_reason_code, resumable_reason = derive_session_resumability(
@@ -426,6 +431,7 @@ def update_session_record_after_launch(
     )
 
     updated_session["version"] = 3
+    updated_session["workspace_root"] = str(repo_root)
     updated_session["provider_locator"] = provider_locator
     updated_session["resumable"] = resumable
     updated_session["resumable_reason_code"] = resumable_reason_code
@@ -561,7 +567,7 @@ def write_native_resume_result(
     updated_session_record = None
     if outcome == "resumed":
         resolved = resolved_session_id or requested_session_id
-        updated_session_rel = session_record_relpath(payload["adapter"], resolved)
+        updated_session_rel = session_record_rel or session_record_relpath(payload["adapter"], requested_session_id)
         updated_session_record = _updated_session_record(
             repo_root=repo_root,
             existing=session_record,
@@ -575,7 +581,7 @@ def write_native_resume_result(
             source=source,
             provider_metadata=provider_metadata or {},
         )
-        updated_session_record["provider_metadata"].setdefault("cwd", str(repo_root))
+        updated_session_record["provider_metadata"].setdefault("cwd", updated_session_record["cwd"])
         worker_rel, worker_record = _updated_worker_record(
             repo_root=repo_root,
             payload=payload,
@@ -583,7 +589,7 @@ def write_native_resume_result(
         )
         files[updated_session_rel] = dump_json(updated_session_record)
         files[worker_rel] = dump_json(worker_record)
-        mark_worker_resumed(run, session_id=resolved)
+        mark_worker_resumed(run, session_id=requested_session_id)
     elif (
         session_record is not None
         and int(session_record.get("version", 0)) >= 2
@@ -614,7 +620,7 @@ def write_native_resume_result(
             _worker_resumed_event(
                 payload=payload,
                 recorded_at=recorded_at,
-                session_id=resolved_session_id or requested_session_id,
+                session_id=requested_session_id,
                 resume_mode=resume_mode,
                 reason=reason,
                 resume_record_path=record_rel,

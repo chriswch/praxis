@@ -114,13 +114,13 @@ class ProviderResumeContractTest(unittest.TestCase):
             )
 
         self.assertEqual(result["status"], "fallback")
-        self.assertEqual(result["reason_code"], "resume_mode_unsupported")
+        self.assertEqual(result["reason_code"], "headless_resume_unsupported")
 
         resume_records = sorted((self.repo_root / ".praxis" / "runtime" / "resumes" / "claude").glob("*.json"))
         self.assertEqual(len(resume_records), 1)
         resume_record = json.loads(resume_records[0].read_text())
         self.assertEqual(resume_record["resume_mode"], "headless")
-        self.assertEqual(resume_record["reason_code"], "resume_mode_unsupported")
+        self.assertEqual(resume_record["reason_code"], "headless_resume_unsupported")
 
         events = [
             json.loads(line)

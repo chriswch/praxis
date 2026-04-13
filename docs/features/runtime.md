@@ -95,8 +95,10 @@ Current shipped behavior:
 - provider-native resume fails closed when the stored session is non-resumable,
   missing a provider locator, or mismatched with the active dispatch
 - successful resume writes a resume record, updates the durable session record,
-  appends `provider_resume_requested`, `provider_resume_succeeded`, and
-  `worker_resumed`, and keeps the run in `await_stage_result`
+  keeps `run.current.session_id` on the durable Praxis cursor even when the
+  provider locator rotates, appends `provider_resume_requested`,
+  `provider_resume_succeeded`, and `worker_resumed`, and keeps the run in
+  `await_stage_result`
 - unsafe or rejected resume records `resume_fallback_used` before Praxis writes
   fresh launch, worker, and session bookkeeping
 - fresh launch persists a bounded dispatch payload, starts a background worker
@@ -106,7 +108,7 @@ Current shipped behavior:
   durable session and launch records before the next dispatch
 - isolated `worktree_worker` launches recreate stale worktrees from `HEAD`,
   block reuse while a live launcher still owns the path, and clean the worktree
-  on success, failure, or explicit cancellation
+  on success, failure, explicit cancellation, and terminal control-plane cleanup
 - `praxis cancel` terminates the launcher process group when one is recorded,
   marks the worker cancelled, and cleans isolated worktrees best-effort
 

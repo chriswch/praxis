@@ -33,7 +33,7 @@ from .workers.planning import (
     ensure_stage_result_vnext_defaults,
     sync_worker_cursor,
 )
-from .workers.worktree import cleanup_isolated_worktree
+from .workers.worktree import cleanup_isolated_worktree_event
 
 _TERMINAL_RUN_STATUSES = {"completed", "cancelled", "failed"}
 
@@ -270,6 +270,17 @@ def _commit_run_with_events(
     )
 
 
+def _commit_cleanup_event(*, repo_root: Path, event: dict[str, Any], timestamp: str) -> None:
+    events = extend_event_log(repo_root, [event])
+    commit_transaction(
+        repo_root=repo_root,
+        operation="record_worktree_cleanup_event",
+        files={".praxis/events.jsonl": dump_events(events)},
+        timestamp=timestamp,
+        metadata={"worker_id": event.get("worker_id"), "event_type": event.get("type")},
+    )
+
+
 def initialize_run(
     *,
     repo_root: Path,
@@ -426,7 +437,7 @@ def advance_run(
             cancel_requested=cancel_requested,
             timestamp=timestamp,
         )
-        _cleanup_completed_worktree(repo_root=repo_root, stage_result=stage_result)
+        _cleanup_completed_worktree(repo_root=repo_root, stage_result=stage_result, timestamp=timestamp)
         return "checkpoint_story_boundary"
 
     if (
@@ -438,7 +449,7 @@ def advance_run(
             timestamp=timestamp,
         )
     ):
-        _cleanup_completed_worktree(repo_root=repo_root, stage_result=stage_result)
+        _cleanup_completed_worktree(repo_root=repo_root, stage_result=stage_result, timestamp=timestamp)
         return "ask_user"
 
     action = update_run_from_stage_result(
@@ -446,11 +457,11 @@ def advance_run(
         stage_result_path=stage_result_path,
         timestamp=timestamp,
     )
-    _cleanup_completed_worktree(repo_root=repo_root, stage_result=stage_result)
+    _cleanup_completed_worktree(repo_root=repo_root, stage_result=stage_result, timestamp=timestamp)
     return action
 
 
-def _cleanup_completed_worktree(*, repo_root: Path, stage_result: dict[str, Any]) -> None:
+def _cleanup_completed_worktree(*, repo_root: Path, stage_result: dict[str, Any], timestamp: str) -> None:
     worker = stage_result.get("worker") or {}
     execution = stage_result.get("execution") or {}
     if worker.get("worker_class") != "worktree_worker" and execution.get("worktree_mode") != "isolated":
@@ -458,14 +469,26 @@ def _cleanup_completed_worktree(*, repo_root: Path, stage_result: dict[str, Any]
     worker_id = worker.get("worker_id")
     if not isinstance(worker_id, str) or not worker_id:
         return
-    cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
+    cleanup_event = cleanup_isolated_worktree_event(
+        repo_root=repo_root,
+        worker_id=worker_id,
+        recorded_at=timestamp,
+    )
+    if cleanup_event is not None:
+        _commit_cleanup_event(repo_root=repo_root, event=cleanup_event, timestamp=timestamp)
 
 
-def _cleanup_run_worktree(*, repo_root: Path, run: dict[str, Any]) -> None:
+def _cleanup_run_worktree(*, repo_root: Path, run: dict[str, Any], timestamp: str) -> None:
     worker_id = run.get("current", {}).get("worker_id")
     if not isinstance(worker_id, str) or not worker_id:
         return
-    cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
+    cleanup_event = cleanup_isolated_worktree_event(
+        repo_root=repo_root,
+        worker_id=worker_id,
+        recorded_at=timestamp,
+    )
+    if cleanup_event is not None:
+        _commit_cleanup_event(repo_root=repo_root, event=cleanup_event, timestamp=timestamp)
 
 
 def continue_pause_after_queue_init(*, repo_root: Path, timestamp: str) -> None:
@@ -561,7 +584,7 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
     current_stage = run["current"].get("stage")
 
     if run["status"] in {"completed", "cancelled"} or next_action in {"finish", "idle"}:
-        _cleanup_run_worktree(repo_root=repo_root, run=run)
+        _cleanup_run_worktree(repo_root=repo_root, run=run, timestamp=timestamp)
         run["timestamps"]["updated_at"] = timestamp
         bump_transition_id(run)
         sync_worker_cursor(run)

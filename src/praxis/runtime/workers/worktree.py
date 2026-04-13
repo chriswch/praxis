@@ -152,6 +152,37 @@ def cleanup_isolated_worktree(*, repo_root: Path, worker_id: str) -> None:
         shutil.rmtree(worktree_path, ignore_errors=True)
 
 
+def cleanup_isolated_worktree_event(
+    *,
+    repo_root: Path,
+    worker_id: str,
+    recorded_at: str,
+) -> dict[str, Any] | None:
+    repo_root = repo_root.resolve()
+    worktree_path = repo_root / isolated_worktree_relpath(worker_id)
+    if not worktree_path.exists():
+        return None
+
+    try:
+        cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
+    except Exception as exc:
+        return {
+            "ts": recorded_at,
+            "type": "worktree_cleanup_failed",
+            "worker_id": worker_id,
+            "worktree_path": str(worktree_path),
+            "reason_code": "worktree_cleanup_failed",
+            "reason": str(exc),
+        }
+
+    return {
+        "ts": recorded_at,
+        "type": "worktree_cleaned",
+        "worker_id": worker_id,
+        "worktree_path": str(worktree_path),
+    }
+
+
 def _link_shared_runtime(*, repo_root: Path, worktree_path: Path) -> None:
     runtime_link = worktree_path / ".praxis"
     if runtime_link.is_symlink():

@@ -9,6 +9,7 @@ from .state.durable_state import (
     commit_transaction,
     dump_events,
     dump_json,
+    extend_event_log,
     inspect_handoff_file,
     load_events as _load_events,
     load_json as _load_json,
@@ -26,7 +27,7 @@ from .workers.planning import (
     ensure_stage_result_vnext_defaults,
     sync_worker_cursor,
 )
-from .workers.worktree import cleanup_isolated_worktree
+from .workers.worktree import cleanup_isolated_worktree_event
 
 
 def _event_exists(events: list[dict[str, Any]], *, event_type: str, **fields: Any) -> bool:
@@ -133,6 +134,17 @@ def _commit_story_state(
     )
 
 
+def _commit_cleanup_event(*, repo_root: Path, event: dict[str, Any], timestamp: str) -> None:
+    events = extend_event_log(repo_root, [event])
+    commit_transaction(
+        repo_root=repo_root,
+        operation="record_worktree_cleanup_event",
+        files={".praxis/events.jsonl": dump_events(events)},
+        timestamp=timestamp,
+        metadata={"worker_id": event.get("worker_id"), "event_type": event.get("type")},
+    )
+
+
 def _write_resume_stop(
     *,
     repo_root: Path,
@@ -209,11 +221,17 @@ def _resolve_execution_mode(run: dict[str, Any], ledger: dict[str, Any]) -> str:
     return run_mode or ledger_mode or "manual"
 
 
-def _cleanup_run_worktree(*, repo_root: Path, run: dict[str, Any]) -> None:
+def _cleanup_run_worktree(*, repo_root: Path, run: dict[str, Any], timestamp: str) -> None:
     worker_id = run.get("current", {}).get("worker_id")
     if not isinstance(worker_id, str) or not worker_id:
         return
-    cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
+    cleanup_event = cleanup_isolated_worktree_event(
+        repo_root=repo_root,
+        worker_id=worker_id,
+        recorded_at=timestamp,
+    )
+    if cleanup_event is not None:
+        _commit_cleanup_event(repo_root=repo_root, event=cleanup_event, timestamp=timestamp)
 
 
 def _boundary_stop(reason_code: str) -> str:
@@ -984,7 +1002,7 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
     active_story_id = ledger["stories"]["active"]
     if not active_story_id:
         if run["status"] in {"completed", "cancelled"}:
-            _cleanup_run_worktree(repo_root=repo_root, run=run)
+            _cleanup_run_worktree(repo_root=repo_root, run=run, timestamp=timestamp)
             run["routing"]["boundary_handoff_path"] = run["routing"].get("boundary_handoff_path")
             run["timestamps"]["updated_at"] = timestamp
             bump_transition_id(run)
@@ -1066,7 +1084,7 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
         validate_handoff_file(repo_root / handoff_path)
 
         if run["status"] == "cancelled" or run["routing"].get("stop_reason_code") == "cancelled":
-            _cleanup_run_worktree(repo_root=repo_root, run=run)
+            _cleanup_run_worktree(repo_root=repo_root, run=run, timestamp=timestamp)
             run["current"]["scope"] = "slice"
             run["current"]["slice_id"] = active_story_id
             run["current"]["artifact_dir"] = active_story["artifact_dir"]

@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from ..state.durable_state import dump_json, load_json, recover_pending_transaction
+from ..state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json, recover_pending_transaction
 from ..adapters.harness import build_worker_launch_payload, inspect_worker_launch_context
 from ..adapters.native_launch import (
     derive_native_launch_failure_code,
@@ -16,7 +16,7 @@ from ..adapters.native_launch import (
 )
 from ..adapters.provider_resume import attempt_provider_resume
 from .planning import ensure_run_vnext_defaults
-from .worktree import cleanup_isolated_worktree, ensure_isolated_worktree
+from .worktree import cleanup_isolated_worktree_event, ensure_isolated_worktree
 
 
 def _slug(value: str, *, fallback: str) -> str:
@@ -103,6 +103,17 @@ def _resume_fallback_event(
     if resume_record_path is not None:
         event["resume_record_path"] = resume_record_path
     return event
+
+
+def _record_cleanup_event(*, repo_root: Path, event: dict[str, Any], timestamp: str) -> None:
+    events = extend_event_log(repo_root, [event])
+    commit_transaction(
+        repo_root=repo_root,
+        operation="record_worktree_cleanup_event",
+        files={".praxis/events.jsonl": dump_events(events)},
+        timestamp=timestamp,
+        metadata={"worker_id": event.get("worker_id"), "event_type": event.get("type")},
+    )
 
 
 def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None = None) -> str:
@@ -218,10 +229,13 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
             extra_events=extra_events,
         )
         if worker["worktree_mode"] == "isolated":
-            try:
-                cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker["worker_id"])
-            except Exception:
-                pass
+            cleanup_event = cleanup_isolated_worktree_event(
+                repo_root=repo_root,
+                worker_id=worker["worker_id"],
+                recorded_at=timestamp,
+            )
+            if cleanup_event is not None:
+                _record_cleanup_event(repo_root=repo_root, event=cleanup_event, timestamp=timestamp)
         raise
 
     return transition_action

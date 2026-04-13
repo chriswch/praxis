@@ -333,6 +333,7 @@ def write_native_launch_record(
     )
     worker_rel, worker_record = build_worker_record(run=run, payload=payload, record=record, record_rel=record_rel)
     session_rel, session_record = build_session_record(
+        repo_root=repo_root,
         run=run,
         payload=payload,
         record=record,
