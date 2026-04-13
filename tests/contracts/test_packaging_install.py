@@ -143,6 +143,16 @@ class PackagingInstallContractTest(unittest.TestCase):
         (repo_root / ".codex-plugin" / "extensions.md").write_text("extensions\n")
         (repo_root / ".codex-plugin" / "settings.md").write_text("settings\n")
 
+    def _scripts_dir(self, python_bin: Path) -> Path:
+        completed = self._run(
+            [
+                str(python_bin),
+                "-c",
+                "import sysconfig; print(sysconfig.get_path('scripts'))",
+            ]
+        )
+        return Path(completed.stdout.strip())
+
     def _assert_working_praxis_cli(self, praxis_bin: Path, *, repo_name: str) -> None:
         self.assertTrue(praxis_bin.exists())
 
@@ -229,18 +239,19 @@ class PackagingInstallContractTest(unittest.TestCase):
         self._run([sys.executable, "-m", "venv", str(venv_dir)])
 
         python_bin = venv_dir / "bin" / "python"
-        praxis_bin = venv_dir / "bin" / "praxis"
         self._run(
             [
                 str(python_bin),
                 "-m",
                 "pip",
                 "install",
+                "--force-reinstall",
                 "--no-index",
                 str(self.wheel_path),
             ]
         )
 
+        praxis_bin = self._scripts_dir(python_bin) / "praxis"
         self._assert_working_praxis_cli(praxis_bin, repo_name="repo-wheel")
 
     def test_uv_tool_install_exposes_working_praxis_cli(self) -> None:
