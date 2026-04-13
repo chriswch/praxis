@@ -37,6 +37,8 @@
         "worker_process_started",
         "worker_process_failed",
         "worker_process_completed",
+        "worktree_cleaned",
+        "worktree_cleanup_failed",
         "run_cancelled",
         "handoff_validated",
         "run_resumed"
@@ -1035,6 +1037,66 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "worktree_cleaned"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "worker_id",
+          "worktree_path"
+        ],
+        "properties": {
+          "worker_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "worktree_path": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "worktree_cleanup_failed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "worker_id",
+          "worktree_path",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "worker_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "worktree_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }

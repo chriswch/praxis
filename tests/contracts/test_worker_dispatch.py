@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 from unittest.mock import patch
 
+from praxis.runtime.adapters.native_resume import update_session_record_after_launch
 from praxis.runtime.state.contract_validation import validate_contract_payload
 from praxis.runtime.orchestrator import initialize_run, resume_run
 from praxis.runtime.workers.dispatch import dispatch_worker
@@ -225,6 +226,13 @@ class WorkerDispatchContractTest(unittest.TestCase):
             repo_root=self.repo_root,
             timestamp="2026-04-12T05:41:00Z",
             session_id="sess-prev-123",
+        )
+        update_session_record_after_launch(
+            repo_root=self.repo_root,
+            adapter="codex",
+            worker_id="wrk_root_impl_01",
+            recorded_at="2026-04-12T05:41:30Z",
+            provider_locator="sess-prev-123",
         )
         resume_run(
             repo_root=self.repo_root,

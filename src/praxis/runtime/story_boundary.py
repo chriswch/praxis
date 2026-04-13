@@ -26,6 +26,7 @@ from .workers.planning import (
     ensure_stage_result_vnext_defaults,
     sync_worker_cursor,
 )
+from .workers.worktree import cleanup_isolated_worktree
 
 
 def _event_exists(events: list[dict[str, Any]], *, event_type: str, **fields: Any) -> bool:
@@ -206,6 +207,13 @@ def _resolve_execution_mode(run: dict[str, Any], ledger: dict[str, Any]) -> str:
     run_mode = run.get("execution", {}).get("mode")
     ledger_mode = ledger.get("execution_mode")
     return run_mode or ledger_mode or "manual"
+
+
+def _cleanup_run_worktree(*, repo_root: Path, run: dict[str, Any]) -> None:
+    worker_id = run.get("current", {}).get("worker_id")
+    if not isinstance(worker_id, str) or not worker_id:
+        return
+    cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
 
 
 def _boundary_stop(reason_code: str) -> str:
@@ -976,6 +984,7 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
     active_story_id = ledger["stories"]["active"]
     if not active_story_id:
         if run["status"] in {"completed", "cancelled"}:
+            _cleanup_run_worktree(repo_root=repo_root, run=run)
             run["routing"]["boundary_handoff_path"] = run["routing"].get("boundary_handoff_path")
             run["timestamps"]["updated_at"] = timestamp
             bump_transition_id(run)
@@ -1057,6 +1066,7 @@ def resume_story_run_from_disk(*, repo_root: Path, timestamp: str) -> str:
         validate_handoff_file(repo_root / handoff_path)
 
         if run["status"] == "cancelled" or run["routing"].get("stop_reason_code") == "cancelled":
+            _cleanup_run_worktree(repo_root=repo_root, run=run)
             run["current"]["scope"] = "slice"
             run["current"]["slice_id"] = active_story_id
             run["current"]["artifact_dir"] = active_story["artifact_dir"]

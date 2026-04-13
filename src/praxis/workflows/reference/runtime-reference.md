@@ -119,6 +119,12 @@ when provider resume is unavailable, persists the bounded launch payload under
 `.praxis/runtime/dispatches/`, and starts the background worker launcher
 declared by the active adapter harness.
 
+The durable Praxis session cursor and the provider-issued locator are separate
+values. `run.current.session_id` remains the Praxis control-plane cursor.
+`session.provider_locator` becomes non-null only after Praxis captures a real
+provider locator. Provider-native resume fails closed when the stored session is
+non-resumable, missing that locator, or no longer matches the bounded dispatch.
+
 Current boundary: `praxis dispatch` starts fresh background workers for
 `session_worker` and `worktree_worker`, but the public contract still omits
 `subagent_worker`.
@@ -142,6 +148,9 @@ surfaces. `.claude-plugin/` remains an optional compatibility mirror.
 
 For Codex, `AGENTS.md` and `.codex/` are the authoritative native repo
 surfaces. `.codex-plugin/` remains an optional compatibility mirror.
+
+Compatibility metadata may remain in adapter config for reporting, but Praxis
+does not require the compatibility-mirror files to exist at runtime.
 
 Shared skills should stay neutral about MCP servers, resources, and tool
 wrappers.

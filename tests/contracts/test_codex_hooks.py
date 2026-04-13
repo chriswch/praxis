@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from typing import Optional
 
+from praxis.runtime.adapters.native_resume import update_session_record_after_launch
 from praxis.runtime.state.contract_validation import validate_contract_payload
 from praxis.runtime.handoff_policy import build_handoff_payload
 from praxis.runtime.orchestrator import initialize_run
@@ -174,9 +175,12 @@ class CodexHooksContractTest(unittest.TestCase):
 
         record = json.loads(launch_records[0].read_text())
         validate_contract_payload("native-launch.schema.json", record)
-        self.assertEqual(record["version"], 3)
+        self.assertEqual(record["version"], 4)
         self.assertEqual(record["session"]["id"], "sess-123")
         self.assertEqual(record["session"]["origin"], "interactive_start")
+        self.assertEqual(record["session"]["provider_locator"], "sess-123")
+        self.assertTrue(record["session"]["resumable"])
+        self.assertEqual(record["session"]["resumable_reason_code"], "provider_locator_recorded")
         self.assertEqual(record["dispatch"]["slice_id"], "S-002")
         self.assertEqual(record["dispatch"]["stage"], "clarifying-intent")
         self.assertTrue(record["context"]["fresh_context"])
@@ -409,6 +413,13 @@ class CodexHooksContractTest(unittest.TestCase):
             repo_root=self.repo_root,
             timestamp="2026-04-12T04:21:00Z",
             session_id="sess-prev-123",
+        )
+        update_session_record_after_launch(
+            repo_root=self.repo_root,
+            adapter="codex",
+            worker_id="wrk_root_impl_01",
+            recorded_at="2026-04-12T04:21:30Z",
+            provider_locator="sess-prev-123",
         )
 
         completed = subprocess.run(

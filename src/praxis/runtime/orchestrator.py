@@ -461,6 +461,13 @@ def _cleanup_completed_worktree(*, repo_root: Path, stage_result: dict[str, Any]
     cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
 
 
+def _cleanup_run_worktree(*, repo_root: Path, run: dict[str, Any]) -> None:
+    worker_id = run.get("current", {}).get("worker_id")
+    if not isinstance(worker_id, str) or not worker_id:
+        return
+    cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
+
+
 def continue_pause_after_queue_init(*, repo_root: Path, timestamp: str) -> None:
     repo_root = repo_root.resolve()
     recover_pending_transaction(repo_root)
@@ -554,6 +561,7 @@ def resume_run(*, repo_root: Path, timestamp: str) -> str:
     current_stage = run["current"].get("stage")
 
     if run["status"] in {"completed", "cancelled"} or next_action in {"finish", "idle"}:
+        _cleanup_run_worktree(repo_root=repo_root, run=run)
         run["timestamps"]["updated_at"] = timestamp
         bump_transition_id(run)
         sync_worker_cursor(run)

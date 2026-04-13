@@ -18,7 +18,7 @@
   "properties": {
     "version": {
       "type": "integer",
-      "enum": [1, 2, 3]
+      "enum": [1, 2, 3, 4]
     },
     "recorded_at": {
       "type": "string",
@@ -62,8 +62,22 @@
           ]
         },
         "provider_locator": {
-          "type": "string",
-          "minLength": 1
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "resumable_reason_code": {
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "resumable_reason": {
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
         }
       }
     },
@@ -191,6 +205,12 @@
         "worker_signature": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        },
+        "launcher_pid": {
+          "anyOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "null" }
+          ]
         }
       }
     },
@@ -346,6 +366,57 @@
           },
           "resume": {
             "required": ["mode"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "version": {
+            "const": 4
+          }
+        }
+      },
+      "then": {
+        "required": ["worker", "resume"],
+        "properties": {
+          "session": {
+            "required": [
+              "id",
+              "source",
+              "cwd",
+              "resumable",
+              "origin",
+              "provider_locator",
+              "resumable_reason_code",
+              "resumable_reason"
+            ]
+          },
+          "worker": {
+            "required": [
+              "worker_id",
+              "worker_class",
+              "launch_surface",
+              "permission_profile",
+              "worktree_mode",
+              "worktree_path",
+              "launcher_pid"
+            ]
+          },
+          "resume": {
+            "required": ["attempted", "outcome", "strategy", "previous_session_id", "mode"]
+          },
+          "harness": {
+            "required": [
+              "instructions_path",
+              "project_config_path",
+              "hooks_path",
+              "agents_path",
+              "launch_record_path",
+              "trace_path",
+              "compatibility"
+            ]
           }
         }
       }

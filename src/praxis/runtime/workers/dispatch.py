@@ -16,7 +16,7 @@ from ..adapters.native_launch import (
 )
 from ..adapters.provider_resume import attempt_provider_resume
 from .planning import ensure_run_vnext_defaults
-from .worktree import ensure_isolated_worktree
+from .worktree import cleanup_isolated_worktree, ensure_isolated_worktree
 
 
 def _slug(value: str, *, fallback: str) -> str:
@@ -54,14 +54,13 @@ def _launch_worker_process(
     *,
     repo_root: Path,
     command: str,
-    worktree_path: Path,
     payload_relpath: str,
 ) -> int:
     env = os.environ.copy()
     env["PRAXIS_WORKER_PAYLOAD_PATH"] = payload_relpath
     process = subprocess.Popen(
         shlex.split(command),
-        cwd=worktree_path,
+        cwd=repo_root,
         env=env,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
@@ -191,12 +190,12 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
     }
 
     try:
-        _launch_worker_process(
+        launcher_pid = _launch_worker_process(
             repo_root=repo_root,
             command=payload["harness"]["worker_launch_command"],
-            worktree_path=worktree_path,
             payload_relpath=payload_relpath,
         )
+        hook_request["launcher_pid"] = launcher_pid
         write_native_launch_record(
             repo_root=repo_root,
             payload=payload,
@@ -218,6 +217,11 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
             reason=str(exc),
             extra_events=extra_events,
         )
+        if worker["worktree_mode"] == "isolated":
+            try:
+                cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker["worker_id"])
+            except Exception:
+                pass
         raise
 
     return transition_action

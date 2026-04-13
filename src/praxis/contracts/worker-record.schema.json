@@ -78,9 +78,15 @@
       "type": "string",
       "pattern": "^\\.praxis/runtime/traces/.*\\.jsonl$"
     },
+    "launcher_pid": {
+      "anyOf": [
+        { "type": "integer", "minimum": 1 },
+        { "type": "null" }
+      ]
+    },
     "status": {
       "type": "string",
-      "enum": ["planned", "running", "completed", "failed"]
+      "enum": ["planned", "running", "completed", "failed", "cancelled"]
     }
   }
 }

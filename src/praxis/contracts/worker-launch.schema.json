@@ -275,6 +275,12 @@
         "reason": {
           "type": "string",
           "minLength": 1
+        },
+        "worktree_path": {
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
         }
       }
     },
@@ -396,7 +402,8 @@
               "review_independence",
               "worktree_mode",
               "fresh_context",
-              "reason"
+              "reason",
+              "worktree_path"
             ]
           },
           "permissions": {

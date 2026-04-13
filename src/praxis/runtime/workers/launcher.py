@@ -8,8 +8,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..adapters.native_resume import worker_record_relpath
+from ..adapters.native_resume import (
+    update_session_record_after_launch,
+    worker_record_relpath,
+)
 from ..state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json
+from .worktree import cleanup_isolated_worktree
 
 
 def _utc_now() -> str:
@@ -50,6 +54,14 @@ def _provider_command(*, payload: dict[str, Any], payload_relpath: str) -> tuple
     raise ValueError(f"Unsupported adapter: {adapter!r}.")
 
 
+def _provider_cwd(*, repo_root: Path, payload: dict[str, Any]) -> Path:
+    raw = payload["worker"].get("worktree_path") or "."
+    path = Path(str(raw))
+    if not path.is_absolute():
+        path = repo_root / path
+    return path.resolve()
+
+
 def _worker_prompt(*, payload: dict[str, Any], payload_relpath: str) -> str:
     dispatch = payload["dispatch"]
     lines = [
@@ -69,6 +81,23 @@ def _worker_prompt(*, payload: dict[str, Any], payload_relpath: str) -> str:
 def _trace_text(*, trace_path: Path, event: dict[str, Any]) -> str:
     existing = trace_path.read_text() if trace_path.exists() else ""
     return existing + json.dumps(event) + "\n"
+
+
+def _extract_session_id(text: str) -> str | None:
+    for line in text.splitlines():
+        candidate = line.strip()
+        if not candidate:
+            continue
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            for key in ("session_id", "sessionId", "conversation_id", "conversationId", "id"):
+                value = payload.get(key)
+                if isinstance(value, str) and value:
+                    return value
+    return None
 
 
 def _commit_worker_event(
@@ -101,12 +130,62 @@ def _commit_worker_event(
     )
 
 
+def _cleanup_worktree_if_needed(*, repo_root: Path, payload: dict[str, Any], recorded_at: str) -> None:
+    if payload["worker"].get("worktree_mode") != "isolated":
+        return
+    worker_id = payload["worker"]["worker_id"]
+    worktree_path = str(_provider_cwd(repo_root=repo_root, payload=payload))
+    try:
+        cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
+    except Exception as exc:
+        _commit_worker_event(
+            repo_root=repo_root,
+            payload=payload,
+            worker_status=None,
+            event={
+                "ts": recorded_at,
+                "type": "worktree_cleanup_failed",
+                "worker_id": worker_id,
+                "worktree_path": worktree_path,
+                "reason_code": "worktree_cleanup_failed",
+                "reason": str(exc),
+            },
+            trace_event={
+                "ts": recorded_at,
+                "type": "worktree_cleanup_failed",
+                "worker_id": worker_id,
+                "worktree_path": worktree_path,
+                "reason": str(exc),
+            },
+        )
+        return
+
+    _commit_worker_event(
+        repo_root=repo_root,
+        payload=payload,
+        worker_status=None,
+        event={
+            "ts": recorded_at,
+            "type": "worktree_cleaned",
+            "worker_id": worker_id,
+            "worktree_path": worktree_path,
+        },
+        trace_event={
+            "ts": recorded_at,
+            "type": "worktree_cleaned",
+            "worker_id": worker_id,
+            "worktree_path": worktree_path,
+        },
+    )
+
+
 def launch_worker(*, repo_root: Path) -> int:
     repo_root = repo_root.resolve()
     payload_path = _payload_path(repo_root=repo_root)
     payload = load_json(payload_path)
     payload_relpath = str(payload_path.relative_to(repo_root))
     command, launch_surface = _provider_command(payload=payload, payload_relpath=payload_relpath)
+    provider_cwd = _provider_cwd(repo_root=repo_root, payload=payload)
     logs_dir = _logs_dir(repo_root)
     stdout_path = logs_dir / f"{payload['worker']['worker_id']}.stdout.log"
     stderr_path = logs_dir / f"{payload['worker']['worker_id']}.stderr.log"
@@ -143,7 +222,7 @@ def launch_worker(*, repo_root: Path) -> int:
         try:
             completed = subprocess.run(
                 command,
-                cwd=Path.cwd(),
+                cwd=provider_cwd,
                 env=os.environ.copy(),
                 stdin=subprocess.DEVNULL,
                 stdout=stdout_handle,
@@ -178,6 +257,7 @@ def launch_worker(*, repo_root: Path) -> int:
                     "reason": str(exc),
                 },
             )
+            _cleanup_worktree_if_needed(repo_root=repo_root, payload=payload, recorded_at=failed_at)
             return 127
 
     finished_at = _utc_now()
@@ -208,7 +288,24 @@ def launch_worker(*, repo_root: Path) -> int:
                 "returncode": completed.returncode,
             },
         )
+        _cleanup_worktree_if_needed(repo_root=repo_root, payload=payload, recorded_at=finished_at)
         return completed.returncode
+
+    provider_locator = _extract_session_id(stdout_path.read_text())
+    if provider_locator:
+        try:
+            update_session_record_after_launch(
+                repo_root=repo_root,
+                adapter=payload["adapter"],
+                worker_id=payload["worker"]["worker_id"],
+                recorded_at=finished_at,
+                provider_locator=provider_locator,
+                provider_metadata={
+                    "provider_locator_source": str(stdout_path.relative_to(repo_root)),
+                },
+            )
+        except Exception:
+            pass
 
     _commit_worker_event(
         repo_root=repo_root,
@@ -235,6 +332,7 @@ def launch_worker(*, repo_root: Path) -> int:
             "launch_surface": launch_surface,
         },
     )
+    _cleanup_worktree_if_needed(repo_root=repo_root, payload=payload, recorded_at=finished_at)
     return 0
 
 

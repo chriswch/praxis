@@ -14,6 +14,7 @@ from .native_resume import (
     build_session_record,
     classify_session_origin,
     context_fingerprint_from_payload,
+    derive_session_resumability,
     worker_record_relpath,
     worker_signature_from_payload,
 )
@@ -49,6 +50,25 @@ def _trace_relpath(payload: dict[str, Any]) -> str:
     return payload["resume"]["trace_path"]
 
 
+def _launch_resume_mode(*, hook_request: dict[str, Any], payload: dict[str, Any]) -> str:
+    source = str(hook_request.get("source") or "")
+    if source in {"startup", "resume"}:
+        return "interactive"
+    return str(payload["resume"].get("mode") or "headless")
+
+
+def _provider_locator_for_launch(*, hook_request: dict[str, Any]) -> str | None:
+    source = str(hook_request.get("source") or "")
+    if source in {"startup", "resume"}:
+        session_id = hook_request.get("session_id")
+        if isinstance(session_id, str) and session_id:
+            return session_id
+    provider_locator = hook_request.get("provider_locator")
+    if isinstance(provider_locator, str) and provider_locator:
+        return provider_locator
+    return None
+
+
 def build_native_launch_record(
     *,
     run: dict[str, Any],
@@ -60,13 +80,24 @@ def build_native_launch_record(
     session_id = str(hook_request.get("session_id") or "unknown-session")
     handoff = payload["inputs"]["boundary_handoff"]
     worker = payload["worker"]
+    resume_mode = _launch_resume_mode(hook_request=hook_request, payload=payload)
+    origin = classify_session_origin(
+        str(hook_request.get("source") or "unknown"),
+        resume_mode=resume_mode,
+    )
+    provider_locator = _provider_locator_for_launch(hook_request=hook_request)
+    resumable, resumable_reason_code, resumable_reason = derive_session_resumability(
+        adapter=adapter,
+        origin=origin,
+        provider_locator=provider_locator,
+    )
     record_rel = _record_relpath(adapter=adapter, recorded_at=recorded_at, worker_id=worker["worker_id"])
     resume_attempted = bool(payload["resume"].get("resume_attempted"))
     resume_outcome = payload["resume"].get("resume_outcome")
     if not isinstance(resume_outcome, str) or not resume_outcome:
         resume_outcome = "resume_not_attempted" if not resume_attempted else "resume_requested"
     record = {
-        "version": 3,
+        "version": 4,
         "recorded_at": recorded_at,
         "adapter": adapter,
         "kind": "session_start",
@@ -74,9 +105,11 @@ def build_native_launch_record(
             "id": session_id,
             "source": str(hook_request.get("source") or "unknown"),
             "cwd": str(hook_request.get("cwd") or "."),
-            "resumable": bool(payload["resume"].get("resumable")),
-            "origin": classify_session_origin(str(hook_request.get("source") or "unknown")),
-            "provider_locator": session_id,
+            "resumable": resumable,
+            "origin": origin,
+            "provider_locator": provider_locator,
+            "resumable_reason_code": resumable_reason_code,
+            "resumable_reason": resumable_reason,
         },
         "dispatch": {
             "workflow": payload["workflow"],
@@ -103,6 +136,7 @@ def build_native_launch_record(
             "permission_profile": payload["permissions"]["profile"],
             "worktree_mode": worker["worktree_mode"],
             "worktree_path": str(hook_request.get("cwd")) if hook_request.get("cwd") else None,
+            "launcher_pid": hook_request.get("launcher_pid"),
             "worker_signature": worker_signature_from_payload(
                 run_id=run["run_id"],
                 payload=payload,
@@ -146,6 +180,7 @@ def build_worker_record(*, run: dict[str, Any], payload: dict[str, Any], record:
         "session_id": record["session"]["id"],
         "launch_record_path": record_rel,
         "trace_path": record["harness"]["trace_path"],
+        "launcher_pid": record["worker"].get("launcher_pid"),
         "status": "running",
     }
     validate_contract_payload("worker-record.schema.json", worker_record)

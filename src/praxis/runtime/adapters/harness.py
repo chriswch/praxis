@@ -7,6 +7,7 @@ from typing import Any
 
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import dump_json, inspect_handoff_file, load_json, validate_handoff_file
+from ..adapters.native_resume import session_record_relpath
 from ..orchestrator import build_dispatch
 from ..workers.planning import (
     build_worker_plan,
@@ -15,6 +16,7 @@ from ..workers.planning import (
     stage_input_artifacts,
     sync_worker_cursor,
 )
+from ..workers.worktree import isolated_worktree_relpath
 
 
 def _utc_now() -> str:
@@ -40,16 +42,6 @@ def _referenced_harness_paths(payload: dict[str, Any]) -> list[str]:
     ]
     if payload["project_config_path"] is not None:
         paths.append(payload["project_config_path"])
-
-    compatibility = payload.get("compatibility")
-    if compatibility is not None:
-        paths.extend(
-            [
-                compatibility["settings_path"],
-                compatibility["hooks_path"],
-                compatibility["subagents_path"],
-            ]
-        )
 
     for value in payload["extension_points"].values():
         if value is not None:
@@ -129,6 +121,20 @@ def _worker_timeout_minutes(stage: str | None) -> int:
     return stage_timeouts.get(stage, 45)
 
 
+def _resume_cursor_state(*, repo_root: Path, adapter: str, session_id: str | None) -> bool:
+    if not session_id:
+        return False
+    session_path = repo_root / session_record_relpath(adapter, session_id)
+    if not session_path.exists():
+        return False
+    try:
+        payload = load_json(session_path)
+        validate_contract_payload("session-record.schema.json", payload)
+    except Exception:
+        return False
+    return bool(payload.get("resumable"))
+
+
 def build_worker_launch_payload(*, repo_root: Path) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     run = load_json(repo_root / ".praxis" / "run.json")
@@ -185,6 +191,11 @@ def build_worker_launch_payload(*, repo_root: Path) -> dict[str, Any]:
             "worktree_mode": worker_plan["worktree_mode"],
             "fresh_context": worker_plan["fresh_context"],
             "reason": worker_plan["reason"],
+            "worktree_path": (
+                "."
+                if worker_plan["worktree_mode"] == "shared"
+                else isolated_worktree_relpath(run["current"]["worker_id"])
+            ),
         },
         "permissions": {
             "profile": worker_plan["permission_profile"],
@@ -204,7 +215,11 @@ def build_worker_launch_payload(*, repo_root: Path) -> dict[str, Any]:
         "resume": {
             "strategy": run["routing"]["resume_strategy"],
             "session_id": run["current"]["session_id"],
-            "resumable": run["current"]["session_id"] is not None,
+            "resumable": _resume_cursor_state(
+                repo_root=repo_root,
+                adapter=run["runtime"]["adapter"],
+                session_id=run["current"]["session_id"],
+            ),
             "resume_attempted": False,
             "mode": "headless" if run["execution"]["mode"] == "autopilot" else "interactive",
             "trace_path": trace_path,

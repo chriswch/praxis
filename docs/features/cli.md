@@ -76,20 +76,23 @@ New control-plane commands:
   overwriting existing files unless `--force` is passed
 - `praxis approve` explicitly advances `confirm_then_run` checkpoints while
   `praxis continue` remains the stable compatibility command
-- `praxis cancel` marks the active run as cancelled from durable state and
-  finishes it cleanly
-- `praxis doctor` validates run state, native harness config, and fresh
-  worker-launch payloads
+- `praxis cancel` marks the active run as cancelled, terminates a recorded
+  launcher process group when needed, and cleans isolated worktrees best-effort
+- `praxis doctor` reports machine-readable runtime checks with stable reason
+  codes for harness, launch, provider, worktree, and log health
 
 `praxis dispatch` currently:
 
 - handles `session_worker` and `worktree_worker` plans
-- attempts provider-native resume for resumable `session_worker` sessions
+- attempts provider-native resume only for durable `session_worker` cursors
+  that are still marked resumable and have a stored provider locator
 - persists a bounded launch payload under `.praxis/runtime/dispatches/`
 - starts a fresh background launcher process instead of recording bookkeeping
   only
 - records `worker_process_started`, `worker_process_failed`, and
   `worker_process_completed` telemetry
+- lets the launcher update durable session state when a fresh provider launch
+  yields a real provider locator
 
 ## Current Boundary
 

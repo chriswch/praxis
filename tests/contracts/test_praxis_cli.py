@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import json
+import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -25,12 +29,13 @@ class PraxisCliContractTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def _run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
+    def _run_cli(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [*CLI, *args],
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
+            env=env,
         )
 
     def _write_json(self, rel_path: str, payload: dict) -> None:
@@ -49,6 +54,39 @@ class PraxisCliContractTest(unittest.TestCase):
             self._write_text(rel_path, "placeholder\n")
             return
         path.mkdir(parents=True, exist_ok=True)
+
+    def _init_git_repo(self) -> None:
+        subprocess.run(["git", "init"], cwd=self.repo_root, check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "config", "user.email", "praxis@example.com"],
+            cwd=self.repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Praxis Tests"],
+            cwd=self.repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "config", "commit.gpgsign", "false"],
+            cwd=self.repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self._write_text("README.md", "fixture repo\n")
+        subprocess.run(["git", "add", "README.md"], cwd=self.repo_root, check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=self.repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     def _write_adapter_harness(self, adapter: str) -> None:
         if adapter == "codex":
@@ -454,6 +492,76 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(result["data"]["run"]["routing"]["next_action"], "finish")
         self.assertEqual(result["data"]["run"]["trace"]["last_stop_event"]["type"], "run_cancelled")
 
+    def test_cancel_cleans_an_isolated_worktree_and_marks_the_worker_cancelled(self) -> None:
+        self._init_git_repo()
+        self._write_adapter_harness("codex")
+        adapter_path = self.repo_root / ".codex" / "adapter.json"
+        adapter_payload = load_json(adapter_path)
+        adapter_payload["worker_launch_command"] = 'python3 -c "import time; time.sleep(30)"'
+        adapter_path.write_text(json.dumps(adapter_payload, indent=2) + "\n")
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Cancel an isolated review worker",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:41:00Z",
+        )
+
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = load_json(run_path)
+        run["current"]["stage"] = "code-reviewing"
+        run["routing"]["next_action"] = "run_stage"
+        run["routing"]["next_stage"] = "code-reviewing"
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
+
+        dispatch = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "praxis.cli.main",
+                "dispatch",
+                "--repo-root",
+                str(self.repo_root),
+                "--timestamp",
+                "2026-04-12T04:41:30Z",
+                "--json",
+            ],
+            cwd=PROJECT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(dispatch.returncode, 0, dispatch.stderr)
+        time.sleep(0.2)
+
+        completed = self._run_cli(
+            "cancel",
+            "--repo-root",
+            str(self.repo_root),
+            "--timestamp",
+            "2026-04-12T04:42:00Z",
+            "--json",
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"]["run"]["run_status"], "cancelled")
+
+        worker_record = load_json(self.repo_root / ".praxis" / "runtime" / "workers" / "wrk_root_review_01.json")
+        self.assertEqual(worker_record["status"], "cancelled")
+        self.assertFalse((self.repo_root / ".praxis" / "runtime" / "worktrees" / "wrk_root_review_01").exists())
+
+        events = [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertIn("run_cancelled", [event["type"] for event in events])
+        self.assertIn("worktree_cleaned", [event["type"] for event in events])
+
     def test_doctor_reports_harness_and_launch_health(self) -> None:
         self._write_adapter_harness("codex")
         initialize_run(
@@ -480,6 +588,99 @@ class PraxisCliContractTest(unittest.TestCase):
         check_names = {check["name"] for check in result["data"]["checks"]}
         self.assertIn("codex_harness", check_names)
         self.assertIn("codex_launch_payload", check_names)
+
+    def test_doctor_warns_about_stale_worktrees_and_failed_worker_logs(self) -> None:
+        self._write_adapter_harness("codex")
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Inspect stale runtime artifacts",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:43:00Z",
+        )
+
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        self._ensure_path(".praxis/runtime/worktrees/wrk_root_review_01")
+        self._ensure_path(".praxis/runtime/logs")
+        self._write_text(".praxis/runtime/logs/wrk_root_review_01.stderr.log", "simulated failure\n")
+        self._write_json(
+            ".praxis/runtime/workers/wrk_root_review_01.json",
+            {
+                "version": 1,
+                "worker_id": "wrk_root_review_01",
+                "run_id": run["run_id"],
+                "adapter": "codex",
+                "worker_class": "worktree_worker",
+                "launch_surface": "codex_exec",
+                "launch_reason": "Use an isolated reviewer worker.",
+                "permission_profile": "review",
+                "worktree_mode": "isolated",
+                "worktree_path": ".praxis/runtime/worktrees/wrk_root_review_01",
+                "session_id": "review-session-123",
+                "launch_record_path": ".praxis/runtime/launches/codex/20260412T044300Z-wrk_root_review_01.json",
+                "trace_path": ".praxis/runtime/traces/wrk_root_review_01.jsonl",
+                "launcher_pid": None,
+                "status": "failed",
+            },
+        )
+
+        completed = self._run_cli(
+            "doctor",
+            "--repo-root",
+            str(self.repo_root),
+            "--json",
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        checks = {check["name"]: check for check in result["data"]["checks"]}
+        self.assertEqual(checks["isolated_worktrees"]["status"], "warn")
+        self.assertEqual(checks["isolated_worktrees"]["reason_code"], "stale_worktrees_present")
+        self.assertEqual(checks["worker_logs"]["status"], "warn")
+        self.assertEqual(checks["worker_logs"]["reason_code"], "failed_worker_logs_present")
+
+    def test_doctor_reports_missing_provider_cli_and_missing_worker_launch_binary(self) -> None:
+        self._write_adapter_harness("codex")
+        adapter_path = self.repo_root / ".codex" / "adapter.json"
+        adapter_payload = load_json(adapter_path)
+        adapter_payload["worker_launch_command"] = "missing-launcher --flag"
+        adapter_path.write_text(json.dumps(adapter_payload, indent=2) + "\n")
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Inspect missing binaries",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:44:00Z",
+        )
+
+        empty_path = self.repo_root / "empty-bin"
+        empty_path.mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ)
+        env["PATH"] = str(empty_path)
+
+        completed = self._run_cli(
+            "doctor",
+            "--repo-root",
+            str(self.repo_root),
+            "--json",
+            env=env,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertFalse(result["data"]["healthy"])
+        checks = {check["name"]: check for check in result["data"]["checks"]}
+        self.assertEqual(checks["codex_provider_cli"]["status"], "error")
+        self.assertEqual(checks["codex_provider_cli"]["reason_code"], "provider_cli_missing")
+        self.assertEqual(checks["codex_worker_launch_command"]["status"], "error")
+        self.assertEqual(
+            checks["codex_worker_launch_command"]["reason_code"],
+            "worker_launch_command_missing",
+        )
 
 
 if __name__ == "__main__":

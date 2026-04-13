@@ -19,6 +19,8 @@ Current harness fields include:
 - optional `compatibility`
 
 `praxis harness show-adapter` and `praxis build-worker-launch` read this config.
+Praxis validates only the native surfaces referenced by the active adapter
+config. Compatibility metadata remains informational.
 
 ## Claude
 
@@ -37,8 +39,9 @@ Current behavior:
 
 - the session-start hook calls `src/praxis/runtime/adapters/claude/hooks.py`
 - startup records native launch metadata under `.praxis/runtime/`
-- resume validates the durable Praxis session cursor before allowing the native
-  session to continue
+- startup records the interactive Claude session id as the provider locator
+- resume validates the durable Praxis session cursor, resumability, and stored
+  provider locator before allowing the native session to continue
 - the hook injects bounded Praxis context into the SessionStart response
 
 ## Codex
@@ -59,8 +62,9 @@ Current behavior:
 
 - the session-start hook calls `src/praxis/runtime/adapters/codex/hooks.py`
 - startup records native launch metadata under `.praxis/runtime/`
-- resume validates the durable Praxis session cursor before allowing the native
-  session to continue
+- startup records the interactive Codex session id as the provider locator
+- resume validates the durable Praxis session cursor, resumability, and stored
+  provider locator before allowing the native session to continue
 - the hook injects bounded Praxis context into the SessionStart response
 
 ## Shared Adapter Behavior
@@ -74,6 +78,10 @@ Praxis currently shares these adapter behaviors across Claude and Codex:
 - session-start launch bookkeeping written by `src/praxis/runtime/adapters/native_launch.py`
 - provider-native resume bookkeeping written by `src/praxis/runtime/adapters/native_resume.py`
 - manual resume safety checks implemented in `src/praxis/runtime/adapters/provider_resume.py`
+- fresh background launches keep the durable Praxis session cursor separate from
+  the provider-issued resume locator
+- the launcher updates launch and session records when the provider later emits
+  a real resume locator
 - fresh worker context rebuilt from dispatch, run metadata, and the active
   boundary handoff only
 
@@ -83,6 +91,7 @@ Current adapter limits and dependencies:
 
 - `.claude-plugin/` and `.codex-plugin/` remain compatibility mirrors, not
   authoritative runtime surfaces
-- native harness loads do not require compatibility mirrors unless an adapter
-  config declares them explicitly
+- native harness loads never require compatibility mirrors at runtime
+- worker-launch payloads may preserve compatibility metadata for reporting, but
+  runtime validation does not require those files to exist
 - the public adapter contract still omits `subagent_worker`

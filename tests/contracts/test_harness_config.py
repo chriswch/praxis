@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -148,6 +149,29 @@ class HarnessConfigContractTest(unittest.TestCase):
 
         self.assertEqual(config_path, ".codex/adapter.json")
         self.assertNotIn("compatibility", payload)
+
+    def test_loads_native_harness_when_compatibility_metadata_points_at_missing_paths(self) -> None:
+        self._write_adapter_harness("codex", include_compatibility=True)
+        shutil.rmtree(self.repo_root / ".codex-plugin")
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Launch a native-only codex worker with compatibility metadata",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T03:04:00Z",
+        )
+
+        config_path, payload = load_adapter_harness(repo_root=self.repo_root, adapter="codex")
+        launch_payload = build_worker_launch_payload(repo_root=self.repo_root)
+
+        self.assertEqual(config_path, ".codex/adapter.json")
+        self.assertEqual(payload["compatibility"]["settings_path"], ".codex-plugin/settings.md")
+        self.assertEqual(
+            launch_payload["harness"]["compatibility"]["settings_path"],
+            ".codex-plugin/settings.md",
+        )
 
     def test_build_worker_launch_payload_includes_dispatch_handoff_and_bounded_context_policy(self) -> None:
         self._write_adapter_harness("codex")

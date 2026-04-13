@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from praxis.runtime.adapters.harness import build_worker_launch_payload
+from praxis.runtime.adapters.native_resume import update_session_record_after_launch
 from praxis.runtime.orchestrator import initialize_run, resume_run
 from praxis.runtime.adapters.provider_resume import attempt_provider_resume
 from praxis.runtime.workers.dispatch import dispatch_worker
@@ -83,6 +84,13 @@ class ProviderResumeContractTest(unittest.TestCase):
             timestamp="2026-04-12T06:01:00Z",
             session_id="claude-prev-123",
         )
+        update_session_record_after_launch(
+            repo_root=self.repo_root,
+            adapter="claude",
+            worker_id="wrk_root_impl_01",
+            recorded_at="2026-04-12T06:01:30Z",
+            provider_locator="claude-prev-123",
+        )
         resume_run(
             repo_root=self.repo_root,
             timestamp="2026-04-12T06:02:00Z",
@@ -106,13 +114,13 @@ class ProviderResumeContractTest(unittest.TestCase):
             )
 
         self.assertEqual(result["status"], "fallback")
-        self.assertEqual(result["reason_code"], "headless_resume_unsupported")
+        self.assertEqual(result["reason_code"], "resume_mode_unsupported")
 
         resume_records = sorted((self.repo_root / ".praxis" / "runtime" / "resumes" / "claude").glob("*.json"))
         self.assertEqual(len(resume_records), 1)
         resume_record = json.loads(resume_records[0].read_text())
         self.assertEqual(resume_record["resume_mode"], "headless")
-        self.assertEqual(resume_record["reason_code"], "headless_resume_unsupported")
+        self.assertEqual(resume_record["reason_code"], "resume_mode_unsupported")
 
         events = [
             json.loads(line)

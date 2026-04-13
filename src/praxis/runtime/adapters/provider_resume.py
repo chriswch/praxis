@@ -9,6 +9,7 @@ from ..state.durable_state import load_json
 from .native_resume import (
     boundary_handoff_fingerprint_from_payload,
     context_fingerprint_from_payload,
+    supports_resume_mode,
     load_session_record,
     worker_signature_from_payload,
     write_native_resume_result,
@@ -33,12 +34,6 @@ def _check(name: str, passed: bool, reason_code: str | None = None, reason: str 
         "reason_code": None if passed else reason_code,
         "reason": None if passed else reason,
     }
-
-
-def _supports_resume_mode(capability_mode: str, resume_mode: str) -> bool:
-    if capability_mode == "either":
-        return True
-    return capability_mode == resume_mode
 
 
 def _run_command(args: list[str], *, cwd: Path) -> dict[str, Any]:
@@ -131,7 +126,7 @@ def _evaluate_resume_safety(
 
     checks.append(_check("session_record_present", True))
 
-    if session_record.get("version") != 2:
+    if int(session_record.get("version", 0)) < 2:
         checks.append(
             _check(
                 "session_record_version",
@@ -143,7 +138,33 @@ def _evaluate_resume_safety(
         return False, checks[-1]["reason_code"], checks[-1]["reason"], checks
     checks.append(_check("session_record_version", True))
 
-    if not capability["supported"] or not _supports_resume_mode(capability["mode"], resume_mode):
+    if not bool(session_record.get("resumable")):
+        checks.append(
+            _check(
+                "session_resumable",
+                False,
+                session_record.get("resumable_reason_code") or "session_not_resumable",
+                session_record.get("resumable_reason")
+                or "Praxis marked this durable session as non-resumable.",
+            )
+        )
+        return False, checks[-1]["reason_code"], checks[-1]["reason"], checks
+    checks.append(_check("session_resumable", True))
+
+    provider_locator = session_record.get("provider_locator")
+    if not isinstance(provider_locator, str) or not provider_locator:
+        checks.append(
+            _check(
+                "provider_locator_present",
+                False,
+                "provider_locator_missing",
+                "Praxis does not have a provider-issued resume locator for this durable session.",
+            )
+        )
+        return False, checks[-1]["reason_code"], checks[-1]["reason"], checks
+    checks.append(_check("provider_locator_present", True))
+
+    if not capability["supported"] or not supports_resume_mode(capability["mode"], resume_mode):
         checks.append(
             _check(
                 "provider_capability",
@@ -390,7 +411,7 @@ def attempt_provider_resume(*, repo_root: Path, payload: dict[str, Any], timesta
     provider_result = _provider_resume_command(
         adapter=payload["adapter"],
         repo_root=repo_root,
-        session_id=session_record.get("provider_locator") or requested_session_id,
+        session_id=session_record["provider_locator"],
         prompt=prompt,
         resume_mode="headless",
     )

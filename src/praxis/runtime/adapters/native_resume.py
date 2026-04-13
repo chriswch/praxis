@@ -55,11 +55,54 @@ def provider_resume_profile(adapter: str) -> dict[str, Any]:
         raise ValueError(f"Unsupported adapter: {adapter!r}.") from exc
 
 
+def supports_resume_mode(capability_mode: str, resume_mode: str) -> bool:
+    if capability_mode == "either":
+        return True
+    return capability_mode == resume_mode
+
+
+def session_resume_mode(origin: str | None) -> str:
+    return "headless" if str(origin or "").startswith("headless_") else "interactive"
+
+
 def classify_session_origin(source: str | None, *, resume_mode: str | None = None) -> str:
     is_resume = str(source or "").lower() == "resume"
     if resume_mode == "headless":
         return "headless_resume" if is_resume else "headless_start"
     return "interactive_resume" if is_resume else "interactive_start"
+
+
+def derive_session_resumability(
+    *,
+    adapter: str,
+    origin: str,
+    provider_locator: str | None,
+) -> tuple[bool, str, str]:
+    profile = provider_resume_profile(adapter)
+    resume_mode = session_resume_mode(origin)
+    if not provider_locator:
+        return (
+            False,
+            "provider_locator_missing",
+            "Praxis has not captured a provider-issued resume locator for this session.",
+        )
+    if not profile["supported"]:
+        return (
+            False,
+            "provider_resume_unsupported",
+            f"The active {adapter} adapter does not support provider-native resume.",
+        )
+    if not supports_resume_mode(str(profile["mode"]), resume_mode):
+        return (
+            False,
+            "resume_mode_unsupported",
+            f"The active {adapter} adapter does not support {resume_mode} provider-native resume.",
+        )
+    return (
+        True,
+        "provider_locator_recorded",
+        "Praxis captured a provider-issued resume locator for this session.",
+    )
 
 
 def worker_signature_from_payload(*, run_id: str, payload: dict[str, Any]) -> str:
@@ -118,19 +161,28 @@ def build_session_record(
     session_id = record["session"]["id"]
     rel = session_record_relpath(payload["adapter"], session_id)
     profile = provider_resume_profile(payload["adapter"])
+    origin = record["session"]["origin"]
+    provider_locator = record["session"].get("provider_locator")
+    resumable, resumable_reason_code, resumable_reason = derive_session_resumability(
+        adapter=payload["adapter"],
+        origin=origin,
+        provider_locator=provider_locator,
+    )
     session_record = {
-        "version": 2,
+        "version": 3,
         "session_id": session_id,
         "adapter": payload["adapter"],
         "run_id": run["run_id"],
         "worker_id": payload["worker"]["worker_id"],
         "cwd": record["session"]["cwd"],
         "workspace_root": record["session"]["cwd"],
-        "resumable": record["session"].get("resumable", False),
-        "session_origin": record["session"]["origin"],
+        "resumable": resumable,
+        "resumable_reason_code": resumable_reason_code,
+        "resumable_reason": resumable_reason,
+        "session_origin": origin,
         "provider_resume_supported": profile["supported"],
         "provider_resume_mode": profile["mode"],
-        "provider_locator": record["session"]["provider_locator"],
+        "provider_locator": provider_locator,
         "worker_signature": record["worker"]["worker_signature"],
         "context_fingerprint": record["context"]["context_fingerprint"],
         "boundary_handoff_fingerprint": record["context"]["boundary_handoff_fingerprint"],
@@ -256,16 +308,24 @@ def _updated_session_record(
             "trace_path": payload["resume"]["trace_path"],
         }
     )
+    origin = classify_session_origin(source, resume_mode=resume_mode)
+    resumable, resumable_reason_code, resumable_reason = derive_session_resumability(
+        adapter=payload["adapter"],
+        origin=origin,
+        provider_locator=resolved_session_id,
+    )
     record = {
-        "version": 2,
+        "version": 3,
         "session_id": resolved_session_id,
         "adapter": payload["adapter"],
         "run_id": run["run_id"],
         "worker_id": payload["worker"]["worker_id"],
         "cwd": str((existing or {}).get("cwd") or provider_state.get("cwd") or repo_root),
         "workspace_root": str(repo_root),
-        "resumable": True,
-        "session_origin": classify_session_origin(source, resume_mode=resume_mode),
+        "resumable": resumable,
+        "resumable_reason_code": resumable_reason_code,
+        "resumable_reason": resumable_reason,
+        "session_origin": origin,
         "provider_resume_supported": profile["supported"],
         "provider_resume_mode": profile["mode"],
         "provider_locator": resolved_session_id,
@@ -315,12 +375,92 @@ def _updated_worker_record(
                 f".praxis/runtime/launches/{payload['adapter']}/legacy-{_slug(payload['worker']['worker_id'], fallback='worker')}.json",
             ),
             "trace_path": provider_metadata.get("trace_path", payload["resume"]["trace_path"]),
+            "launcher_pid": None,
             "status": "running",
         }
     worker_record["session_id"] = session_record["session_id"]
     worker_record["status"] = "running"
     validate_contract_payload("worker-record.schema.json", worker_record)
     return rel, worker_record
+
+
+def update_session_record_after_launch(
+    *,
+    repo_root: Path,
+    adapter: str,
+    worker_id: str,
+    recorded_at: str,
+    provider_locator: str,
+    provider_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    repo_root = repo_root.resolve()
+    worker_rel = worker_record_relpath(worker_id)
+    worker_path = repo_root / worker_rel
+    if not worker_path.exists():
+        return None
+
+    worker_record = load_json(worker_path)
+    validate_contract_payload("worker-record.schema.json", worker_record)
+    session_id = worker_record.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        return None
+
+    session_rel, session_record = load_session_record(
+        repo_root=repo_root,
+        adapter=adapter,
+        session_id=session_id,
+    )
+    if session_rel is None or session_record is None:
+        return None
+
+    updated_session = dict(session_record)
+    provider_state = dict(updated_session.get("provider_metadata", {}))
+    provider_state.update(provider_metadata or {})
+    provider_state["provider_locator_observed_at"] = recorded_at
+
+    origin = str(updated_session.get("session_origin") or "headless_start")
+    resumable, resumable_reason_code, resumable_reason = derive_session_resumability(
+        adapter=adapter,
+        origin=origin,
+        provider_locator=provider_locator,
+    )
+
+    updated_session["version"] = 3
+    updated_session["provider_locator"] = provider_locator
+    updated_session["resumable"] = resumable
+    updated_session["resumable_reason_code"] = resumable_reason_code
+    updated_session["resumable_reason"] = resumable_reason
+    updated_session["last_seen_at"] = recorded_at
+    updated_session["provider_metadata"] = provider_state
+    validate_contract_payload("session-record.schema.json", updated_session)
+
+    files = {
+        session_rel: dump_json(updated_session),
+    }
+    launch_record_rel = worker_record.get("launch_record_path")
+    if isinstance(launch_record_rel, str):
+        launch_record_path = repo_root / launch_record_rel
+        if launch_record_path.exists():
+            launch_record = load_json(launch_record_path)
+            launch_record["version"] = 4
+            launch_record["session"]["provider_locator"] = provider_locator
+            launch_record["session"]["resumable"] = resumable
+            launch_record["session"]["resumable_reason_code"] = resumable_reason_code
+            launch_record["session"]["resumable_reason"] = resumable_reason
+            validate_contract_payload("native-launch.schema.json", launch_record)
+            files[launch_record_rel] = dump_json(launch_record)
+
+    commit_transaction(
+        repo_root=repo_root,
+        operation="update_session_record_after_launch",
+        files=files,
+        timestamp=recorded_at,
+        metadata={"adapter": adapter, "worker_id": worker_id},
+    )
+    return {
+        "session_record_rel": session_rel,
+        "session_record": updated_session,
+    }
 
 
 def write_native_resume_result(
@@ -444,7 +584,11 @@ def write_native_resume_result(
         files[updated_session_rel] = dump_json(updated_session_record)
         files[worker_rel] = dump_json(worker_record)
         mark_worker_resumed(run, session_id=resolved)
-    elif session_record is not None and session_record.get("version") == 2 and session_record_rel is not None:
+    elif (
+        session_record is not None
+        and int(session_record.get("version", 0)) >= 2
+        and session_record_rel is not None
+    ):
         updated_session_rel = session_record_rel
         updated_session_record = dict(session_record)
         updated_session_record["last_seen_at"] = recorded_at

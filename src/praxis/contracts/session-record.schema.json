@@ -19,7 +19,7 @@
   "properties": {
     "version": {
       "type": "integer",
-      "enum": [1, 2]
+      "enum": [1, 2, 3]
     },
     "session_id": {
       "type": "string",
@@ -65,8 +65,22 @@
       "enum": ["none", "interactive", "headless", "either"]
     },
     "provider_locator": {
-      "type": "string",
-      "minLength": 1
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+    "resumable_reason_code": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+    "resumable_reason": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
     },
     "worker_signature": {
       "type": "string",
@@ -158,6 +172,43 @@
           "worktree_mode",
           "last_resume_at",
           "last_resume_outcome"
+        ],
+        "properties": {
+          "provider_locator": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "version": {
+            "const": 3
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "workspace_root",
+          "session_origin",
+          "provider_resume_supported",
+          "provider_resume_mode",
+          "provider_locator",
+          "worker_signature",
+          "context_fingerprint",
+          "boundary_handoff_fingerprint",
+          "current_scope",
+          "current_slice_id",
+          "current_artifact_dir",
+          "current_stage",
+          "permission_profile",
+          "worktree_mode",
+          "last_resume_at",
+          "last_resume_outcome",
+          "resumable_reason_code",
+          "resumable_reason"
         ]
       }
     }
