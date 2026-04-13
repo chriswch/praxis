@@ -27,6 +27,7 @@ class PackagingInstallContractTest(unittest.TestCase):
         cls.temp_path = Path(cls.temp_dir.name)
         cls.wheel_dir = cls.temp_path / "wheelhouse"
         cls.wheel_dir.mkdir(parents=True, exist_ok=True)
+        cls.build_source_root = cls._copy_source_tree("source-wheel")
 
         uv_bin = shutil.which("uv")
         if uv_bin is not None:
@@ -37,9 +38,9 @@ class PackagingInstallContractTest(unittest.TestCase):
                     "--wheel",
                     "--out-dir",
                     str(cls.wheel_dir),
-                    str(PROJECT_ROOT),
+                    str(cls.build_source_root),
                 ],
-                cwd=PROJECT_ROOT,
+                cwd=cls.build_source_root,
             )
         else:
             cls._run(
@@ -51,9 +52,9 @@ class PackagingInstallContractTest(unittest.TestCase):
                     "--no-deps",
                     "--wheel-dir",
                     str(cls.wheel_dir),
-                    str(PROJECT_ROOT),
+                    str(cls.build_source_root),
                 ],
-                cwd=PROJECT_ROOT,
+                cwd=cls.build_source_root,
             )
         wheel_files = sorted(cls.wheel_dir.glob("praxis-*.whl"))
         if not wheel_files:
@@ -63,6 +64,24 @@ class PackagingInstallContractTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls) -> None:
         cls.temp_dir.cleanup()
+
+    @classmethod
+    def _copy_source_tree(cls, dirname: str) -> Path:
+        destination = cls.temp_path / dirname
+        shutil.copytree(
+            PROJECT_ROOT,
+            destination,
+            ignore=shutil.ignore_patterns(
+                ".git",
+                ".praxis",
+                "build",
+                "dist",
+                "*.egg-info",
+                "__pycache__",
+                ".pytest_cache",
+            ),
+        )
+        return destination
 
     @staticmethod
     def _run(command: list[str], *, cwd: Optional[Path] = None) -> subprocess.CompletedProcess[str]:
@@ -260,6 +279,7 @@ class PackagingInstallContractTest(unittest.TestCase):
         if uv_bin is None:
             raise unittest.SkipTest("uv is not installed.")
 
+        source_root = self._copy_source_tree("source-uv-tool")
         tool_dir = self.temp_path / "uv-tool-dir"
         cache_dir = self.temp_path / "uv-cache"
         env = {
@@ -276,9 +296,9 @@ class PackagingInstallContractTest(unittest.TestCase):
                 "--force",
                 "--python",
                 sys.executable,
-                str(PROJECT_ROOT),
+                str(source_root),
             ],
-            cwd=PROJECT_ROOT,
+            cwd=source_root,
             env=env,
         )
 
