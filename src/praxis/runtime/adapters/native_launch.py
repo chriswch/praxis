@@ -129,6 +129,12 @@ def build_native_launch_record(
             "context_fingerprint": context_fingerprint_from_payload(payload),
             "boundary_handoff_fingerprint": boundary_handoff_fingerprint_from_payload(payload),
         },
+        "bundle": {
+            "dispatch_id": payload["bundle"]["dispatch_id"],
+            "worker_launch_path": payload["bundle"]["worker_launch_path"],
+            "dispatch_record_path": payload["bundle"]["dispatch_record_path"],
+            "context_manifest_path": payload["bundle"]["context_manifest_path"],
+        },
         "worker": {
             "worker_id": worker["worker_id"],
             "worker_class": worker["worker_class"],
@@ -179,6 +185,10 @@ def build_worker_record(*, run: dict[str, Any], payload: dict[str, Any], record:
         "worktree_path": record["worker"]["worktree_path"],
         "session_id": record["session"]["id"],
         "launch_record_path": record_rel,
+        "dispatch_id": payload["bundle"]["dispatch_id"],
+        "worker_launch_path": payload["bundle"]["worker_launch_path"],
+        "dispatch_record_path": payload["bundle"]["dispatch_record_path"],
+        "context_manifest_path": payload["bundle"]["context_manifest_path"],
         "trace_path": record["harness"]["trace_path"],
         "launcher_pid": record["worker"].get("launcher_pid"),
         "status": "running",

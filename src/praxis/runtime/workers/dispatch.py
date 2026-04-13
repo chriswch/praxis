@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from ..state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json, recover_pending_transaction
-from ..adapters.harness import build_worker_launch_payload, inspect_worker_launch_context
+from ..adapters.harness import compile_dispatch_bundle, inspect_worker_launch_context
 from ..adapters.native_launch import (
     derive_native_launch_failure_code,
     write_native_launch_failure,
@@ -30,15 +30,15 @@ def _synthetic_session_id(*, adapter: str, worker_id: str, timestamp: str) -> st
     return f"{adapter}-session-{compact_ts}-{worker_slug}"
 
 
-def _launch_payload_relpath(worker_id: str) -> str:
-    return f".praxis/runtime/dispatches/{_slug(worker_id, fallback='worker')}.json"
-
-
-def _persist_launch_payload(*, repo_root: Path, payload: dict[str, Any]) -> str:
-    relpath = _launch_payload_relpath(payload["worker"]["worker_id"])
-    path = repo_root / relpath
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dump_json(payload))
+def _persist_launch_payload(*, repo_root: Path, payload: dict[str, Any], timestamp: str) -> str:
+    relpath = payload["bundle"]["worker_launch_path"]
+    commit_transaction(
+        repo_root=repo_root,
+        operation="update_worker_launch_payload",
+        files={relpath: dump_json(payload)},
+        timestamp=timestamp,
+        metadata={"dispatch_id": payload["bundle"]["dispatch_id"]},
+    )
     return relpath
 
 
@@ -138,13 +138,16 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
         )
 
     launch_context = inspect_worker_launch_context(repo_root=repo_root)
-    payload = build_worker_launch_payload(repo_root=repo_root)
-    worker = payload["worker"]
-    if worker["worker_class"] not in {"session_worker", "worktree_worker"}:
+    planned_worker = launch_context.get("worker_plan") or {}
+    if planned_worker.get("worker_class") not in {"session_worker", "worktree_worker"}:
         raise ValueError(
             "Praxis only dispatches bounded background workers for 'session_worker' or 'worktree_worker' plans. "
-            f"Got worker_class={worker['worker_class']!r}."
+            f"Got worker_class={planned_worker.get('worker_class')!r}."
         )
+
+    compiled_bundle = compile_dispatch_bundle(repo_root=repo_root)
+    payload = compiled_bundle["launch"]
+    worker = payload["worker"]
 
     resume = payload["resume"]
     extra_events: list[dict[str, Any]] = []
@@ -185,7 +188,9 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
     if worker["worktree_mode"] == "isolated":
         worktree_path = ensure_isolated_worktree(repo_root=repo_root, worker_id=worker["worker_id"])
 
-    payload_relpath = _persist_launch_payload(repo_root=repo_root, payload=payload)
+    payload_relpath = payload["bundle"]["worker_launch_path"]
+    if resume.get("resume_attempted") or resume.get("resume_outcome"):
+        payload_relpath = _persist_launch_payload(repo_root=repo_root, payload=payload, timestamp=timestamp)
     launch_surface = _launch_surface(payload["adapter"])
 
     hook_request = {

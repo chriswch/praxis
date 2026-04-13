@@ -117,11 +117,23 @@ class WorkerDispatchContractTest(unittest.TestCase):
         self.assertFalse(record["resume"]["attempted"])
         self.assertEqual(record["resume"]["outcome"], "resume_not_attempted")
         self.assertEqual(record["session"]["source"], "control_plane_launch")
+        self.assertTrue(record["bundle"]["worker_launch_path"].endswith("/worker-launch.json"))
+        self.assertTrue(record["bundle"]["dispatch_record_path"].endswith("/dispatch-record.json"))
+        self.assertTrue(record["bundle"]["context_manifest_path"].endswith("/context-manifest.json"))
 
         worker_records = sorted((self.repo_root / ".praxis" / "runtime" / "workers").glob("*.json"))
         session_records = sorted((self.repo_root / ".praxis" / "runtime" / "sessions" / "codex").glob("*.json"))
         self.assertEqual(len(worker_records), 1)
         self.assertEqual(len(session_records), 1)
+        worker_record = load_json(worker_records[0])
+        self.assertEqual(worker_record["dispatch_id"], record["bundle"]["dispatch_id"])
+        self.assertEqual(worker_record["dispatch_record_path"], record["bundle"]["dispatch_record_path"])
+        self.assertEqual(worker_record["context_manifest_path"], record["bundle"]["context_manifest_path"])
+
+        dispatch_bundle_dir = self.repo_root / ".praxis" / "runtime" / "dispatches" / record["bundle"]["dispatch_id"]
+        self.assertTrue((dispatch_bundle_dir / "worker-launch.json").exists())
+        self.assertTrue((dispatch_bundle_dir / "dispatch-record.json").exists())
+        self.assertTrue((dispatch_bundle_dir / "context-manifest.json").exists())
 
         events = [
             json.loads(line)

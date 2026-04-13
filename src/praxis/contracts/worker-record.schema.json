@@ -74,6 +74,30 @@
       "type": "string",
       "pattern": "^\\.praxis/runtime/launches/(?:codex|claude)/.*\\.json$"
     },
+    "dispatch_id": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+    "worker_launch_path": {
+      "anyOf": [
+        { "type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$" },
+        { "type": "null" }
+      ]
+    },
+    "dispatch_record_path": {
+      "anyOf": [
+        { "type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$" },
+        { "type": "null" }
+      ]
+    },
+    "context_manifest_path": {
+      "anyOf": [
+        { "type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$" },
+        { "type": "null" }
+      ]
+    },
     "trace_path": {
       "type": "string",
       "pattern": "^\\.praxis/runtime/traces/.*\\.jsonl$"

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/src/praxis/contracts/context-manifest.schema.json",
+  "title": "Praxis Context Manifest",
+  "description": "Durable record of the exact bounded context items compiled into one worker launch package.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "dispatch_id",
+    "run_id",
+    "generated_at",
+    "dispatch",
+    "worker",
+    "context_policy",
+    "bundle",
+    "items"
+  ],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "dispatch_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workflow", "adapter", "scope", "slice_id", "artifact_dir", "stage", "boundary_handoff_path", "transition_id"],
+      "properties": {
+        "workflow": {"type": "string", "enum": ["craft", "forge"]},
+        "adapter": {"type": "string", "enum": ["claude", "codex"]},
+        "scope": {"type": "string", "enum": ["root", "feature", "slice"]},
+        "slice_id": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+        "artifact_dir": {"type": "string", "pattern": "^\\.praxis(?:/.*)?$"},
+        "stage": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+        "boundary_handoff_path": {"anyOf": [{"type": "string", "pattern": "^\\.praxis(?:/.*)?$"}, {"type": "null"}]},
+        "transition_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worker_id", "worker_class", "permission_profile", "worktree_mode", "fresh_context"],
+      "properties": {
+        "worker_id": {"type": "string", "minLength": 1},
+        "worker_class": {"type": "string", "enum": ["interactive_orchestrator", "session_worker", "worktree_worker"]},
+        "permission_profile": {"type": "string", "enum": ["planning", "design", "implementation", "review", "verification"]},
+        "worktree_mode": {"type": "string", "enum": ["shared", "isolated"]},
+        "fresh_context": {"type": "boolean"}
+      }
+    },
+    "context_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["carry_forward_mode", "handoff_injected", "allowed_context_sources"],
+      "properties": {
+        "carry_forward_mode": {"type": "string", "const": "boundary_handoff_only"},
+        "handoff_injected": {"type": "boolean"},
+        "allowed_context_sources": {
+          "type": "array",
+          "items": {"type": "string", "enum": ["dispatch", "run_metadata", "boundary_handoff", "artifact_input", "harness_surface"]},
+          "uniqueItems": true
+        }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle_dir", "worker_launch_path", "dispatch_record_path", "context_manifest_path"],
+      "properties": {
+        "bundle_dir": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+$"},
+        "worker_launch_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$"},
+        "dispatch_record_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$"},
+        "context_manifest_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"}
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "path", "inline_id", "required", "reason"],
+        "properties": {
+          "kind": {"type": "string", "enum": ["dispatch", "run_metadata", "artifact_input", "boundary_handoff", "harness_surface"]},
+          "path": {"anyOf": [{"type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"}, {"type": "null"}]},
+          "inline_id": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+          "required": {"type": "boolean"},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

@@ -17,7 +17,7 @@
   "properties": {
     "version": {
       "type": "integer",
-      "enum": [1, 2]
+      "enum": [1, 2, 3]
     },
     "workflow": {
       "type": "string",
@@ -140,7 +140,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["dispatch", "run_metadata", "boundary_handoff"]
+            "enum": ["dispatch", "run_metadata", "boundary_handoff", "artifact_input", "harness_surface"]
           },
           "uniqueItems": true
         },
@@ -243,6 +243,32 @@
             },
             { "type": "null" }
           ]
+        }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dispatch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bundle_dir": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+$"
+        },
+        "worker_launch_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$"
+        },
+        "dispatch_record_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$"
+        },
+        "context_manifest_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"
         }
       }
     },
@@ -394,6 +420,58 @@
           "resume"
         ],
         "properties": {
+          "worker": {
+            "required": [
+              "worker_id",
+              "worker_class",
+              "reuse_policy",
+              "review_independence",
+              "worktree_mode",
+              "fresh_context",
+              "reason",
+              "worktree_path"
+            ]
+          },
+          "permissions": {
+            "required": ["profile", "filesystem_scope", "network_access", "destructive_commands_allowed"]
+          },
+          "budgets": {
+            "required": ["run_max_turns", "run_max_workers", "soft_cost_usd", "hard_cost_usd", "worker_timeout_minutes"]
+          },
+          "resume": {
+            "required": ["strategy", "session_id", "resumable", "resume_attempted", "mode", "trace_path"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "version": {
+            "const": 3
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "bundle",
+          "worker",
+          "permissions",
+          "budgets",
+          "artifact_inputs",
+          "artifact_outputs_expected",
+          "resume"
+        ],
+        "properties": {
+          "bundle": {
+            "required": [
+              "dispatch_id",
+              "bundle_dir",
+              "worker_launch_path",
+              "dispatch_record_path",
+              "context_manifest_path"
+            ]
+          },
           "worker": {
             "required": [
               "worker_id",

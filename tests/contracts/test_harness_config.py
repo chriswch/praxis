@@ -218,7 +218,7 @@ class HarnessConfigContractTest(unittest.TestCase):
         self.assertEqual(payload["context_policy"]["carry_forward_mode"], "boundary_handoff_only")
         self.assertEqual(
             payload["context_policy"]["allowed_context_sources"],
-            ["dispatch", "run_metadata", "boundary_handoff"],
+            ["dispatch", "run_metadata", "boundary_handoff", "artifact_input", "harness_surface"],
         )
         self.assertTrue(payload["context_policy"]["handoff_injected"])
         self.assertEqual(payload["harness"]["config_path"], ".codex/adapter.json")
@@ -227,6 +227,10 @@ class HarnessConfigContractTest(unittest.TestCase):
         self.assertEqual(payload["harness"]["hooks_path"], ".codex/hooks.json")
         self.assertEqual(payload["harness"]["agents_path"], ".codex/agents")
         self.assertEqual(payload["harness"]["compatibility"]["settings_path"], ".codex-plugin/settings.md")
+        self.assertTrue(payload["bundle"]["dispatch_id"].startswith("tx_001-"))
+        self.assertTrue(payload["bundle"]["worker_launch_path"].endswith("/worker-launch.json"))
+        self.assertTrue(payload["bundle"]["dispatch_record_path"].endswith("/dispatch-record.json"))
+        self.assertTrue(payload["bundle"]["context_manifest_path"].endswith("/context-manifest.json"))
 
     def test_build_worker_launch_payload_sets_null_compatibility_when_native_run_does_not_declare_it(self) -> None:
         self._write_adapter_harness("claude", include_compatibility=False)

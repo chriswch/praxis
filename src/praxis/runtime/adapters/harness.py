@@ -6,17 +6,17 @@ from pathlib import Path
 from typing import Any
 
 from ..state.contract_validation import validate_contract_payload
-from ..state.durable_state import dump_json, inspect_handoff_file, load_json, validate_handoff_file
-from ..adapters.native_resume import session_record_relpath
+from ..state.durable_state import dump_json, inspect_handoff_file, load_json
 from ..orchestrator import build_dispatch
+from ..context.compiler import (
+    build_worker_launch_payload as _build_worker_launch_payload,
+    compile_dispatch_bundle as _compile_dispatch_bundle,
+)
 from ..workers.planning import (
     build_worker_plan,
     ensure_run_vnext_defaults,
-    stage_expected_outputs,
-    stage_input_artifacts,
     sync_worker_cursor,
 )
-from ..workers.worktree import isolated_worktree_relpath
 
 
 def _utc_now() -> str:
@@ -107,126 +107,12 @@ def inspect_worker_launch_context(*, repo_root: Path) -> dict[str, Any]:
     }
 
 
-def _worker_timeout_minutes(stage: str | None) -> int:
-    stage_timeouts = {
-        "clarifying-intent": 20,
-        "slicing-stories": 20,
-        "sketching-design": 30,
-        "driving-tdd": 90,
-        "rapid-implementing": 90,
-        "code-reviewing": 30,
-        "code-improving": 60,
-        "verifying-and-adapting": 30,
-    }
-    return stage_timeouts.get(stage, 45)
-
-
-def _resume_cursor_state(*, repo_root: Path, adapter: str, session_id: str | None) -> bool:
-    if not session_id:
-        return False
-    session_path = repo_root / session_record_relpath(adapter, session_id)
-    if not session_path.exists():
-        return False
-    try:
-        payload = load_json(session_path)
-        validate_contract_payload("session-record.schema.json", payload)
-    except Exception:
-        return False
-    return bool(payload.get("resumable"))
-
-
 def build_worker_launch_payload(*, repo_root: Path) -> dict[str, Any]:
-    repo_root = repo_root.resolve()
-    run = load_json(repo_root / ".praxis" / "run.json")
-    ensure_run_vnext_defaults(run)
-    sync_worker_cursor(run)
-    dispatch = build_dispatch(repo_root, run=run)
-    config_rel, harness = load_adapter_harness(repo_root=repo_root, adapter=run["runtime"]["adapter"])
+    return _build_worker_launch_payload(repo_root=repo_root.resolve(), harness_loader=load_adapter_harness)
 
-    handoff_path = dispatch.get("boundary_handoff_path")
-    handoff_payload = validate_handoff_file(repo_root / handoff_path) if handoff_path else None
-    worker_plan = build_worker_plan(run)
-    if worker_plan is None:
-        raise ValueError("Praxis cannot build a worker launch payload without an active stage.")
 
-    stage = dispatch.get("stage")
-    artifact_dir = dispatch.get("artifact_dir") or run["current"]["artifact_dir"]
-    trace_path = worker_plan["trace_path"]
-
-    payload = {
-        "version": 2,
-        "workflow": run["workflow"],
-        "adapter": run["runtime"]["adapter"],
-        "dispatch": dispatch,
-        "inputs": {
-            "run_path": ".praxis/run.json",
-            "boundary_handoff_path": handoff_path,
-            "boundary_handoff": handoff_payload,
-        },
-        "context_policy": {
-            "fresh_context": worker_plan["fresh_context"],
-            "carry_forward_mode": "boundary_handoff_only",
-            "allowed_context_sources": [
-                "dispatch",
-                "run_metadata",
-                "boundary_handoff",
-            ],
-            "handoff_injected": handoff_payload is not None,
-        },
-        "harness": {
-            "config_path": config_rel,
-            "instructions_path": harness["instructions_path"],
-            "project_config_path": harness["project_config_path"],
-            "hooks_path": harness["hooks_path"],
-            "agents_path": harness["agents_path"],
-            "worker_launch_command": harness["worker_launch_command"],
-            "extension_points": harness["extension_points"],
-            "compatibility": harness.get("compatibility"),
-        },
-        "worker": {
-            "worker_id": run["current"]["worker_id"],
-            "worker_class": worker_plan["worker_class"],
-            "reuse_policy": worker_plan["reuse_policy"],
-            "review_independence": worker_plan["review_independence"],
-            "worktree_mode": worker_plan["worktree_mode"],
-            "fresh_context": worker_plan["fresh_context"],
-            "reason": worker_plan["reason"],
-            "worktree_path": (
-                "."
-                if worker_plan["worktree_mode"] == "shared"
-                else isolated_worktree_relpath(run["current"]["worker_id"])
-            ),
-        },
-        "permissions": {
-            "profile": worker_plan["permission_profile"],
-            "filesystem_scope": "workspace-write",
-            "network_access": "restricted",
-            "destructive_commands_allowed": False,
-        },
-        "budgets": {
-            "run_max_turns": run["budgets"]["run_max_turns"],
-            "run_max_workers": run["budgets"]["run_max_workers"],
-            "soft_cost_usd": run["budgets"]["soft_cost_usd"],
-            "hard_cost_usd": run["budgets"]["hard_cost_usd"],
-            "worker_timeout_minutes": _worker_timeout_minutes(stage),
-        },
-        "artifact_inputs": stage_input_artifacts(run=run, stage=stage, artifact_dir=artifact_dir),
-        "artifact_outputs_expected": stage_expected_outputs(run=run, stage=stage, artifact_dir=artifact_dir),
-        "resume": {
-            "strategy": run["routing"]["resume_strategy"],
-            "session_id": run["current"]["session_id"],
-            "resumable": _resume_cursor_state(
-                repo_root=repo_root,
-                adapter=run["runtime"]["adapter"],
-                session_id=run["current"]["session_id"],
-            ),
-            "resume_attempted": False,
-            "mode": "headless" if run["execution"]["mode"] == "autopilot" else "interactive",
-            "trace_path": trace_path,
-        },
-    }
-    validate_contract_payload("worker-launch.schema.json", payload)
-    return payload
+def compile_dispatch_bundle(*, repo_root: Path) -> dict[str, Any]:
+    return _compile_dispatch_bundle(repo_root=repo_root.resolve(), harness_loader=load_adapter_harness)
 
 
 def main(argv: list[str] | None = None) -> int:

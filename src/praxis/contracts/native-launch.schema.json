@@ -141,7 +141,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["dispatch", "run_metadata", "boundary_handoff"]
+            "enum": ["dispatch", "run_metadata", "boundary_handoff", "artifact_input", "harness_surface"]
           },
           "uniqueItems": true
         },
@@ -169,6 +169,28 @@
             { "type": "string", "pattern": "^[0-9a-f]{64}$" },
             { "type": "null" }
           ]
+        }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dispatch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worker_launch_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$"
+        },
+        "dispatch_record_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$"
+        },
+        "context_manifest_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"
         }
       }
     },

@@ -207,6 +207,10 @@ def build_session_record(
             "boundary_handoff_path": record["dispatch"]["boundary_handoff_path"],
             "trace_path": record["harness"]["trace_path"],
             "launch_record_path": record_rel,
+            "dispatch_id": payload["bundle"]["dispatch_id"],
+            "worker_launch_path": payload["bundle"]["worker_launch_path"],
+            "dispatch_record_path": payload["bundle"]["dispatch_record_path"],
+            "context_manifest_path": payload["bundle"]["context_manifest_path"],
         },
     }
     validate_contract_payload("session-record.schema.json", session_record)
@@ -378,11 +382,19 @@ def _updated_worker_record(
                 "launch_record_path",
                 f".praxis/runtime/launches/{payload['adapter']}/legacy-{_slug(payload['worker']['worker_id'], fallback='worker')}.json",
             ),
+            "dispatch_id": payload["bundle"]["dispatch_id"],
+            "worker_launch_path": payload["bundle"]["worker_launch_path"],
+            "dispatch_record_path": payload["bundle"]["dispatch_record_path"],
+            "context_manifest_path": payload["bundle"]["context_manifest_path"],
             "trace_path": provider_metadata.get("trace_path", payload["resume"]["trace_path"]),
             "launcher_pid": None,
             "status": "running",
         }
     worker_record["session_id"] = session_record["session_id"]
+    worker_record["dispatch_id"] = payload["bundle"]["dispatch_id"]
+    worker_record["worker_launch_path"] = payload["bundle"]["worker_launch_path"]
+    worker_record["dispatch_record_path"] = payload["bundle"]["dispatch_record_path"]
+    worker_record["context_manifest_path"] = payload["bundle"]["context_manifest_path"]
     worker_record["status"] = "running"
     validate_contract_payload("worker-record.schema.json", worker_record)
     return rel, worker_record

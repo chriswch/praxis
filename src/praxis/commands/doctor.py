@@ -9,6 +9,7 @@ from typing import Any
 
 from praxis.commands._support import build_run_snapshot
 from praxis.runtime.adapters.harness import build_worker_launch_payload, load_adapter_harness
+from praxis.runtime.context.bundle import load_dispatch_bundle_status
 from praxis.runtime.adapters.provider_resume import _provider_capability
 from praxis.runtime.state.durable_state import load_events, load_json, recover_pending_transaction, validate_state_payloads
 from praxis.runtime.workers.planning import build_worker_plan, ensure_run_vnext_defaults
@@ -308,6 +309,42 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
                 reason_code="no_active_run",
                 message="No active run is present.",
                 details={"run_path": str(run_path)},
+            )
+        )
+
+    if run is not None and run.get("current", {}).get("stage") is not None and run_snapshot is not None:
+        dispatch_bundle = load_dispatch_bundle_status(
+            repo_root=repo_root,
+            run=run,
+            dispatch=run_snapshot["dispatch"],
+        )
+        if dispatch_bundle is not None and dispatch_bundle.get("available"):
+            checks.append(
+                _record_check(
+                    name="active_dispatch_bundle",
+                    status="ok",
+                    reason_code="dispatch_bundle_available",
+                    message="The active dispatch bundle is available under .praxis/runtime/dispatches/.",
+                    details=dispatch_bundle,
+                )
+            )
+        else:
+            checks.append(
+                _record_check(
+                    name="active_dispatch_bundle",
+                    status="warn",
+                    reason_code="dispatch_bundle_missing",
+                    message="The active dispatch bundle has not been compiled yet.",
+                    details=dispatch_bundle or {},
+                )
+            )
+    else:
+        checks.append(
+            _record_check(
+                name="active_dispatch_bundle",
+                status="ok",
+                reason_code="dispatch_bundle_not_required",
+                message="No active stage requires a compiled dispatch bundle.",
             )
         )
 

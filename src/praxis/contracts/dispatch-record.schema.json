@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/src/praxis/contracts/dispatch-record.schema.json",
+  "title": "Praxis Dispatch Record",
+  "description": "Durable record of one dispatch decision before native launch or resume proceeds.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "dispatch_id",
+    "run_id",
+    "recorded_at",
+    "status",
+    "dispatch",
+    "worker",
+    "resume",
+    "bundle",
+    "artifact_inputs",
+    "artifact_outputs_expected"
+  ],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "dispatch_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "status": {"type": "string", "enum": ["compiled"]},
+    "dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workflow", "adapter", "entrypoint", "scope", "slice_id", "artifact_dir", "stage", "boundary_handoff_path", "transition_id", "reason"],
+      "properties": {
+        "workflow": {"type": "string", "enum": ["craft", "forge"]},
+        "adapter": {"type": "string", "enum": ["claude", "codex"]},
+        "entrypoint": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+        "scope": {"type": "string", "enum": ["root", "feature", "slice"]},
+        "slice_id": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+        "artifact_dir": {"type": "string", "pattern": "^\\.praxis(?:/.*)?$"},
+        "stage": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+        "boundary_handoff_path": {"anyOf": [{"type": "string", "pattern": "^\\.praxis(?:/.*)?$"}, {"type": "null"}]},
+        "transition_id": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worker_id", "worker_class", "reuse_policy", "permission_profile", "worktree_mode", "fresh_context"],
+      "properties": {
+        "worker_id": {"type": "string", "minLength": 1},
+        "worker_class": {"type": "string", "enum": ["interactive_orchestrator", "session_worker", "worktree_worker"]},
+        "reuse_policy": {"type": "string", "minLength": 1},
+        "permission_profile": {"type": "string", "enum": ["planning", "design", "implementation", "review", "verification"]},
+        "worktree_mode": {"type": "string", "enum": ["shared", "isolated"]},
+        "fresh_context": {"type": "boolean"}
+      }
+    },
+    "resume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "session_id", "resumable", "mode"],
+      "properties": {
+        "strategy": {"anyOf": [{"type": "string", "enum": ["prefer_resume_then_relaunch", "relaunch_only"]}, {"type": "null"}]},
+        "session_id": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+        "resumable": {"type": "boolean"},
+        "mode": {"type": "string", "enum": ["interactive", "headless"]}
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle_dir", "worker_launch_path", "dispatch_record_path", "context_manifest_path"],
+      "properties": {
+        "bundle_dir": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+$"},
+        "worker_launch_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$"},
+        "dispatch_record_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$"},
+        "context_manifest_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"}
+      }
+    },
+    "artifact_inputs": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^\\.praxis(?:/.*)?$"},
+      "uniqueItems": true
+    },
+    "artifact_outputs_expected": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^\\.praxis(?:/.*)?$"},
+      "uniqueItems": true
+    }
+  }
+}

@@ -370,6 +370,8 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(run["routing"]["pending_worker_action"], "await_stage_result")
         self.assertIsNotNone(run["current"]["session_id"])
         self.assertEqual(run["trace"]["last_launch_event"]["type"], "native_launch_recorded")
+        self.assertTrue(run["dispatch_bundle"]["available"])
+        self.assertTrue(run["dispatch_bundle"]["worker_launch_path"].endswith("/worker-launch.json"))
 
     def test_build_worker_launch_returns_public_payload(self) -> None:
         self._write_adapter_harness("claude")
@@ -393,6 +395,10 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(launch["dispatch"]["stage"], "clarifying-intent")
         self.assertEqual(launch["harness"]["config_path"], ".claude/adapter.json")
         self.assertEqual(launch["harness"]["worker_launch_command"], 'python3 -c "import sys; sys.exit(0)"')
+        self.assertTrue(launch["bundle"]["worker_launch_path"].endswith("/worker-launch.json"))
+        bundle = result["data"]["dispatch_bundle"]
+        self.assertTrue(bundle["available"])
+        self.assertTrue(bundle["context_manifest_path"].endswith("/context-manifest.json"))
 
     def test_harness_show_adapter_returns_native_harness_shape(self) -> None:
         self._write_adapter_harness("codex")
@@ -586,6 +592,7 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(result["data"]["healthy"])
         check_names = {check["name"] for check in result["data"]["checks"]}
+        self.assertIn("active_dispatch_bundle", check_names)
         self.assertIn("codex_harness", check_names)
         self.assertIn("codex_launch_payload", check_names)
 

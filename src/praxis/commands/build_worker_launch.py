@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from praxis.cli.exit_codes import BLOCKED_EXIT, ENVIRONMENT_EXIT, CliContractError
-from praxis.commands._support import build_worker_launch_payload, load_run_or_error
+from praxis.commands._support import compile_dispatch_bundle, load_run_or_error
 
 
 def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[str, Any]:
@@ -18,7 +18,8 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
             exit_code=BLOCKED_EXIT,
         )
     try:
-        payload = build_worker_launch_payload(repo_root=repo_root)
+        compiled = compile_dispatch_bundle(repo_root=repo_root)
+        payload = compiled["launch"]
     except FileNotFoundError as exc:
         raise CliContractError(
             code="missing_adapter_harness",
@@ -26,4 +27,4 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
             exit_code=ENVIRONMENT_EXIT,
             details={"repo_root": str(repo_root)},
         ) from exc
-    return {"launch": payload}
+    return {"launch": payload, "dispatch_bundle": compiled["dispatch_bundle"]}
