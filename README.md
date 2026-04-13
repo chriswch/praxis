@@ -8,6 +8,8 @@ Praxis keeps the shared workflow semantics in `src/praxis/` and keeps adapter wr
 
 ### Install
 
+Praxis currently supports `uv tool install` as its public install path.
+
 ```bash
 uv tool install .
 ```
@@ -17,6 +19,9 @@ For local development:
 ```bash
 uv tool install --editable .
 ```
+
+Wheel and direct `pip` installs remain compatibility paths, but they are not
+the supported user-facing install contract.
 
 ### Native entry points
 

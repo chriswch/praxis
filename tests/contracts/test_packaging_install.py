@@ -20,6 +20,7 @@ def load_json(path: Path):
 
 
 class PackagingInstallContractTest(unittest.TestCase):
+    """Keep the public uv-tool path healthy while preserving packaging compatibility."""
     @classmethod
     def setUpClass(cls) -> None:
         cls.temp_dir = tempfile.TemporaryDirectory()
@@ -234,7 +235,7 @@ class PackagingInstallContractTest(unittest.TestCase):
         self.assertIn("praxis/workflows/forge.md", names)
         self.assertIn("praxis/workflows/reference/runtime-reference.md", names)
 
-    def test_installed_wheel_exposes_working_praxis_cli(self) -> None:
+    def test_wheel_install_remains_compatible_with_the_praxis_cli(self) -> None:
         venv_dir = self.temp_path / "venv"
         self._run([sys.executable, "-m", "venv", str(venv_dir)])
 
@@ -254,7 +255,7 @@ class PackagingInstallContractTest(unittest.TestCase):
         praxis_bin = self._scripts_dir(python_bin) / "praxis"
         self._assert_working_praxis_cli(praxis_bin, repo_name="repo-wheel")
 
-    def test_uv_tool_install_exposes_working_praxis_cli(self) -> None:
+    def test_uv_tool_install_is_the_supported_cli_install_path(self) -> None:
         uv_bin = shutil.which("uv")
         if uv_bin is None:
             raise unittest.SkipTest("uv is not installed.")

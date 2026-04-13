@@ -4,6 +4,11 @@ Praxis ships an installed `praxis` console command backed by
 `src/praxis/cli/main.py`. Install it with `uv tool install .`, or use
 `uv tool install --editable .` while developing in the repo.
 
+Current support policy:
+
+- supported install path: `uv tool install`
+- compatibility path only: wheel or direct `pip` installs
+
 ## Stable Command Tree
 
 Current public commands:
