@@ -15,6 +15,11 @@ from ..state.durable_state import (
     load_json,
     validate_state_payloads,
 )
+from ..observability.trace_events import (
+    build_trace_context_from_payload,
+    build_trace_event,
+    render_trace_text,
+)
 from ..workers.planning import ensure_run_vnext_defaults, mark_worker_resumed
 
 
@@ -215,12 +220,6 @@ def build_session_record(
     }
     validate_contract_payload("session-record.schema.json", session_record)
     return rel, session_record
-
-
-def _trace_text(*, repo_root: Path, trace_path: str, trace_event: dict[str, Any]) -> str:
-    full_path = repo_root / trace_path
-    existing = full_path.read_text() if full_path.exists() else ""
-    return existing + json.dumps(trace_event) + "\n"
 
 
 def _resume_event_base(
@@ -557,21 +556,61 @@ def write_native_resume_result(
         final_event["reason_code"] = "provider_resume_succeeded"
         final_event["reason"] = "Provider-native resume completed from the durable Praxis cursor."
 
-    files = {
-        trace_path: _trace_text(
-            repo_root=repo_root,
-            trace_path=trace_path,
-            trace_event={
-                "ts": recorded_at,
-                "type": "worker_resumed" if outcome == "resumed" else "provider_resume_failed",
-                "adapter": payload["adapter"],
-                "worker_id": payload["worker"]["worker_id"],
+    trace_context = build_trace_context_from_payload(payload)
+    trace_events = [
+        build_trace_event(
+            trace_context,
+            recorded_at=recorded_at,
+            event_type="provider_resume_requested",
+            reason_code="provider_resume_requested",
+            reason="Attempting provider-native resume from durable Praxis state.",
+            extra_fields={
+                "resume_record_path": record_rel,
+                "requested_session_id": requested_session_id,
+                "resolved_session_id": None,
+                "resume_mode": resume_mode,
+            },
+        ),
+        build_trace_event(
+            trace_context,
+            recorded_at=recorded_at,
+            event_type="provider_resume_succeeded" if outcome == "resumed" else "provider_resume_failed",
+            reason_code="provider_resume_succeeded" if outcome == "resumed" else reason_code,
+            reason=(
+                "Provider-native resume completed from the durable Praxis cursor."
+                if outcome == "resumed"
+                else reason
+            ),
+            extra_fields={
+                "resume_record_path": record_rel,
                 "requested_session_id": requested_session_id,
                 "resolved_session_id": resolved_session_id,
                 "resume_mode": resume_mode,
-                "reason_code": reason_code,
-                "reason": reason,
             },
+        ),
+    ]
+    if outcome == "resumed":
+        trace_events.append(
+            build_trace_event(
+                trace_context,
+                recorded_at=recorded_at,
+                event_type="worker_resumed",
+                reason_code="worker_resumed",
+                reason="The provider-native resume remains aligned with the durable Praxis cursor.",
+                extra_fields={
+                    "resume_record_path": record_rel,
+                    "requested_session_id": requested_session_id,
+                    "resolved_session_id": resolved_session_id,
+                    "resume_mode": resume_mode,
+                },
+            )
+        )
+
+    files = {
+        trace_path: render_trace_text(
+            repo_root=repo_root,
+            trace_path=trace_path,
+            events=trace_events,
         ),
     }
 

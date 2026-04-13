@@ -12,6 +12,11 @@ from ..adapters.native_resume import (
     update_session_record_after_launch,
     worker_record_relpath,
 )
+from ..observability.trace_events import (
+    build_trace_context_from_payload,
+    build_trace_event,
+    render_trace_text,
+)
 from ..state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json
 from .worktree import cleanup_isolated_worktree
 
@@ -78,11 +83,6 @@ def _worker_prompt(*, payload: dict[str, Any], payload_relpath: str) -> str:
     return "\n".join(lines)
 
 
-def _trace_text(*, trace_path: Path, event: dict[str, Any]) -> str:
-    existing = trace_path.read_text() if trace_path.exists() else ""
-    return existing + json.dumps(event) + "\n"
-
-
 def _extract_session_id(text: str) -> str | None:
     for line in text.splitlines():
         candidate = line.strip()
@@ -120,7 +120,11 @@ def _commit_worker_event(
         files[str(worker_path.relative_to(repo_root))] = dump_json(worker_record)
 
     trace_path = repo_root / payload["resume"]["trace_path"]
-    files[payload["resume"]["trace_path"]] = _trace_text(trace_path=trace_path, event=trace_event)
+    files[payload["resume"]["trace_path"]] = render_trace_text(
+        repo_root=repo_root,
+        trace_path=str(trace_path.relative_to(repo_root)),
+        events=[trace_event],
+    )
     commit_transaction(
         repo_root=repo_root,
         operation=f"worker_launcher_{event['type']}",
@@ -135,6 +139,7 @@ def _cleanup_worktree_if_needed(*, repo_root: Path, payload: dict[str, Any], rec
         return
     worker_id = payload["worker"]["worker_id"]
     worktree_path = str(_provider_cwd(repo_root=repo_root, payload=payload))
+    trace_context = build_trace_context_from_payload(payload)
     try:
         cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
     except Exception as exc:
@@ -150,13 +155,14 @@ def _cleanup_worktree_if_needed(*, repo_root: Path, payload: dict[str, Any], rec
                 "reason_code": "worktree_cleanup_failed",
                 "reason": str(exc),
             },
-            trace_event={
-                "ts": recorded_at,
-                "type": "worktree_cleanup_failed",
-                "worker_id": worker_id,
-                "worktree_path": worktree_path,
-                "reason": str(exc),
-            },
+            trace_event=build_trace_event(
+                trace_context,
+                recorded_at=recorded_at,
+                event_type="worktree_cleanup_failed",
+                reason_code="worktree_cleanup_failed",
+                reason=str(exc),
+                extra_fields={"worktree_path": worktree_path},
+            ),
         )
         return
 
@@ -170,12 +176,14 @@ def _cleanup_worktree_if_needed(*, repo_root: Path, payload: dict[str, Any], rec
             "worker_id": worker_id,
             "worktree_path": worktree_path,
         },
-        trace_event={
-            "ts": recorded_at,
-            "type": "worktree_cleaned",
-            "worker_id": worker_id,
-            "worktree_path": worktree_path,
-        },
+        trace_event=build_trace_event(
+            trace_context,
+            recorded_at=recorded_at,
+            event_type="worktree_cleaned",
+            reason_code="worktree_cleaned",
+            reason="Isolated worktree cleaned after worker completion.",
+            extra_fields={"worktree_path": worktree_path},
+        ),
     )
 
 
@@ -190,6 +198,7 @@ def launch_worker(*, repo_root: Path) -> int:
     stdout_path = logs_dir / f"{payload['worker']['worker_id']}.stdout.log"
     stderr_path = logs_dir / f"{payload['worker']['worker_id']}.stderr.log"
     ts = _utc_now()
+    trace_context = build_trace_context_from_payload(payload)
 
     started_event = {
         "ts": ts,
@@ -210,12 +219,14 @@ def launch_worker(*, repo_root: Path) -> int:
         payload=payload,
         worker_status="running",
         event=started_event,
-        trace_event={
-            "ts": ts,
-            "type": "worker_process_started",
-            "worker_id": payload["worker"]["worker_id"],
-            "launch_surface": launch_surface,
-        },
+        trace_event=build_trace_event(
+            trace_context,
+            recorded_at=ts,
+            event_type="worker_process_started",
+            reason_code="worker_process_started",
+            reason="Background worker launcher started the provider task.",
+            extra_fields={"launch_surface": launch_surface},
+        ),
     )
 
     with stdout_path.open("a", encoding="utf-8") as stdout_handle, stderr_path.open("a", encoding="utf-8") as stderr_handle:
@@ -249,13 +260,14 @@ def launch_worker(*, repo_root: Path) -> int:
                     "reason_code": "worker_process_failed",
                     "reason": str(exc),
                 },
-                trace_event={
-                    "ts": failed_at,
-                    "type": "worker_process_failed",
-                    "worker_id": payload["worker"]["worker_id"],
-                    "launch_surface": launch_surface,
-                    "reason": str(exc),
-                },
+                trace_event=build_trace_event(
+                    trace_context,
+                    recorded_at=failed_at,
+                    event_type="worker_process_failed",
+                    reason_code="worker_process_failed",
+                    reason=str(exc),
+                    extra_fields={"launch_surface": launch_surface},
+                ),
             )
             _cleanup_worktree_if_needed(repo_root=repo_root, payload=payload, recorded_at=failed_at)
             return 127
@@ -280,13 +292,14 @@ def launch_worker(*, repo_root: Path) -> int:
                 "reason_code": "worker_process_failed",
                 "reason": f"Worker provider command exited with code {completed.returncode}.",
             },
-            trace_event={
-                "ts": finished_at,
-                "type": "worker_process_failed",
-                "worker_id": payload["worker"]["worker_id"],
-                "launch_surface": launch_surface,
-                "returncode": completed.returncode,
-            },
+            trace_event=build_trace_event(
+                trace_context,
+                recorded_at=finished_at,
+                event_type="worker_process_failed",
+                reason_code="worker_process_failed",
+                reason=f"Worker provider command exited with code {completed.returncode}.",
+                extra_fields={"launch_surface": launch_surface},
+            ),
         )
         _cleanup_worktree_if_needed(repo_root=repo_root, payload=payload, recorded_at=finished_at)
         return completed.returncode
@@ -325,12 +338,14 @@ def launch_worker(*, repo_root: Path) -> int:
             "reason_code": "worker_process_completed",
             "reason": "Background worker process completed.",
         },
-        trace_event={
-            "ts": finished_at,
-            "type": "worker_process_completed",
-            "worker_id": payload["worker"]["worker_id"],
-            "launch_surface": launch_surface,
-        },
+        trace_event=build_trace_event(
+            trace_context,
+            recorded_at=finished_at,
+            event_type="worker_process_completed",
+            reason_code="worker_process_completed",
+            reason="Background worker process completed.",
+            extra_fields={"launch_surface": launch_surface},
+        ),
     )
     _cleanup_worktree_if_needed(repo_root=repo_root, payload=payload, recorded_at=finished_at)
     return 0

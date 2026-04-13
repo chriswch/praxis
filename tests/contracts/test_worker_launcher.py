@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from praxis.runtime.orchestrator import initialize_run
+from praxis.runtime.state.contract_validation import validate_contract_payload
 from praxis.runtime.workers.dispatch import dispatch_worker
 
 
@@ -197,6 +198,13 @@ class WorkerLauncherContractTest(unittest.TestCase):
             if line.strip()
         ]
 
+    def _trace_events(self, worker_id: str) -> list[dict]:
+        return [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "runtime" / "traces" / f"{worker_id}.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+
     def test_real_launcher_persists_provider_locator_and_one_terminal_completion_event(self) -> None:
         self._write_codex_harness()
         self._write_fake_codex(provider_session_id="provider-session-456", exit_code=0)
@@ -242,6 +250,14 @@ class WorkerLauncherContractTest(unittest.TestCase):
         self.assertEqual(len(terminal_events), 1)
         self.assertEqual(terminal_events[0]["type"], "worker_process_completed")
 
+        trace_events = self._trace_events("wrk_root_clarify_01")
+        self.assertEqual(
+            [event["type"] for event in trace_events],
+            ["native_launch_recorded", "worker_process_started", "worker_process_completed"],
+        )
+        for trace_event in trace_events:
+            validate_contract_payload("trace-event.schema.json", trace_event)
+
     def test_real_launcher_cleans_isolated_worktree_after_success(self) -> None:
         self._init_git_repo()
         self._write_codex_harness()
@@ -276,6 +292,14 @@ class WorkerLauncherContractTest(unittest.TestCase):
         self.assertEqual(terminal_events[0]["type"], "worker_process_completed")
         self.assertIn("worktree_cleaned", [event["type"] for event in events])
 
+        trace_events = self._trace_events("wrk_root_review_01")
+        self.assertEqual(
+            [event["type"] for event in trace_events],
+            ["native_launch_recorded", "worker_process_started", "worker_process_completed", "worktree_cleaned"],
+        )
+        for trace_event in trace_events:
+            validate_contract_payload("trace-event.schema.json", trace_event)
+
     def test_real_launcher_cleans_isolated_worktree_after_failure(self) -> None:
         self._init_git_repo()
         self._write_codex_harness()
@@ -309,6 +333,14 @@ class WorkerLauncherContractTest(unittest.TestCase):
         self.assertEqual(len(terminal_events), 1)
         self.assertEqual(terminal_events[0]["type"], "worker_process_failed")
         self.assertIn("worktree_cleaned", [event["type"] for event in events])
+
+        trace_events = self._trace_events("wrk_root_review_01")
+        self.assertEqual(
+            [event["type"] for event in trace_events],
+            ["native_launch_recorded", "worker_process_started", "worker_process_failed", "worktree_cleaned"],
+        )
+        for trace_event in trace_events:
+            validate_contract_payload("trace-event.schema.json", trace_event)
 
     def test_dispatch_cleans_isolated_worktree_when_launcher_cannot_start(self) -> None:
         self._init_git_repo()

@@ -8,6 +8,7 @@ from praxis.runtime.adapters.harness import build_worker_launch_payload
 from praxis.runtime.adapters.native_resume import update_session_record_after_launch
 from praxis.runtime.orchestrator import initialize_run, resume_run
 from praxis.runtime.adapters.provider_resume import attempt_provider_resume
+from praxis.runtime.state.contract_validation import validate_contract_payload
 from praxis.runtime.workers.dispatch import dispatch_worker
 
 
@@ -107,9 +108,10 @@ class ProviderResumeContractTest(unittest.TestCase):
                 "args": ["claude", "--help"],
             },
         ):
+            payload = build_worker_launch_payload(repo_root=self.repo_root)
             result = attempt_provider_resume(
                 repo_root=self.repo_root,
-                payload=build_worker_launch_payload(repo_root=self.repo_root),
+                payload=payload,
                 timestamp="2026-04-12T06:03:00Z",
             )
 
@@ -131,6 +133,18 @@ class ProviderResumeContractTest(unittest.TestCase):
             [event["type"] for event in events][-2:],
             ["provider_resume_requested", "provider_resume_failed"],
         )
+
+        trace_events = [
+            json.loads(line)
+            for line in (self.repo_root / payload["resume"]["trace_path"]).read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(
+            [event["type"] for event in trace_events][-2:],
+            ["provider_resume_requested", "provider_resume_failed"],
+        )
+        for trace_event in trace_events[-2:]:
+            validate_contract_payload("trace-event.schema.json", trace_event)
 
 
 if __name__ == "__main__":

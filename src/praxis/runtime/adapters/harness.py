@@ -8,6 +8,7 @@ from typing import Any
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import dump_json, inspect_handoff_file, load_json
 from ..orchestrator import build_dispatch
+from ..context.bundle import bundle_paths_for_run
 from ..context.compiler import (
     build_worker_launch_payload as _build_worker_launch_payload,
     compile_dispatch_bundle as _compile_dispatch_bundle,
@@ -101,6 +102,7 @@ def inspect_worker_launch_context(*, repo_root: Path) -> dict[str, Any]:
         "workflow": run["workflow"],
         "adapter": run["runtime"]["adapter"],
         "dispatch": dispatch,
+        "bundle": bundle_paths_for_run(run, dispatch),
         "boundary_handoff_path": handoff_path,
         "handoff_status": handoff_status,
         "worker_plan": build_worker_plan(run),

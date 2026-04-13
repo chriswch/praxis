@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/src/praxis/contracts/trace-event.schema.json",
+  "title": "Praxis Trace Event",
+  "description": "Normalized per-worker trace event stored as one JSON object per line in .praxis/runtime/traces/<worker-id>.jsonl.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "ts",
+    "type",
+    "adapter",
+    "dispatch_id",
+    "worker_id",
+    "worker_class",
+    "scope",
+    "slice_id",
+    "artifact_dir",
+    "stage",
+    "boundary_handoff_path",
+    "dispatch_record_path",
+    "context_manifest_path",
+    "worker_record_path",
+    "reason_code",
+    "reason"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "native_launch_recorded",
+        "native_launch_failed",
+        "provider_resume_requested",
+        "provider_resume_succeeded",
+        "provider_resume_failed",
+        "worker_resumed",
+        "worker_process_started",
+        "worker_process_completed",
+        "worker_process_failed",
+        "worktree_cleaned",
+        "worktree_cleanup_failed"
+      ]
+    },
+    "adapter": {
+      "type": "string",
+      "enum": ["claude", "codex"]
+    },
+    "dispatch_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "worker_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "worker_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "slice_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "artifact_dir": {
+      "type": "string",
+      "pattern": "^\\.praxis(?:/.*)?$"
+    },
+    "stage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "boundary_handoff_path": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "dispatch_record_path": {
+      "type": "string",
+      "pattern": "^\\.praxis(?:/.*)?$"
+    },
+    "context_manifest_path": {
+      "type": "string",
+      "pattern": "^\\.praxis(?:/.*)?$"
+    },
+    "worker_record_path": {
+      "type": "string",
+      "pattern": "^\\.praxis(?:/.*)?$"
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "launch_record_path": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resume_record_path": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "requested_session_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resolved_session_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resume_mode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": ["interactive", "headless"]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hook_event": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "launch_surface": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "worktree_path": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": ["native_launch_recorded", "native_launch_failed"]
+          }
+        }
+      },
+      "then": {
+        "required": ["hook_event", "source"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "native_launch_recorded"
+          }
+        }
+      },
+      "then": {
+        "required": ["launch_record_path", "session_id"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "provider_resume_requested",
+              "provider_resume_succeeded",
+              "provider_resume_failed",
+              "worker_resumed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "resume_record_path",
+          "requested_session_id",
+          "resolved_session_id",
+          "resume_mode"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "worker_process_started",
+              "worker_process_completed",
+              "worker_process_failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": ["launch_surface"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": ["worktree_cleaned", "worktree_cleanup_failed"]
+          }
+        }
+      },
+      "then": {
+        "required": ["worktree_path"]
+      }
+    }
+  ]
+}

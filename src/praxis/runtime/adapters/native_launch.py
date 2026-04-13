@@ -9,6 +9,12 @@ from typing import Any
 
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json, validate_state_payloads
+from ..observability.trace_events import (
+    build_trace_context_from_launch_context,
+    build_trace_context_from_payload,
+    build_trace_event,
+    render_trace_text,
+)
 from .native_resume import (
     boundary_handoff_fingerprint_from_payload,
     build_session_record,
@@ -294,12 +300,6 @@ def _native_launch_event(
     return event
 
 
-def _trace_text(*, repo_root: Path, trace_path: str, trace_event: dict[str, Any]) -> str:
-    full_path = repo_root / trace_path
-    existing = full_path.read_text() if full_path.exists() else ""
-    return existing + json.dumps(trace_event) + "\n"
-
-
 def _commit_launch_artifacts(
     *,
     repo_root: Path,
@@ -355,14 +355,19 @@ def write_native_launch_record(
     validate_state_payloads(run=run)
 
     trace_path = record["harness"]["trace_path"]
-    trace_event = {
-        "ts": recorded_at,
-        "type": "session_start",
-        "adapter": payload["adapter"],
-        "worker_id": payload["worker"]["worker_id"],
-        "session_id": record["session"]["id"],
-        "launch_record_path": record_rel,
-    }
+    trace_event = build_trace_event(
+        build_trace_context_from_payload(payload),
+        recorded_at=recorded_at,
+        event_type="native_launch_recorded",
+        reason_code="native_launch_recorded",
+        reason="Native launch context prepared from durable Praxis state.",
+        extra_fields={
+            "launch_record_path": record_rel,
+            "session_id": record["session"]["id"],
+            "hook_event": "session_start",
+            "source": str(hook_request.get("source") or "unknown"),
+        },
+    )
 
     events: list[dict[str, Any]] = list(extra_events or [])
     if handoff_status is not None:
@@ -399,7 +404,11 @@ def write_native_launch_record(
             record_rel: dump_json(record),
             worker_rel: dump_json(worker_record),
             session_rel: dump_json(session_record),
-            trace_path: _trace_text(repo_root=repo_root, trace_path=trace_path, trace_event=trace_event),
+            trace_path: render_trace_text(
+                repo_root=repo_root,
+                trace_path=trace_path,
+                events=[trace_event],
+            ),
         },
         metadata={"adapter": payload["adapter"], "slice_id": payload["dispatch"]["slice_id"]},
     )
@@ -441,12 +450,32 @@ def write_native_launch_failure(
             reason=reason,
         )
     )
+    trace_context = build_trace_context_from_launch_context(launch_context)
+    extra_files: dict[str, str] = {}
+    if trace_context is not None:
+        trace_path = str(launch_context["worker_plan"]["trace_path"])
+        trace_event = build_trace_event(
+            trace_context,
+            recorded_at=recorded_at,
+            event_type="native_launch_failed",
+            reason_code=reason_code,
+            reason=reason,
+            extra_fields={
+                "hook_event": "session_start",
+                "source": str(hook_request.get("source") or "unknown"),
+            },
+        )
+        extra_files[trace_path] = render_trace_text(
+            repo_root=repo_root,
+            trace_path=trace_path,
+            events=[trace_event],
+        )
     _commit_launch_artifacts(
         repo_root=repo_root,
         operation="write_native_launch_failure",
         recorded_at=recorded_at,
         events=events,
-        extra_files={},
+        extra_files=extra_files,
         metadata={"adapter": launch_context["adapter"], "slice_id": launch_context["dispatch"]["slice_id"]},
     )
 

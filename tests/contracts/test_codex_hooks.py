@@ -34,6 +34,13 @@ class CodexHooksContractTest(unittest.TestCase):
     def _write_json(self, rel_path: str, payload: dict) -> None:
         self._write_text(rel_path, json.dumps(payload, indent=2) + "\n")
 
+    def _trace_events(self, rel_path: str) -> list[dict]:
+        return [
+            json.loads(line)
+            for line in (self.repo_root / rel_path).read_text().splitlines()
+            if line.strip()
+        ]
+
     def _set_stage_worker(self, *, stage: str, worker_id: str, session_id: Optional[str] = None) -> None:
         run_path = self.repo_root / ".praxis" / "run.json"
         run = json.loads(run_path.read_text())
@@ -211,6 +218,13 @@ class CodexHooksContractTest(unittest.TestCase):
         self.assertTrue(events[1]["handoff_injected"])
         self.assertEqual(events[1]["reason_code"], "native_launch_recorded")
 
+        trace_events = self._trace_events(record["harness"]["trace_path"])
+        self.assertEqual([event["type"] for event in trace_events], ["native_launch_recorded"])
+        validate_contract_payload("trace-event.schema.json", trace_events[0])
+        self.assertEqual(trace_events[0]["launch_record_path"], str(launch_records[0].relative_to(self.repo_root)))
+        self.assertEqual(trace_events[0]["dispatch_record_path"], record["bundle"]["dispatch_record_path"])
+        self.assertEqual(trace_events[0]["worker_record_path"], ".praxis/runtime/workers/wrk_S002_clarify_01.json")
+
     def test_session_start_hook_passes_through_when_no_run_exists(self) -> None:
         completed = subprocess.run(
             [
@@ -345,6 +359,11 @@ class CodexHooksContractTest(unittest.TestCase):
         ]
         self.assertEqual([event["type"] for event in events], ["handoff_validated", "native_launch_failed"])
         self.assertFalse(events[0]["schema_valid"])
+
+        trace_events = self._trace_events(".praxis/runtime/traces/wrk_S002_clarify_01.jsonl")
+        self.assertEqual([event["type"] for event in trace_events], ["native_launch_failed"])
+        validate_contract_payload("trace-event.schema.json", trace_events[0])
+        self.assertEqual(trace_events[0]["reason_code"], "handoff_schema_invalid")
 
     def test_session_start_hook_allows_native_harness_without_compatibility_block(self) -> None:
         self.temp_dir.cleanup()
@@ -483,6 +502,15 @@ class CodexHooksContractTest(unittest.TestCase):
             [event["type"] for event in events][-3:],
             ["provider_resume_requested", "provider_resume_succeeded", "worker_resumed"],
         )
+
+        trace_events = self._trace_events(".praxis/runtime/traces/wrk_root_impl_01.jsonl")
+        self.assertEqual(
+            [event["type"] for event in trace_events][-3:],
+            ["provider_resume_requested", "provider_resume_succeeded", "worker_resumed"],
+        )
+        for trace_event in trace_events[-3:]:
+            validate_contract_payload("trace-event.schema.json", trace_event)
+        self.assertEqual(trace_events[-1]["resume_record_path"], str(resume_records[0].relative_to(self.repo_root)))
 
 
 if __name__ == "__main__":
