@@ -9,13 +9,13 @@ Praxis keeps the shared workflow semantics in `src/praxis/` and keeps adapter wr
 ### Install
 
 ```bash
-python3 -m pip install .
+uv tool install .
 ```
 
 For local development:
 
 ```bash
-python3 -m pip install -e .
+uv tool install --editable .
 ```
 
 ### Native entry points

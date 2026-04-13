@@ -1,5 +1,7 @@
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,20 +27,33 @@ class PackagingInstallContractTest(unittest.TestCase):
         cls.wheel_dir = cls.temp_path / "wheelhouse"
         cls.wheel_dir.mkdir(parents=True, exist_ok=True)
 
-        cls._run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "wheel",
-                "--no-deps",
-                "--no-build-isolation",
-                "--wheel-dir",
-                str(cls.wheel_dir),
-                str(PROJECT_ROOT),
-            ],
-            cwd=PROJECT_ROOT,
-        )
+        uv_bin = shutil.which("uv")
+        if uv_bin is not None:
+            cls._run(
+                [
+                    uv_bin,
+                    "build",
+                    "--wheel",
+                    "--out-dir",
+                    str(cls.wheel_dir),
+                    str(PROJECT_ROOT),
+                ],
+                cwd=PROJECT_ROOT,
+            )
+        else:
+            cls._run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "wheel",
+                    "--no-deps",
+                    "--wheel-dir",
+                    str(cls.wheel_dir),
+                    str(PROJECT_ROOT),
+                ],
+                cwd=PROJECT_ROOT,
+            )
         wheel_files = sorted(cls.wheel_dir.glob("praxis-*.whl"))
         if not wheel_files:
             raise AssertionError("Expected a built Praxis wheel in the smoke test wheelhouse.")
@@ -53,6 +68,30 @@ class PackagingInstallContractTest(unittest.TestCase):
         completed = subprocess.run(
             command,
             cwd=cwd or PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            rendered = " ".join(command)
+            raise AssertionError(
+                f"Command failed: {rendered}\n"
+                f"exit: {completed.returncode}\n"
+                f"stdout:\n{completed.stdout}\n"
+                f"stderr:\n{completed.stderr}"
+            )
+        return completed
+
+    @staticmethod
+    def _run_with_env(
+        command: list[str],
+        *,
+        cwd: Optional[Path] = None,
+        env: Optional[dict[str, str]] = None,
+    ) -> subprocess.CompletedProcess[str]:
+        completed = subprocess.run(
+            command,
+            cwd=cwd or PROJECT_ROOT,
+            env=env,
             capture_output=True,
             text=True,
         )
@@ -104,41 +143,10 @@ class PackagingInstallContractTest(unittest.TestCase):
         (repo_root / ".codex-plugin" / "extensions.md").write_text("extensions\n")
         (repo_root / ".codex-plugin" / "settings.md").write_text("settings\n")
 
-    def test_pyproject_declares_wheel_build_requirement(self) -> None:
-        text = PYPROJECT_PATH.read_text()
-        match = re.search(r"(?ms)^\[build-system\]\n(?P<body>.*?)(?:^\[|\Z)", text)
-
-        self.assertIsNotNone(match)
-        self.assertIn('"wheel"', match.group("body"))
-
-    def test_built_wheel_includes_runtime_assets(self) -> None:
-        with zipfile.ZipFile(self.wheel_path) as archive:
-            names = set(archive.namelist())
-
-        self.assertIn("praxis/contracts/run.schema.json", names)
-        self.assertIn("praxis/workflows/forge.md", names)
-        self.assertIn("praxis/workflows/reference/runtime-reference.md", names)
-
-    def test_installed_wheel_exposes_working_praxis_cli(self) -> None:
-        venv_dir = self.temp_path / "venv"
-        self._run([sys.executable, "-m", "venv", str(venv_dir)])
-
-        python_bin = venv_dir / "bin" / "python"
-        praxis_bin = venv_dir / "bin" / "praxis"
-        self._run(
-            [
-                str(python_bin),
-                "-m",
-                "pip",
-                "install",
-                "--no-index",
-                str(self.wheel_path),
-            ]
-        )
-
+    def _assert_working_praxis_cli(self, praxis_bin: Path, *, repo_name: str) -> None:
         self.assertTrue(praxis_bin.exists())
 
-        repo_root = self.temp_path / "repo"
+        repo_root = self.temp_path / repo_name
         self._write_codex_harness(repo_root)
 
         run_completed = self._run(
@@ -200,6 +208,70 @@ class PackagingInstallContractTest(unittest.TestCase):
         run_path = repo_root / ".praxis" / "run.json"
         run_snapshot = load_json(run_path)
         self.assertEqual(run_snapshot["current"]["stage"], "clarifying-intent")
+
+    def test_pyproject_declares_wheel_build_requirement(self) -> None:
+        text = PYPROJECT_PATH.read_text()
+        match = re.search(r"(?ms)^\[build-system\]\n(?P<body>.*?)(?:^\[|\Z)", text)
+
+        self.assertIsNotNone(match)
+        self.assertIn('"wheel"', match.group("body"))
+
+    def test_built_wheel_includes_runtime_assets(self) -> None:
+        with zipfile.ZipFile(self.wheel_path) as archive:
+            names = set(archive.namelist())
+
+        self.assertIn("praxis/contracts/run.schema.json", names)
+        self.assertIn("praxis/workflows/forge.md", names)
+        self.assertIn("praxis/workflows/reference/runtime-reference.md", names)
+
+    def test_installed_wheel_exposes_working_praxis_cli(self) -> None:
+        venv_dir = self.temp_path / "venv"
+        self._run([sys.executable, "-m", "venv", str(venv_dir)])
+
+        python_bin = venv_dir / "bin" / "python"
+        praxis_bin = venv_dir / "bin" / "praxis"
+        self._run(
+            [
+                str(python_bin),
+                "-m",
+                "pip",
+                "install",
+                "--no-index",
+                str(self.wheel_path),
+            ]
+        )
+
+        self._assert_working_praxis_cli(praxis_bin, repo_name="repo-wheel")
+
+    def test_uv_tool_install_exposes_working_praxis_cli(self) -> None:
+        uv_bin = shutil.which("uv")
+        if uv_bin is None:
+            raise unittest.SkipTest("uv is not installed.")
+
+        tool_dir = self.temp_path / "uv-tool-dir"
+        cache_dir = self.temp_path / "uv-cache"
+        env = {
+            **os.environ,
+            "UV_TOOL_DIR": str(tool_dir),
+            "UV_CACHE_DIR": str(cache_dir),
+            "UV_NO_PROGRESS": "1",
+        }
+        self._run_with_env(
+            [
+                uv_bin,
+                "tool",
+                "install",
+                "--force",
+                "--python",
+                sys.executable,
+                str(PROJECT_ROOT),
+            ],
+            cwd=PROJECT_ROOT,
+            env=env,
+        )
+
+        praxis_bin = tool_dir / "praxis" / "bin" / "praxis"
+        self._assert_working_praxis_cli(praxis_bin, repo_name="repo-uv-tool")
 
 
 if __name__ == "__main__":

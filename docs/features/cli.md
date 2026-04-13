@@ -1,7 +1,8 @@
 # CLI
 
 Praxis ships an installed `praxis` console command backed by
-`src/praxis/cli/main.py`.
+`src/praxis/cli/main.py`. Install it with `uv tool install .`, or use
+`uv tool install --editable .` while developing in the repo.
 
 ## Stable Command Tree
 
