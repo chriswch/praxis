@@ -11,9 +11,11 @@ from typing import Any
 
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import dump_json, load_events, load_json
+from ..adapters.native_resume import update_session_record_after_launch
 from ..handoff_policy import build_handoff_payload
 from ..orchestrator import advance_run, resume_run
 from ..story_boundary import checkpoint_story_boundary
+from ..workers.dispatch import dispatch_worker
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -127,6 +129,30 @@ def _prepare_native_harness_repo(
         _write_json(repo_root, handoff_path, build_handoff_payload(**handoff_seed))
 
 
+def _seed_resumable_session(
+    *,
+    repo_root: Path,
+    adapter: str,
+    prelaunch_session_id: str,
+    prelaunch_timestamp: str,
+    locator_timestamp: str,
+    provider_locator: str | None = None,
+) -> None:
+    dispatch_worker(
+        repo_root=repo_root,
+        timestamp=prelaunch_timestamp,
+        session_id=prelaunch_session_id,
+    )
+    run = load_json(repo_root / ".praxis" / "run.json")
+    update_session_record_after_launch(
+        repo_root=repo_root,
+        adapter=adapter,
+        worker_id=run["current"]["worker_id"],
+        recorded_at=locator_timestamp,
+        provider_locator=provider_locator or prelaunch_session_id,
+    )
+
+
 def _run_native_session_start(
     *,
     repo_root: Path,
@@ -149,14 +175,19 @@ def _run_native_session_start(
     launch_dir = repo_root / ".praxis" / "runtime" / "launches" / adapter
     launch_records = sorted(launch_dir.glob("*.json")) if launch_dir.exists() else []
     record = load_json(launch_records[0]) if launch_records else None
+    resume_dir = repo_root / ".praxis" / "runtime" / "resumes" / adapter
+    resume_records = sorted(resume_dir.glob("*.json")) if resume_dir.exists() else []
+    resume_record = load_json(resume_records[-1]) if resume_records else None
     events = load_events(repo_root / ".praxis" / "events.jsonl")
     show_run = _show_run(repo_root)
     return {
         "response": response,
         "record": record,
+        "resume_record": resume_record,
         "events": events,
         "show_run": show_run,
         "launch_record_count": len(launch_records),
+        "resume_record_count": len(resume_records),
     }
 
 
@@ -218,6 +249,10 @@ def _semantic_native_harness_view(outcome: dict[str, Any]) -> dict[str, Any]:
     handoff_event = _last_event(events, {"handoff_validated"})
     record = outcome["record"]
     show_run = outcome["show_run"]
+    trace = show_run.get("trace") or {}
+    last_launch_event = trace.get("last_launch_event") or {}
+    last_handoff_event = trace.get("last_handoff_event") or {}
+    active_runtime = show_run.get("active_runtime") or {}
     if record is None:
         raise ValueError("Adapter parity eval expected a native launch record, but none was written.")
 
@@ -241,16 +276,24 @@ def _semantic_native_harness_view(outcome: dict[str, Any]) -> dict[str, Any]:
             "handoff_type": handoff_event["type"] if handoff_event else None,
             "handoff_schema_valid": handoff_event.get("schema_valid") if handoff_event else None,
             "handoff_within_budget": handoff_event.get("within_budget") if handoff_event else None,
-            "launch_type": show_run["trace"]["last_launch_event"]["type"],
-            "launch_reason_code": show_run["trace"]["last_launch_event"]["reason_code"],
-            "trace_handoff_event_type": show_run["trace"]["last_handoff_event"]["type"],
+            "launch_type": last_launch_event.get("type"),
+            "launch_reason_code": last_launch_event.get("reason_code"),
+            "trace_handoff_event_type": last_handoff_event.get("type"),
         },
         "active_runtime": {
-            "worker_status": (show_run.get("active_runtime") or {}).get("worker_record", {}).get("status"),
-            "session_resumable": (show_run.get("active_runtime") or {}).get("session_record", {}).get("resumable"),
-            "launch_handoff_injected": (show_run.get("active_runtime") or {}).get("launch_record", {}).get("handoff_injected"),
-            "trace_event_count": (show_run.get("active_runtime") or {}).get("trace_stream", {}).get("event_count"),
-            "trace_last_event_type": (show_run.get("active_runtime") or {}).get("trace_stream", {}).get("last_event_type"),
+            "worker_status": active_runtime.get("worker_record", {}).get("status"),
+            "session_resumable": active_runtime.get("session_record", {}).get("resumable"),
+            "launch_handoff_injected": active_runtime.get("launch_record", {}).get("handoff_injected"),
+            "resume_outcome": active_runtime.get("resume_record", {}).get("outcome"),
+            "resolved_session_id_present": active_runtime.get("resume_record", {}).get("resolved_session_id") is not None,
+            "session_last_resume_outcome": active_runtime.get("session_record", {}).get("last_resume_outcome"),
+            "trace_event_count": active_runtime.get("trace_stream", {}).get("event_count"),
+            "trace_last_event_type": active_runtime.get("trace_stream", {}).get("last_event_type"),
+            "trace_resume_event_type": (
+                trace["last_resume_event"]["type"]
+                if trace.get("last_resume_event")
+                else None
+            ),
         },
     }
 
@@ -452,6 +495,15 @@ def _evaluate_adapter_parity_case(case: dict[str, Any]) -> dict[str, Any]:
             handoff_path=case["input"].get("handoff_path"),
             handoff_seed=case["input"].get("handoff_seed"),
         )
+        if case["input"].get("prelaunch_session_id"):
+            _seed_resumable_session(
+                repo_root=codex_repo,
+                adapter="codex",
+                prelaunch_session_id=case["input"]["prelaunch_session_id"],
+                prelaunch_timestamp=case["input"].get("prelaunch_timestamp", "2026-04-12T04:14:00Z"),
+                locator_timestamp=case["input"].get("locator_timestamp", "2026-04-12T04:14:30Z"),
+                provider_locator=case["input"].get("provider_locator"),
+            )
         codex_outcome = _run_native_session_start(
             repo_root=codex_repo,
             adapter="codex",
@@ -469,6 +521,15 @@ def _evaluate_adapter_parity_case(case: dict[str, Any]) -> dict[str, Any]:
             handoff_path=case["input"].get("handoff_path"),
             handoff_seed=case["input"].get("handoff_seed"),
         )
+        if case["input"].get("prelaunch_session_id"):
+            _seed_resumable_session(
+                repo_root=claude_repo,
+                adapter="claude",
+                prelaunch_session_id=case["input"]["prelaunch_session_id"],
+                prelaunch_timestamp=case["input"].get("prelaunch_timestamp", "2026-04-12T04:14:00Z"),
+                locator_timestamp=case["input"].get("locator_timestamp", "2026-04-12T04:14:30Z"),
+                provider_locator=case["input"].get("provider_locator"),
+            )
         claude_outcome = _run_native_session_start(
             repo_root=claude_repo,
             adapter="claude",

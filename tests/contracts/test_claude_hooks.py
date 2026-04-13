@@ -204,6 +204,87 @@ class ClaudeHooksContractTest(unittest.TestCase):
         self.assertEqual(trace_events[0]["dispatch_record_path"], record["bundle"]["dispatch_record_path"])
         self.assertEqual(trace_events[0]["worker_record_path"], ".praxis/runtime/workers/wrk_S003_clarify_01.json")
 
+    def test_session_start_hook_records_failure_telemetry_for_an_invalid_handoff(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Launch a claude worker",
+            adapter="claude",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T03:10:00Z",
+        )
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = json.loads(run_path.read_text())
+        run["mode"] = "multi_slice"
+        run["current"]["scope"] = "slice"
+        run["current"]["slice_id"] = "S-003"
+        run["current"]["artifact_dir"] = ".praxis/slices/S-003"
+        run["current"]["stage"] = "clarifying-intent"
+        run["routing"]["next_action"] = "run_stage"
+        run["routing"]["next_stage"] = "clarifying-intent"
+        run["routing"]["boundary_handoff_path"] = ".praxis/slices/S-002/handoff.json"
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
+
+        handoff = build_handoff_payload(
+            story_id="S-002",
+            next_story_id="S-003",
+            summary="S-002 completed.",
+            carry_forward_context=["Only the bounded handoff should cross the story boundary."],
+            changed_paths=["src/praxis/runtime/adapters/claude/hooks.py"],
+            commit_meta={"end_commit": "abc1234"},
+            generated_at="2026-04-12T03:11:00Z",
+        )
+        handoff.pop("summary")
+        self._write_json(".praxis/slices/S-002/handoff.json", handoff)
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "praxis.runtime.adapters.claude.hooks",
+                "session-start",
+                "--repo-root",
+                str(self.repo_root),
+                "--timestamp",
+                "2026-04-12T03:12:00Z",
+            ],
+            cwd=PROJECT_ROOT,
+            input=json.dumps(
+                {
+                    "session_id": "claude-invalid",
+                    "source": "startup",
+                    "cwd": str(self.repo_root),
+                }
+            ),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        response = json.loads(completed.stdout)
+        self.assertFalse(response["continue"])
+        self.assertFalse((self.repo_root / ".praxis" / "runtime" / "launches" / "claude").exists())
+
+        events = [
+            json.loads(line)
+            for line in (self.repo_root / ".praxis" / "events.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        self.assertEqual([event["type"] for event in events], ["handoff_validated", "native_launch_failed"])
+        self.assertFalse(events[0]["schema_valid"])
+
+        trace_events = self._trace_events(".praxis/runtime/traces/wrk_S003_clarify_01.jsonl")
+        self.assertEqual([event["type"] for event in trace_events], ["native_launch_failed"])
+        validate_contract_payload("trace-event.schema.json", trace_events[0])
+        self.assertEqual(trace_events[0]["reason_code"], "handoff_schema_invalid")
+        dispatch_records = sorted((self.repo_root / ".praxis" / "runtime" / "dispatches").glob("*/dispatch-record.json"))
+        self.assertEqual(len(dispatch_records), 1)
+        dispatch_record = json.loads(dispatch_records[0].read_text())
+        validate_contract_payload("dispatch-record.schema.json", dispatch_record)
+        self.assertEqual(dispatch_record["status"], "launch_failed")
+        self.assertEqual(dispatch_record["resolution"]["reason_code"], "handoff_schema_invalid")
+
     def test_session_start_hook_reconciles_manual_resume_and_rotated_session_id(self) -> None:
         initialize_run(
             repo_root=self.repo_root,
