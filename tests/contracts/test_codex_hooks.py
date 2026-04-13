@@ -364,6 +364,12 @@ class CodexHooksContractTest(unittest.TestCase):
         self.assertEqual([event["type"] for event in trace_events], ["native_launch_failed"])
         validate_contract_payload("trace-event.schema.json", trace_events[0])
         self.assertEqual(trace_events[0]["reason_code"], "handoff_schema_invalid")
+        dispatch_records = sorted((self.repo_root / ".praxis" / "runtime" / "dispatches").glob("*/dispatch-record.json"))
+        self.assertEqual(len(dispatch_records), 1)
+        dispatch_record = json.loads(dispatch_records[0].read_text())
+        validate_contract_payload("dispatch-record.schema.json", dispatch_record)
+        self.assertEqual(dispatch_record["status"], "launch_failed")
+        self.assertEqual(dispatch_record["resolution"]["reason_code"], "handoff_schema_invalid")
 
     def test_session_start_hook_allows_native_harness_without_compatibility_block(self) -> None:
         self.temp_dir.cleanup()

@@ -135,6 +135,13 @@ class WorkerDispatchContractTest(unittest.TestCase):
         self.assertTrue((dispatch_bundle_dir / "dispatch-record.json").exists())
         self.assertTrue((dispatch_bundle_dir / "context-manifest.json").exists())
         self.assertTrue((dispatch_bundle_dir / "tool-manifest.json").exists())
+        dispatch_record = load_json(dispatch_bundle_dir / "dispatch-record.json")
+        validate_contract_payload("dispatch-record.schema.json", dispatch_record)
+        self.assertEqual(dispatch_record["status"], "launch_recorded")
+        self.assertTrue(dispatch_record["resolution"]["resolved"])
+        self.assertEqual(dispatch_record["resolution"]["native_launch_record_path"], str(launch_records[0].relative_to(self.repo_root)))
+        self.assertEqual(dispatch_record["resolution"]["worker_record_path"], str(worker_records[0].relative_to(self.repo_root)))
+        self.assertEqual(dispatch_record["resolution"]["session_record_path"], str(session_records[0].relative_to(self.repo_root)))
         context_manifest = load_json(dispatch_bundle_dir / "context-manifest.json")
         validate_contract_payload("context-manifest.schema.json", context_manifest)
         self.assertEqual(context_manifest["context_policy"]["selected_item_count"], len(context_manifest["items"]))
@@ -200,6 +207,17 @@ class WorkerDispatchContractTest(unittest.TestCase):
         resume_record = load_json(resume_records[0])
         self.assertEqual(resume_record["outcome"], "session_missing")
         self.assertEqual(resume_record["reason_code"], "session_missing")
+        dispatch_record = load_json(self.repo_root / record["bundle"]["dispatch_record_path"])
+        validate_contract_payload("dispatch-record.schema.json", dispatch_record)
+        self.assertEqual(dispatch_record["status"], "launch_recorded")
+        self.assertEqual(
+            dispatch_record["resolution"]["native_resume_record_path"],
+            str(resume_records[0].relative_to(self.repo_root)),
+        )
+        self.assertEqual(
+            dispatch_record["resolution"]["native_launch_record_path"],
+            str(launch_records[0].relative_to(self.repo_root)),
+        )
 
         events = [
             json.loads(line)
@@ -307,10 +325,18 @@ class WorkerDispatchContractTest(unittest.TestCase):
         validate_contract_payload("native-resume.schema.json", resume_record)
         self.assertEqual(resume_record["outcome"], "resumed")
         self.assertEqual(resume_record["resume_mode"], "headless")
-
-        session_record = load_json(
-            sorted((self.repo_root / ".praxis" / "runtime" / "sessions" / "codex").glob("*.json"))[0]
+        worker_record = load_json(self.repo_root / ".praxis" / "runtime" / "workers" / "wrk_root_impl_01.json")
+        dispatch_record = load_json(self.repo_root / worker_record["dispatch_record_path"])
+        validate_contract_payload("dispatch-record.schema.json", dispatch_record)
+        self.assertEqual(dispatch_record["status"], "provider_resumed")
+        self.assertTrue(dispatch_record["resolution"]["resolved"])
+        self.assertEqual(
+            dispatch_record["resolution"]["native_resume_record_path"],
+            str(resume_records[0].relative_to(self.repo_root)),
         )
+        self.assertIsNone(dispatch_record["resolution"]["native_launch_record_path"])
+
+        session_record = load_json(sorted((self.repo_root / ".praxis" / "runtime" / "sessions" / "codex").glob("*.json"))[0])
         self.assertEqual(session_record["last_resume_outcome"], "resumed")
         self.assertEqual(session_record["session_origin"], "headless_resume")
 

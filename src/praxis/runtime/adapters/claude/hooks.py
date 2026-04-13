@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from ...state.durable_state import dump_json
-from ..harness import build_worker_launch_payload, inspect_worker_launch_context
+from ..harness import compile_dispatch_bundle, inspect_worker_launch_context
 from ..native_launch import (
     build_session_start_additional_context,
     derive_native_launch_failure_code,
@@ -36,7 +36,7 @@ def session_start_hook(*, repo_root: Path, recorded_at: str | None = None) -> in
             response = success_response(additional_context="No active Praxis stage.")
             print(dump_json(response), end="")
             return 0
-        payload = build_worker_launch_payload(repo_root=repo_root)
+        payload = compile_dispatch_bundle(repo_root=repo_root)["launch"]
         if payload["adapter"] != "claude":
             raise ValueError(f"Claude session-start hook received non-claude adapter {payload['adapter']!r}.")
         if str(hook_request.get("source") or "") == "resume":

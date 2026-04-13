@@ -8,7 +8,7 @@ from ..adapters.native_resume import session_record_relpath
 from ..orchestrator import build_dispatch
 from ..policy_records import build_dispatch_policy_records
 from ..state.contract_validation import validate_contract_payload
-from ..state.durable_state import dump_json, load_json, validate_handoff_file
+from ..state.durable_state import commit_transaction, dump_json, load_json, validate_handoff_file
 from ..workers.planning import (
     build_worker_plan,
     ensure_run_vnext_defaults,
@@ -387,7 +387,7 @@ def _build_compiled_payload(
         "dispatch_id": bundle["dispatch_id"],
         "run_id": run["run_id"],
         "recorded_at": _utc_now(),
-        "status": "compiled",
+        "status": "intent_recorded",
         "dispatch": {
             "workflow": payload["workflow"],
             "adapter": payload["adapter"],
@@ -423,9 +423,96 @@ def _build_compiled_payload(
         },
         "artifact_inputs": payload["artifact_inputs"],
         "artifact_outputs_expected": payload["artifact_outputs_expected"],
+        "resolution": {
+            "status": "intent_recorded",
+            "updated_at": _utc_now(),
+            "resolved": False,
+            "reason_code": "intent_recorded",
+            "reason": "Praxis recorded the dispatch intent before adapter launch or resume began.",
+            "native_launch_record_path": None,
+            "native_resume_record_path": None,
+            "worker_record_path": None,
+            "session_record_path": None,
+        },
     }
     validate_contract_payload("dispatch-record.schema.json", dispatch_record)
     return payload, context_manifest, dispatch_record, tool_manifest
+
+
+def _build_dispatch_intent_record(
+    *,
+    repo_root: Path,
+) -> dict[str, Any]:
+    run = load_json(repo_root / ".praxis" / "run.json")
+    ensure_run_vnext_defaults(run)
+    sync_worker_cursor(run)
+    dispatch = build_dispatch(repo_root, run=run)
+    worker_plan = build_worker_plan(run)
+    if worker_plan is None:
+        raise ValueError("Praxis cannot build a dispatch intent record without an active stage.")
+
+    stage = dispatch.get("stage")
+    artifact_dir = dispatch.get("artifact_dir") or run["current"]["artifact_dir"]
+    bundle = bundle_paths_for_run(run, dispatch)
+    dispatch_record = {
+        "version": 1,
+        "dispatch_id": bundle["dispatch_id"],
+        "run_id": run["run_id"],
+        "recorded_at": _utc_now(),
+        "status": "intent_recorded",
+        "dispatch": {
+            "workflow": run["workflow"],
+            "adapter": run["runtime"]["adapter"],
+            "entrypoint": dispatch["entrypoint"],
+            "scope": dispatch["scope"],
+            "slice_id": dispatch["slice_id"],
+            "artifact_dir": dispatch["artifact_dir"],
+            "stage": dispatch["stage"],
+            "boundary_handoff_path": dispatch["boundary_handoff_path"],
+            "transition_id": str(run["control"]["last_transition_id"]),
+            "reason": worker_plan["reason"],
+        },
+        "worker": {
+            "worker_id": run["current"]["worker_id"],
+            "worker_class": worker_plan["worker_class"],
+            "reuse_policy": worker_plan["reuse_policy"],
+            "permission_profile": worker_plan["permission_profile"],
+            "worktree_mode": worker_plan["worktree_mode"],
+            "fresh_context": worker_plan["fresh_context"],
+        },
+        "resume": {
+            "strategy": run["routing"]["resume_strategy"],
+            "session_id": run["current"]["session_id"],
+            "resumable": _resume_cursor_state(
+                repo_root=repo_root,
+                adapter=run["runtime"]["adapter"],
+                session_id=run["current"]["session_id"],
+            ),
+            "mode": "headless" if run["execution"]["mode"] == "autopilot" else "interactive",
+        },
+        "bundle": {
+            "bundle_dir": bundle["bundle_dir"],
+            "worker_launch_path": bundle["worker_launch_path"],
+            "dispatch_record_path": bundle["dispatch_record_path"],
+            "context_manifest_path": bundle["context_manifest_path"],
+            "tool_manifest_path": bundle["tool_manifest_path"],
+        },
+        "artifact_inputs": stage_input_artifacts(run=run, stage=stage, artifact_dir=artifact_dir),
+        "artifact_outputs_expected": stage_expected_outputs(run=run, stage=stage, artifact_dir=artifact_dir),
+        "resolution": {
+            "status": "intent_recorded",
+            "updated_at": _utc_now(),
+            "resolved": False,
+            "reason_code": "intent_recorded",
+            "reason": "Praxis recorded the dispatch intent before adapter launch or resume began.",
+            "native_launch_record_path": None,
+            "native_resume_record_path": None,
+            "worker_record_path": None,
+            "session_record_path": None,
+        },
+    }
+    validate_contract_payload("dispatch-record.schema.json", dispatch_record)
+    return dispatch_record
 
 
 def build_worker_launch_payload(*, repo_root: Path, harness_loader: HarnessLoader) -> dict[str, Any]:
@@ -435,6 +522,14 @@ def build_worker_launch_payload(*, repo_root: Path, harness_loader: HarnessLoade
 
 def compile_dispatch_bundle(*, repo_root: Path, harness_loader: HarnessLoader) -> dict[str, Any]:
     repo_root = repo_root.resolve()
+    initial_dispatch_record = _build_dispatch_intent_record(repo_root=repo_root)
+    commit_transaction(
+        repo_root=repo_root,
+        operation="persist_dispatch_intent_record",
+        files={initial_dispatch_record["bundle"]["dispatch_record_path"]: dump_json(initial_dispatch_record)},
+        timestamp=_utc_now(),
+        metadata={"dispatch_id": initial_dispatch_record["dispatch_id"]},
+    )
     payload, context_manifest, dispatch_record, tool_manifest = _build_compiled_payload(
         repo_root=repo_root,
         harness_loader=harness_loader,

@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from ..dispatch_records import build_updated_dispatch_record
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import (
     commit_transaction,
@@ -616,6 +617,7 @@ def write_native_resume_result(
 
     updated_session_rel = session_record_rel
     updated_session_record = None
+    worker_rel = None
     if outcome == "resumed":
         resolved = resolved_session_id or requested_session_id
         updated_session_rel = session_record_rel or session_record_relpath(payload["adapter"], requested_session_id)
@@ -660,6 +662,23 @@ def write_native_resume_result(
     record["session_record_path"] = updated_session_rel
     validate_contract_payload("native-resume.schema.json", record)
     files[record_rel] = dump_json(record)
+    files[payload["bundle"]["dispatch_record_path"]] = dump_json(
+        build_updated_dispatch_record(
+            repo_root=repo_root,
+            dispatch_record_path=payload["bundle"]["dispatch_record_path"],
+            status="provider_resumed" if outcome == "resumed" else "resume_fallback_to_launch",
+            recorded_at=recorded_at,
+            reason_code="provider_resume_succeeded" if outcome == "resumed" else reason_code,
+            reason=(
+                "Provider-native resume completed from the durable Praxis cursor."
+                if outcome == "resumed"
+                else reason
+            ),
+            native_resume_record_path=record_rel,
+            worker_record_path=worker_rel,
+            session_record_path=updated_session_rel,
+        )
+    )
 
     run["timestamps"]["updated_at"] = recorded_at
     validate_state_payloads(run=run)

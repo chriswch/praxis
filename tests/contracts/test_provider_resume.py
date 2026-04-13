@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from praxis.runtime.adapters.harness import build_worker_launch_payload
+from praxis.runtime.adapters.harness import compile_dispatch_bundle
 from praxis.runtime.adapters.native_resume import update_session_record_after_launch
 from praxis.runtime.orchestrator import initialize_run, resume_run
 from praxis.runtime.adapters.provider_resume import attempt_provider_resume
@@ -108,7 +108,7 @@ class ProviderResumeContractTest(unittest.TestCase):
                 "args": ["claude", "--help"],
             },
         ):
-            payload = build_worker_launch_payload(repo_root=self.repo_root)
+            payload = compile_dispatch_bundle(repo_root=self.repo_root)["launch"]
             result = attempt_provider_resume(
                 repo_root=self.repo_root,
                 payload=payload,
@@ -123,6 +123,12 @@ class ProviderResumeContractTest(unittest.TestCase):
         resume_record = json.loads(resume_records[0].read_text())
         self.assertEqual(resume_record["resume_mode"], "headless")
         self.assertEqual(resume_record["reason_code"], "headless_resume_unsupported")
+        dispatch_records = sorted((self.repo_root / ".praxis" / "runtime" / "dispatches").glob("*/dispatch-record.json"))
+        self.assertEqual(len(dispatch_records), 2)
+        dispatch_record = json.loads(dispatch_records[-1].read_text())
+        validate_contract_payload("dispatch-record.schema.json", dispatch_record)
+        self.assertEqual(dispatch_record["status"], "resume_fallback_to_launch")
+        self.assertEqual(dispatch_record["resolution"]["native_resume_record_path"], str(resume_records[0].relative_to(self.repo_root)))
 
         events = [
             json.loads(line)

@@ -9,6 +9,7 @@ from typing import Any
 
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json, validate_state_payloads
+from ..dispatch_records import build_updated_dispatch_record
 from ..observability.trace_events import (
     build_trace_context_from_launch_context,
     build_trace_context_from_payload,
@@ -401,6 +402,19 @@ def write_native_launch_record(
         events=events,
         extra_files={
             ".praxis/run.json": dump_json(run),
+            payload["bundle"]["dispatch_record_path"]: dump_json(
+                build_updated_dispatch_record(
+                    repo_root=repo_root,
+                    dispatch_record_path=payload["bundle"]["dispatch_record_path"],
+                    status="launch_recorded",
+                    recorded_at=recorded_at,
+                    reason_code="native_launch_recorded",
+                    reason="Native launch context prepared from durable Praxis state.",
+                    native_launch_record_path=record_rel,
+                    worker_record_path=worker_rel,
+                    session_record_path=session_rel,
+                )
+            ),
             record_rel: dump_json(record),
             worker_rel: dump_json(worker_record),
             session_rel: dump_json(session_record),
@@ -469,6 +483,18 @@ def write_native_launch_failure(
             repo_root=repo_root,
             trace_path=trace_path,
             events=[trace_event],
+        )
+    dispatch_record_path = launch_context.get("bundle", {}).get("dispatch_record_path")
+    if isinstance(dispatch_record_path, str):
+        extra_files[dispatch_record_path] = dump_json(
+            build_updated_dispatch_record(
+                repo_root=repo_root,
+                dispatch_record_path=dispatch_record_path,
+                status="launch_failed",
+                recorded_at=recorded_at,
+                reason_code=reason_code,
+                reason=reason,
+            )
         )
     _commit_launch_artifacts(
         repo_root=repo_root,

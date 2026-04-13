@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/chriswch/praxis/src/praxis/contracts/dispatch-record.schema.json",
   "title": "Praxis Dispatch Record",
-  "description": "Durable record of one dispatch decision before native launch or resume proceeds.",
+  "description": "Durable record of one dispatch decision plus its eventual launch or resume resolution path.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -23,7 +23,18 @@
     "dispatch_id": {"type": "string", "minLength": 1},
     "run_id": {"type": "string", "minLength": 1},
     "recorded_at": {"type": "string", "format": "date-time"},
-    "status": {"type": "string", "enum": ["compiled"]},
+    "status": {
+      "type": "string",
+      "enum": [
+        "compiled",
+        "intent_recorded",
+        "provider_resume_requested",
+        "provider_resumed",
+        "resume_fallback_to_launch",
+        "launch_recorded",
+        "launch_failed"
+      ]
+    },
     "dispatch": {
       "type": "object",
       "additionalProperties": false,
@@ -86,6 +97,63 @@
       "type": "array",
       "items": {"type": "string", "pattern": "^\\.praxis(?:/.*)?$"},
       "uniqueItems": true
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "updated_at",
+        "resolved",
+        "reason_code",
+        "reason",
+        "native_launch_record_path",
+        "native_resume_record_path",
+        "worker_record_path",
+        "session_record_path"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "compiled",
+            "intent_recorded",
+            "provider_resume_requested",
+            "provider_resumed",
+            "resume_fallback_to_launch",
+            "launch_recorded",
+            "launch_failed"
+          ]
+        },
+        "updated_at": {"type": "string", "format": "date-time"},
+        "resolved": {"type": "boolean"},
+        "reason_code": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "native_launch_record_path": {
+          "anyOf": [
+            {"type": "string", "pattern": "^\\.praxis/runtime/launches/(?:codex|claude)/.*\\.json$"},
+            {"type": "null"}
+          ]
+        },
+        "native_resume_record_path": {
+          "anyOf": [
+            {"type": "string", "pattern": "^\\.praxis/runtime/resumes/(?:codex|claude)/.*\\.json$"},
+            {"type": "null"}
+          ]
+        },
+        "worker_record_path": {
+          "anyOf": [
+            {"type": "string", "pattern": "^\\.praxis/runtime/workers/.+\\.json$"},
+            {"type": "null"}
+          ]
+        },
+        "session_record_path": {
+          "anyOf": [
+            {"type": "string", "pattern": "^\\.praxis/runtime/sessions/(?:codex|claude)/.*\\.json$"},
+            {"type": "null"}
+          ]
+        }
+      }
     }
   }
 }

@@ -9,6 +9,7 @@ from typing import Any
 
 from ..state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json, recover_pending_transaction
 from ..adapters.harness import compile_dispatch_bundle, inspect_worker_launch_context
+from ..dispatch_records import build_updated_dispatch_record
 from ..adapters.native_launch import (
     derive_native_launch_failure_code,
     write_native_launch_failure,
@@ -30,12 +31,21 @@ def _synthetic_session_id(*, adapter: str, worker_id: str, timestamp: str) -> st
     return f"{adapter}-session-{compact_ts}-{worker_slug}"
 
 
-def _persist_launch_payload(*, repo_root: Path, payload: dict[str, Any], timestamp: str) -> str:
+def _persist_launch_payload(
+    *,
+    repo_root: Path,
+    payload: dict[str, Any],
+    timestamp: str,
+    dispatch_record: dict[str, Any] | None = None,
+) -> str:
     relpath = payload["bundle"]["worker_launch_path"]
+    files = {relpath: dump_json(payload)}
+    if dispatch_record is not None:
+        files[payload["bundle"]["dispatch_record_path"]] = dump_json(dispatch_record)
     commit_transaction(
         repo_root=repo_root,
         operation="update_worker_launch_payload",
-        files={relpath: dump_json(payload)},
+        files=files,
         timestamp=timestamp,
         metadata={"dispatch_id": payload["bundle"]["dispatch_id"]},
     )
@@ -160,6 +170,20 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
     ):
         resume["resume_attempted"] = True
         resume["mode"] = "headless"
+        pending_resume_dispatch = build_updated_dispatch_record(
+            repo_root=repo_root,
+            dispatch_record_path=payload["bundle"]["dispatch_record_path"],
+            status="provider_resume_requested",
+            recorded_at=timestamp,
+            reason_code="provider_resume_requested",
+            reason="Praxis is attempting provider-native resume before falling back to a fresh launch if needed.",
+        )
+        _persist_launch_payload(
+            repo_root=repo_root,
+            payload=payload,
+            timestamp=timestamp,
+            dispatch_record=pending_resume_dispatch,
+        )
         result = attempt_provider_resume(
             repo_root=repo_root,
             payload=payload,

@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from ..dispatch_records import normalize_dispatch_record
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import commit_transaction, dump_json, load_json, recover_pending_transaction
 from ..workers.planning import ensure_run_vnext_defaults
@@ -98,11 +99,19 @@ def load_dispatch_bundle_status(
     }
 
     if dispatch_record_path.exists():
-        record = load_json(dispatch_record_path)
-        validate_contract_payload("dispatch-record.schema.json", record)
+        record = normalize_dispatch_record(load_json(dispatch_record_path))
         status["recorded_at"] = record["recorded_at"]
         status["stage"] = record["dispatch"]["stage"]
         status["worker_id"] = record["worker"]["worker_id"]
+        status["dispatch_status"] = record["status"]
+        status["dispatch_resolved"] = record["resolution"]["resolved"]
+        status["dispatch_resolution_reason_code"] = record["resolution"]["reason_code"]
+        status["dispatch_resolution_reason"] = record["resolution"]["reason"]
+        status["dispatch_updated_at"] = record["resolution"]["updated_at"]
+        status["native_launch_record_path"] = record["resolution"]["native_launch_record_path"]
+        status["native_resume_record_path"] = record["resolution"]["native_resume_record_path"]
+        status["worker_record_path"] = record["resolution"]["worker_record_path"]
+        status["session_record_path"] = record["resolution"]["session_record_path"]
 
     if context_manifest_path.exists():
         manifest = load_json(context_manifest_path)

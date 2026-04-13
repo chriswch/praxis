@@ -382,6 +382,8 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(run["trace"]["last_launch_event"]["type"], "native_launch_recorded")
         self.assertTrue(run["dispatch_bundle"]["available"])
         self.assertTrue(run["dispatch_bundle"]["worker_launch_path"].endswith("/worker-launch.json"))
+        self.assertEqual(run["dispatch_bundle"]["dispatch_status"], "launch_recorded")
+        self.assertTrue(run["dispatch_bundle"]["dispatch_resolved"])
 
     def test_build_worker_launch_returns_public_payload(self) -> None:
         self._write_adapter_harness("claude")
@@ -414,6 +416,8 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertGreaterEqual(bundle["default_item_count"], 1)
         self.assertTrue(bundle["tool_manifest_exists"])
         self.assertEqual(bundle["tool_count"], 4)
+        self.assertEqual(bundle["dispatch_status"], "intent_recorded")
+        self.assertFalse(bundle["dispatch_resolved"])
 
     def test_harness_show_adapter_returns_native_harness_shape(self) -> None:
         self._write_adapter_harness("codex")

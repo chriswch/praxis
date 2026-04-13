@@ -235,6 +235,11 @@ class HarnessConfigContractTest(unittest.TestCase):
         self.assertTrue(payload["bundle"]["tool_manifest_path"].endswith("/tool-manifest.json"))
 
         compiled = compile_dispatch_bundle(repo_root=self.repo_root)
+        dispatch_record = compiled["dispatch_record"]
+        validate_contract_payload("dispatch-record.schema.json", dispatch_record)
+        self.assertEqual(dispatch_record["status"], "intent_recorded")
+        self.assertFalse(dispatch_record["resolution"]["resolved"])
+        self.assertEqual(dispatch_record["resolution"]["reason_code"], "intent_recorded")
         manifest = compiled["context_manifest"]
         validate_contract_payload("context-manifest.schema.json", manifest)
         self.assertEqual(manifest["selection_summary"]["carry_forward_item_count"], 1)
