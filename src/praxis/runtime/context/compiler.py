@@ -17,6 +17,7 @@ from ..workers.planning import (
     sync_worker_cursor,
 )
 from .bundle import bundle_paths_for_run, load_dispatch_bundle_status, persist_dispatch_bundle
+from .tool_manifest import build_tool_manifest
 
 HarnessLoader = Callable[..., tuple[str, dict[str, Any]]]
 CONTEXT_ITEM_BUDGET = 16
@@ -242,7 +243,7 @@ def _build_compiled_payload(
     *,
     repo_root: Path,
     harness_loader: HarnessLoader,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     run = load_json(repo_root / ".praxis" / "run.json")
     ensure_run_vnext_defaults(run)
     sync_worker_cursor(run)
@@ -336,6 +337,7 @@ def _build_compiled_payload(
         },
     }
     validate_contract_payload("worker-launch.schema.json", payload)
+    tool_manifest = build_tool_manifest(run=run, payload=payload)
     items = _context_items(payload=payload)
     selection_summary = _selection_summary(items)
 
@@ -373,6 +375,7 @@ def _build_compiled_payload(
             "worker_launch_path": bundle["worker_launch_path"],
             "dispatch_record_path": bundle["dispatch_record_path"],
             "context_manifest_path": bundle["context_manifest_path"],
+            "tool_manifest_path": bundle["tool_manifest_path"],
         },
         "selection_summary": selection_summary,
         "items": items,
@@ -416,22 +419,23 @@ def _build_compiled_payload(
             "worker_launch_path": bundle["worker_launch_path"],
             "dispatch_record_path": bundle["dispatch_record_path"],
             "context_manifest_path": bundle["context_manifest_path"],
+            "tool_manifest_path": bundle["tool_manifest_path"],
         },
         "artifact_inputs": payload["artifact_inputs"],
         "artifact_outputs_expected": payload["artifact_outputs_expected"],
     }
     validate_contract_payload("dispatch-record.schema.json", dispatch_record)
-    return payload, context_manifest, dispatch_record
+    return payload, context_manifest, dispatch_record, tool_manifest
 
 
 def build_worker_launch_payload(*, repo_root: Path, harness_loader: HarnessLoader) -> dict[str, Any]:
-    payload, _, _ = _build_compiled_payload(repo_root=repo_root.resolve(), harness_loader=harness_loader)
+    payload, _, _, _ = _build_compiled_payload(repo_root=repo_root.resolve(), harness_loader=harness_loader)
     return payload
 
 
 def compile_dispatch_bundle(*, repo_root: Path, harness_loader: HarnessLoader) -> dict[str, Any]:
     repo_root = repo_root.resolve()
-    payload, context_manifest, dispatch_record = _build_compiled_payload(
+    payload, context_manifest, dispatch_record, tool_manifest = _build_compiled_payload(
         repo_root=repo_root,
         harness_loader=harness_loader,
     )
@@ -448,13 +452,17 @@ def compile_dispatch_bundle(*, repo_root: Path, harness_loader: HarnessLoader) -
         payload=payload,
         dispatch_record=dispatch_record,
         context_manifest=context_manifest,
-        extra_files={path: dump_json(record) for path, record in policy_records},
+        extra_files={
+            payload["bundle"]["tool_manifest_path"]: dump_json(tool_manifest),
+            **{path: dump_json(record) for path, record in policy_records},
+        },
         timestamp=_utc_now(),
     )
     return {
         "launch": payload,
         "dispatch_record": dispatch_record,
         "context_manifest": context_manifest,
+        "tool_manifest": tool_manifest,
         "policy_records": [{"record_path": path, "gate_type": record["gate_type"]} for path, record in policy_records],
         "dispatch_bundle": status or load_dispatch_bundle_status(repo_root=repo_root, bundle=payload["bundle"]),
     }

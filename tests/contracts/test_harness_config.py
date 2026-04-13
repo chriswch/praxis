@@ -232,6 +232,7 @@ class HarnessConfigContractTest(unittest.TestCase):
         self.assertTrue(payload["bundle"]["worker_launch_path"].endswith("/worker-launch.json"))
         self.assertTrue(payload["bundle"]["dispatch_record_path"].endswith("/dispatch-record.json"))
         self.assertTrue(payload["bundle"]["context_manifest_path"].endswith("/context-manifest.json"))
+        self.assertTrue(payload["bundle"]["tool_manifest_path"].endswith("/tool-manifest.json"))
 
         compiled = compile_dispatch_bundle(repo_root=self.repo_root)
         manifest = compiled["context_manifest"]
@@ -241,6 +242,8 @@ class HarnessConfigContractTest(unittest.TestCase):
         handoff_item = next(item for item in manifest["items"] if item["kind"] == "boundary_handoff")
         self.assertEqual(handoff_item["selection_phase"], "carry_forward")
         self.assertEqual(handoff_item["reason_code"], "boundary_handoff_only")
+        self.assertEqual(compiled["tool_manifest"]["tool_count"], 4)
+        self.assertTrue(compiled["tool_manifest"]["tools"][0]["enabled"])
 
     def test_build_worker_launch_payload_sets_null_compatibility_when_native_run_does_not_declare_it(self) -> None:
         self._write_adapter_harness("claude", include_compatibility=False)

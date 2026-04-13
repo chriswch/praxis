@@ -31,6 +31,7 @@ def bundle_paths_for_run(run: dict[str, Any], dispatch: dict[str, Any]) -> dict[
         "worker_launch_path": f"{bundle_dir}/worker-launch.json",
         "dispatch_record_path": f"{bundle_dir}/dispatch-record.json",
         "context_manifest_path": f"{bundle_dir}/context-manifest.json",
+        "tool_manifest_path": f"{bundle_dir}/tool-manifest.json",
     }
 
 
@@ -112,5 +113,13 @@ def load_dispatch_bundle_status(
         status["default_item_count"] = manifest["selection_summary"]["default_item_count"]
         status["stage_specific_item_count"] = manifest["selection_summary"]["stage_specific_item_count"]
         status["carry_forward_item_count"] = manifest["selection_summary"]["carry_forward_item_count"]
+
+    tool_manifest_path = repo_root / bundle["tool_manifest_path"]
+    status["tool_manifest_path"] = bundle["tool_manifest_path"]
+    status["tool_manifest_exists"] = tool_manifest_path.exists()
+    if tool_manifest_path.exists():
+        manifest = load_json(tool_manifest_path)
+        validate_contract_payload("tool-manifest.schema.json", manifest)
+        status["tool_count"] = manifest["tool_count"]
 
     return status

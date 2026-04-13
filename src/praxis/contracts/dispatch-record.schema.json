@@ -68,12 +68,13 @@
     "bundle": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["bundle_dir", "worker_launch_path", "dispatch_record_path", "context_manifest_path"],
+      "required": ["bundle_dir", "worker_launch_path", "dispatch_record_path", "context_manifest_path", "tool_manifest_path"],
       "properties": {
         "bundle_dir": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+$"},
         "worker_launch_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$"},
         "dispatch_record_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$"},
-        "context_manifest_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"}
+        "context_manifest_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"},
+        "tool_manifest_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/tool-manifest\\.json$"}
       }
     },
     "artifact_inputs": {

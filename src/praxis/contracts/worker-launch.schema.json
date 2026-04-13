@@ -269,6 +269,10 @@
         "context_manifest_path": {
           "type": "string",
           "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"
+        },
+        "tool_manifest_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/tool-manifest\\.json$"
         }
       }
     },
@@ -469,7 +473,8 @@
               "bundle_dir",
               "worker_launch_path",
               "dispatch_record_path",
-              "context_manifest_path"
+              "context_manifest_path",
+              "tool_manifest_path"
             ]
           },
           "worker": {

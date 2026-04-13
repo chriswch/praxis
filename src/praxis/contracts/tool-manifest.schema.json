@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/src/praxis/contracts/tool-manifest.schema.json",
+  "title": "Praxis Tool Manifest",
+  "description": "Durable description of the bounded tool surface compiled for one worker dispatch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "dispatch_id",
+    "run_id",
+    "generated_at",
+    "adapter",
+    "worker",
+    "policy",
+    "tool_count",
+    "tools"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "dispatch_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "adapter": {
+      "type": "string",
+      "enum": ["claude", "codex"]
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worker_id", "worker_class", "permission_profile"],
+      "properties": {
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worker_class": {
+          "type": "string",
+          "enum": ["interactive_orchestrator", "session_worker", "worktree_worker"]
+        },
+        "permission_profile": {
+          "type": "string",
+          "enum": ["planning", "design", "implementation", "review", "verification"]
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filesystem_scope", "network_access", "destructive_commands_allowed"],
+      "properties": {
+        "filesystem_scope": {
+          "type": "string",
+          "enum": ["workspace-write", "read-only", "danger-full-access", "inherit"]
+        },
+        "network_access": {
+          "type": "string",
+          "enum": ["restricted", "enabled", "inherit"]
+        },
+        "destructive_commands_allowed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "tool_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tool_id",
+          "description",
+          "permission_class",
+          "side_effect_class",
+          "latency_class",
+          "provenance",
+          "adapter_availability",
+          "native_surface",
+          "enabled"
+        ],
+        "properties": {
+          "tool_id": {
+            "type": "string",
+            "enum": ["repo_read", "repo_search", "repo_patch", "repo_shell", "network_fetch"]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "permission_class": {
+            "type": "string",
+            "enum": ["read_only", "workspace_write", "network_access"]
+          },
+          "side_effect_class": {
+            "type": "string",
+            "enum": ["none", "filesystem_write", "network"]
+          },
+          "latency_class": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "provenance": {
+            "type": "string",
+            "const": "praxis_runtime"
+          },
+          "adapter_availability": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["claude", "codex"]
+            },
+            "uniqueItems": true
+          },
+          "native_surface": {
+            "type": "string",
+            "minLength": 1
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
