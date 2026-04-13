@@ -134,6 +134,13 @@ class WorkerDispatchContractTest(unittest.TestCase):
         self.assertTrue((dispatch_bundle_dir / "worker-launch.json").exists())
         self.assertTrue((dispatch_bundle_dir / "dispatch-record.json").exists())
         self.assertTrue((dispatch_bundle_dir / "context-manifest.json").exists())
+        context_manifest = load_json(dispatch_bundle_dir / "context-manifest.json")
+        validate_contract_payload("context-manifest.schema.json", context_manifest)
+        self.assertEqual(context_manifest["context_policy"]["selected_item_count"], len(context_manifest["items"]))
+        self.assertEqual(context_manifest["context_policy"]["max_item_count"], 16)
+        self.assertTrue(context_manifest["selection_summary"]["within_budget"])
+        self.assertGreaterEqual(context_manifest["selection_summary"]["default_item_count"], 1)
+        self.assertEqual(context_manifest["selection_summary"]["carry_forward_item_count"], 0)
         policy_records = sorted((self.repo_root / ".praxis" / "runtime" / "policies").glob("*.json"))
         self.assertEqual(len(policy_records), 3)
         for policy_path in policy_records:

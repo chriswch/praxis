@@ -7,7 +7,8 @@ import unittest
 from pathlib import Path
 
 from praxis.runtime.handoff_policy import build_handoff_payload
-from praxis.runtime.adapters.harness import build_worker_launch_payload, load_adapter_harness
+from praxis.runtime.adapters.harness import build_worker_launch_payload, compile_dispatch_bundle, load_adapter_harness
+from praxis.runtime.state.contract_validation import validate_contract_payload
 from praxis.runtime.orchestrator import initialize_run
 
 
@@ -231,6 +232,15 @@ class HarnessConfigContractTest(unittest.TestCase):
         self.assertTrue(payload["bundle"]["worker_launch_path"].endswith("/worker-launch.json"))
         self.assertTrue(payload["bundle"]["dispatch_record_path"].endswith("/dispatch-record.json"))
         self.assertTrue(payload["bundle"]["context_manifest_path"].endswith("/context-manifest.json"))
+
+        compiled = compile_dispatch_bundle(repo_root=self.repo_root)
+        manifest = compiled["context_manifest"]
+        validate_contract_payload("context-manifest.schema.json", manifest)
+        self.assertEqual(manifest["selection_summary"]["carry_forward_item_count"], 1)
+        self.assertEqual(manifest["context_policy"]["selected_item_count"], len(manifest["items"]))
+        handoff_item = next(item for item in manifest["items"] if item["kind"] == "boundary_handoff")
+        self.assertEqual(handoff_item["selection_phase"], "carry_forward")
+        self.assertEqual(handoff_item["reason_code"], "boundary_handoff_only")
 
     def test_build_worker_launch_payload_sets_null_compatibility_when_native_run_does_not_declare_it(self) -> None:
         self._write_adapter_harness("claude", include_compatibility=False)

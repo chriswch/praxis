@@ -108,5 +108,9 @@ def load_dispatch_bundle_status(
         validate_contract_payload("context-manifest.schema.json", manifest)
         status["context_item_count"] = len(manifest["items"])
         status["handoff_injected"] = manifest["context_policy"]["handoff_injected"]
+        status["context_within_budget"] = manifest["selection_summary"]["within_budget"]
+        status["default_item_count"] = manifest["selection_summary"]["default_item_count"]
+        status["stage_specific_item_count"] = manifest["selection_summary"]["stage_specific_item_count"]
+        status["carry_forward_item_count"] = manifest["selection_summary"]["carry_forward_item_count"]
 
     return status

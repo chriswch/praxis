@@ -409,6 +409,8 @@ class PraxisCliContractTest(unittest.TestCase):
         bundle = result["data"]["dispatch_bundle"]
         self.assertTrue(bundle["available"])
         self.assertTrue(bundle["context_manifest_path"].endswith("/context-manifest.json"))
+        self.assertTrue(bundle["context_within_budget"])
+        self.assertGreaterEqual(bundle["default_item_count"], 1)
 
     def test_harness_show_adapter_returns_native_harness_shape(self) -> None:
         self._write_adapter_harness("codex")

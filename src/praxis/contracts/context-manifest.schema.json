@@ -14,6 +14,7 @@
     "worker",
     "context_policy",
     "bundle",
+    "selection_summary",
     "items"
   ],
   "properties": {
@@ -51,7 +52,7 @@
     "context_policy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["carry_forward_mode", "handoff_injected", "allowed_context_sources"],
+      "required": ["carry_forward_mode", "handoff_injected", "allowed_context_sources", "selected_item_count", "max_item_count"],
       "properties": {
         "carry_forward_mode": {"type": "string", "const": "boundary_handoff_only"},
         "handoff_injected": {"type": "boolean"},
@@ -59,6 +60,14 @@
           "type": "array",
           "items": {"type": "string", "enum": ["dispatch", "run_metadata", "boundary_handoff", "artifact_input", "harness_surface"]},
           "uniqueItems": true
+        },
+        "selected_item_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_item_count": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
@@ -73,17 +82,39 @@
         "context_manifest_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"}
       }
     },
+    "selection_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_items",
+        "max_items",
+        "within_budget",
+        "default_item_count",
+        "stage_specific_item_count",
+        "carry_forward_item_count"
+      ],
+      "properties": {
+        "total_items": {"type": "integer", "minimum": 0},
+        "max_items": {"type": "integer", "minimum": 1},
+        "within_budget": {"type": "boolean"},
+        "default_item_count": {"type": "integer", "minimum": 0},
+        "stage_specific_item_count": {"type": "integer", "minimum": 0},
+        "carry_forward_item_count": {"type": "integer", "minimum": 0}
+      }
+    },
     "items": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["kind", "path", "inline_id", "required", "reason"],
+        "required": ["kind", "path", "inline_id", "required", "selection_phase", "reason_code", "reason"],
         "properties": {
           "kind": {"type": "string", "enum": ["dispatch", "run_metadata", "artifact_input", "boundary_handoff", "harness_surface"]},
           "path": {"anyOf": [{"type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"}, {"type": "null"}]},
           "inline_id": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
           "required": {"type": "boolean"},
+          "selection_phase": {"type": "string", "enum": ["default", "stage_specific", "carry_forward"]},
+          "reason_code": {"type": "string", "minLength": 1},
           "reason": {"type": "string", "minLength": 1}
         }
       }
