@@ -30,6 +30,6 @@ Execution policy is separate from workflow shape:
 
 ## Artifact Paths
 
-Use `.praxis/results/<stage>.json`, `run.json`, and `story-ledger.json` as the routing source of truth. Human-readable artifacts remain the reading surface.
+Use `.praxis/results/<stage>.json`, `.praxis/run.json`, and `.praxis/story-ledger.json` as the routing source of truth. Human-readable artifacts remain the reading surface.
 
-`show-run` also surfaces a `trace` block for dispatch, recent boundary and stop signals, and recovery state.
+`praxis status --repo-root . --json` surfaces `dispatch_bundle`, `active_runtime`, `approvals`, `policies`, and `trace` from durable state.

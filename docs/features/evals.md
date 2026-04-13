@@ -21,6 +21,9 @@ Primary shared source:
 
 - `src/praxis/runtime/observability/eval_pack.py`
 
+`native-gate` selects `native_harness`, `native_trace`, and `adapter_parity`
+fixtures only. It fails closed when any of those fixture kinds are missing.
+
 ## Current Eval Coverage
 
 The bundled fixtures currently exercise:
@@ -29,9 +32,11 @@ The bundled fixtures currently exercise:
 - story-boundary stop and handoff budget enforcement
 - worker dispatch bookkeeping and resume fallbacks
 - provider-native resume success and failure paths
-- native Claude and Codex session-start hooks
-- `status` trace reconstruction
-- Claude/Codex semantic parity for native launch and handoff outcomes
+- native Claude and Codex session-start hooks, including invalid-handoff
+  launch-failure telemetry
+- `praxis status` trace reconstruction and `active_runtime` inspection
+- Claude/Codex semantic parity for both fresh-launch and manual-resume runtime
+  artifacts
 
 ## Contract Tests
 
@@ -44,9 +49,17 @@ Current coverage areas include:
 - worker planning, dispatch, and provider resume
 - story-boundary transitions and recovery
 - harness configuration loading and hook integration
-- trace summaries and documentation references
+- trace summaries, eval gating, and documentation references
 
 ## Fixtures
 
-The eval fixtures live under `tests/evals/fixtures/` and are designed to verify
-shared runtime behavior instead of one adapter-specific transcript.
+The eval fixtures live under `tests/evals/fixtures/` and verify shared runtime
+behavior instead of one adapter-specific transcript.
+
+Notable native fixtures include:
+
+- `adapter_parity.json` for launch and handoff semantics
+- `adapter_parity_resume.json` for manual-resume parity over the public status
+  surface
+- `native_codex_harness.json` and `native_claude_harness.json` for native hook
+  contract coverage
