@@ -3,6 +3,8 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from .bookkeeping import build_worker_ownership
+
 
 _STAGE_SUFFIX = {
     "clarifying-intent": "clarify",
@@ -253,6 +255,10 @@ def build_worker_plan(run: dict[str, Any], *, stage: str | None = None) -> dict[
         ),
         "resume_strategy": _default_resume_strategy(worker_class),
         "trace_path": f".praxis/runtime/traces/{worker_id}.jsonl",
+        "ownership": build_worker_ownership(
+            worker_id=worker_id,
+            worker_class=worker_class,
+        ),
     }
 
 

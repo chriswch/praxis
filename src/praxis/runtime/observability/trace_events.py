@@ -1,20 +1,11 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
 from ..state.contract_validation import validate_contract_payload
-
-
-def _slug(value: str, *, fallback: str) -> str:
-    candidate = re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip("-._")
-    return candidate or fallback
-
-
-def worker_record_relpath(worker_id: str) -> str:
-    return f".praxis/runtime/workers/{_slug(worker_id, fallback='worker')}.json"
+from ..workers.bookkeeping import worker_record_relpath
 
 
 def build_trace_context_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -33,7 +24,10 @@ def build_trace_context_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "boundary_handoff_path": dispatch["boundary_handoff_path"],
         "dispatch_record_path": bundle["dispatch_record_path"],
         "context_manifest_path": bundle["context_manifest_path"],
-        "worker_record_path": worker_record_relpath(worker["worker_id"]),
+        "worker_record_path": worker_record_relpath(
+            worker["worker_id"],
+            worker_class=worker["worker_class"],
+        ),
     }
 
 
@@ -64,7 +58,10 @@ def build_trace_context_from_launch_context(launch_context: dict[str, Any]) -> d
         "boundary_handoff_path": dispatch.get("boundary_handoff_path"),
         "dispatch_record_path": bundle["dispatch_record_path"],
         "context_manifest_path": bundle["context_manifest_path"],
-        "worker_record_path": worker_record_relpath(worker_id),
+        "worker_record_path": worker_record_relpath(
+            worker_id,
+            worker_class=worker_class,
+        ),
     }
 
 

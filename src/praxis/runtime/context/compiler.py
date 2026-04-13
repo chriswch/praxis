@@ -17,6 +17,7 @@ from ..workers.planning import (
     stage_input_artifacts,
     sync_worker_cursor,
 )
+from ..workers.bookkeeping import build_worker_ownership
 from .bundle import bundle_paths_for_run, load_dispatch_bundle_status, persist_dispatch_bundle
 from .tool_manifest import build_tool_manifest
 
@@ -260,7 +261,16 @@ def _build_compiled_payload(
     stage = dispatch.get("stage")
     artifact_dir = dispatch.get("artifact_dir") or run["current"]["artifact_dir"]
     trace_path = worker_plan["trace_path"]
-    bundle = bundle_paths_for_run(run, dispatch)
+    ownership = worker_plan.get("ownership") or build_worker_ownership(
+        worker_id=run["current"]["worker_id"],
+        worker_class=worker_plan["worker_class"],
+    )
+    bundle = bundle_paths_for_run(
+        run,
+        dispatch,
+        worker_id=run["current"]["worker_id"],
+        worker_class=worker_plan["worker_class"],
+    )
 
     payload = {
         "version": 3,
@@ -309,6 +319,7 @@ def _build_compiled_payload(
                 else f".praxis/runtime/worktrees/{run['current']['worker_id']}"
             ),
         },
+        "ownership": ownership,
         "permissions": {
             "profile": worker_plan["permission_profile"],
             "filesystem_scope": "workspace-write",
@@ -429,6 +440,7 @@ def _build_compiled_payload(
             worktree_mode=payload["worker"]["worktree_mode"],
             worktree_path=payload["worker"]["worktree_path"],
         ),
+        "ownership": payload["ownership"],
         "artifact_inputs": payload["artifact_inputs"],
         "artifact_outputs_expected": payload["artifact_outputs_expected"],
         "resolution": {
@@ -461,7 +473,16 @@ def _build_dispatch_intent_record(
 
     stage = dispatch.get("stage")
     artifact_dir = dispatch.get("artifact_dir") or run["current"]["artifact_dir"]
-    bundle = bundle_paths_for_run(run, dispatch)
+    ownership = worker_plan.get("ownership") or build_worker_ownership(
+        worker_id=run["current"]["worker_id"],
+        worker_class=worker_plan["worker_class"],
+    )
+    bundle = bundle_paths_for_run(
+        run,
+        dispatch,
+        worker_id=run["current"]["worker_id"],
+        worker_class=worker_plan["worker_class"],
+    )
     dispatch_record = {
         "version": 1,
         "dispatch_id": bundle["dispatch_id"],
@@ -514,6 +535,7 @@ def _build_dispatch_intent_record(
             if worker_plan["worktree_mode"] == "shared"
             else f".praxis/runtime/worktrees/{run['current']['worker_id']}",
         ),
+        "ownership": ownership,
         "artifact_inputs": stage_input_artifacts(run=run, stage=stage, artifact_dir=artifact_dir),
         "artifact_outputs_expected": stage_expected_outputs(run=run, stage=stage, artifact_dir=artifact_dir),
         "resolution": {

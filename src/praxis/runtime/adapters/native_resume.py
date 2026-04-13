@@ -21,6 +21,10 @@ from ..observability.trace_events import (
     build_trace_event,
     render_trace_text,
 )
+from ..workers.bookkeeping import (
+    resolve_worker_record_relpath,
+    worker_record_relpath as bookkeeping_worker_record_relpath,
+)
 from ..workers.planning import build_worker_isolation, ensure_run_vnext_defaults, mark_worker_resumed
 
 
@@ -40,8 +44,8 @@ def stable_fingerprint(payload: Any) -> str:
     return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
 
 
-def worker_record_relpath(worker_id: str) -> str:
-    return f".praxis/runtime/workers/{_slug(worker_id, fallback='worker')}.json"
+def worker_record_relpath(worker_id: str, worker_class: str = "session_worker") -> str:
+    return bookkeeping_worker_record_relpath(worker_id, worker_class=worker_class)
 
 
 def session_record_relpath(adapter: str, session_id: str) -> str:
@@ -361,7 +365,10 @@ def _updated_worker_record(
     payload: dict[str, Any],
     session_record: dict[str, Any],
 ) -> tuple[str, dict[str, Any]]:
-    rel = worker_record_relpath(payload["worker"]["worker_id"])
+    rel = worker_record_relpath(
+        payload["worker"]["worker_id"],
+        payload["worker"]["worker_class"],
+    )
     path = repo_root / rel
     if path.exists():
         worker_record = load_json(path)
@@ -395,6 +402,7 @@ def _updated_worker_record(
                 worktree_mode=payload["worker"]["worktree_mode"],
                 worktree_path=session_record["cwd"],
             ),
+            "ownership": payload["ownership"],
             "status": "running",
         }
     worker_record["session_id"] = session_record["session_id"]
@@ -409,6 +417,7 @@ def _updated_worker_record(
         worktree_mode=payload["worker"]["worktree_mode"],
         worktree_path=worker_record.get("worktree_path") or session_record["cwd"],
     )
+    worker_record["ownership"] = payload["ownership"]
     worker_record["status"] = "running"
     validate_contract_payload("worker-record.schema.json", worker_record)
     return rel, worker_record
@@ -424,10 +433,10 @@ def update_session_record_after_launch(
     provider_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     repo_root = repo_root.resolve()
-    worker_rel = worker_record_relpath(worker_id)
-    worker_path = repo_root / worker_rel
-    if not worker_path.exists():
+    worker_rel = resolve_worker_record_relpath(repo_root=repo_root, worker_id=worker_id)
+    if worker_rel is None:
         return None
+    worker_path = repo_root / worker_rel
 
     worker_record = load_json(worker_path)
     validate_contract_payload("worker-record.schema.json", worker_record)

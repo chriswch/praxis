@@ -98,14 +98,20 @@ def inspect_worker_launch_context(*, repo_root: Path) -> dict[str, Any]:
     dispatch = build_dispatch(repo_root, run=run)
     handoff_path = dispatch.get("boundary_handoff_path")
     handoff_status = inspect_handoff_file(repo_root / handoff_path) if handoff_path else None
+    worker_plan = build_worker_plan(run)
     return {
         "workflow": run["workflow"],
         "adapter": run["runtime"]["adapter"],
         "dispatch": dispatch,
-        "bundle": bundle_paths_for_run(run, dispatch),
+        "bundle": bundle_paths_for_run(
+            run,
+            dispatch,
+            worker_id=(worker_plan or {}).get("worker_id"),
+            worker_class=(worker_plan or {}).get("worker_class"),
+        ),
         "boundary_handoff_path": handoff_path,
         "handoff_status": handoff_status,
-        "worker_plan": build_worker_plan(run),
+        "worker_plan": worker_plan,
     }
 
 

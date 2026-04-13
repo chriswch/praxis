@@ -43,7 +43,7 @@
       "required": ["worker_id", "worker_class", "permission_profile", "worktree_mode", "fresh_context"],
       "properties": {
         "worker_id": {"type": "string", "minLength": 1},
-        "worker_class": {"type": "string", "enum": ["interactive_orchestrator", "session_worker", "worktree_worker"]},
+        "worker_class": {"type": "string", "enum": ["interactive_orchestrator", "session_worker", "worktree_worker", "subagent_worker"]},
         "permission_profile": {"type": "string", "enum": ["planning", "design", "implementation", "review", "verification"]},
         "worktree_mode": {"type": "string", "enum": ["shared", "isolated"]},
         "fresh_context": {"type": "boolean"}

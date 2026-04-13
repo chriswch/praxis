@@ -8,6 +8,7 @@ from ..dispatch_records import normalize_dispatch_record
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import commit_transaction, dump_json, load_json, recover_pending_transaction
 from ..workers.planning import ensure_run_vnext_defaults
+from ..workers.bookkeeping import dispatch_bundle_paths
 
 
 def _slug(value: str, *, fallback: str) -> str:
@@ -15,25 +16,31 @@ def _slug(value: str, *, fallback: str) -> str:
     return candidate or fallback
 
 
-def dispatch_id_for_run(run: dict[str, Any], dispatch: dict[str, Any]) -> str:
+def dispatch_id_for_run(
+    run: dict[str, Any],
+    dispatch: dict[str, Any],
+    *,
+    worker_id: str | None = None,
+) -> str:
     ensure_run_vnext_defaults(run)
     transition_id = str(run.get("control", {}).get("last_transition_id") or "tx_000")
-    worker_id = str(run.get("current", {}).get("worker_id") or "worker")
+    resolved_worker_id = str(worker_id or run.get("current", {}).get("worker_id") or "worker")
     stage = str(dispatch.get("stage") or run.get("current", {}).get("stage") or "stage")
-    return _slug(f"{transition_id}-{worker_id}-{stage}", fallback="dispatch")
+    return _slug(f"{transition_id}-{resolved_worker_id}-{stage}", fallback="dispatch")
 
 
-def bundle_paths_for_run(run: dict[str, Any], dispatch: dict[str, Any]) -> dict[str, str]:
-    dispatch_id = dispatch_id_for_run(run, dispatch)
-    bundle_dir = f".praxis/runtime/dispatches/{dispatch_id}"
-    return {
-        "dispatch_id": dispatch_id,
-        "bundle_dir": bundle_dir,
-        "worker_launch_path": f"{bundle_dir}/worker-launch.json",
-        "dispatch_record_path": f"{bundle_dir}/dispatch-record.json",
-        "context_manifest_path": f"{bundle_dir}/context-manifest.json",
-        "tool_manifest_path": f"{bundle_dir}/tool-manifest.json",
-    }
+def bundle_paths_for_run(
+    run: dict[str, Any],
+    dispatch: dict[str, Any],
+    *,
+    worker_id: str | None = None,
+    worker_class: str | None = None,
+) -> dict[str, str]:
+    dispatch_id = dispatch_id_for_run(run, dispatch, worker_id=worker_id)
+    return dispatch_bundle_paths(
+        dispatch_id=dispatch_id,
+        worker_class=worker_class or "session_worker",
+    )
 
 
 def persist_dispatch_bundle(
@@ -122,6 +129,15 @@ def load_dispatch_bundle_status(
             status["runtime_state_channel"] = isolation["runtime_state_channel"]
             status["isolation_reason_code"] = isolation["guardrail_reason_code"]
             status["isolation_reason"] = isolation["guardrail_reason"]
+        if "ownership" in record:
+            ownership = record["ownership"]
+            status["ownership_kind"] = ownership["kind"]
+            status["run_routing_owned"] = ownership["run_routing_owned"]
+            status["stage_result_expected"] = ownership["stage_result_expected"]
+            status["artifact_namespace"] = ownership["artifact_namespace"]
+            status["spawned_by_worker_id"] = ownership["spawned_by_worker_id"]
+            status["ownership_reason_code"] = ownership["reason_code"]
+            status["ownership_reason"] = ownership["reason"]
 
     if context_manifest_path.exists():
         manifest = load_json(context_manifest_path)

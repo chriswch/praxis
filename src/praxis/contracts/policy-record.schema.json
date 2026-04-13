@@ -104,7 +104,7 @@
       "anyOf": [
         {
           "type": "string",
-          "enum": ["interactive_orchestrator", "session_worker", "worktree_worker"]
+          "enum": ["interactive_orchestrator", "session_worker", "worktree_worker", "subagent_worker"]
         },
         {
           "type": "null"

@@ -40,7 +40,7 @@
     },
     "worker_class": {
       "type": "string",
-      "enum": ["interactive_orchestrator", "session_worker", "worktree_worker"]
+      "enum": ["interactive_orchestrator", "session_worker", "worktree_worker", "subagent_worker"]
     },
     "launch_surface": {
       "type": "string",
@@ -154,6 +154,54 @@
           "minLength": 1
         },
         "guardrail_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "worker_id",
+        "kind",
+        "run_routing_owned",
+        "stage_result_expected",
+        "artifact_namespace",
+        "spawned_by_worker_id",
+        "reason_code",
+        "reason"
+      ],
+      "properties": {
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["workflow_owner", "sidecar"]
+        },
+        "run_routing_owned": {
+          "type": "boolean"
+        },
+        "stage_result_expected": {
+          "type": "boolean"
+        },
+        "artifact_namespace": {
+          "type": "string",
+          "enum": ["primary", "sidecar"]
+        },
+        "spawned_by_worker_id": {
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
           "type": "string",
           "minLength": 1
         }

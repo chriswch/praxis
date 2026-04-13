@@ -416,6 +416,50 @@ class WorkerDispatchContractTest(unittest.TestCase):
                 timestamp="2026-04-12T05:31:00Z",
             )
 
+    def test_dispatch_worker_rejects_subagent_workers_without_an_explicit_sidecar_path(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Do not let sidecars take the main run cursor",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T05:32:00Z",
+        )
+        self._set_stage_worker(
+            stage="rapid-implementing",
+            worker_id="wrk_S009_impl_57",
+        )
+
+        with patch(
+            "praxis.runtime.workers.dispatch.inspect_worker_launch_context",
+            return_value={
+                "workflow": "forge",
+                "adapter": "codex",
+                "dispatch": {
+                    "scope": "slice",
+                    "slice_id": "S-009",
+                    "artifact_dir": ".praxis/slices/S-009",
+                    "stage": "rapid-implementing",
+                    "boundary_handoff_path": None,
+                },
+                "bundle": {
+                    "dispatch_id": "tx-057-wrk-sidecar-01-rapid-implementing",
+                },
+                "boundary_handoff_path": None,
+                "handoff_status": None,
+                "worker_plan": {
+                    "worker_id": "wrk_sidecar_01",
+                    "worker_class": "subagent_worker",
+                },
+            },
+        ):
+            with self.assertRaisesRegex(ValueError, "worker_class='subagent_worker'"):
+                dispatch_worker(
+                    repo_root=self.repo_root,
+                    timestamp="2026-04-12T05:33:00Z",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

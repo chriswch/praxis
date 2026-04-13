@@ -22,9 +22,9 @@ from .native_resume import (
     classify_session_origin,
     context_fingerprint_from_payload,
     derive_session_resumability,
-    worker_record_relpath,
     worker_signature_from_payload,
 )
+from ..workers.bookkeeping import worker_record_relpath
 from ..workers.planning import build_worker_isolation, ensure_run_vnext_defaults, mark_worker_started
 
 
@@ -155,6 +155,7 @@ def build_native_launch_record(
                 payload=payload,
             ),
         },
+        "ownership": payload["ownership"],
         "resume": {
             "attempted": resume_attempted,
             "outcome": resume_outcome,
@@ -178,7 +179,7 @@ def build_native_launch_record(
 
 def build_worker_record(*, run: dict[str, Any], payload: dict[str, Any], record: dict[str, Any], record_rel: str) -> tuple[str, dict[str, Any]]:
     worker_id = payload["worker"]["worker_id"]
-    rel = worker_record_relpath(worker_id)
+    rel = worker_record_relpath(worker_id, worker_class=payload["worker"]["worker_class"])
     worker_record = {
         "version": 1,
         "worker_id": worker_id,
@@ -205,6 +206,7 @@ def build_worker_record(*, run: dict[str, Any], payload: dict[str, Any], record:
             worktree_mode=payload["worker"]["worktree_mode"],
             worktree_path=record["worker"]["worktree_path"] or payload["worker"]["worktree_path"],
         ),
+        "ownership": payload["ownership"],
         "status": "running",
     }
     validate_contract_payload("worker-record.schema.json", worker_record)

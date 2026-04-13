@@ -10,7 +10,6 @@ from typing import Any
 
 from ..adapters.native_resume import (
     update_session_record_after_launch,
-    worker_record_relpath,
 )
 from ..observability.trace_events import (
     build_trace_context_from_payload,
@@ -18,6 +17,7 @@ from ..observability.trace_events import (
     render_trace_text,
 )
 from ..state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json
+from .bookkeeping import worker_record_relpath
 from .worktree import cleanup_isolated_worktree
 
 
@@ -112,7 +112,10 @@ def _commit_worker_event(
     files = {
         ".praxis/events.jsonl": dump_events(events),
     }
-    worker_path = repo_root / worker_record_relpath(payload["worker"]["worker_id"])
+    worker_path = repo_root / worker_record_relpath(
+        payload["worker"]["worker_id"],
+        worker_class=payload["worker"]["worker_class"],
+    )
     if worker_path.exists():
         worker_record = load_json(worker_path)
         if worker_status is not None:
