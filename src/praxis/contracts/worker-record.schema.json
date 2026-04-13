@@ -11,6 +11,7 @@
     "run_id",
     "adapter",
     "worker_class",
+    "launch_surface",
     "launch_reason",
     "permission_profile",
     "worktree_mode",
@@ -39,7 +40,11 @@
     },
     "worker_class": {
       "type": "string",
-      "enum": ["interactive_orchestrator", "session_worker"]
+      "enum": ["interactive_orchestrator", "session_worker", "worktree_worker"]
+    },
+    "launch_surface": {
+      "type": "string",
+      "minLength": 1
     },
     "launch_reason": {
       "type": "string",

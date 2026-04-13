@@ -13,14 +13,18 @@ Current support policy:
 
 Current public commands:
 
+- `praxis init`
 - `praxis run`
 - `praxis status`
 - `praxis continue`
+- `praxis approve`
 - `praxis resume`
+- `praxis cancel`
 - `praxis dispatch`
 - `praxis submit-stage-result`
 - `praxis build-worker-launch`
 - `praxis harness show-adapter`
+- `praxis doctor`
 
 ## Shared Options
 
@@ -64,20 +68,35 @@ Current exit-code families:
 - `4` - environment or harness problem
 - `1` - unexpected internal failure
 
+## Current Behavior
+
+New control-plane commands:
+
+- `praxis init` bootstraps native Claude or Codex repo surfaces without
+  overwriting existing files unless `--force` is passed
+- `praxis approve` explicitly advances `confirm_then_run` checkpoints while
+  `praxis continue` remains the stable compatibility command
+- `praxis cancel` marks the active run as cancelled from durable state and
+  finishes it cleanly
+- `praxis doctor` validates run state, native harness config, and fresh
+  worker-launch payloads
+
+`praxis dispatch` currently:
+
+- handles `session_worker` and `worktree_worker` plans
+- attempts provider-native resume for resumable `session_worker` sessions
+- persists a bounded launch payload under `.praxis/runtime/dispatches/`
+- starts a fresh background launcher process instead of recording bookkeeping
+  only
+- records `worker_process_started`, `worker_process_failed`, and
+  `worker_process_completed` telemetry
+
 ## Current Boundary
 
-The current CLI stops at the shipped control-plane surface.
+The shipped CLI still keeps these limits:
 
-Not implemented yet:
-
-- `praxis init`
-- `praxis approve`
-- `praxis cancel`
-- `praxis doctor`
-
-`praxis dispatch` also has a narrow boundary today:
-
-- it handles `session_worker` plans only
-- it can attempt provider-native resume for an existing session
-- it records fresh-launch bookkeeping when Praxis needs to relaunch
-- it does not yet spawn a brand-new external Claude or Codex worker process by itself
+- `subagent_worker` remains outside the public runtime contract
+- `praxis continue` stays in the command tree for compatibility even though
+  `praxis approve` is the clearer confirmation verb
+- future packaging layers such as a binary rewrite or npm wrapper remain
+  follow-on product work

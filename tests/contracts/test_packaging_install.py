@@ -121,12 +121,12 @@ class PackagingInstallContractTest(unittest.TestCase):
                     "project_config_path": ".codex/config.toml",
                     "hooks_path": ".codex/hooks.json",
                     "agents_path": ".codex/agents",
-                    "worker_launch_command": "praxis dispatch --json",
+                    "worker_launch_command": 'python3 -c "import sys; sys.exit(0)"',
                     "extension_points": {
-                        "mcp_config_path": ".codex-plugin/extensions.md",
+                        "mcp_config_path": ".codex/extensions.md",
                         "resources_path": None,
                         "tool_overrides_path": None,
-                        "notes_path": ".codex-plugin/extensions.md",
+                        "notes_path": ".codex/extensions.md",
                     },
                     "compatibility": {
                         "settings_path": ".codex-plugin/settings.md",
@@ -141,7 +141,7 @@ class PackagingInstallContractTest(unittest.TestCase):
         (repo_root / "AGENTS.md").write_text("codex instructions\n")
         (repo_root / ".codex" / "config.toml").write_text("[features]\ncli = true\n")
         (repo_root / ".codex" / "hooks.json").write_text("{}\n")
-        (repo_root / ".codex-plugin" / "extensions.md").write_text("extensions\n")
+        (repo_root / ".codex" / "extensions.md").write_text("extensions\n")
         (repo_root / ".codex-plugin" / "settings.md").write_text("settings\n")
 
     def _scripts_dir(self, python_bin: Path) -> Path:

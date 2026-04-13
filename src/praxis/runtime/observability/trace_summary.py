@@ -17,6 +17,8 @@ _BOUNDARY_EVENT_TYPES = {
 _LAUNCH_EVENT_TYPES = {
     "native_launch_recorded",
     "native_launch_failed",
+    "worker_process_started",
+    "worker_process_failed",
 }
 
 _HANDOFF_EVENT_TYPES = {
@@ -47,7 +49,9 @@ _STOP_EVENT_TYPES = {
     "resume_failed",
     "provider_resume_failed",
     "story_activation_cancelled",
+    "run_cancelled",
     "native_launch_failed",
+    "worker_process_failed",
 }
 
 

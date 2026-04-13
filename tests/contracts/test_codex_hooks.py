@@ -52,7 +52,7 @@ class CodexHooksContractTest(unittest.TestCase):
         self._write_text(".codex-plugin/settings.md", "compat settings\n")
         (self.repo_root / ".codex-plugin" / "hooks").mkdir(parents=True, exist_ok=True)
         (self.repo_root / ".codex-plugin" / "subagents").mkdir(parents=True, exist_ok=True)
-        self._write_text(".codex-plugin/extensions.md", "extensions\n")
+        self._write_text(".codex/extensions.md", "extensions\n")
         self._write_json(
             ".codex/adapter.json",
             {
@@ -62,12 +62,12 @@ class CodexHooksContractTest(unittest.TestCase):
                 "project_config_path": ".codex/config.toml",
                 "hooks_path": ".codex/hooks.json",
                 "agents_path": ".codex/agents",
-                "worker_launch_command": "praxis dispatch --json",
+                "worker_launch_command": 'python3 -c "import sys; sys.exit(0)"',
                 "extension_points": {
-                    "mcp_config_path": ".codex-plugin/extensions.md",
+                    "mcp_config_path": ".codex/extensions.md",
                     "resources_path": None,
                     "tool_overrides_path": None,
-                    "notes_path": ".codex-plugin/extensions.md",
+                    "notes_path": ".codex/extensions.md",
                 },
                 "compatibility": {
                     "settings_path": ".codex-plugin/settings.md",
@@ -82,7 +82,7 @@ class CodexHooksContractTest(unittest.TestCase):
         self._write_text(".codex/config.toml", "[features]\ncodex_hooks = true\n")
         self._write_text(".codex/hooks.json", "{}\n")
         (self.repo_root / ".codex" / "agents").mkdir(parents=True, exist_ok=True)
-        self._write_text(".codex-plugin/extensions.md", "extensions\n")
+        self._write_text(".codex/extensions.md", "extensions\n")
         self._write_json(
             ".codex/adapter.json",
             {
@@ -92,12 +92,12 @@ class CodexHooksContractTest(unittest.TestCase):
                 "project_config_path": ".codex/config.toml",
                 "hooks_path": ".codex/hooks.json",
                 "agents_path": ".codex/agents",
-                "worker_launch_command": "praxis dispatch --json",
+                "worker_launch_command": 'python3 -c "import sys; sys.exit(0)"',
                 "extension_points": {
-                    "mcp_config_path": ".codex-plugin/extensions.md",
+                    "mcp_config_path": ".codex/extensions.md",
                     "resources_path": None,
                     "tool_overrides_path": None,
-                    "notes_path": ".codex-plugin/extensions.md",
+                    "notes_path": ".codex/extensions.md",
                 },
             },
         )

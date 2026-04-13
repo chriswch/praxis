@@ -115,39 +115,33 @@ When `run.routing.pending_worker_action = resume_or_launch`, use
 `praxis dispatch --repo-root . --json` to let
 the control plane execute that intent. The dispatcher rebuilds context from
 durable Praxis state first, records an explicit `resume_fallback_used` event
-when provider resume is unavailable, and then records the fresh native launch.
+when provider resume is unavailable, persists the bounded launch payload under
+`.praxis/runtime/dispatches/`, and starts the background worker launcher
+declared by the active adapter harness.
 
-Current boundary: `praxis dispatch` records launch or resume outcomes and keeps
-run state aligned, but it does not yet shell out to start a brand-new provider
-process on its own.
+Current boundary: `praxis dispatch` starts fresh background workers for
+`session_worker` and `worktree_worker`, but the public contract still omits
+`subagent_worker`.
 
 Repo-scoped harness surfaces:
 - `.claude/adapter.json`
 - `CLAUDE.md`
+- `.claude/extensions.md`
 - `.claude/settings.json`
 - `.claude/hooks/`
 - `.claude/agents/`
-- `.claude-plugin/settings.md`
-- `.claude-plugin/hooks/`
-- `.claude-plugin/subagents/`
-- `.claude-plugin/extensions.md`
 - `.codex/adapter.json`
 - `AGENTS.md`
+- `.codex/extensions.md`
 - `.codex/config.toml`
 - `.codex/hooks.json`
 - `.codex/agents/`
-- `.codex-plugin/settings.md`
-- `.codex-plugin/hooks/`
-- `.codex-plugin/subagents/`
-- `.codex-plugin/extensions.md`
 
 For Claude, `CLAUDE.md` and `.claude/` are the authoritative native repo
-surfaces. The current runtime also includes `.claude-plugin/` compatibility
-surfaces.
+surfaces. `.claude-plugin/` remains an optional compatibility mirror.
 
 For Codex, `AGENTS.md` and `.codex/` are the authoritative native repo
-surfaces. The current runtime also includes `.codex-plugin/` compatibility
-surfaces.
+surfaces. `.codex-plugin/` remains an optional compatibility mirror.
 
 Shared skills should stay neutral about MCP servers, resources, and tool
 wrappers.

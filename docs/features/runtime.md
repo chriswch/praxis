@@ -11,7 +11,9 @@ Core runtime artifacts:
 - `.praxis/story-ledger.json`
 - `.praxis/events.jsonl`
 - `.praxis/results/<stage>.json`
+- `.praxis/runtime/dispatches/<worker-id>.json`
 - `.praxis/runtime/launches/<adapter>/...`
+- `.praxis/runtime/logs/<worker-id>.*.log`
 - `.praxis/runtime/workers/<worker-id>.json`
 - `.praxis/runtime/sessions/<adapter>/<session-id>.json`
 - `.praxis/runtime/resumes/<adapter>/...`
@@ -27,15 +29,17 @@ Praxis currently plans workers through `src/praxis/runtime/workers/planning.py`.
 Shipped worker classes:
 
 - `interactive_orchestrator` for root `clarifying-intent` in manual runs
-- `session_worker` for slice work, implementation reuse inside a story, and
-  fresh review or verification workers
+- `session_worker` for slice work and in-place implementation stages
+- `worktree_worker` for isolated review or verification stages
 
 Current worker-planning rules:
 
 - implementation stages can reuse the active story worker
-- `code-reviewing` and `verifying-and-adapting` get fresh `session_worker`
-  plans when review independence is required
-- only `interactive_orchestrator` and `session_worker` are currently implemented
+- `code-reviewing` and `verifying-and-adapting` get fresh
+  `worktree_worker` plans when review independence is required
+- isolated review workers run in a git worktree that shares the root `.praxis/`
+  runtime directory through a symlink
+- `subagent_worker` stays out of the public runtime contract
 
 ## Launch Payloads And Handoffs
 
@@ -70,7 +74,7 @@ Fresh worker context may read only:
 
 Current shipped behavior:
 
-- it dispatches `session_worker` plans only
+- it dispatches `session_worker` and `worktree_worker` plans
 - it may attempt provider-native resume through
   `src/praxis/runtime/adapters/provider_resume.py`
 - successful resume writes a resume record, updates the durable session record,
@@ -78,12 +82,14 @@ Current shipped behavior:
   `worker_resumed`, and keeps the run in `await_stage_result`
 - unsafe or rejected resume records `resume_fallback_used` before Praxis writes
   fresh launch, worker, and session bookkeeping
+- fresh launch persists a bounded dispatch payload, starts a background worker
+  launcher, and records worker-process lifecycle telemetry
+- worker records include the actual launch surface that started the worker
 
 Current boundary:
 
-- fresh relaunch bookkeeping is implemented
-- the control plane does not yet start a brand-new external Claude or Codex
-  worker process on its own
+- provider-native resume still applies to `session_worker` launches only
+- `subagent_worker` remains design-only
 
 ## Story Boundary
 
@@ -108,8 +114,8 @@ Praxis currently supports:
 - atomic state transactions for runtime files
 - recovery from partially written transactions on the next command
 - event-log based run inspection
-- `praxis status` trace summaries for recent boundary, launch, resume, stop,
-  and recovery signals
+- `praxis status` trace summaries for recent boundary, launch, worker-process,
+  resume, stop, and recovery signals
 
 Primary shared sources:
 

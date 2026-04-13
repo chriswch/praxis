@@ -40,6 +40,11 @@ def build_parser() -> PraxisArgumentParser:
     _add_global_options(parser, suppress_defaults=False)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    init_parser = subparsers.add_parser("init")
+    _add_global_options(init_parser, suppress_defaults=True)
+    init_parser.add_argument("--adapter", choices=["claude", "codex", "all"], default="all")
+    init_parser.add_argument("--force", action="store_true")
+
     run_parser = subparsers.add_parser("run")
     _add_global_options(run_parser, suppress_defaults=True)
     _add_timestamp_option(run_parser)
@@ -56,9 +61,18 @@ def build_parser() -> PraxisArgumentParser:
     _add_global_options(continue_parser, suppress_defaults=True)
     _add_timestamp_option(continue_parser)
 
+    approve_parser = subparsers.add_parser("approve")
+    _add_global_options(approve_parser, suppress_defaults=True)
+    _add_timestamp_option(approve_parser)
+
     resume_parser = subparsers.add_parser("resume")
     _add_global_options(resume_parser, suppress_defaults=True)
     _add_timestamp_option(resume_parser)
+
+    cancel_parser = subparsers.add_parser("cancel")
+    _add_global_options(cancel_parser, suppress_defaults=True)
+    _add_timestamp_option(cancel_parser)
+    cancel_parser.add_argument("--reason")
 
     dispatch_parser = subparsers.add_parser("dispatch")
     _add_global_options(dispatch_parser, suppress_defaults=True)
@@ -87,6 +101,10 @@ def build_parser() -> PraxisArgumentParser:
     _add_global_options(show_adapter_parser, suppress_defaults=True)
     show_adapter_parser.add_argument("--adapter", choices=["claude", "codex"], required=True)
 
+    doctor_parser = subparsers.add_parser("doctor")
+    _add_global_options(doctor_parser, suppress_defaults=True)
+    doctor_parser.add_argument("--adapter", choices=["auto", "claude", "codex", "all"], default="auto")
+
     return parser
 
 
@@ -101,13 +119,17 @@ def guess_command(argv: list[str]) -> str:
         if token == "harness" and index + 1 < len(argv) and argv[index + 1] == "show-adapter":
             return "harness show-adapter"
         if token in {
+            "init",
             "run",
             "status",
             "continue",
+            "approve",
             "resume",
+            "cancel",
             "dispatch",
             "submit-stage-result",
             "build-worker-launch",
+            "doctor",
         }:
             return token
     return "praxis"

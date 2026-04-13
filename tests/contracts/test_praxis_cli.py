@@ -61,12 +61,12 @@ class PraxisCliContractTest(unittest.TestCase):
                     "project_config_path": ".codex/config.toml",
                     "hooks_path": ".codex/hooks.json",
                     "agents_path": ".codex/agents",
-                    "worker_launch_command": "praxis dispatch --json",
+                    "worker_launch_command": 'python3 -c "import sys; sys.exit(0)"',
                     "extension_points": {
-                        "mcp_config_path": ".codex-plugin/extensions.md",
+                        "mcp_config_path": ".codex/extensions.md",
                         "resources_path": None,
                         "tool_overrides_path": None,
-                        "notes_path": ".codex-plugin/extensions.md",
+                        "notes_path": ".codex/extensions.md",
                     },
                     "compatibility": {
                         "settings_path": ".codex-plugin/settings.md",
@@ -79,7 +79,7 @@ class PraxisCliContractTest(unittest.TestCase):
             self._write_text(".codex/config.toml", "[features]\ncli = true\n")
             self._write_text(".codex/hooks.json", "{}\n")
             self._ensure_path(".codex/agents")
-            self._write_text(".codex-plugin/extensions.md", "extensions\n")
+            self._write_text(".codex/extensions.md", "extensions\n")
             self._write_text(".codex-plugin/settings.md", "compat settings\n")
             self._ensure_path(".codex-plugin/hooks")
             self._ensure_path(".codex-plugin/subagents")
@@ -94,12 +94,12 @@ class PraxisCliContractTest(unittest.TestCase):
                 "project_config_path": ".claude/settings.json",
                 "hooks_path": ".claude/hooks",
                 "agents_path": ".claude/agents",
-                "worker_launch_command": "praxis dispatch --json",
+                "worker_launch_command": 'python3 -c "import sys; sys.exit(0)"',
                 "extension_points": {
-                    "mcp_config_path": ".claude-plugin/extensions.md",
+                    "mcp_config_path": ".claude/extensions.md",
                     "resources_path": None,
                     "tool_overrides_path": None,
-                    "notes_path": ".claude-plugin/extensions.md",
+                    "notes_path": ".claude/extensions.md",
                 },
                 "compatibility": {
                     "settings_path": ".claude-plugin/settings.md",
@@ -112,7 +112,7 @@ class PraxisCliContractTest(unittest.TestCase):
         self._write_text(".claude/settings.json", "{}\n")
         self._ensure_path(".claude/hooks")
         self._ensure_path(".claude/agents")
-        self._write_text(".claude-plugin/extensions.md", "extensions\n")
+        self._write_text(".claude/extensions.md", "extensions\n")
         self._write_text(".claude-plugin/settings.md", "compat settings\n")
         self._ensure_path(".claude-plugin/hooks")
         self._ensure_path(".claude-plugin/subagents")
@@ -151,6 +151,28 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(run["current"]["stage"], "clarifying-intent")
         self.assertEqual(run["routing"]["next_action"], "run_stage")
         self.assertEqual(run["dispatch"]["stage"], "clarifying-intent")
+
+    def test_init_bootstraps_native_codex_surfaces(self) -> None:
+        completed = self._run_cli(
+            "init",
+            "--repo-root",
+            str(self.repo_root),
+            "--adapter",
+            "codex",
+            "--json",
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["command"], "init")
+        self.assertEqual(result["data"]["adapters"], ["codex"])
+        self.assertIn(".codex/adapter.json", result["data"]["created"])
+        self.assertIn(".codex/extensions.md", result["data"]["created"])
+
+        payload = load_json(self.repo_root / ".codex" / "adapter.json")
+        self.assertEqual(payload["extension_points"]["mcp_config_path"], ".codex/extensions.md")
+        self.assertNotIn("compatibility", payload)
 
     def test_run_restarts_cleanly_after_a_completed_run(self) -> None:
         initialize_run(
@@ -249,6 +271,38 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(result["error"]["code"], "blocked")
         self.assertEqual(result["error"]["details"]["next_action"], "run_stage")
 
+    def test_approve_aliases_confirmation_flow(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Approve the next stage",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:33:00Z",
+        )
+        run = load_json(self.repo_root / ".praxis" / "run.json")
+        run["status"] = "waiting_for_user"
+        run["current"]["stage"] = "rapid-implementing"
+        run["routing"]["next_action"] = "confirm_then_run"
+        run["routing"]["next_stage"] = "rapid-implementing"
+        self._write_json(".praxis/run.json", run)
+
+        completed = self._run_cli(
+            "approve",
+            "--repo-root",
+            str(self.repo_root),
+            "--timestamp",
+            "2026-04-12T04:34:00Z",
+            "--json",
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"]["transition_action"], "run_stage")
+        self.assertEqual(result["data"]["run"]["routing"]["next_action"], "run_stage")
+
     def test_dispatch_returns_launch_worker_envelope_and_updates_run_snapshot(self) -> None:
         self._write_adapter_harness("codex")
         initialize_run(
@@ -300,7 +354,7 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(launch["adapter"], "claude")
         self.assertEqual(launch["dispatch"]["stage"], "clarifying-intent")
         self.assertEqual(launch["harness"]["config_path"], ".claude/adapter.json")
-        self.assertEqual(launch["harness"]["worker_launch_command"], "praxis dispatch --json")
+        self.assertEqual(launch["harness"]["worker_launch_command"], 'python3 -c "import sys; sys.exit(0)"')
 
     def test_harness_show_adapter_returns_native_harness_shape(self) -> None:
         self._write_adapter_harness("codex")
@@ -320,7 +374,7 @@ class PraxisCliContractTest(unittest.TestCase):
         harness = result["data"]["harness"]
         self.assertEqual(harness["config_path"], ".codex/adapter.json")
         self.assertEqual(harness["adapter"], "codex")
-        self.assertEqual(harness["worker_launch_command"], "praxis dispatch --json")
+        self.assertEqual(harness["worker_launch_command"], 'python3 -c "import sys; sys.exit(0)"')
 
     def test_submit_stage_result_reports_stage_result_mismatch(self) -> None:
         initialize_run(
@@ -371,6 +425,61 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["command"], "submit-stage-result")
         self.assertEqual(result["error"]["code"], "stage_result_mismatch")
+
+    def test_cancel_marks_the_run_cancelled(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Cancel the current run",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:40:00Z",
+        )
+
+        completed = self._run_cli(
+            "cancel",
+            "--repo-root",
+            str(self.repo_root),
+            "--timestamp",
+            "2026-04-12T04:41:00Z",
+            "--json",
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"]["transition_action"], "finish")
+        self.assertEqual(result["data"]["run"]["run_status"], "cancelled")
+        self.assertEqual(result["data"]["run"]["routing"]["next_action"], "finish")
+        self.assertEqual(result["data"]["run"]["trace"]["last_stop_event"]["type"], "run_cancelled")
+
+    def test_doctor_reports_harness_and_launch_health(self) -> None:
+        self._write_adapter_harness("codex")
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Inspect doctor health",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:42:00Z",
+        )
+
+        completed = self._run_cli(
+            "doctor",
+            "--repo-root",
+            str(self.repo_root),
+            "--json",
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["data"]["healthy"])
+        check_names = {check["name"] for check in result["data"]["checks"]}
+        self.assertIn("codex_harness", check_names)
+        self.assertIn("codex_launch_payload", check_names)
 
 
 if __name__ == "__main__":

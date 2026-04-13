@@ -30,7 +30,6 @@ _REUSE_STORY_WORKER_STAGES = {
     "sketching-design",
     "driving-tdd",
     "rapid-implementing",
-    "code-improving",
 }
 
 _FRESH_REVIEW_STAGES = {
@@ -139,6 +138,8 @@ def _worker_reason(
         return "Use a fresh reviewer worker so review does not inherit the implementer context."
     if stage == "verifying-and-adapting" and review_independence:
         return "Use an independent verifier worker to compare implementation reality against the spec."
+    if worker_class == "worktree_worker":
+        return f"Use an isolated {worker_class} for {stage} so the worker cannot mutate the product worktree in place."
     if reuse_policy == "reuse_story_worker":
         return f"Reuse the current story worker for {stage} to preserve dense local context."
     if worker_class == "interactive_orchestrator":
@@ -182,7 +183,8 @@ def build_worker_plan(run: dict[str, Any], *, stage: str | None = None) -> dict[
         reuse_policy = "reuse_story_worker"
         fresh_context = False
     elif review_independence:
-        worker_class = "session_worker"
+        worker_class = "worktree_worker"
+        worktree_mode = "isolated"
         reuse_policy = "none"
         fresh_context = True
 

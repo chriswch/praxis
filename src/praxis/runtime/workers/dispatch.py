@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
 import re
+import shlex
+import subprocess
 from pathlib import Path
 from typing import Any
 
-from ..state.durable_state import load_json, recover_pending_transaction
+from ..state.durable_state import dump_json, load_json, recover_pending_transaction
 from ..adapters.harness import build_worker_launch_payload, inspect_worker_launch_context
 from ..adapters.native_launch import (
     derive_native_launch_failure_code,
@@ -13,6 +16,7 @@ from ..adapters.native_launch import (
 )
 from ..adapters.provider_resume import attempt_provider_resume
 from .planning import ensure_run_vnext_defaults
+from .worktree import ensure_isolated_worktree
 
 
 def _slug(value: str, *, fallback: str) -> str:
@@ -24,6 +28,51 @@ def _synthetic_session_id(*, adapter: str, worker_id: str, timestamp: str) -> st
     compact_ts = re.sub(r"[^0-9A-Za-z]+", "", timestamp)
     worker_slug = _slug(worker_id, fallback="worker")
     return f"{adapter}-session-{compact_ts}-{worker_slug}"
+
+
+def _launch_payload_relpath(worker_id: str) -> str:
+    return f".praxis/runtime/dispatches/{_slug(worker_id, fallback='worker')}.json"
+
+
+def _persist_launch_payload(*, repo_root: Path, payload: dict[str, Any]) -> str:
+    relpath = _launch_payload_relpath(payload["worker"]["worker_id"])
+    path = repo_root / relpath
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(dump_json(payload))
+    return relpath
+
+
+def _launch_surface(adapter: str) -> str:
+    if adapter == "codex":
+        return "codex_exec"
+    if adapter == "claude":
+        return "claude_print"
+    return "native_launcher"
+
+
+def _launch_worker_process(
+    *,
+    repo_root: Path,
+    command: str,
+    worktree_path: Path,
+    payload_relpath: str,
+) -> int:
+    env = os.environ.copy()
+    env["PRAXIS_WORKER_PAYLOAD_PATH"] = payload_relpath
+    process = subprocess.Popen(
+        shlex.split(command),
+        cwd=worktree_path,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        start_new_session=True,
+    )
+    # The launcher becomes an independent background process; suppress subprocess
+    # finalizer warnings in the short-lived dispatch command.
+    process._child_created = False  # type: ignore[attr-defined]
+    return int(process.pid)
 
 
 def _resume_fallback_event(
@@ -81,9 +130,9 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
     launch_context = inspect_worker_launch_context(repo_root=repo_root)
     payload = build_worker_launch_payload(repo_root=repo_root)
     worker = payload["worker"]
-    if worker["worker_class"] != "session_worker":
+    if worker["worker_class"] not in {"session_worker", "worktree_worker"}:
         raise ValueError(
-            "Praxis only dispatches bounded background workers for 'session_worker' plans. "
+            "Praxis only dispatches bounded background workers for 'session_worker' or 'worktree_worker' plans. "
             f"Got worker_class={worker['worker_class']!r}."
         )
 
@@ -91,6 +140,7 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
     extra_events: list[dict[str, Any]] = []
     transition_action = "launch_worker"
     launch_source = "control_plane_launch"
+    worktree_path = repo_root
     if (
         resume.get("strategy") == "prefer_resume_then_relaunch"
         and resume.get("session_id")
@@ -122,6 +172,12 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
         transition_action = "resume_fallback_relaunch"
         launch_source = "control_plane_resume_fallback"
 
+    if worker["worktree_mode"] == "isolated":
+        worktree_path = ensure_isolated_worktree(repo_root=repo_root, worker_id=worker["worker_id"])
+
+    payload_relpath = _persist_launch_payload(repo_root=repo_root, payload=payload)
+    launch_surface = _launch_surface(payload["adapter"])
+
     hook_request = {
         "session_id": session_id
         or _synthetic_session_id(
@@ -130,10 +186,17 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
             timestamp=timestamp,
         ),
         "source": launch_source,
-        "cwd": str(repo_root),
+        "cwd": str(worktree_path),
+        "launch_surface": launch_surface,
     }
 
     try:
+        _launch_worker_process(
+            repo_root=repo_root,
+            command=payload["harness"]["worker_launch_command"],
+            worktree_path=worktree_path,
+            payload_relpath=payload_relpath,
+        )
         write_native_launch_record(
             repo_root=repo_root,
             payload=payload,

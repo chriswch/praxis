@@ -6,19 +6,38 @@ from pathlib import Path
 from praxis.cli.envelopes import emit_error, emit_success
 from praxis.cli.exit_codes import OUTPUT_VERSION, CliContractError
 from praxis.cli.parser import CliArgumentError, build_parser, command_name, guess_command
-from praxis.commands import build_worker_launch, continue_run, dispatch, harness, resume, run, status, submit_stage_result
+from praxis.commands import (
+    approve,
+    build_worker_launch,
+    cancel,
+    continue_run,
+    dispatch,
+    doctor,
+    harness,
+    init,
+    resume,
+    run,
+    status,
+    submit_stage_result,
+)
 from praxis.commands._support import classify_unexpected_exception, command_timestamp, ensure_output_version, resolve_repo_root, utc_now
 
 
 def execute_command(args, repo_root: Path, timestamp: str):
+    if args.command == "init":
+        return init.handle(args, repo_root, timestamp)
     if args.command == "run":
         return run.handle(args, repo_root, timestamp)
     if args.command == "status":
         return status.handle(args, repo_root, timestamp)
     if args.command == "continue":
         return continue_run.handle(args, repo_root, timestamp)
+    if args.command == "approve":
+        return approve.handle(args, repo_root, timestamp)
     if args.command == "resume":
         return resume.handle(args, repo_root, timestamp)
+    if args.command == "cancel":
+        return cancel.handle(args, repo_root, timestamp)
     if args.command == "dispatch":
         return dispatch.handle(args, repo_root, timestamp)
     if args.command == "submit-stage-result":
@@ -27,6 +46,8 @@ def execute_command(args, repo_root: Path, timestamp: str):
         return build_worker_launch.handle(args, repo_root, timestamp)
     if args.command == "harness":
         return harness.handle(args, repo_root, timestamp)
+    if args.command == "doctor":
+        return doctor.handle(args, repo_root, timestamp)
     raise CliContractError(
         code="invalid_argument",
         message=f"Unsupported Praxis command: {command_name(args)}.",

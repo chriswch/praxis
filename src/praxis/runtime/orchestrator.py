@@ -33,6 +33,7 @@ from .workers.planning import (
     ensure_stage_result_vnext_defaults,
     sync_worker_cursor,
 )
+from .workers.worktree import cleanup_isolated_worktree
 
 _TERMINAL_RUN_STATUSES = {"completed", "cancelled", "failed"}
 
@@ -425,6 +426,7 @@ def advance_run(
             cancel_requested=cancel_requested,
             timestamp=timestamp,
         )
+        _cleanup_completed_worktree(repo_root=repo_root, stage_result=stage_result)
         return "checkpoint_story_boundary"
 
     if (
@@ -436,13 +438,27 @@ def advance_run(
             timestamp=timestamp,
         )
     ):
+        _cleanup_completed_worktree(repo_root=repo_root, stage_result=stage_result)
         return "ask_user"
 
-    return update_run_from_stage_result(
+    action = update_run_from_stage_result(
         repo_root=repo_root,
         stage_result_path=stage_result_path,
         timestamp=timestamp,
     )
+    _cleanup_completed_worktree(repo_root=repo_root, stage_result=stage_result)
+    return action
+
+
+def _cleanup_completed_worktree(*, repo_root: Path, stage_result: dict[str, Any]) -> None:
+    worker = stage_result.get("worker") or {}
+    execution = stage_result.get("execution") or {}
+    if worker.get("worker_class") != "worktree_worker" and execution.get("worktree_mode") != "isolated":
+        return
+    worker_id = worker.get("worker_id")
+    if not isinstance(worker_id, str) or not worker_id:
+        return
+    cleanup_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
 
 
 def continue_pause_after_queue_init(*, repo_root: Path, timestamp: str) -> None:

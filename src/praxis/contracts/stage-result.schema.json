@@ -117,7 +117,7 @@
         },
         "worker_class": {
           "type": "string",
-          "enum": ["interactive_orchestrator", "session_worker"]
+          "enum": ["interactive_orchestrator", "session_worker", "worktree_worker"]
         }
       }
     },

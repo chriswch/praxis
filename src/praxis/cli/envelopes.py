@@ -72,7 +72,7 @@ def emit_error(
 
 
 def render_human_success(*, command: str, data: dict[str, Any]) -> str:
-    if command in {"run", "status", "continue", "resume", "dispatch", "submit-stage-result"}:
+    if command in {"run", "status", "continue", "approve", "resume", "dispatch", "submit-stage-result", "cancel"}:
         run = data["run"]
         transition = data.get("transition_action")
         prefix = f"Praxis {command}"
@@ -84,6 +84,13 @@ def render_human_success(*, command: str, data: dict[str, Any]) -> str:
             f"status: {run['run_status']}\n"
             f"stage: {run['current']['stage']}\n"
             f"next: {run['routing']['next_action']}\n"
+        )
+    if command == "init":
+        return (
+            "Praxis init\n"
+            f"created: {len(data['created'])}\n"
+            f"updated: {len(data['updated'])}\n"
+            f"skipped: {len(data['skipped'])}\n"
         )
     if command == "build-worker-launch":
         launch = data["launch"]
@@ -101,5 +108,11 @@ def render_human_success(*, command: str, data: dict[str, Any]) -> str:
             f"adapter: {harness['adapter']}\n"
             f"config: {harness['config_path']}\n"
             f"worker launch: {harness['worker_launch_command']}\n"
+        )
+    if command == "doctor":
+        return (
+            "Praxis doctor\n"
+            f"healthy: {'yes' if data['healthy'] else 'no'}\n"
+            f"checks: {len(data['checks'])}\n"
         )
     return f"Praxis {command} succeeded.\n"

@@ -39,7 +39,7 @@ class WorkerRuntimeContractTest(unittest.TestCase):
         self.assertEqual(plan["worktree_mode"], "shared")
         self.assertIsNone(plan["resume_strategy"])
 
-    def test_story_and_review_stages_use_session_worker(self) -> None:
+    def test_story_stages_use_session_worker_and_review_uses_worktree_worker(self) -> None:
         run = {
             "version": 4,
             "workflow": "forge",
@@ -78,9 +78,10 @@ class WorkerRuntimeContractTest(unittest.TestCase):
 
         review_plan = build_worker_plan(run, stage="code-reviewing")
         self.assertIsNotNone(review_plan)
-        self.assertEqual(review_plan["worker_class"], "session_worker")
+        self.assertEqual(review_plan["worker_class"], "worktree_worker")
         self.assertTrue(review_plan["review_independence"])
         self.assertEqual(review_plan["reuse_policy"], "none")
+        self.assertEqual(review_plan["worktree_mode"], "isolated")
 
     def test_vnext_defaults_do_not_restore_removed_worktree_policy(self) -> None:
         run = {

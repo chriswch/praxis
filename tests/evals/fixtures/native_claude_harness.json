@@ -11,12 +11,12 @@
       "project_config_path": ".claude/settings.json",
       "hooks_path": ".claude/hooks",
       "agents_path": ".claude/agents",
-      "worker_launch_command": "praxis dispatch --json",
+      "worker_launch_command": "python3 -m praxis.runtime.workers.launcher --repo-root .",
       "extension_points": {
-        "mcp_config_path": ".claude-plugin/extensions.md",
+        "mcp_config_path": ".claude/extensions.md",
         "resources_path": null,
         "tool_overrides_path": null,
-        "notes_path": ".claude-plugin/extensions.md"
+        "notes_path": ".claude/extensions.md"
       },
       "compatibility": {
         "settings_path": ".claude-plugin/settings.md",

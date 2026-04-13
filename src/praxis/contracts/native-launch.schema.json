@@ -168,7 +168,11 @@
         },
         "worker_class": {
           "type": "string",
-          "enum": ["interactive_orchestrator", "session_worker"]
+          "enum": ["interactive_orchestrator", "session_worker", "worktree_worker"]
+        },
+        "launch_surface": {
+          "type": "string",
+          "minLength": 1
         },
         "permission_profile": {
           "type": "string",
@@ -302,7 +306,7 @@
             "required": ["id", "source", "cwd", "resumable"]
           },
           "worker": {
-            "required": ["worker_id", "worker_class", "permission_profile", "worktree_mode", "worktree_path"]
+            "required": ["worker_id", "worker_class", "launch_surface", "permission_profile", "worktree_mode", "worktree_path"]
           },
           "resume": {
             "required": ["attempted", "outcome", "strategy", "previous_session_id"]

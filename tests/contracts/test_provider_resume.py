@@ -36,7 +36,7 @@ class ProviderResumeContractTest(unittest.TestCase):
         self._write_text(".claude-plugin/settings.md", "compat settings\n")
         (self.repo_root / ".claude-plugin" / "hooks").mkdir(parents=True, exist_ok=True)
         (self.repo_root / ".claude-plugin" / "subagents").mkdir(parents=True, exist_ok=True)
-        self._write_text(".claude-plugin/extensions.md", "extensions\n")
+        self._write_text(".claude/extensions.md", "extensions\n")
         self._write_json(
             ".claude/adapter.json",
             {
@@ -46,12 +46,12 @@ class ProviderResumeContractTest(unittest.TestCase):
                 "project_config_path": ".claude/settings.json",
                 "hooks_path": ".claude/hooks",
                 "agents_path": ".claude/agents",
-                "worker_launch_command": "praxis dispatch --json",
+                "worker_launch_command": 'python3 -c "import sys; sys.exit(0)"',
                 "extension_points": {
-                    "mcp_config_path": ".claude-plugin/extensions.md",
+                    "mcp_config_path": ".claude/extensions.md",
                     "resources_path": None,
                     "tool_overrides_path": None,
-                    "notes_path": ".claude-plugin/extensions.md",
+                    "notes_path": ".claude/extensions.md",
                 },
                 "compatibility": {
                     "settings_path": ".claude-plugin/settings.md",

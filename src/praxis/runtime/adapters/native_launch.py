@@ -99,6 +99,7 @@ def build_native_launch_record(
         "worker": {
             "worker_id": worker["worker_id"],
             "worker_class": worker["worker_class"],
+            "launch_surface": str(hook_request.get("launch_surface") or "native_launcher"),
             "permission_profile": payload["permissions"]["profile"],
             "worktree_mode": worker["worktree_mode"],
             "worktree_path": str(hook_request.get("cwd")) if hook_request.get("cwd") else None,
@@ -137,6 +138,7 @@ def build_worker_record(*, run: dict[str, Any], payload: dict[str, Any], record:
         "run_id": run["run_id"],
         "adapter": payload["adapter"],
         "worker_class": payload["worker"]["worker_class"],
+        "launch_surface": record["worker"]["launch_surface"],
         "launch_reason": payload["worker"]["reason"],
         "permission_profile": payload["permissions"]["profile"],
         "worktree_mode": payload["worker"]["worktree_mode"],

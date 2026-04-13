@@ -34,6 +34,10 @@
         "worker_resumed",
         "native_launch_recorded",
         "native_launch_failed",
+        "worker_process_started",
+        "worker_process_failed",
+        "worker_process_completed",
+        "run_cancelled",
         "handoff_validated",
         "run_resumed"
       ]

@@ -16,7 +16,7 @@ Current harness fields include:
 - `agents_path`
 - `worker_launch_command`
 - `extension_points`
-- `compatibility`
+- optional `compatibility`
 
 `praxis harness show-adapter` and `praxis build-worker-launch` read this config.
 
@@ -26,6 +26,7 @@ Current Claude surfaces:
 
 - `CLAUDE.md`
 - `.claude/adapter.json`
+- `.claude/extensions.md`
 - `.claude/settings.json`
 - `.claude/hooks/session_start.py`
 - `.claude/agents/`
@@ -46,6 +47,7 @@ Current Codex surfaces:
 
 - `AGENTS.md`
 - `.codex/adapter.json`
+- `.codex/extensions.md`
 - `.codex/config.toml`
 - `.codex/hooks.json`
 - `.codex/hooks/session_start.py`
@@ -67,6 +69,8 @@ Praxis currently shares these adapter behaviors across Claude and Codex:
 
 - repo-scoped harness config loaded by `src/praxis/runtime/adapters/harness.py`
 - worker-launch payload generation through `praxis build-worker-launch`
+- fresh background worker launch through
+  `python3 -m praxis.runtime.workers.launcher --repo-root .`
 - session-start launch bookkeeping written by `src/praxis/runtime/adapters/native_launch.py`
 - provider-native resume bookkeeping written by `src/praxis/runtime/adapters/native_resume.py`
 - manual resume safety checks implemented in `src/praxis/runtime/adapters/provider_resume.py`
@@ -77,9 +81,8 @@ Praxis currently shares these adapter behaviors across Claude and Codex:
 
 Current adapter limits and dependencies:
 
-- fresh background worker process creation is not yet fully automated by the
-  control plane
-- current harness configs still reference `.claude-plugin/` and
-  `.codex-plugin/` compatibility surfaces
-- those compatibility paths remain a runtime dependency while they are declared
-  in adapter config
+- `.claude-plugin/` and `.codex-plugin/` remain compatibility mirrors, not
+  authoritative runtime surfaces
+- native harness loads do not require compatibility mirrors unless an adapter
+  config declares them explicitly
+- the public adapter contract still omits `subagent_worker`
