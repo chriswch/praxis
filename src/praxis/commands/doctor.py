@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from praxis.commands._support import build_run_snapshot
+from praxis.commands._support import build_run_snapshot, sync_cursor_if_needed
 from praxis.runtime.adapters.harness import build_worker_launch_payload, load_adapter_harness
 from praxis.runtime.context.bundle import load_dispatch_bundle_status
 from praxis.runtime.adapters.provider_resume import _provider_capability
@@ -280,6 +280,7 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
         try:
             run = load_json(run_path)
             ensure_run_vnext_defaults(run)
+            sync_cursor_if_needed(run)
             validate_state_payloads(run=run)
             run_snapshot = build_run_snapshot(repo_root)
             checks.append(

@@ -147,6 +147,40 @@ def _worker_reason(
     return f"Use a fresh {worker_class} for {stage}."
 
 
+def build_worker_isolation(
+    *,
+    worker_id: str,
+    stage: str | None,
+    review_independence: bool,
+    worktree_mode: str,
+    worktree_path: str,
+) -> dict[str, Any]:
+    if review_independence and stage == "code-reviewing":
+        reason_code = "independent_review_isolation"
+        reason = "Review runs in an isolated worktree so the reviewer cannot silently mutate the product worktree."
+    elif review_independence and stage == "verifying-and-adapting":
+        reason_code = "independent_verification_isolation"
+        reason = "Verification runs in an isolated worktree so the verifier cannot silently mutate the product worktree."
+    elif worktree_mode == "isolated":
+        reason_code = "isolated_worktree_owned"
+        reason = "This worker owns an isolated git worktree and does not mutate the product worktree directly."
+    else:
+        reason_code = "shared_story_workspace"
+        reason = "This worker runs in the shared product worktree for the active story."
+
+    return {
+        "worker_id": worker_id,
+        "mode": worktree_mode,
+        "worktree_path": worktree_path,
+        "product_worktree_path": ".",
+        "review_independence_required": review_independence,
+        "product_worktree_mutation_allowed": worktree_mode != "isolated",
+        "runtime_state_channel": "praxis_symlink" if worktree_mode == "isolated" else "direct_repo",
+        "guardrail_reason_code": reason_code,
+        "guardrail_reason": reason,
+    }
+
+
 def stage_permission_profile(stage: str | None) -> str:
     return _STAGE_PERMISSION_PROFILE.get(stage or "", "implementation")
 

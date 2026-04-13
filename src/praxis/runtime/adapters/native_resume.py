@@ -21,7 +21,7 @@ from ..observability.trace_events import (
     build_trace_event,
     render_trace_text,
 )
-from ..workers.planning import ensure_run_vnext_defaults, mark_worker_resumed
+from ..workers.planning import build_worker_isolation, ensure_run_vnext_defaults, mark_worker_resumed
 
 
 _PROVIDER_RESUME_PROFILES = {
@@ -388,6 +388,13 @@ def _updated_worker_record(
             "context_manifest_path": payload["bundle"]["context_manifest_path"],
             "trace_path": provider_metadata.get("trace_path", payload["resume"]["trace_path"]),
             "launcher_pid": None,
+            "isolation": build_worker_isolation(
+                worker_id=payload["worker"]["worker_id"],
+                stage=payload["dispatch"]["stage"],
+                review_independence=payload["worker"]["review_independence"],
+                worktree_mode=payload["worker"]["worktree_mode"],
+                worktree_path=session_record["cwd"],
+            ),
             "status": "running",
         }
     worker_record["session_id"] = session_record["session_id"]
@@ -395,6 +402,13 @@ def _updated_worker_record(
     worker_record["worker_launch_path"] = payload["bundle"]["worker_launch_path"]
     worker_record["dispatch_record_path"] = payload["bundle"]["dispatch_record_path"]
     worker_record["context_manifest_path"] = payload["bundle"]["context_manifest_path"]
+    worker_record["isolation"] = build_worker_isolation(
+        worker_id=payload["worker"]["worker_id"],
+        stage=payload["dispatch"]["stage"],
+        review_independence=payload["worker"]["review_independence"],
+        worktree_mode=payload["worker"]["worktree_mode"],
+        worktree_path=worker_record.get("worktree_path") or session_record["cwd"],
+    )
     worker_record["status"] = "running"
     validate_contract_payload("worker-record.schema.json", worker_record)
     return rel, worker_record

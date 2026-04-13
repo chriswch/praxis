@@ -583,6 +583,8 @@ class PraxisCliContractTest(unittest.TestCase):
 
         worker_record = load_json(self.repo_root / ".praxis" / "runtime" / "workers" / "wrk_root_review_01.json")
         self.assertEqual(worker_record["status"], "cancelled")
+        self.assertFalse(worker_record["isolation"]["product_worktree_mutation_allowed"])
+        self.assertEqual(worker_record["isolation"]["guardrail_reason_code"], "independent_review_isolation")
         self.assertFalse((self.repo_root / ".praxis" / "runtime" / "worktrees" / "wrk_root_review_01").exists())
 
         events = [
@@ -713,6 +715,47 @@ class PraxisCliContractTest(unittest.TestCase):
             checks["codex_worker_launch_command"]["reason_code"],
             "worker_launch_command_missing",
         )
+
+    def test_status_and_doctor_surface_review_isolation_guardrails(self) -> None:
+        self._init_git_repo()
+        self._write_adapter_harness("codex")
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Inspect review isolation",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:45:00Z",
+        )
+
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = load_json(run_path)
+        run["current"]["stage"] = "code-reviewing"
+        run["routing"]["next_action"] = "run_stage"
+        run["routing"]["next_stage"] = "code-reviewing"
+        self._write_json(".praxis/run.json", run)
+
+        build_completed = self._run_cli("build-worker-launch", "--repo-root", str(self.repo_root), "--json")
+        self.assertEqual(build_completed.returncode, 0, build_completed.stderr)
+
+        status_completed = self._run_cli("status", "--repo-root", str(self.repo_root), "--json")
+        self.assertEqual(status_completed.returncode, 0, status_completed.stderr)
+        status_result = json.loads(status_completed.stdout)
+        dispatch_bundle = status_result["data"]["run"]["dispatch_bundle"]
+        self.assertEqual(dispatch_bundle["isolation_mode"], "isolated")
+        self.assertFalse(dispatch_bundle["product_worktree_mutation_allowed"])
+        self.assertTrue(dispatch_bundle["review_independence_required"])
+        self.assertEqual(dispatch_bundle["runtime_state_channel"], "praxis_symlink")
+
+        doctor_completed = self._run_cli("doctor", "--repo-root", str(self.repo_root), "--json")
+        self.assertEqual(doctor_completed.returncode, 0, doctor_completed.stderr)
+        doctor_result = json.loads(doctor_completed.stdout)
+        checks = {check["name"]: check for check in doctor_result["data"]["checks"]}
+        active_dispatch_bundle = checks["active_dispatch_bundle"]
+        self.assertEqual(active_dispatch_bundle["status"], "ok")
+        self.assertEqual(active_dispatch_bundle["details"]["isolation_mode"], "isolated")
+        self.assertFalse(active_dispatch_bundle["details"]["product_worktree_mutation_allowed"])
 
 
 if __name__ == "__main__":

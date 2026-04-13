@@ -10,6 +10,7 @@ from ..policy_records import build_dispatch_policy_records
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import commit_transaction, dump_json, load_json, validate_handoff_file
 from ..workers.planning import (
+    build_worker_isolation,
     build_worker_plan,
     ensure_run_vnext_defaults,
     stage_expected_outputs,
@@ -421,6 +422,13 @@ def _build_compiled_payload(
             "context_manifest_path": bundle["context_manifest_path"],
             "tool_manifest_path": bundle["tool_manifest_path"],
         },
+        "isolation": build_worker_isolation(
+            worker_id=payload["worker"]["worker_id"],
+            stage=dispatch["stage"],
+            review_independence=payload["worker"]["review_independence"],
+            worktree_mode=payload["worker"]["worktree_mode"],
+            worktree_path=payload["worker"]["worktree_path"],
+        ),
         "artifact_inputs": payload["artifact_inputs"],
         "artifact_outputs_expected": payload["artifact_outputs_expected"],
         "resolution": {
@@ -497,6 +505,15 @@ def _build_dispatch_intent_record(
             "context_manifest_path": bundle["context_manifest_path"],
             "tool_manifest_path": bundle["tool_manifest_path"],
         },
+        "isolation": build_worker_isolation(
+            worker_id=run["current"]["worker_id"],
+            stage=dispatch["stage"],
+            review_independence=worker_plan["review_independence"],
+            worktree_mode=worker_plan["worktree_mode"],
+            worktree_path="."
+            if worker_plan["worktree_mode"] == "shared"
+            else f".praxis/runtime/worktrees/{run['current']['worker_id']}",
+        ),
         "artifact_inputs": stage_input_artifacts(run=run, stage=stage, artifact_dir=artifact_dir),
         "artifact_outputs_expected": stage_expected_outputs(run=run, stage=stage, artifact_dir=artifact_dir),
         "resolution": {

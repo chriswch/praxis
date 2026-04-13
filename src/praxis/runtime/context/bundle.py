@@ -112,6 +112,16 @@ def load_dispatch_bundle_status(
         status["native_resume_record_path"] = record["resolution"]["native_resume_record_path"]
         status["worker_record_path"] = record["resolution"]["worker_record_path"]
         status["session_record_path"] = record["resolution"]["session_record_path"]
+        if "isolation" in record:
+            isolation = record["isolation"]
+            status["isolation_mode"] = isolation["mode"]
+            status["isolation_worktree_path"] = isolation["worktree_path"]
+            status["product_worktree_path"] = isolation["product_worktree_path"]
+            status["review_independence_required"] = isolation["review_independence_required"]
+            status["product_worktree_mutation_allowed"] = isolation["product_worktree_mutation_allowed"]
+            status["runtime_state_channel"] = isolation["runtime_state_channel"]
+            status["isolation_reason_code"] = isolation["guardrail_reason_code"]
+            status["isolation_reason"] = isolation["guardrail_reason"]
 
     if context_manifest_path.exists():
         manifest = load_json(context_manifest_path)

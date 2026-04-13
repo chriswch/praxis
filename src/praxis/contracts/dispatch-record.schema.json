@@ -88,6 +88,32 @@
         "tool_manifest_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/tool-manifest\\.json$"}
       }
     },
+    "isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "worker_id",
+        "mode",
+        "worktree_path",
+        "product_worktree_path",
+        "review_independence_required",
+        "product_worktree_mutation_allowed",
+        "runtime_state_channel",
+        "guardrail_reason_code",
+        "guardrail_reason"
+      ],
+      "properties": {
+        "worker_id": {"type": "string", "minLength": 1},
+        "mode": {"type": "string", "enum": ["shared", "isolated"]},
+        "worktree_path": {"type": "string", "minLength": 1},
+        "product_worktree_path": {"type": "string", "minLength": 1},
+        "review_independence_required": {"type": "boolean"},
+        "product_worktree_mutation_allowed": {"type": "boolean"},
+        "runtime_state_channel": {"type": "string", "enum": ["direct_repo", "praxis_symlink"]},
+        "guardrail_reason_code": {"type": "string", "minLength": 1},
+        "guardrail_reason": {"type": "string", "minLength": 1}
+      }
+    },
     "artifact_inputs": {
       "type": "array",
       "items": {"type": "string", "pattern": "^\\.praxis(?:/.*)?$"},

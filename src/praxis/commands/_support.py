@@ -30,7 +30,7 @@ from praxis.runtime.state.durable_state import (
     validate_state_payloads,
 )
 from praxis.runtime.workers.dispatch import dispatch_worker
-from praxis.runtime.workers.planning import ensure_run_vnext_defaults, sync_worker_cursor
+from praxis.runtime.workers.planning import build_worker_plan, ensure_run_vnext_defaults, sync_worker_cursor
 
 
 def utc_now() -> str:
@@ -110,14 +110,23 @@ def sync_cursor_if_needed(run: dict[str, Any]) -> None:
     if current.get("stage") is None:
         return
 
-    needs_worker_identity = current.get("worker_id") is None
+    planned_worker = build_worker_plan(run)
+    planned_worker_id = None if planned_worker is None else planned_worker.get("worker_id")
+    planned_reuse_policy = None if planned_worker is None else planned_worker.get("reuse_policy")
+    planned_resume_strategy = None if planned_worker is None else planned_worker.get("resume_strategy")
+
+    needs_worker_identity = current.get("worker_id") is None or (
+        planned_worker_id is not None
+        and planned_reuse_policy != "reuse_story_worker"
+        and current.get("worker_id") != planned_worker_id
+    )
     needs_pending_action = (
         routing.get("next_action") == "run_stage"
         and routing.get("pending_worker_action") is None
     )
     needs_resume_strategy = (
         routing.get("next_action") == "run_stage"
-        and routing.get("resume_strategy") is None
+        and routing.get("resume_strategy") != planned_resume_strategy
     )
     if needs_worker_identity or needs_pending_action or needs_resume_strategy:
         sync_worker_cursor(run)

@@ -25,7 +25,7 @@ from .native_resume import (
     worker_record_relpath,
     worker_signature_from_payload,
 )
-from ..workers.planning import ensure_run_vnext_defaults, mark_worker_started
+from ..workers.planning import build_worker_isolation, ensure_run_vnext_defaults, mark_worker_started
 
 
 def utc_now() -> str:
@@ -198,6 +198,13 @@ def build_worker_record(*, run: dict[str, Any], payload: dict[str, Any], record:
         "context_manifest_path": payload["bundle"]["context_manifest_path"],
         "trace_path": record["harness"]["trace_path"],
         "launcher_pid": record["worker"].get("launcher_pid"),
+        "isolation": build_worker_isolation(
+            worker_id=worker_id,
+            stage=payload["dispatch"]["stage"],
+            review_independence=payload["worker"]["review_independence"],
+            worktree_mode=payload["worker"]["worktree_mode"],
+            worktree_path=record["worker"]["worktree_path"] or payload["worker"]["worktree_path"],
+        ),
         "status": "running",
     }
     validate_contract_payload("worker-record.schema.json", worker_record)
