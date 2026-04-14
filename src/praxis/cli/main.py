@@ -14,6 +14,7 @@ from praxis.commands import (
     dispatch,
     doctor,
     harness,
+    inspect,
     init,
     resume,
     run,
@@ -30,6 +31,8 @@ def execute_command(args, repo_root: Path, timestamp: str):
         return run.handle(args, repo_root, timestamp)
     if args.command == "status":
         return status.handle(args, repo_root, timestamp)
+    if args.command == "inspect":
+        return inspect.handle(args, repo_root, timestamp)
     if args.command == "continue":
         return continue_run.handle(args, repo_root, timestamp)
     if args.command == "approve":

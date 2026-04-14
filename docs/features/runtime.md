@@ -135,7 +135,7 @@ Primary shared source:
 
 - `src/praxis/runtime/story_boundary.py`
 
-## Status, Doctor, Recovery, And Trace
+## Status, Inspect, Doctor, Recovery, And Trace
 
 `praxis status --repo-root . --json` reconstructs the current runtime boundary
 from durable state.
@@ -149,6 +149,13 @@ Current status surface includes:
 - approval and policy summaries
 - `trace` summaries for recent boundary, launch, resume, stop, and recovery
   signals
+
+`praxis inspect` turns those durable artifacts into operator views:
+
+- `praxis inspect` and `praxis inspect run` for a detailed active-run snapshot
+- `praxis inspect worker` and `praxis inspect session` for linked record detail
+- `praxis inspect watch` for live progress without raw-log-first output
+- `praxis inspect logs`, `trace`, and `events` for focused stream inspection
 
 `praxis doctor` reports machine-readable health checks with stable `status`,
 `reason_code`, `message`, and `details` fields.
@@ -168,4 +175,5 @@ Primary shared sources:
 - `src/praxis/runtime/state/durable_state.py`
 - `src/praxis/runtime/observability/trace_summary.py`
 - `src/praxis/commands/_support.py`
+- `src/praxis/commands/inspect.py`
 - `src/praxis/commands/doctor.py`

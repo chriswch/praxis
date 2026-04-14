@@ -45,6 +45,7 @@ praxis run \
   --json
 
 praxis status --repo-root . --json
+praxis inspect --repo-root .
 praxis build-worker-launch --repo-root . --json
 praxis dispatch --repo-root . --json
 praxis submit-stage-result \

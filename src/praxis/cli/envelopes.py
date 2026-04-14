@@ -49,10 +49,21 @@ def error_envelope(
 
 
 def emit_success(*, json_mode: bool, command: str, timestamp: str, repo_root: Path, data: dict[str, Any]) -> None:
+    public_data = {key: value for key, value in data.items() if not key.startswith("__")}
+    human_output = data.get("__human_output__")
+    suppress_human_output = bool(data.get("__suppress_human_output__"))
     if json_mode:
-        print(dump_json(success_envelope(command=command, timestamp=timestamp, repo_root=repo_root, data=data)), end="")
+        print(
+            dump_json(success_envelope(command=command, timestamp=timestamp, repo_root=repo_root, data=public_data)),
+            end="",
+        )
         return
-    print(render_human_success(command=command, data=data), end="")
+    if human_output is not None:
+        print(str(human_output), end="")
+        return
+    if suppress_human_output:
+        return
+    print(render_human_success(command=command, data=public_data), end="")
 
 
 def emit_error(

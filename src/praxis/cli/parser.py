@@ -57,6 +57,55 @@ def build_parser() -> PraxisArgumentParser:
     status_parser = subparsers.add_parser("status")
     _add_global_options(status_parser, suppress_defaults=True)
 
+    inspect_parser = subparsers.add_parser("inspect")
+    _add_global_options(inspect_parser, suppress_defaults=True)
+    inspect_subparsers = inspect_parser.add_subparsers(dest="inspect_command", required=False)
+
+    inspect_run_parser = inspect_subparsers.add_parser("run")
+    _add_global_options(inspect_run_parser, suppress_defaults=True)
+    inspect_run_parser.add_argument("run_id", nargs="?")
+
+    inspect_worker_parser = inspect_subparsers.add_parser("worker")
+    _add_global_options(inspect_worker_parser, suppress_defaults=True)
+    inspect_worker_parser.add_argument("worker_id", nargs="?")
+
+    inspect_session_parser = inspect_subparsers.add_parser("session")
+    _add_global_options(inspect_session_parser, suppress_defaults=True)
+    inspect_session_parser.add_argument("session_id", nargs="?")
+
+    inspect_watch_parser = inspect_subparsers.add_parser("watch")
+    _add_global_options(inspect_watch_parser, suppress_defaults=True)
+    inspect_watch_parser.add_argument("--interval", type=float, default=2.0)
+    inspect_watch_parser.add_argument("--once", action="store_true")
+    inspect_watch_parser.add_argument("--no-color", action="store_true")
+    inspect_watch_parser.add_argument("--no-pager", action="store_true")
+
+    inspect_logs_parser = inspect_subparsers.add_parser("logs")
+    _add_global_options(inspect_logs_parser, suppress_defaults=True)
+    inspect_logs_parser.add_argument("worker_id", nargs="?")
+    inspect_logs_parser.add_argument("-f", "--follow", action="store_true")
+    inspect_logs_parser.add_argument("--tail", type=int, default=50)
+    inspect_logs_parser.add_argument("--stream", choices=["stdout", "stderr", "both"], default="both")
+    inspect_logs_parser.add_argument("--path-only", action="store_true")
+
+    inspect_trace_parser = inspect_subparsers.add_parser("trace")
+    _add_global_options(inspect_trace_parser, suppress_defaults=True)
+    inspect_trace_parser.add_argument("worker_id", nargs="?")
+    inspect_trace_parser.add_argument("-f", "--follow", action="store_true")
+    inspect_trace_parser.add_argument("--tail", type=int, default=50)
+    inspect_trace_parser.add_argument("--type", dest="event_type")
+    inspect_trace_parser.add_argument("--reason-code")
+    inspect_trace_parser.add_argument("--raw", action="store_true")
+
+    inspect_events_parser = inspect_subparsers.add_parser("events")
+    _add_global_options(inspect_events_parser, suppress_defaults=True)
+    inspect_events_parser.add_argument("-f", "--follow", action="store_true")
+    inspect_events_parser.add_argument("--tail", type=int, default=50)
+    inspect_events_parser.add_argument("--type", dest="event_type")
+    inspect_events_parser.add_argument("--stage")
+    inspect_events_parser.add_argument("--slice", dest="slice_id")
+    inspect_events_parser.add_argument("--raw", action="store_true")
+
     continue_parser = subparsers.add_parser("continue")
     _add_global_options(continue_parser, suppress_defaults=True)
     _add_timestamp_option(continue_parser)
@@ -109,6 +158,9 @@ def build_parser() -> PraxisArgumentParser:
 
 
 def command_name(args: argparse.Namespace) -> str:
+    if args.command == "inspect":
+        inspect_command = getattr(args, "inspect_command", None)
+        return "inspect" if inspect_command is None else f"inspect {inspect_command}"
     if args.command == "harness":
         return f"harness {args.harness_command}"
     return str(args.command)
@@ -116,6 +168,18 @@ def command_name(args: argparse.Namespace) -> str:
 
 def guess_command(argv: list[str]) -> str:
     for index, token in enumerate(argv):
+        if token == "inspect":
+            if index + 1 < len(argv) and argv[index + 1] in {
+                "run",
+                "worker",
+                "session",
+                "watch",
+                "logs",
+                "trace",
+                "events",
+            }:
+                return f"inspect {argv[index + 1]}"
+            return "inspect"
         if token == "harness" and index + 1 < len(argv) and argv[index + 1] == "show-adapter":
             return "harness show-adapter"
         if token in {

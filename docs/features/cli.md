@@ -16,6 +16,7 @@ Current public commands:
 - `praxis init`
 - `praxis run`
 - `praxis status`
+- `praxis inspect`
 - `praxis continue`
 - `praxis approve`
 - `praxis resume`
@@ -81,6 +82,8 @@ New control-plane commands:
 - `praxis doctor` reports machine-readable runtime checks with stable reason
   codes for harness, launch, dispatch-bundle, active-runtime, worktree, and log
   health
+- `praxis inspect` provides a read-only operator surface for the active run,
+  worker, session, logs, trace stream, and lifecycle events
 - `praxis status` reports the run cursor plus `dispatch_bundle`,
   `active_runtime`, approvals, policies, and trace summaries from durable state
 - `praxis build-worker-launch` compiles the bounded worker payload and loads the
@@ -104,6 +107,17 @@ New control-plane commands:
 - lets the launcher update durable session state when a fresh provider launch
   yields a real provider locator
 
+`praxis inspect` currently:
+
+- defaults to the active run when no subcommand or target id is given
+- supports `run`, `worker`, `session`, `watch`, `logs`, `trace`, and `events`
+  subcommands
+- keeps one-shot inspection separate from live watching and raw log streaming
+- reads only durable Praxis artifacts under `.praxis/`
+- supports `--json` for non-streaming reads only
+- rejects `--json` with `--follow`, and does not expose provider-native
+  transcripts
+
 ## Current Boundary
 
 The shipped CLI still keeps these limits:
@@ -112,5 +126,7 @@ The shipped CLI still keeps these limits:
   still centered on primary `session_worker` and `worktree_worker` flows
 - `praxis continue` stays in the command tree for compatibility even though
   `praxis approve` is the clearer confirmation verb
+- `praxis inspect run` is still active-run only in v1; historical run browsing
+  has not shipped yet
 - future packaging layers such as a binary rewrite or npm wrapper remain
   follow-on product work

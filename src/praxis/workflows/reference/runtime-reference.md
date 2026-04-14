@@ -107,6 +107,10 @@ praxis run \
   --execution-mode manual \
   --json
 
+praxis inspect --repo-root .
+praxis inspect watch --repo-root .
+praxis inspect logs --repo-root . --follow
+
 praxis build-worker-launch --repo-root . --json
 
 praxis dispatch \
@@ -132,7 +136,7 @@ praxis status --repo-root . --json
 Lower-level helpers in `src/praxis/runtime/` remain internal implementation
 surfaces behind that stable command tree.
 
-## Status And Doctor Surfaces
+## Status, Inspect, And Doctor Surfaces
 
 `praxis status --repo-root . --json` reconstructs the active runtime boundary
 from durable state and returns:
@@ -143,6 +147,21 @@ from durable state and returns:
   artifact summaries
 - `approvals` and `policies` summaries
 - `trace` with recent boundary, launch, resume, stop, and recovery signals
+
+`praxis inspect` is the human-first read surface over the same runtime
+artifacts:
+
+- `praxis inspect` or `praxis inspect run` for the active run
+- `praxis inspect worker` for worker, launch, resume, trace, and log linkage
+- `praxis inspect session` for durable resumability and provider-locator state
+- `praxis inspect watch` for live progress snapshots
+- `praxis inspect logs`, `trace`, and `events` for focused stream inspection
+
+Current `inspect` limits:
+
+- `praxis inspect run` only resolves the active run in v1
+- `--json` is supported for non-streaming reads only
+- provider transcripts are not part of the Praxis runtime contract
 
 `praxis doctor --repo-root . --json` reports machine-readable checks with
 stable `status`, `reason_code`, `message`, and `details` fields.
