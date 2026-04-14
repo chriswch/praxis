@@ -178,6 +178,22 @@ Primary shared source:
 
 - `src/praxis/runtime/story_boundary.py`
 
+## Stage-Result Provenance Gate
+
+`praxis submit-stage-result` now fails closed for owner-worker progression.
+
+Current owner provenance checks require:
+
+- the run is awaiting an owner stage result (`pending_worker_action = await_stage_result`)
+- the active dispatch bundle is complete and available
+- `stage_result.worker.worker_id` matches `run.current.worker_id`
+- dispatch resolution links to a worker record for the active dispatch
+- launch or resume evidence exists and links to the same `dispatch_id`
+
+When any owner provenance check fails, Praxis rejects the submission with
+`error.code = stage_result_provenance_invalid` and machine-readable check
+details. This blocks synthetic or out-of-band stage-result advancement.
+
 ## Status, Inspect, Doctor, Recovery, And Trace
 
 `praxis status --repo-root . --json` reconstructs the current runtime boundary
