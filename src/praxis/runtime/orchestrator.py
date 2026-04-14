@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .domain.transitions import requires_boundary_transition, validate_stage_alignment
+from .services.provenance_service import validate_owner_stage_result
 from .state.durable_state import (
     commit_transaction,
     dump_events,
@@ -82,44 +84,6 @@ def _clear_terminal_run_state(repo_root: Path) -> None:
     ]
     for rel_path in stale_paths:
         _delete_if_exists(repo_root / rel_path)
-
-
-def _validate_stage_alignment(run: dict[str, Any], stage_result: dict[str, Any]) -> None:
-    current = run["current"]
-    expected_stage = current.get("stage")
-    current_artifact_dir = current.get("artifact_dir")
-    result_stage = stage_result["stage"]
-    result_artifact_dir = stage_result["artifact_dir"]
-
-    if expected_stage != result_stage:
-        raise ValueError(
-            "Cannot advance the run from an out-of-order stage result: "
-            f"run.current.stage={expected_stage!r}, stage_result.stage={result_stage!r}."
-        )
-
-    if current_artifact_dir != result_artifact_dir:
-        raise ValueError(
-            "Cannot advance the run from a different artifact scope: "
-            f"run.current.artifact_dir={current_artifact_dir!r}, "
-            f"stage_result.artifact_dir={result_artifact_dir!r}."
-        )
-
-
-def _requires_boundary_transition(
-    *,
-    run: dict[str, Any],
-    stage_result: dict[str, Any],
-    next_stage: str | None,
-) -> bool:
-    if run["mode"] != "multi_slice":
-        return False
-
-    route_kind = stage_result["route"]["kind"]
-    if route_kind in {"done", "next_slice"}:
-        return True
-
-    return route_kind == "proceed" and next_stage is None
-
 
 def _snapshot(repo_root: Path) -> dict[str, Any]:
     recover_pending_transaction(repo_root)
@@ -400,6 +364,7 @@ def advance_run(
     gate_failures: list[str] | None,
     cancel_requested: bool,
     timestamp: str,
+    validate_provenance: bool = False,
 ) -> str:
     repo_root = repo_root.resolve()
     recover_pending_transaction(repo_root)
@@ -409,7 +374,9 @@ def advance_run(
     stage_result = ensure_stage_result_vnext_defaults(stage_result, run=run)
 
     validate_state_payloads(run=run, stage_result=stage_result)
-    _validate_stage_alignment(run, stage_result)
+    validate_stage_alignment(run, stage_result, context="advance the run")
+    if validate_provenance:
+        validate_owner_stage_result(repo_root=repo_root, run=run, stage_result=stage_result)
 
     if (
         stage_result["stage"] == "slicing-stories"
@@ -431,7 +398,11 @@ def advance_run(
         stage_result=stage_result,
     )
 
-    if _requires_boundary_transition(run=run, stage_result=stage_result, next_stage=next_stage):
+    if requires_boundary_transition(
+        run_mode=run["mode"],
+        route_kind=stage_result["route"]["kind"],
+        next_stage=next_stage,
+    ):
         checkpoint_story_boundary(
             repo_root=repo_root,
             stage_result_path=stage_result_path,

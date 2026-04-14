@@ -1,84 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple
+from typing import Any
 
-
-RouteRule = Tuple[str, Optional[str]]
-WorkflowRouteTable = dict[str, dict[str, dict[str, RouteRule]]]
-
-
-# Shared workflow routing owns next-stage resolution. Stage skills report
-# route.kind and outcome_code; the orchestrator derives next_stage here.
-_ROUTE_RULES: WorkflowRouteTable = {
-    "craft": {
-        "clarifying-intent": {
-            "trivial_change": ("done", None),
-            "bug_fix_ready": ("proceed", "driving-tdd"),
-            "story_spec_ready": ("proceed", "sketching-design"),
-            "feature_brief_ready": ("proceed", "slicing-stories"),
-            "clarification_needed": ("ask_user", "clarifying-intent"),
-        },
-        "slicing-stories": {
-            "slice_map_ready": ("proceed", "clarifying-intent"),
-            "blocking_questions": ("ask_user", "slicing-stories"),
-        },
-        "sketching-design": {
-            "sketch_ready": ("proceed", "driving-tdd"),
-            "sketch_skipped": ("proceed", "driving-tdd"),
-            "spec_issue": ("ask_user", "clarifying-intent"),
-        },
-        "driving-tdd": {
-            "tdd_complete": ("proceed", "code-reviewing"),
-            "spec_feedback": ("ask_user", "clarifying-intent"),
-        },
-        "code-reviewing": {
-            "review_ready": ("proceed", "code-improving"),
-            "review_skipped": ("proceed", "verifying-and-adapting"),
-        },
-        "code-improving": {
-            "improvement_ready": ("proceed", "verifying-and-adapting"),
-            "improvement_skipped": ("proceed", "verifying-and-adapting"),
-            "spec_feedback": ("ask_user", "clarifying-intent"),
-        },
-        "verifying-and-adapting": {
-            "done": ("done", None),
-            "next_slice": ("next_slice", "clarifying-intent"),
-            "rework": ("rework", "driving-tdd"),
-            "escalate": ("escalate", "clarifying-intent"),
-        },
-    },
-    "forge": {
-        "clarifying-intent": {
-            "trivial_change": ("done", None),
-            "bug_fix_ready": ("proceed", "rapid-implementing"),
-            "story_spec_ready": ("proceed", "sketching-design"),
-            "feature_brief_ready": ("proceed", "slicing-stories"),
-            "clarification_needed": ("ask_user", "clarifying-intent"),
-        },
-        "slicing-stories": {
-            "slice_map_ready": ("proceed", "clarifying-intent"),
-            "blocking_questions": ("ask_user", "slicing-stories"),
-        },
-        "sketching-design": {
-            "sketch_ready": ("proceed", "rapid-implementing"),
-            "sketch_skipped": ("proceed", "rapid-implementing"),
-            "spec_issue": ("ask_user", "clarifying-intent"),
-        },
-        "rapid-implementing": {
-            "implementation_complete": ("proceed", "code-reviewing"),
-            "spec_feedback": ("ask_user", "clarifying-intent"),
-        },
-        "code-reviewing": {
-            "review_ready": ("proceed", "code-improving"),
-            "review_skipped": ("proceed", None),
-        },
-        "code-improving": {
-            "improvement_ready": ("proceed", None),
-            "improvement_skipped": ("proceed", None),
-            "spec_feedback": ("ask_user", "clarifying-intent"),
-        },
-    },
-}
+from .domain.workflow_graph import resolve_route
 
 
 def resolve_next_stage_for_result(*, workflow: str, stage_result: dict[str, Any]) -> str | None:
@@ -87,13 +11,11 @@ def resolve_next_stage_for_result(*, workflow: str, stage_result: dict[str, Any]
     outcome_code = stage_result["data"]["outcome_code"]
     recorded_next_stage = stage_result["route"].get("next_stage")
 
-    try:
-        expected_route_kind, resolved_next_stage = _ROUTE_RULES[workflow][stage][outcome_code]
-    except KeyError as exc:
-        raise ValueError(
-            "No shared routing rule for "
-            f"workflow={workflow!r}, stage={stage!r}, outcome_code={outcome_code!r}."
-        ) from exc
+    expected_route_kind, resolved_next_stage = resolve_route(
+        workflow=workflow,
+        stage=stage,
+        outcome_code=outcome_code,
+    )
 
     if route_kind != expected_route_kind:
         raise ValueError(

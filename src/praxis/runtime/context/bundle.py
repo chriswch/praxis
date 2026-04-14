@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
+from ..domain.ids import dispatch_id_for_transition
 from ..dispatch_records import normalize_dispatch_record
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import (
@@ -17,11 +17,6 @@ from ..workers.planning import ensure_run_vnext_defaults
 from ..workers.bookkeeping import dispatch_bundle_paths
 
 
-def _slug(value: str, *, fallback: str) -> str:
-    candidate = re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip("-._")
-    return candidate or fallback
-
-
 def dispatch_id_for_run(
     run: dict[str, Any],
     dispatch: dict[str, Any],
@@ -32,7 +27,11 @@ def dispatch_id_for_run(
     transition_id = str(run.get("control", {}).get("last_transition_id") or "tx_000")
     resolved_worker_id = str(worker_id or run.get("current", {}).get("worker_id") or "worker")
     stage = str(dispatch.get("stage") or run.get("current", {}).get("stage") or "stage")
-    return _slug(f"{transition_id}-{resolved_worker_id}-{stage}", fallback="dispatch")
+    return dispatch_id_for_transition(
+        transition_id=transition_id,
+        worker_id=resolved_worker_id,
+        stage=stage,
+    )
 
 
 def bundle_paths_for_run(

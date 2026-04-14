@@ -47,5 +47,6 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
         gate_failures=args.gate_failure or None,
         cancel_requested=args.cancel_requested,
         timestamp=timestamp,
+        validate_provenance=True,
     )
     return {"transition_action": action, "run": build_run_snapshot(repo_root)}

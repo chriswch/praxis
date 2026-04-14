@@ -5,6 +5,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .domain.transitions import (
+    requires_boundary_transition,
+    should_clear_boundary_handoff,
+    validate_stage_alignment,
+)
 from .state.durable_state import (
     commit_transaction,
     dump_json,
@@ -19,9 +24,6 @@ from .workers.planning import (
     ensure_stage_result_vnext_defaults,
     sync_worker_cursor,
 )
-
-
-
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -44,43 +46,6 @@ def _state_snapshot(run: dict[str, Any]) -> dict[str, Any]:
         "pending_worker_action": routing.get("pending_worker_action"),
         "resume_strategy": routing.get("resume_strategy"),
     }
-
-
-def _validate_stage_alignment(run: dict[str, Any], stage_result: dict[str, Any]) -> None:
-    current = run["current"]
-    expected_stage = current.get("stage")
-    current_artifact_dir = current.get("artifact_dir")
-    result_stage = stage_result["stage"]
-    result_artifact_dir = stage_result["artifact_dir"]
-
-    if expected_stage != result_stage:
-        raise ValueError(
-            "Cannot update run state from an out-of-order stage result: "
-            f"run.current.stage={expected_stage!r}, stage_result.stage={result_stage!r}."
-        )
-
-    if current_artifact_dir != result_artifact_dir:
-        raise ValueError(
-            "Cannot update run state from a different artifact scope: "
-            f"run.current.artifact_dir={current_artifact_dir!r}, "
-            f"stage_result.artifact_dir={result_artifact_dir!r}."
-        )
-
-
-def _requires_boundary_transition(
-    *,
-    run: dict[str, Any],
-    stage_result: dict[str, Any],
-    next_stage: str | None,
-) -> bool:
-    if run["mode"] != "multi_slice":
-        return False
-
-    route_kind = stage_result["route"]["kind"]
-    if route_kind in {"done", "next_slice"}:
-        return True
-
-    return route_kind == "proceed" and next_stage is None
 
 
 def _is_terminal_single_story(
@@ -127,24 +92,6 @@ def _default_reason(
     return f"{stage_name} updated the run state."
 
 
-def _should_clear_boundary_handoff(
-    *,
-    run: dict[str, Any],
-    stage_result: dict[str, Any],
-    next_stage: str | None,
-) -> bool:
-    if run["current"].get("scope") != "slice":
-        return False
-
-    if stage_result["stage"] != "clarifying-intent":
-        return False
-
-    if not run["routing"].get("boundary_handoff_path"):
-        return False
-
-    return next_stage != "clarifying-intent"
-
-
 def update_run_from_stage_result(
     *,
     repo_root: Path,
@@ -162,14 +109,18 @@ def update_run_from_stage_result(
     stage_result = ensure_stage_result_vnext_defaults(stage_result, run=run)
 
     validate_state_payloads(run=run, stage_result=stage_result)
-    _validate_stage_alignment(run, stage_result)
+    validate_stage_alignment(run, stage_result, context="update run state")
 
     next_stage = resolve_next_stage_for_result(
         workflow=run["workflow"],
         stage_result=stage_result,
     )
 
-    if _requires_boundary_transition(run=run, stage_result=stage_result, next_stage=next_stage):
+    if requires_boundary_transition(
+        run_mode=run["mode"],
+        route_kind=stage_result["route"]["kind"],
+        next_stage=next_stage,
+    ):
         raise ValueError(
             "This stage result completes the current multi-slice story. "
             "Use praxis.runtime.story_boundary for the boundary transition."
@@ -181,9 +132,10 @@ def update_run_from_stage_result(
 
     run["current"]["artifact_dir"] = stage_result["artifact_dir"]
     run["routing"]["next_slice_id"] = route.get("next_slice_id")
-    if _should_clear_boundary_handoff(
-        run=run,
-        stage_result=stage_result,
+    if should_clear_boundary_handoff(
+        current_scope=run["current"].get("scope"),
+        result_stage=stage_result["stage"],
+        boundary_handoff_path=run["routing"].get("boundary_handoff_path"),
         next_stage=next_stage,
     ):
         run["routing"]["boundary_handoff_path"] = None

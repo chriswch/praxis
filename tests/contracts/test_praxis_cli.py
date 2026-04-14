@@ -641,6 +641,69 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(result["command"], "submit-stage-result")
         self.assertEqual(result["error"]["code"], "stage_result_mismatch")
 
+    def test_submit_stage_result_rejects_missing_owner_provenance(self) -> None:
+        initialize_run(
+            repo_root=self.repo_root,
+            workflow="forge",
+            entry_task="Reject synthetic stage results",
+            adapter="codex",
+            execution_mode="autopilot",
+            entrypoint="praxis:forge",
+            timestamp="2026-04-12T04:37:00Z",
+        )
+        run_path = self.repo_root / ".praxis" / "run.json"
+        run = load_json(run_path)
+        run["current"]["worker_id"] = "wrk_001"
+        run["routing"]["pending_worker_action"] = "await_stage_result"
+        run["routing"]["next_action"] = "ask_user"
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
+
+        self._write_json(
+            ".praxis/results/clarifying-intent.json",
+            {
+                "version": 2,
+                "stage": "clarifying-intent",
+                "artifact_dir": ".praxis",
+                "status": "completed",
+                "summary_path": ".praxis/spec.md",
+                "artifacts_written": [".praxis/spec.md"],
+                "route": {
+                    "kind": "proceed",
+                    "next_stage": None,
+                    "next_slice_id": None,
+                    "reason": "Specification is ready.",
+                },
+                "data": {
+                    "outcome_code": "story_spec_ready",
+                },
+                "worker": {
+                    "worker_id": "wrk_001",
+                    "worker_class": "session_worker",
+                },
+                "needs_user_input": False,
+                "needs_confirmation": False,
+            },
+        )
+
+        completed = self._run_cli(
+            "submit-stage-result",
+            "--repo-root",
+            str(self.repo_root),
+            "--stage-result-path",
+            ".praxis/results/clarifying-intent.json",
+            "--timestamp",
+            "2026-04-12T04:38:00Z",
+            "--json",
+        )
+
+        self.assertEqual(completed.returncode, 2)
+        result = json.loads(completed.stdout)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["command"], "submit-stage-result")
+        self.assertEqual(result["error"]["code"], "stage_result_provenance_invalid")
+        checks = result["error"]["details"]["checks"]
+        self.assertTrue(any(check["check"] == "active_dispatch_bundle_complete" for check in checks))
+
     def test_cancel_marks_the_run_cancelled(self) -> None:
         initialize_run(
             repo_root=self.repo_root,

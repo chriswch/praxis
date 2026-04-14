@@ -20,6 +20,7 @@ from praxis.runtime.context.bundle import load_dispatch_bundle_status
 from praxis.runtime.observability.trace_summary import build_trace_summary
 from praxis.runtime.policy_records import policy_history_snapshot
 from praxis.runtime.orchestrator import advance_run, build_dispatch, continue_run, initialize_run, resume_run
+from praxis.runtime.services.provenance_service import StageResultProvenanceError
 from praxis.runtime.state.contract_validation import ContractValidationError, validate_contract_payload
 from praxis.runtime.state.durable_state import (
     RecoveryRequiredError,
@@ -508,6 +509,13 @@ def normalize_dispatch_action(raw_action: str) -> str:
 def classify_unexpected_exception(command: str, exc: Exception) -> CliContractError:
     if isinstance(exc, CliContractError):
         return exc
+    if isinstance(exc, StageResultProvenanceError):
+        return CliContractError(
+            code=exc.reason_code,
+            message=str(exc),
+            exit_code=INVALID_INPUT_EXIT,
+            details={"checks": exc.details},
+        )
     if isinstance(exc, ContractValidationError):
         return CliContractError(
             code="contract_validation_failed",

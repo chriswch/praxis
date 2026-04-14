@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from ..domain.stage_registry import permission_profile_for_stage
 from .bookkeeping import build_worker_ownership
 
 
@@ -15,17 +16,6 @@ _STAGE_SUFFIX = {
     "code-reviewing": "review",
     "code-improving": "improve",
     "verifying-and-adapting": "verify",
-}
-
-_STAGE_PERMISSION_PROFILE = {
-    "clarifying-intent": "planning",
-    "slicing-stories": "planning",
-    "sketching-design": "design",
-    "driving-tdd": "implementation",
-    "rapid-implementing": "implementation",
-    "code-reviewing": "review",
-    "code-improving": "implementation",
-    "verifying-and-adapting": "verification",
 }
 
 _REUSE_STORY_WORKER_STAGES = {
@@ -185,7 +175,7 @@ def build_worker_isolation(
 
 
 def stage_permission_profile(stage: str | None) -> str:
-    return _STAGE_PERMISSION_PROFILE.get(stage or "", "implementation")
+    return permission_profile_for_stage(stage, default="implementation")
 
 
 def build_worker_plan(run: dict[str, Any], *, stage: str | None = None) -> dict[str, Any] | None:
