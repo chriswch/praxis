@@ -168,6 +168,14 @@ class SidecarBookkeepingContractTest(unittest.TestCase):
                 "filesystem_scope": "workspace-write",
                 "network_access": "restricted",
                 "destructive_commands_allowed": False,
+                "enforcement_mode": "advisory",
+                "control_plane_access": "projected_read_only",
+                "writable_roots": [".praxis/slices/S-009", "."],
+                "blocked_paths": [
+                    ".praxis/run.json",
+                    ".praxis/story-ledger.json",
+                    ".praxis/runtime/",
+                ],
             },
             "budgets": {
                 "run_max_turns": 400,
@@ -210,6 +218,20 @@ class SidecarBookkeepingContractTest(unittest.TestCase):
                 "permission_profile": "implementation",
                 "worktree_mode": "shared",
                 "fresh_context": True,
+            },
+            "runtime_policy": {
+                "profile": "implementation",
+                "filesystem_scope": "workspace-write",
+                "network_access": "restricted",
+                "destructive_commands_allowed": False,
+                "enforcement_mode": "advisory",
+                "control_plane_access": "projected_read_only",
+                "writable_roots": [".praxis/slices/S-009", "."],
+                "blocked_paths": [
+                    ".praxis/run.json",
+                    ".praxis/story-ledger.json",
+                    ".praxis/runtime/",
+                ],
             },
             "context_policy": {
                 "carry_forward_mode": "boundary_handoff_only",
@@ -443,6 +465,10 @@ class SidecarBookkeepingContractTest(unittest.TestCase):
             "run_id": "run_20260414000000",
             "generated_at": "2026-04-14T00:00:00Z",
             "adapter": "codex",
+            "broker": {
+                "command": "python3 -m praxis.runtime.tool_broker",
+                "tool_records_dir": f".praxis/runtime/tools/{dispatch_id}",
+            },
             "worker": {
                 "worker_id": "wrk_sidecar_01",
                 "worker_class": "subagent_worker",
@@ -452,6 +478,14 @@ class SidecarBookkeepingContractTest(unittest.TestCase):
                 "filesystem_scope": "workspace-write",
                 "network_access": "restricted",
                 "destructive_commands_allowed": False,
+                "enforcement_mode": "advisory",
+                "control_plane_access": "projected_read_only",
+                "writable_roots": [".praxis/slices/S-009", "."],
+                "blocked_paths": [
+                    ".praxis/run.json",
+                    ".praxis/story-ledger.json",
+                    ".praxis/runtime/",
+                ],
             },
             "tool_count": 1,
             "tools": [
@@ -464,6 +498,8 @@ class SidecarBookkeepingContractTest(unittest.TestCase):
                     "provenance": "praxis_runtime",
                     "adapter_availability": ["claude", "codex"],
                     "native_surface": "native_file_read",
+                    "broker_action": "repo-read",
+                    "requires_declared_write_paths": False,
                     "enabled": True,
                 }
             ],

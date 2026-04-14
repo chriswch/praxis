@@ -177,7 +177,8 @@ def build_worker_isolation(
         "product_worktree_path": ".",
         "review_independence_required": review_independence,
         "product_worktree_mutation_allowed": worktree_mode != "isolated",
-        "runtime_state_channel": "praxis_symlink" if worktree_mode == "isolated" else "direct_repo",
+        "runtime_state_channel": "projected_control_plane" if worktree_mode == "isolated" else "direct_repo",
+        "control_plane_access": "projected_read_only" if worktree_mode == "isolated" else "direct_repo",
         "guardrail_reason_code": reason_code,
         "guardrail_reason": reason,
     }

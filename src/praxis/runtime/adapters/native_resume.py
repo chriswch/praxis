@@ -423,6 +423,11 @@ def _updated_worker_record(
     return rel, worker_record
 
 
+def _run_routing_owned(payload: dict[str, Any]) -> bool:
+    ownership = payload.get("ownership") or {}
+    return bool(ownership.get("run_routing_owned", True))
+
+
 def update_session_record_after_launch(
     *,
     repo_root: Path,
@@ -703,9 +708,10 @@ def write_native_resume_result(
         )
     )
 
-    run["timestamps"]["updated_at"] = recorded_at
-    validate_state_payloads(run=run)
-    files[".praxis/run.json"] = dump_json(run)
+    if _run_routing_owned(payload):
+        run["timestamps"]["updated_at"] = recorded_at
+        validate_state_payloads(run=run)
+        files[".praxis/run.json"] = dump_json(run)
 
     events = [request_event, final_event]
     if outcome == "resumed":

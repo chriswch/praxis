@@ -7,6 +7,7 @@ from typing import Any, Callable
 from ..adapters.native_resume import session_record_relpath
 from ..orchestrator import build_dispatch
 from ..policy_records import build_dispatch_policy_records
+from ..policy import build_runtime_policy
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import commit_transaction, dump_json, load_json, validate_handoff_file
 from ..workers.planning import (
@@ -320,12 +321,6 @@ def _build_compiled_payload(
             ),
         },
         "ownership": ownership,
-        "permissions": {
-            "profile": worker_plan["permission_profile"],
-            "filesystem_scope": "workspace-write",
-            "network_access": "restricted",
-            "destructive_commands_allowed": False,
-        },
         "budgets": {
             "run_max_turns": run["budgets"]["run_max_turns"],
             "run_max_workers": run["budgets"]["run_max_workers"],
@@ -348,6 +343,14 @@ def _build_compiled_payload(
             "trace_path": trace_path,
         },
     }
+    payload["permissions"] = build_runtime_policy(
+        adapter=payload["adapter"],
+        permission_profile=worker_plan["permission_profile"],
+        worktree_mode=payload["worker"]["worktree_mode"],
+        worktree_path=payload["worker"]["worktree_path"],
+        artifact_dir=dispatch["artifact_dir"],
+        ownership_kind=ownership["kind"],
+    )
     validate_contract_payload("worker-launch.schema.json", payload)
     tool_manifest = build_tool_manifest(run=run, payload=payload)
     items = _context_items(payload=payload)
@@ -375,6 +378,7 @@ def _build_compiled_payload(
             "worktree_mode": payload["worker"]["worktree_mode"],
             "fresh_context": payload["worker"]["fresh_context"],
         },
+        "runtime_policy": payload["permissions"],
         "context_policy": {
             "carry_forward_mode": payload["context_policy"]["carry_forward_mode"],
             "handoff_injected": payload["context_policy"]["handoff_injected"],

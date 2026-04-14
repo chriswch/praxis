@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chriswch/praxis/src/praxis/contracts/sidecar-request.schema.json",
+  "title": "Praxis Sidecar Dispatch Request",
+  "description": "Durable request metadata for one explicit non-owning sidecar dispatch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "recorded_at",
+    "run_id",
+    "dispatch_id",
+    "adapter",
+    "workflow",
+    "parent",
+    "dispatch",
+    "worker",
+    "ownership",
+    "artifact_inputs",
+    "artifact_outputs_expected",
+    "bundle"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dispatch_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex"
+      ]
+    },
+    "workflow": {
+      "type": "string",
+      "enum": [
+        "craft",
+        "forge"
+      ]
+    },
+    "parent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "slice_id",
+        "artifact_dir",
+        "stage",
+        "worker_id"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": [
+            "root",
+            "feature",
+            "slice"
+          ]
+        },
+        "slice_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_dir": {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worker_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "slice_id",
+        "artifact_dir",
+        "stage",
+        "boundary_handoff_path",
+        "stage_result_path"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": [
+            "root",
+            "feature",
+            "slice"
+          ]
+        },
+        "slice_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_dir": {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "boundary_handoff_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stage_result_path": {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "worker_id",
+        "worker_class",
+        "permission_profile",
+        "worktree_mode",
+        "spawned_by_worker_id",
+        "reason"
+      ],
+      "properties": {
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worker_class": {
+          "type": "string",
+          "const": "subagent_worker"
+        },
+        "permission_profile": {
+          "type": "string",
+          "enum": [
+            "planning",
+            "design",
+            "implementation",
+            "review",
+            "verification"
+          ]
+        },
+        "worktree_mode": {
+          "type": "string",
+          "enum": [
+            "shared",
+            "isolated"
+          ]
+        },
+        "spawned_by_worker_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "worker_id",
+        "kind",
+        "run_routing_owned",
+        "stage_result_expected",
+        "artifact_namespace",
+        "spawned_by_worker_id",
+        "reason_code",
+        "reason"
+      ],
+      "properties": {
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "workflow_owner",
+            "sidecar"
+          ]
+        },
+        "run_routing_owned": {
+          "type": "boolean"
+        },
+        "stage_result_expected": {
+          "type": "boolean"
+        },
+        "artifact_namespace": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "sidecar"
+          ]
+        },
+        "spawned_by_worker_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "artifact_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^\\.praxis(?:/.*)?$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "artifact_outputs_expected": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^\\.praxis(?:/.*)?$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_dir",
+        "worker_launch_path",
+        "dispatch_record_path",
+        "context_manifest_path",
+        "tool_manifest_path"
+      ],
+      "properties": {
+        "bundle_dir": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches(?:/sidecars)?/.+$"
+        },
+        "worker_launch_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches(?:/sidecars)?/.+/worker-launch\\.json$"
+        },
+        "dispatch_record_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches(?:/sidecars)?/.+/dispatch-record\\.json$"
+        },
+        "context_manifest_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches(?:/sidecars)?/.+/context-manifest\\.json$"
+        },
+        "tool_manifest_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches(?:/sidecars)?/.+/tool-manifest\\.json$"
+        }
+      }
+    }
+  }
+}

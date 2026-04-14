@@ -39,9 +39,16 @@
         "worker_process_completed",
         "worktree_cleaned",
         "worktree_cleanup_failed",
+        "adapter_cancel_attempted",
+        "adapter_cancel_fallback",
         "run_cancelled",
         "handoff_validated",
-        "run_resumed"
+        "run_resumed",
+        "sidecar_dispatch_requested",
+        "tool_invocation_requested",
+        "tool_invocation_completed",
+        "tool_invocation_denied",
+        "tool_invocation_failed"
       ]
     }
   },
@@ -1195,6 +1202,216 @@
                 "type": "null"
               }
             ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "sidecar_dispatch_requested"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "adapter",
+          "scope",
+          "artifact_dir",
+          "stage",
+          "boundary_handoff_path",
+          "worker_id",
+          "request_path",
+          "dispatch_record_path",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "root",
+              "feature",
+              "slice"
+            ]
+          },
+          "slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boundary_handoff_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\.praxis(?:/.*)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worker_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "spawned_by_worker_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request_path": {
+            "type": "string",
+            "pattern": "^\\.praxis/runtime/dispatches/sidecars/.+/sidecar-request\\.json$"
+          },
+          "dispatch_record_path": {
+            "type": "string",
+            "pattern": "^\\.praxis/runtime/dispatches/sidecars/.+/dispatch-record\\.json$"
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "tool_invocation_requested",
+              "tool_invocation_completed",
+              "tool_invocation_denied",
+              "tool_invocation_failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "adapter",
+          "scope",
+          "artifact_dir",
+          "stage",
+          "boundary_handoff_path",
+          "worker_id",
+          "tool_id",
+          "tool_record_path",
+          "reason_code",
+          "reason"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "root",
+              "feature",
+              "slice"
+            ]
+          },
+          "slice_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_dir": {
+            "type": "string",
+            "pattern": "^\\.praxis(?:/.*)?$"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boundary_handoff_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\.praxis(?:/.*)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worker_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tool_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tool_record_path": {
+            "type": "string",
+            "pattern": "^\\.praxis/runtime/tools/.+\\.json$"
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1
           },
           "reason": {
             "type": "string",

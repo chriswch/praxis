@@ -13,6 +13,10 @@ def _utc_now() -> str:
 def build_tool_manifest(*, run: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     permissions = payload["permissions"]
     adapter = payload["adapter"]
+    broker = {
+        "command": "python3 -m praxis.runtime.tool_broker",
+        "tool_records_dir": f".praxis/runtime/tools/{payload['bundle']['dispatch_id']}",
+    }
     tools = [
         {
             "tool_id": "repo_read",
@@ -23,6 +27,8 @@ def build_tool_manifest(*, run: dict[str, Any], payload: dict[str, Any]) -> dict
             "provenance": "praxis_runtime",
             "adapter_availability": ["claude", "codex"],
             "native_surface": "native_file_read",
+            "broker_action": "repo-read",
+            "requires_declared_write_paths": False,
             "enabled": True,
         },
         {
@@ -34,6 +40,8 @@ def build_tool_manifest(*, run: dict[str, Any], payload: dict[str, Any]) -> dict
             "provenance": "praxis_runtime",
             "adapter_availability": ["claude", "codex"],
             "native_surface": "native_repo_search",
+            "broker_action": "repo-search",
+            "requires_declared_write_paths": False,
             "enabled": True,
         },
         {
@@ -45,6 +53,8 @@ def build_tool_manifest(*, run: dict[str, Any], payload: dict[str, Any]) -> dict
             "provenance": "praxis_runtime",
             "adapter_availability": ["claude", "codex"],
             "native_surface": "native_repo_edit",
+            "broker_action": "repo-patch",
+            "requires_declared_write_paths": True,
             "enabled": permissions["filesystem_scope"] != "read-only",
         },
         {
@@ -56,6 +66,8 @@ def build_tool_manifest(*, run: dict[str, Any], payload: dict[str, Any]) -> dict
             "provenance": "praxis_runtime",
             "adapter_availability": ["claude", "codex"],
             "native_surface": "native_shell",
+            "broker_action": "repo-shell",
+            "requires_declared_write_paths": True,
             "enabled": permissions["filesystem_scope"] != "read-only",
         },
     ]
@@ -70,6 +82,8 @@ def build_tool_manifest(*, run: dict[str, Any], payload: dict[str, Any]) -> dict
                 "provenance": "praxis_runtime",
                 "adapter_availability": ["claude", "codex"],
                 "native_surface": "native_network_fetch",
+                "broker_action": "network-fetch",
+                "requires_declared_write_paths": False,
                 "enabled": True,
             }
         )
@@ -80,6 +94,7 @@ def build_tool_manifest(*, run: dict[str, Any], payload: dict[str, Any]) -> dict
         "run_id": run["run_id"],
         "generated_at": _utc_now(),
         "adapter": adapter,
+        "broker": broker,
         "worker": {
             "worker_id": payload["worker"]["worker_id"],
             "worker_class": payload["worker"]["worker_class"],
@@ -89,6 +104,10 @@ def build_tool_manifest(*, run: dict[str, Any], payload: dict[str, Any]) -> dict
             "filesystem_scope": permissions["filesystem_scope"],
             "network_access": permissions["network_access"],
             "destructive_commands_allowed": permissions["destructive_commands_allowed"],
+            "enforcement_mode": permissions["enforcement_mode"],
+            "control_plane_access": permissions["control_plane_access"],
+            "writable_roots": permissions["writable_roots"],
+            "blocked_paths": permissions["blocked_paths"],
         },
         "tool_count": len(tools),
         "tools": tools,

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ..adapters.runtime_contract import get_adapter_runtime
 from ..adapters.native_resume import (
     update_session_record_after_launch,
 )
@@ -43,20 +44,8 @@ def _logs_dir(repo_root: Path) -> Path:
 
 def _provider_command(*, payload: dict[str, Any], payload_relpath: str) -> tuple[list[str], str]:
     prompt = _worker_prompt(payload=payload, payload_relpath=payload_relpath)
-    adapter = payload["adapter"]
-    if adapter == "codex":
-        return ["codex", "exec", "--full-auto", prompt], "codex_exec"
-    if adapter == "claude":
-        return [
-            "claude",
-            "-p",
-            "--permission-mode",
-            "dontAsk",
-            "--agent",
-            "praxis-story-worker",
-            prompt,
-        ], "claude_print"
-    raise ValueError(f"Unsupported adapter: {adapter!r}.")
+    runtime = get_adapter_runtime(payload["adapter"])
+    return runtime.build_launch_command(payload=payload, prompt=prompt)
 
 
 def _provider_cwd(*, repo_root: Path, payload: dict[str, Any]) -> Path:
@@ -69,17 +58,30 @@ def _provider_cwd(*, repo_root: Path, payload: dict[str, Any]) -> Path:
 
 def _worker_prompt(*, payload: dict[str, Any], payload_relpath: str) -> str:
     dispatch = payload["dispatch"]
+    ownership = payload.get("ownership") or {}
     lines = [
         "You are the Praxis worker for one bounded stage dispatch.",
         f"Load the launch payload from `{payload_relpath}`.",
+        f"Load the bounded tool surface from `{payload['bundle']['tool_manifest_path']}` and prefer the Praxis broker surfaces it describes.",
         "Work only on the current dispatch and the declared artifact inputs.",
         "Treat `inputs.boundary_handoff` as the only cross-story carry-forward context.",
         f"Current stage: {dispatch['stage']}",
         f"Artifact directory: {dispatch['artifact_dir']}",
-        f"Stage result path: {dispatch['stage_result_path']}",
         "Write every required output listed in `artifact_outputs_expected`.",
-        "If the bounded context is insufficient, write a stage result that routes back for user input instead of guessing.",
     ]
+    if ownership.get("stage_result_expected", True):
+        lines.append(f"Stage result path: {dispatch['stage_result_path']}")
+        lines.append(
+            "If the bounded context is insufficient, write a stage result that routes back for user input instead of guessing."
+        )
+    else:
+        lines.extend(
+            [
+                f"Sidecar result path: {dispatch['stage_result_path']}",
+                "You are a non-owning sidecar: do not satisfy the primary stage-result contract or rewrite run routing.",
+                "Write only the bounded sidecar result and any declared sidecar outputs.",
+            ]
+        )
     return "\n".join(lines)
 
 

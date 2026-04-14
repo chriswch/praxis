@@ -36,11 +36,19 @@
     },
     "adapter": {
       "type": "string",
-      "enum": ["claude", "codex"]
+      "enum": [
+        "claude",
+        "codex"
+      ]
     },
     "worker_class": {
       "type": "string",
-      "enum": ["interactive_orchestrator", "session_worker", "worktree_worker", "subagent_worker"]
+      "enum": [
+        "interactive_orchestrator",
+        "session_worker",
+        "worktree_worker",
+        "subagent_worker"
+      ]
     },
     "launch_surface": {
       "type": "string",
@@ -52,22 +60,41 @@
     },
     "permission_profile": {
       "type": "string",
-      "enum": ["planning", "design", "implementation", "review", "verification"]
+      "enum": [
+        "planning",
+        "design",
+        "implementation",
+        "review",
+        "verification"
+      ]
     },
     "worktree_mode": {
       "type": "string",
-      "enum": ["shared", "isolated"]
+      "enum": [
+        "shared",
+        "isolated"
+      ]
     },
     "worktree_path": {
       "anyOf": [
-        { "type": "string", "minLength": 1 },
-        { "type": "null" }
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "session_id": {
       "anyOf": [
-        { "type": "string", "minLength": 1 },
-        { "type": "null" }
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "launch_record_path": {
@@ -76,26 +103,46 @@
     },
     "dispatch_id": {
       "anyOf": [
-        { "type": "string", "minLength": 1 },
-        { "type": "null" }
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "worker_launch_path": {
       "anyOf": [
-        { "type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$" },
-        { "type": "null" }
+        {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "dispatch_record_path": {
       "anyOf": [
-        { "type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$" },
-        { "type": "null" }
+        {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "context_manifest_path": {
       "anyOf": [
-        { "type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$" },
-        { "type": "null" }
+        {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "trace_path": {
@@ -104,8 +151,13 @@
     },
     "launcher_pid": {
       "anyOf": [
-        { "type": "integer", "minimum": 1 },
-        { "type": "null" }
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "isolation": {
@@ -119,6 +171,7 @@
         "review_independence_required",
         "product_worktree_mutation_allowed",
         "runtime_state_channel",
+        "control_plane_access",
         "guardrail_reason_code",
         "guardrail_reason"
       ],
@@ -129,7 +182,10 @@
         },
         "mode": {
           "type": "string",
-          "enum": ["shared", "isolated"]
+          "enum": [
+            "shared",
+            "isolated"
+          ]
         },
         "worktree_path": {
           "type": "string",
@@ -147,7 +203,10 @@
         },
         "runtime_state_channel": {
           "type": "string",
-          "enum": ["direct_repo", "praxis_symlink"]
+          "enum": [
+            "direct_repo",
+            "projected_control_plane"
+          ]
         },
         "guardrail_reason_code": {
           "type": "string",
@@ -156,6 +215,13 @@
         "guardrail_reason": {
           "type": "string",
           "minLength": 1
+        },
+        "control_plane_access": {
+          "type": "string",
+          "enum": [
+            "direct_repo",
+            "projected_read_only"
+          ]
         }
       }
     },
@@ -179,7 +245,10 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["workflow_owner", "sidecar"]
+          "enum": [
+            "workflow_owner",
+            "sidecar"
+          ]
         },
         "run_routing_owned": {
           "type": "boolean"
@@ -189,12 +258,20 @@
         },
         "artifact_namespace": {
           "type": "string",
-          "enum": ["primary", "sidecar"]
+          "enum": [
+            "primary",
+            "sidecar"
+          ]
         },
         "spawned_by_worker_id": {
           "anyOf": [
-            { "type": "string", "minLength": 1 },
-            { "type": "null" }
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "reason_code": {
@@ -209,7 +286,13 @@
     },
     "status": {
       "type": "string",
-      "enum": ["planned", "running", "completed", "failed", "cancelled"]
+      "enum": [
+        "planned",
+        "running",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
     }
   }
 }

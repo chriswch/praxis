@@ -98,7 +98,7 @@ class ProviderResumeContractTest(unittest.TestCase):
         )
 
         with patch(
-            "praxis.runtime.adapters.provider_resume._run_command",
+            "praxis.runtime.adapters.claude.adapter_runtime._run_command",
             return_value={
                 "ok": True,
                 "returncode": 0,

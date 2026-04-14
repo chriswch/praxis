@@ -46,12 +46,19 @@
         "worker_process_completed",
         "worker_process_failed",
         "worktree_cleaned",
-        "worktree_cleanup_failed"
+        "worktree_cleanup_failed",
+        "tool_invocation_requested",
+        "tool_invocation_completed",
+        "tool_invocation_denied",
+        "tool_invocation_failed"
       ]
     },
     "adapter": {
       "type": "string",
-      "enum": ["claude", "codex"]
+      "enum": [
+        "claude",
+        "codex"
+      ]
     },
     "dispatch_id": {
       "type": "string",
@@ -178,7 +185,10 @@
       "anyOf": [
         {
           "type": "string",
-          "enum": ["interactive", "headless"]
+          "enum": [
+            "interactive",
+            "headless"
+          ]
         },
         {
           "type": "null"
@@ -228,6 +238,28 @@
           "type": "null"
         }
       ]
+    },
+    "tool_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tool_record_path": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/tools/.+\\.json$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "allOf": [
@@ -235,12 +267,18 @@
       "if": {
         "properties": {
           "type": {
-            "enum": ["native_launch_recorded", "native_launch_failed"]
+            "enum": [
+              "native_launch_recorded",
+              "native_launch_failed"
+            ]
           }
         }
       },
       "then": {
-        "required": ["hook_event", "source"]
+        "required": [
+          "hook_event",
+          "source"
+        ]
       }
     },
     {
@@ -252,7 +290,10 @@
         }
       },
       "then": {
-        "required": ["launch_record_path", "session_id"]
+        "required": [
+          "launch_record_path",
+          "session_id"
+        ]
       }
     },
     {
@@ -290,19 +331,46 @@
         }
       },
       "then": {
-        "required": ["launch_surface"]
+        "required": [
+          "launch_surface"
+        ]
       }
     },
     {
       "if": {
         "properties": {
           "type": {
-            "enum": ["worktree_cleaned", "worktree_cleanup_failed"]
+            "enum": [
+              "worktree_cleaned",
+              "worktree_cleanup_failed"
+            ]
           }
         }
       },
       "then": {
-        "required": ["worktree_path"]
+        "required": [
+          "worktree_path"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "tool_invocation_requested",
+              "tool_invocation_completed",
+              "tool_invocation_denied",
+              "tool_invocation_failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "tool_id",
+          "tool_record_path"
+        ]
       }
     }
   ]

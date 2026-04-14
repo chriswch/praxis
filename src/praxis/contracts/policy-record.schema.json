@@ -104,7 +104,12 @@
       "anyOf": [
         {
           "type": "string",
-          "enum": ["interactive_orchestrator", "session_worker", "worktree_worker", "subagent_worker"]
+          "enum": [
+            "interactive_orchestrator",
+            "session_worker",
+            "worktree_worker",
+            "subagent_worker"
+          ]
         },
         {
           "type": "null"
@@ -115,7 +120,13 @@
       "anyOf": [
         {
           "type": "string",
-          "enum": ["planning", "design", "implementation", "review", "verification"]
+          "enum": [
+            "planning",
+            "design",
+            "implementation",
+            "review",
+            "verification"
+          ]
         },
         {
           "type": "null"
@@ -126,7 +137,10 @@
       "anyOf": [
         {
           "type": "string",
-          "enum": ["shared", "isolated"]
+          "enum": [
+            "shared",
+            "isolated"
+          ]
         },
         {
           "type": "null"
@@ -168,7 +182,13 @@
     },
     "gate_type": {
       "type": "string",
-      "enum": ["filesystem", "network", "destructive_command", "story_boundary"]
+      "enum": [
+        "filesystem",
+        "network",
+        "destructive_command",
+        "control_plane_write",
+        "story_boundary"
+      ]
     },
     "configured_value": {
       "anyOf": [
@@ -186,11 +206,18 @@
     },
     "decision": {
       "type": "string",
-      "enum": ["allowed", "denied"]
+      "enum": [
+        "allowed",
+        "denied"
+      ]
     },
     "source": {
       "type": "string",
-      "enum": ["dispatch_compiler", "story_boundary"]
+      "enum": [
+        "dispatch_compiler",
+        "story_boundary",
+        "tool_broker"
+      ]
     },
     "reason_code": {
       "type": "string",

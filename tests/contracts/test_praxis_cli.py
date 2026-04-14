@@ -379,7 +379,7 @@ class PraxisCliContractTest(unittest.TestCase):
         run = result["data"]["run"]
         self.assertEqual(run["routing"]["pending_worker_action"], "await_stage_result")
         self.assertIsNotNone(run["current"]["session_id"])
-        self.assertEqual(run["policies"]["count"], 3)
+        self.assertEqual(run["policies"]["count"], 4)
         self.assertEqual(run["trace"]["last_launch_event"]["type"], "native_launch_recorded")
         self.assertTrue(run["dispatch_bundle"]["available"])
         self.assertTrue(run["dispatch_bundle"]["worker_launch_path"].endswith("/worker-launch.json"))
@@ -898,7 +898,7 @@ class PraxisCliContractTest(unittest.TestCase):
         self.assertEqual(dispatch_bundle["isolation_mode"], "isolated")
         self.assertFalse(dispatch_bundle["product_worktree_mutation_allowed"])
         self.assertTrue(dispatch_bundle["review_independence_required"])
-        self.assertEqual(dispatch_bundle["runtime_state_channel"], "praxis_symlink")
+        self.assertEqual(dispatch_bundle["runtime_state_channel"], "projected_control_plane")
 
         doctor_completed = self._run_cli("doctor", "--repo-root", str(self.repo_root), "--json")
         self.assertEqual(doctor_completed.returncode, 0, doctor_completed.stderr)

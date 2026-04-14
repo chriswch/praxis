@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 from typing import Any
 
 from ..state.durable_state import load_json
+from .runtime_contract import get_adapter_runtime
 from .native_resume import (
     boundary_handoff_fingerprint_from_payload,
     context_fingerprint_from_payload,
@@ -36,66 +36,9 @@ def _check(name: str, passed: bool, reason_code: str | None = None, reason: str 
     }
 
 
-def _run_command(args: list[str], *, cwd: Path) -> dict[str, Any]:
-    try:
-        completed = subprocess.run(
-            args,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        return {
-            "ok": False,
-            "returncode": 127,
-            "stdout": "",
-            "stderr": str(exc),
-            "error": str(exc),
-            "args": list(args),
-        }
-    return {
-        "ok": completed.returncode == 0,
-        "returncode": completed.returncode,
-        "stdout": completed.stdout,
-        "stderr": completed.stderr,
-        "error": None,
-        "args": list(args),
-    }
-
-
 def _provider_capability(*, adapter: str, repo_root: Path, resume_mode: str) -> dict[str, Any]:
-    if adapter == "codex":
-        return {
-            "supported": True,
-            "mode": "either",
-            "reason_code": "provider_resume_available",
-            "reason": "Codex exposes provider-native resume for interactive and headless flows.",
-        }
-    if adapter != "claude":
-        raise ValueError(f"Unsupported adapter: {adapter!r}.")
-    if resume_mode == "interactive":
-        return {
-            "supported": True,
-            "mode": "interactive",
-            "reason_code": "provider_resume_available",
-            "reason": "Claude interactive resume is available through SessionStart hooks.",
-        }
-
-    help_result = _run_command(["claude", "--help"], cwd=repo_root)
-    help_text = f"{help_result['stdout']}\n{help_result['stderr']}"
-    has_headless_resume = all(token in help_text for token in ("--resume", "--print", "--output-format"))
-    return {
-        "supported": has_headless_resume,
-        "mode": "either" if has_headless_resume else "interactive",
-        "reason_code": "provider_resume_available" if has_headless_resume else "headless_resume_unsupported",
-        "reason": (
-            "Claude headless resume is available in the installed CLI."
-            if has_headless_resume
-            else "Claude headless resume is not available in the installed CLI, so Praxis must relaunch fresh."
-        ),
-        "probe": help_result,
-    }
+    runtime = get_adapter_runtime(adapter)
+    return runtime.probe_resume_capability(repo_root=repo_root, resume_mode=resume_mode)
 
 
 def _evaluate_resume_safety(
@@ -304,13 +247,13 @@ def _provider_resume_command(
     prompt: str,
     resume_mode: str,
 ) -> dict[str, Any]:
-    if adapter == "codex":
-        args = ["codex", "exec", "resume", session_id, prompt, "--json"]
-        return _run_command(args, cwd=repo_root)
-    if adapter == "claude" and resume_mode == "headless":
-        args = ["claude", "--print", "--resume", session_id, prompt, "--output-format", "stream-json"]
-        return _run_command(args, cwd=repo_root)
-    raise ValueError(f"Unsupported provider resume path for adapter={adapter!r} mode={resume_mode!r}.")
+    runtime = get_adapter_runtime(adapter)
+    return runtime.run_resume_command(
+        repo_root=repo_root,
+        session_id=session_id,
+        prompt=prompt,
+        resume_mode=resume_mode,
+    )
 
 
 def attempt_provider_resume(*, repo_root: Path, payload: dict[str, Any], timestamp: str) -> dict[str, Any]:

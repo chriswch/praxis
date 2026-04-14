@@ -11,6 +11,7 @@
     "run_id",
     "generated_at",
     "adapter",
+    "broker",
     "worker",
     "policy",
     "tool_count",
@@ -35,12 +36,19 @@
     },
     "adapter": {
       "type": "string",
-      "enum": ["claude", "codex"]
+      "enum": [
+        "claude",
+        "codex"
+      ]
     },
     "worker": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["worker_id", "worker_class", "permission_profile"],
+      "required": [
+        "worker_id",
+        "worker_class",
+        "permission_profile"
+      ],
       "properties": {
         "worker_id": {
           "type": "string",
@@ -48,29 +56,89 @@
         },
         "worker_class": {
           "type": "string",
-          "enum": ["interactive_orchestrator", "session_worker", "worktree_worker", "subagent_worker"]
+          "enum": [
+            "interactive_orchestrator",
+            "session_worker",
+            "worktree_worker",
+            "subagent_worker"
+          ]
         },
         "permission_profile": {
           "type": "string",
-          "enum": ["planning", "design", "implementation", "review", "verification"]
+          "enum": [
+            "planning",
+            "design",
+            "implementation",
+            "review",
+            "verification"
+          ]
         }
       }
     },
     "policy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["filesystem_scope", "network_access", "destructive_commands_allowed"],
+      "required": [
+        "filesystem_scope",
+        "network_access",
+        "destructive_commands_allowed",
+        "enforcement_mode",
+        "control_plane_access",
+        "writable_roots",
+        "blocked_paths"
+      ],
       "properties": {
         "filesystem_scope": {
           "type": "string",
-          "enum": ["workspace-write", "read-only", "danger-full-access", "inherit"]
+          "enum": [
+            "workspace-write",
+            "read-only",
+            "danger-full-access",
+            "inherit"
+          ]
         },
         "network_access": {
           "type": "string",
-          "enum": ["restricted", "enabled", "inherit"]
+          "enum": [
+            "restricted",
+            "enabled",
+            "inherit"
+          ]
         },
         "destructive_commands_allowed": {
           "type": "boolean"
+        },
+        "enforcement_mode": {
+          "type": "string",
+          "enum": [
+            "enforced",
+            "advisory"
+          ]
+        },
+        "control_plane_access": {
+          "type": "string",
+          "enum": [
+            "direct_repo",
+            "projected_read_only"
+          ]
+        },
+        "writable_roots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "blocked_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
         }
       }
     },
@@ -92,12 +160,20 @@
           "provenance",
           "adapter_availability",
           "native_surface",
+          "broker_action",
+          "requires_declared_write_paths",
           "enabled"
         ],
         "properties": {
           "tool_id": {
             "type": "string",
-            "enum": ["repo_read", "repo_search", "repo_patch", "repo_shell", "network_fetch"]
+            "enum": [
+              "repo_read",
+              "repo_search",
+              "repo_patch",
+              "repo_shell",
+              "network_fetch"
+            ]
           },
           "description": {
             "type": "string",
@@ -105,15 +181,27 @@
           },
           "permission_class": {
             "type": "string",
-            "enum": ["read_only", "workspace_write", "network_access"]
+            "enum": [
+              "read_only",
+              "workspace_write",
+              "network_access"
+            ]
           },
           "side_effect_class": {
             "type": "string",
-            "enum": ["none", "filesystem_write", "network"]
+            "enum": [
+              "none",
+              "filesystem_write",
+              "network"
+            ]
           },
           "latency_class": {
             "type": "string",
-            "enum": ["low", "medium", "high"]
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
           },
           "provenance": {
             "type": "string",
@@ -123,7 +211,10 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["claude", "codex"]
+              "enum": [
+                "claude",
+                "codex"
+              ]
             },
             "uniqueItems": true
           },
@@ -133,7 +224,32 @@
           },
           "enabled": {
             "type": "boolean"
+          },
+          "broker_action": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requires_declared_write_paths": {
+            "type": "boolean"
           }
+        }
+      }
+    },
+    "broker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "tool_records_dir"
+      ],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_records_dir": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/tools/.+$"
         }
       }
     }

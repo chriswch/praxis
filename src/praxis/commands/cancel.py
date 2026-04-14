@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from praxis.commands._support import build_run_snapshot, load_run_or_error
+from praxis.runtime.adapters.runtime_contract import get_adapter_runtime
 from praxis.runtime.approval_records import build_approval_record
-from praxis.runtime.adapters.native_resume import worker_record_relpath
+from praxis.runtime.adapters.native_resume import session_record_relpath, worker_record_relpath
 from praxis.runtime.state.durable_state import commit_transaction, dump_events, dump_json, extend_event_log, load_json, validate_state_payloads
 from praxis.runtime.workers.planning import bump_transition_id, ensure_run_vnext_defaults
 from praxis.runtime.workers.worktree import cleanup_isolated_worktree_event, isolated_worktree_relpath
@@ -85,6 +86,8 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
     }
 
     worker_id = run["current"].get("worker_id")
+    session_record = None
+    worker_record = None
     if isinstance(worker_id, str) and worker_id:
         worker_rel = worker_record_relpath(worker_id)
         worker_path = repo_root / worker_rel
@@ -93,9 +96,44 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
             launcher_pid = worker_record.get("launcher_pid")
             if not isinstance(launcher_pid, int):
                 launcher_pid = None
-            _terminate_launcher_process(launcher_pid)
+            session_id = worker_record.get("session_id")
+            if isinstance(session_id, str) and session_id:
+                session_path = repo_root / session_record_relpath(run["runtime"]["adapter"], session_id)
+                if session_path.exists():
+                    session_record = load_json(session_path)
+
+            cancel_result = get_adapter_runtime(run["runtime"]["adapter"]).cancel(
+                repo_root=repo_root,
+                session_record=session_record,
+                worker_record=worker_record,
+                reason=reason,
+            )
+            events.append(
+                {
+                    "ts": timestamp,
+                    "type": "adapter_cancel_attempted",
+                    "adapter": run["runtime"]["adapter"],
+                    "worker_id": worker_id,
+                    "reason_code": cancel_result["reason_code"],
+                    "reason": cancel_result["reason"],
+                    "status": cancel_result["status"],
+                }
+            )
+            if cancel_result["status"] != "succeeded":
+                _terminate_launcher_process(launcher_pid)
+                events.append(
+                    {
+                        "ts": timestamp,
+                        "type": "adapter_cancel_fallback",
+                        "adapter": run["runtime"]["adapter"],
+                        "worker_id": worker_id,
+                        "reason_code": "local_process_terminated",
+                        "reason": "Praxis fell back to local process-group termination after the adapter-native cancel path was unavailable.",
+                    }
+                )
             worker_record["status"] = "cancelled"
             files[worker_rel] = dump_json(worker_record)
+            files[".praxis/events.jsonl"] = dump_events(events)
 
         worktree_path = repo_root / isolated_worktree_relpath(worker_id)
         if worktree_path.exists():

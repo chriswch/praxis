@@ -19,10 +19,22 @@
     "artifact_outputs_expected"
   ],
   "properties": {
-    "version": {"type": "integer", "const": 1},
-    "dispatch_id": {"type": "string", "minLength": 1},
-    "run_id": {"type": "string", "minLength": 1},
-    "recorded_at": {"type": "string", "format": "date-time"},
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "dispatch_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "status": {
       "type": "string",
       "enum": [
@@ -38,54 +50,228 @@
     "dispatch": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["workflow", "adapter", "entrypoint", "scope", "slice_id", "artifact_dir", "stage", "boundary_handoff_path", "transition_id", "reason"],
+      "required": [
+        "workflow",
+        "adapter",
+        "entrypoint",
+        "scope",
+        "slice_id",
+        "artifact_dir",
+        "stage",
+        "boundary_handoff_path",
+        "transition_id",
+        "reason"
+      ],
       "properties": {
-        "workflow": {"type": "string", "enum": ["craft", "forge"]},
-        "adapter": {"type": "string", "enum": ["claude", "codex"]},
-        "entrypoint": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
-        "scope": {"type": "string", "enum": ["root", "feature", "slice"]},
-        "slice_id": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
-        "artifact_dir": {"type": "string", "pattern": "^\\.praxis(?:/.*)?$"},
-        "stage": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
-        "boundary_handoff_path": {"anyOf": [{"type": "string", "pattern": "^\\.praxis(?:/.*)?$"}, {"type": "null"}]},
-        "transition_id": {"type": "string", "minLength": 1},
-        "reason": {"type": "string", "minLength": 1}
+        "workflow": {
+          "type": "string",
+          "enum": [
+            "craft",
+            "forge"
+          ]
+        },
+        "adapter": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ]
+        },
+        "entrypoint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "root",
+            "feature",
+            "slice"
+          ]
+        },
+        "slice_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_dir": {
+          "type": "string",
+          "pattern": "^\\.praxis(?:/.*)?$"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boundary_handoff_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transition_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "worker": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["worker_id", "worker_class", "reuse_policy", "permission_profile", "worktree_mode", "fresh_context"],
+      "required": [
+        "worker_id",
+        "worker_class",
+        "reuse_policy",
+        "permission_profile",
+        "worktree_mode",
+        "fresh_context"
+      ],
       "properties": {
-        "worker_id": {"type": "string", "minLength": 1},
-        "worker_class": {"type": "string", "enum": ["interactive_orchestrator", "session_worker", "worktree_worker", "subagent_worker"]},
-        "reuse_policy": {"type": "string", "minLength": 1},
-        "permission_profile": {"type": "string", "enum": ["planning", "design", "implementation", "review", "verification"]},
-        "worktree_mode": {"type": "string", "enum": ["shared", "isolated"]},
-        "fresh_context": {"type": "boolean"}
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worker_class": {
+          "type": "string",
+          "enum": [
+            "interactive_orchestrator",
+            "session_worker",
+            "worktree_worker",
+            "subagent_worker"
+          ]
+        },
+        "reuse_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "permission_profile": {
+          "type": "string",
+          "enum": [
+            "planning",
+            "design",
+            "implementation",
+            "review",
+            "verification"
+          ]
+        },
+        "worktree_mode": {
+          "type": "string",
+          "enum": [
+            "shared",
+            "isolated"
+          ]
+        },
+        "fresh_context": {
+          "type": "boolean"
+        }
       }
     },
     "resume": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["strategy", "session_id", "resumable", "mode"],
+      "required": [
+        "strategy",
+        "session_id",
+        "resumable",
+        "mode"
+      ],
       "properties": {
-        "strategy": {"anyOf": [{"type": "string", "enum": ["prefer_resume_then_relaunch", "relaunch_only"]}, {"type": "null"}]},
-        "session_id": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
-        "resumable": {"type": "boolean"},
-        "mode": {"type": "string", "enum": ["interactive", "headless"]}
+        "strategy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "prefer_resume_then_relaunch",
+                "relaunch_only"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resumable": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "interactive",
+            "headless"
+          ]
+        }
       }
     },
     "bundle": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["bundle_dir", "worker_launch_path", "dispatch_record_path", "context_manifest_path", "tool_manifest_path"],
+      "required": [
+        "bundle_dir",
+        "worker_launch_path",
+        "dispatch_record_path",
+        "context_manifest_path",
+        "tool_manifest_path"
+      ],
       "properties": {
-        "bundle_dir": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+$"},
-        "worker_launch_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$"},
-        "dispatch_record_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$"},
-        "context_manifest_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"},
-        "tool_manifest_path": {"type": "string", "pattern": "^\\.praxis/runtime/dispatches/.+/tool-manifest\\.json$"}
+        "bundle_dir": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+$"
+        },
+        "worker_launch_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/worker-launch\\.json$"
+        },
+        "dispatch_record_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/dispatch-record\\.json$"
+        },
+        "context_manifest_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/context-manifest\\.json$"
+        },
+        "tool_manifest_path": {
+          "type": "string",
+          "pattern": "^\\.praxis/runtime/dispatches/.+/tool-manifest\\.json$"
+        }
       }
     },
     "isolation": {
@@ -99,19 +285,58 @@
         "review_independence_required",
         "product_worktree_mutation_allowed",
         "runtime_state_channel",
+        "control_plane_access",
         "guardrail_reason_code",
         "guardrail_reason"
       ],
       "properties": {
-        "worker_id": {"type": "string", "minLength": 1},
-        "mode": {"type": "string", "enum": ["shared", "isolated"]},
-        "worktree_path": {"type": "string", "minLength": 1},
-        "product_worktree_path": {"type": "string", "minLength": 1},
-        "review_independence_required": {"type": "boolean"},
-        "product_worktree_mutation_allowed": {"type": "boolean"},
-        "runtime_state_channel": {"type": "string", "enum": ["direct_repo", "praxis_symlink"]},
-        "guardrail_reason_code": {"type": "string", "minLength": 1},
-        "guardrail_reason": {"type": "string", "minLength": 1}
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "shared",
+            "isolated"
+          ]
+        },
+        "worktree_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_worktree_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_independence_required": {
+          "type": "boolean"
+        },
+        "product_worktree_mutation_allowed": {
+          "type": "boolean"
+        },
+        "runtime_state_channel": {
+          "type": "string",
+          "enum": [
+            "direct_repo",
+            "projected_control_plane"
+          ]
+        },
+        "guardrail_reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "guardrail_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "control_plane_access": {
+          "type": "string",
+          "enum": [
+            "direct_repo",
+            "projected_read_only"
+          ]
+        }
       }
     },
     "ownership": {
@@ -128,29 +353,65 @@
         "reason"
       ],
       "properties": {
-        "worker_id": {"type": "string", "minLength": 1},
-        "kind": {"type": "string", "enum": ["workflow_owner", "sidecar"]},
-        "run_routing_owned": {"type": "boolean"},
-        "stage_result_expected": {"type": "boolean"},
-        "artifact_namespace": {"type": "string", "enum": ["primary", "sidecar"]},
-        "spawned_by_worker_id": {
-          "anyOf": [
-            {"type": "string", "minLength": 1},
-            {"type": "null"}
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "workflow_owner",
+            "sidecar"
           ]
         },
-        "reason_code": {"type": "string", "minLength": 1},
-        "reason": {"type": "string", "minLength": 1}
+        "run_routing_owned": {
+          "type": "boolean"
+        },
+        "stage_result_expected": {
+          "type": "boolean"
+        },
+        "artifact_namespace": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "sidecar"
+          ]
+        },
+        "spawned_by_worker_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "artifact_inputs": {
       "type": "array",
-      "items": {"type": "string", "pattern": "^\\.praxis(?:/.*)?$"},
+      "items": {
+        "type": "string",
+        "pattern": "^\\.praxis(?:/.*)?$"
+      },
       "uniqueItems": true
     },
     "artifact_outputs_expected": {
       "type": "array",
-      "items": {"type": "string", "pattern": "^\\.praxis(?:/.*)?$"},
+      "items": {
+        "type": "string",
+        "pattern": "^\\.praxis(?:/.*)?$"
+      },
       "uniqueItems": true
     },
     "resolution": {
@@ -180,32 +441,63 @@
             "launch_failed"
           ]
         },
-        "updated_at": {"type": "string", "format": "date-time"},
-        "resolved": {"type": "boolean"},
-        "reason_code": {"type": "string", "minLength": 1},
-        "reason": {"type": "string", "minLength": 1},
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "resolved": {
+          "type": "boolean"
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
         "native_launch_record_path": {
           "anyOf": [
-            {"type": "string", "pattern": "^\\.praxis/runtime/launches/(?:codex|claude)/.*\\.json$"},
-            {"type": "null"}
+            {
+              "type": "string",
+              "pattern": "^\\.praxis/runtime/launches/(?:codex|claude)/.*\\.json$"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "native_resume_record_path": {
           "anyOf": [
-            {"type": "string", "pattern": "^\\.praxis/runtime/resumes/(?:codex|claude)/.*\\.json$"},
-            {"type": "null"}
+            {
+              "type": "string",
+              "pattern": "^\\.praxis/runtime/resumes/(?:codex|claude)/.*\\.json$"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "worker_record_path": {
           "anyOf": [
-            {"type": "string", "pattern": "^\\.praxis/runtime/workers/.+\\.json$"},
-            {"type": "null"}
+            {
+              "type": "string",
+              "pattern": "^\\.praxis/runtime/workers/.+\\.json$"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "session_record_path": {
           "anyOf": [
-            {"type": "string", "pattern": "^\\.praxis/runtime/sessions/(?:codex|claude)/.*\\.json$"},
-            {"type": "null"}
+            {
+              "type": "string",
+              "pattern": "^\\.praxis/runtime/sessions/(?:codex|claude)/.*\\.json$"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       }

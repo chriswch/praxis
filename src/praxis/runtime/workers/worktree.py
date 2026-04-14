@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from ..policy import projection_required
 from ..state.contract_validation import validate_contract_payload
 from ..state.durable_state import load_json
 
@@ -101,7 +102,98 @@ def inspect_isolated_worktrees(repo_root: Path) -> list[dict[str, Any]]:
     return inspections
 
 
-def ensure_isolated_worktree(*, repo_root: Path, worker_id: str) -> Path:
+def _safe_rmtree(path: Path) -> None:
+    if not path.exists() and not path.is_symlink():
+        return
+    if path.is_symlink() or path.is_file():
+        try:
+            path.chmod(0o700)
+        except OSError:
+            pass
+        path.unlink()
+        return
+    for child in sorted(path.rglob("*"), reverse=True):
+        try:
+            if child.is_dir():
+                child.chmod(0o700)
+            else:
+                child.chmod(0o600)
+        except OSError:
+            pass
+    try:
+        path.chmod(0o700)
+    except OSError:
+        pass
+    shutil.rmtree(path)
+
+
+def _ensure_parent(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _copy_read_only(src: Path, dst: Path) -> None:
+    if src.is_dir():
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.copytree(src, dst)
+        for child in dst.rglob("*"):
+            if child.is_dir():
+                child.chmod(0o555)
+            else:
+                child.chmod(0o444)
+        dst.chmod(0o555)
+        return
+    _ensure_parent(dst)
+    shutil.copy2(src, dst)
+    dst.chmod(0o444)
+
+
+def _link_writable(src: Path, dst: Path) -> None:
+    _ensure_parent(dst)
+    if dst.exists() or dst.is_symlink():
+        _safe_rmtree(dst)
+    dst.symlink_to(src, target_is_directory=src.is_dir())
+
+
+def _projection_paths(*, repo_root: Path, payload: dict[str, Any]) -> tuple[list[str], list[str]]:
+    readable = [payload["inputs"]["run_path"], payload["bundle"]["bundle_dir"]]
+    story_ledger_path = repo_root / ".praxis" / "story-ledger.json"
+    if story_ledger_path.exists():
+        readable.append(".praxis/story-ledger.json")
+    handoff_path = payload["inputs"].get("boundary_handoff_path")
+    if handoff_path:
+        readable.append(handoff_path)
+    for artifact_path in payload.get("artifact_inputs", []):
+        if artifact_path in readable:
+            continue
+        readable.append(artifact_path)
+    writable = list(payload.get("artifact_outputs_expected", []))
+    return readable, writable
+
+
+def _project_runtime_state(*, repo_root: Path, worktree_path: Path, payload: dict[str, Any]) -> None:
+    praxis_root = worktree_path / ".praxis"
+    _safe_rmtree(praxis_root)
+    praxis_root.mkdir(parents=True, exist_ok=True)
+
+    readable, writable = _projection_paths(repo_root=repo_root, payload=payload)
+    for rel_path in readable:
+        src = repo_root / rel_path
+        if not src.exists():
+            continue
+        _copy_read_only(src, worktree_path / rel_path)
+    for rel_path in writable:
+        src = repo_root / rel_path
+        if not src.exists():
+            if Path(rel_path).suffix:
+                src.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                src.mkdir(parents=True, exist_ok=True)
+        _link_writable(src, worktree_path / rel_path)
+    praxis_root.chmod(0o555)
+
+
+def ensure_isolated_worktree(*, repo_root: Path, worker_id: str, payload: dict[str, Any] | None = None) -> Path:
     repo_root = repo_root.resolve()
     worktree_path = repo_root / isolated_worktree_relpath(worker_id)
     inspection = inspect_isolated_worktree(repo_root=repo_root, worker_id=worker_id)
@@ -125,7 +217,10 @@ def ensure_isolated_worktree(*, repo_root: Path, worker_id: str) -> Path:
         stderr = completed.stderr.strip() or completed.stdout.strip() or "git worktree add failed."
         raise RuntimeError(f"Praxis could not create an isolated worktree for {worker_id}: {stderr}")
 
-    _link_shared_runtime(repo_root=repo_root, worktree_path=worktree_path)
+    if payload is not None and projection_required(payload.get("permissions", {})):
+        _project_runtime_state(repo_root=repo_root, worktree_path=worktree_path, payload=payload)
+    else:
+        _link_shared_runtime(repo_root=repo_root, worktree_path=worktree_path)
     return worktree_path
 
 
@@ -134,6 +229,21 @@ def cleanup_isolated_worktree(*, repo_root: Path, worker_id: str) -> None:
     worktree_path = repo_root / isolated_worktree_relpath(worker_id)
     if not worktree_path.exists():
         return
+
+    for child in sorted(worktree_path.rglob("*"), reverse=True):
+        try:
+            if child.is_symlink():
+                continue
+            if child.is_dir():
+                child.chmod(0o700)
+            else:
+                child.chmod(0o600)
+        except OSError:
+            pass
+    try:
+        worktree_path.chmod(0o700)
+    except OSError:
+        pass
 
     completed = subprocess.run(
         ["git", "worktree", "remove", "--force", str(worktree_path)],

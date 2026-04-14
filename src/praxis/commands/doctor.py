@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from praxis.commands._support import build_run_snapshot, sync_cursor_if_needed
+from praxis.runtime.adapters.runtime_contract import get_adapter_runtime
 from praxis.runtime.adapters.harness import build_worker_launch_payload, load_adapter_harness
 from praxis.runtime.context.bundle import load_dispatch_bundle_status
-from praxis.runtime.adapters.provider_resume import _provider_capability
 from praxis.runtime.state.durable_state import load_events, load_json, recover_pending_transaction, validate_state_payloads
 from praxis.runtime.workers.planning import build_worker_plan, ensure_run_vnext_defaults
 from praxis.runtime.workers.worktree import inspect_isolated_worktrees
@@ -55,34 +55,13 @@ def _provider_binary(adapter: str) -> str:
 
 
 def _provider_cli_check(*, repo_root: Path, adapter: str, run: dict[str, Any] | None) -> dict[str, Any]:
-    binary = _provider_binary(adapter)
-    resolved = shutil.which(binary)
-    if resolved is None:
-        return _record_check(
-            name=f"{adapter}_provider_cli",
-            status="error",
-            reason_code="provider_cli_missing",
-            message=f"Praxis could not find the `{binary}` CLI in PATH.",
-            details={"binary": binary},
-        )
-
-    if adapter == "claude" and run is not None and run.get("execution", {}).get("mode") == "autopilot":
-        capability = _provider_capability(adapter=adapter, repo_root=repo_root, resume_mode="headless")
-        if not capability["supported"]:
-            return _record_check(
-                name=f"{adapter}_provider_cli",
-                status="warn",
-                reason_code=str(capability["reason_code"]),
-                message=str(capability["reason"]),
-                details={"binary": binary, "resolved_path": resolved},
-            )
-
+    status = get_adapter_runtime(adapter).status_check(repo_root=repo_root, run=run)
     return _record_check(
         name=f"{adapter}_provider_cli",
-        status="ok",
-        reason_code="provider_cli_available",
-        message=f"Praxis found the `{binary}` CLI.",
-        details={"binary": binary, "resolved_path": resolved},
+        status=status["status"],
+        reason_code=status["reason_code"],
+        message=status["message"],
+        details=status.get("details"),
     )
 
 
@@ -465,6 +444,60 @@ def _worker_dispatch_consistency_check(
     )
 
 
+def _sidecar_workers_check(*, run_snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    sidecars = ((run_snapshot or {}).get("sidecars") or {}).get("items") or []
+    if not sidecars:
+        return _record_check(
+            name="sidecar_workers",
+            status="ok",
+            reason_code="no_sidecars",
+            message="No sidecar workers are recorded for the active run.",
+        )
+    statuses = {str(item.get("status")) for item in sidecars}
+    status = "warn" if statuses & {"failed", "cancelled"} else "ok"
+    reason_code = "sidecars_need_attention" if status == "warn" else "sidecars_visible"
+    message = (
+        "Praxis found sidecar workers that need attention."
+        if status == "warn"
+        else "Praxis recorded sidecar workers separately from the primary owner."
+    )
+    return _record_check(
+        name="sidecar_workers",
+        status=status,
+        reason_code=reason_code,
+        message=message,
+        details={"count": len(sidecars), "items": sidecars},
+    )
+
+
+def _tool_usage_check(*, run_snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    usage = ((run_snapshot or {}).get("tool_usage") or {}).get("overall") or {}
+    if not usage:
+        return _record_check(
+            name="tool_usage",
+            status="ok",
+            reason_code="tool_usage_unavailable",
+            message="No brokered tool-usage summary is available.",
+        )
+    denied = int(usage.get("denied_count") or 0)
+    failed = int(usage.get("failed_count") or 0)
+    if denied or failed:
+        return _record_check(
+            name="tool_usage",
+            status="warn",
+            reason_code="tool_usage_has_risks",
+            message="Praxis recorded denied or failed brokered tool invocations.",
+            details=usage,
+        )
+    return _record_check(
+        name="tool_usage",
+        status="ok",
+        reason_code="tool_usage_clean",
+        message="Brokered tool usage has no denied or failed invocations.",
+        details=usage,
+    )
+
+
 def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[str, Any]:
     del timestamp
     checks: list[dict[str, Any]] = []
@@ -693,6 +726,8 @@ def handle(args: argparse.Namespace, repo_root: Path, timestamp: str) -> dict[st
     checks.append(_stale_worktree_check(repo_root=repo_root))
     checks.append(_worktree_cleanup_event_check(repo_root=repo_root))
     checks.append(_failed_worker_logs_check(repo_root=repo_root))
+    checks.append(_sidecar_workers_check(run_snapshot=run_snapshot))
+    checks.append(_tool_usage_check(run_snapshot=run_snapshot))
 
     healthy = not any(check["status"] == "error" for check in checks)
     return {

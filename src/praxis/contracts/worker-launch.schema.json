@@ -17,15 +17,25 @@
   "properties": {
     "version": {
       "type": "integer",
-      "enum": [1, 2, 3]
+      "enum": [
+        1,
+        2,
+        3
+      ]
     },
     "workflow": {
       "type": "string",
-      "enum": ["craft", "forge"]
+      "enum": [
+        "craft",
+        "forge"
+      ]
     },
     "adapter": {
       "type": "string",
-      "enum": ["claude", "codex"]
+      "enum": [
+        "claude",
+        "codex"
+      ]
     },
     "dispatch": {
       "type": "object",
@@ -44,32 +54,57 @@
       "properties": {
         "action": {
           "anyOf": [
-            { "type": "string", "minLength": 1 },
-            { "type": "null" }
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "workflow": {
           "type": "string",
-          "enum": ["craft", "forge"]
+          "enum": [
+            "craft",
+            "forge"
+          ]
         },
         "adapter": {
           "type": "string",
-          "enum": ["claude", "codex"]
+          "enum": [
+            "claude",
+            "codex"
+          ]
         },
         "entrypoint": {
           "anyOf": [
-            { "type": "string", "minLength": 1 },
-            { "type": "null" }
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "scope": {
           "type": "string",
-          "enum": ["root", "feature", "slice"]
+          "enum": [
+            "root",
+            "feature",
+            "slice"
+          ]
         },
         "slice_id": {
           "anyOf": [
-            { "type": "string", "minLength": 1 },
-            { "type": "null" }
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "artifact_dir": {
@@ -78,20 +113,35 @@
         },
         "stage": {
           "anyOf": [
-            { "type": "string", "minLength": 1 },
-            { "type": "null" }
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "boundary_handoff_path": {
           "anyOf": [
-            { "type": "string", "pattern": "^\\.praxis(?:/.*)?$" },
-            { "type": "null" }
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "stage_result_path": {
           "anyOf": [
-            { "type": "string", "pattern": "^\\.praxis(?:/.*)?$" },
-            { "type": "null" }
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       }
@@ -99,7 +149,11 @@
     "inputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["run_path", "boundary_handoff_path", "boundary_handoff"],
+      "required": [
+        "run_path",
+        "boundary_handoff_path",
+        "boundary_handoff"
+      ],
       "properties": {
         "run_path": {
           "type": "string",
@@ -107,14 +161,23 @@
         },
         "boundary_handoff_path": {
           "anyOf": [
-            { "type": "string", "pattern": "^\\.praxis(?:/.*)?$" },
-            { "type": "null" }
+            {
+              "type": "string",
+              "pattern": "^\\.praxis(?:/.*)?$"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "boundary_handoff": {
           "anyOf": [
-            { "type": "object" },
-            { "type": "null" }
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       }
@@ -140,7 +203,13 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["dispatch", "run_metadata", "boundary_handoff", "artifact_input", "harness_surface"]
+            "enum": [
+              "dispatch",
+              "run_metadata",
+              "boundary_handoff",
+              "artifact_input",
+              "harness_surface"
+            ]
           },
           "uniqueItems": true
         },
@@ -173,8 +242,13 @@
         },
         "project_config_path": {
           "anyOf": [
-            { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
-            { "type": "null" }
+            {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "hooks_path": {
@@ -192,30 +266,55 @@
         "extension_points": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["mcp_config_path", "resources_path", "tool_overrides_path", "notes_path"],
+          "required": [
+            "mcp_config_path",
+            "resources_path",
+            "tool_overrides_path",
+            "notes_path"
+          ],
           "properties": {
             "mcp_config_path": {
               "anyOf": [
-                { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
-                { "type": "null" }
+                {
+                  "type": "string",
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "resources_path": {
               "anyOf": [
-                { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
-                { "type": "null" }
+                {
+                  "type": "string",
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "tool_overrides_path": {
               "anyOf": [
-                { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
-                { "type": "null" }
+                {
+                  "type": "string",
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "notes_path": {
               "anyOf": [
-                { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$" },
-                { "type": "null" }
+                {
+                  "type": "string",
+                  "pattern": "^(?!/)(?![A-Za-z]:\\\\)[^\\n]+$"
+                },
+                {
+                  "type": "null"
+                }
               ]
             }
           }
@@ -225,7 +324,11 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["settings_path", "hooks_path", "subagents_path"],
+              "required": [
+                "settings_path",
+                "hooks_path",
+                "subagents_path"
+              ],
               "properties": {
                 "settings_path": {
                   "type": "string",
@@ -241,7 +344,9 @@
                 }
               }
             },
-            { "type": "null" }
+            {
+              "type": "null"
+            }
           ]
         }
       }
@@ -286,18 +391,30 @@
         },
         "worker_class": {
           "type": "string",
-          "enum": ["interactive_orchestrator", "session_worker", "worktree_worker", "subagent_worker"]
+          "enum": [
+            "interactive_orchestrator",
+            "session_worker",
+            "worktree_worker",
+            "subagent_worker"
+          ]
         },
         "reuse_policy": {
           "type": "string",
-          "enum": ["none", "reuse_story_worker", "new_story_worker"]
+          "enum": [
+            "none",
+            "reuse_story_worker",
+            "new_story_worker"
+          ]
         },
         "review_independence": {
           "type": "boolean"
         },
         "worktree_mode": {
           "type": "string",
-          "enum": ["shared", "isolated"]
+          "enum": [
+            "shared",
+            "isolated"
+          ]
         },
         "fresh_context": {
           "type": "boolean"
@@ -308,8 +425,13 @@
         },
         "worktree_path": {
           "anyOf": [
-            { "type": "string", "minLength": 1 },
-            { "type": "null" }
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       }
@@ -334,7 +456,10 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["workflow_owner", "sidecar"]
+          "enum": [
+            "workflow_owner",
+            "sidecar"
+          ]
         },
         "run_routing_owned": {
           "type": "boolean"
@@ -344,12 +469,20 @@
         },
         "artifact_namespace": {
           "type": "string",
-          "enum": ["primary", "sidecar"]
+          "enum": [
+            "primary",
+            "sidecar"
+          ]
         },
         "spawned_by_worker_id": {
           "anyOf": [
-            { "type": "string", "minLength": 1 },
-            { "type": "null" }
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "reason_code": {
@@ -365,21 +498,78 @@
     "permissions": {
       "type": "object",
       "additionalProperties": false,
+      "required": [
+        "profile",
+        "filesystem_scope",
+        "network_access",
+        "destructive_commands_allowed",
+        "enforcement_mode",
+        "control_plane_access",
+        "writable_roots",
+        "blocked_paths"
+      ],
       "properties": {
         "profile": {
           "type": "string",
-          "enum": ["planning", "design", "implementation", "review", "verification"]
+          "enum": [
+            "planning",
+            "design",
+            "implementation",
+            "review",
+            "verification"
+          ]
         },
         "filesystem_scope": {
           "type": "string",
-          "enum": ["workspace-write", "read-only", "danger-full-access", "inherit"]
+          "enum": [
+            "workspace-write",
+            "read-only",
+            "danger-full-access",
+            "inherit"
+          ]
         },
         "network_access": {
           "type": "string",
-          "enum": ["restricted", "enabled", "inherit"]
+          "enum": [
+            "restricted",
+            "enabled",
+            "inherit"
+          ]
         },
         "destructive_commands_allowed": {
           "type": "boolean"
+        },
+        "enforcement_mode": {
+          "type": "string",
+          "enum": [
+            "enforced",
+            "advisory"
+          ]
+        },
+        "control_plane_access": {
+          "type": "string",
+          "enum": [
+            "direct_repo",
+            "projected_read_only"
+          ]
+        },
+        "writable_roots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "blocked_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
         }
       }
     },
@@ -426,14 +616,27 @@
       "properties": {
         "strategy": {
           "anyOf": [
-            { "type": "string", "enum": ["prefer_resume_then_relaunch", "relaunch_only"] },
-            { "type": "null" }
+            {
+              "type": "string",
+              "enum": [
+                "prefer_resume_then_relaunch",
+                "relaunch_only"
+              ]
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "session_id": {
           "anyOf": [
-            { "type": "string", "minLength": 1 },
-            { "type": "null" }
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "resumable": {
@@ -444,7 +647,10 @@
         },
         "mode": {
           "type": "string",
-          "enum": ["interactive", "headless"]
+          "enum": [
+            "interactive",
+            "headless"
+          ]
         },
         "trace_path": {
           "type": "string",
@@ -485,13 +691,31 @@
             ]
           },
           "permissions": {
-            "required": ["profile", "filesystem_scope", "network_access", "destructive_commands_allowed"]
+            "required": [
+              "profile",
+              "filesystem_scope",
+              "network_access",
+              "destructive_commands_allowed"
+            ]
           },
           "budgets": {
-            "required": ["run_max_turns", "run_max_workers", "soft_cost_usd", "hard_cost_usd", "worker_timeout_minutes"]
+            "required": [
+              "run_max_turns",
+              "run_max_workers",
+              "soft_cost_usd",
+              "hard_cost_usd",
+              "worker_timeout_minutes"
+            ]
           },
           "resume": {
-            "required": ["strategy", "session_id", "resumable", "resume_attempted", "mode", "trace_path"]
+            "required": [
+              "strategy",
+              "session_id",
+              "resumable",
+              "resume_attempted",
+              "mode",
+              "trace_path"
+            ]
           }
         }
       }
@@ -538,13 +762,31 @@
             ]
           },
           "permissions": {
-            "required": ["profile", "filesystem_scope", "network_access", "destructive_commands_allowed"]
+            "required": [
+              "profile",
+              "filesystem_scope",
+              "network_access",
+              "destructive_commands_allowed"
+            ]
           },
           "budgets": {
-            "required": ["run_max_turns", "run_max_workers", "soft_cost_usd", "hard_cost_usd", "worker_timeout_minutes"]
+            "required": [
+              "run_max_turns",
+              "run_max_workers",
+              "soft_cost_usd",
+              "hard_cost_usd",
+              "worker_timeout_minutes"
+            ]
           },
           "resume": {
-            "required": ["strategy", "session_id", "resumable", "resume_attempted", "mode", "trace_path"]
+            "required": [
+              "strategy",
+              "session_id",
+              "resumable",
+              "resume_attempted",
+              "mode",
+              "trace_path"
+            ]
           }
         }
       }

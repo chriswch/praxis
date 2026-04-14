@@ -128,6 +128,23 @@ def build_parser() -> PraxisArgumentParser:
     _add_timestamp_option(dispatch_parser)
     dispatch_parser.add_argument("--session-id")
 
+    dispatch_sidecar_parser = subparsers.add_parser("dispatch-sidecar")
+    _add_global_options(dispatch_sidecar_parser, suppress_defaults=True)
+    _add_timestamp_option(dispatch_sidecar_parser)
+    dispatch_sidecar_parser.add_argument("--worker-id", required=True)
+    dispatch_sidecar_parser.add_argument("--reason", required=True)
+    dispatch_sidecar_parser.add_argument("--stage")
+    dispatch_sidecar_parser.add_argument(
+        "--permission-profile",
+        choices=["planning", "design", "implementation", "review", "verification"],
+    )
+    dispatch_sidecar_parser.add_argument("--worktree-mode", choices=["shared", "isolated"], default="isolated")
+    dispatch_sidecar_parser.add_argument("--spawned-by-worker-id")
+    dispatch_sidecar_parser.add_argument("--artifact-input", action="append", default=[])
+    dispatch_sidecar_parser.add_argument("--artifact-output", action="append", default=[])
+    dispatch_sidecar_parser.add_argument("--context-artifact-dir")
+    dispatch_sidecar_parser.add_argument("--session-id")
+
     submit_parser = subparsers.add_parser("submit-stage-result")
     _add_global_options(submit_parser, suppress_defaults=True)
     _add_timestamp_option(submit_parser)
@@ -191,6 +208,7 @@ def guess_command(argv: list[str]) -> str:
             "resume",
             "cancel",
             "dispatch",
+            "dispatch-sidecar",
             "submit-stage-result",
             "build-worker-launch",
             "doctor",

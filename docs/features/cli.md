@@ -22,6 +22,7 @@ Current public commands:
 - `praxis resume`
 - `praxis cancel`
 - `praxis dispatch`
+- `praxis dispatch-sidecar`
 - `praxis submit-stage-result`
 - `praxis build-worker-launch`
 - `praxis harness show-adapter`
@@ -77,24 +78,26 @@ New control-plane commands:
   overwriting existing files unless `--force` is passed
 - `praxis approve` explicitly advances `confirm_then_run` checkpoints while
   `praxis continue` remains the stable compatibility command
-- `praxis cancel` marks the active run as cancelled, terminates a recorded
-  launcher process group when needed, and cleans isolated worktrees best-effort
+- `praxis cancel` records an adapter-native cancel attempt first, then falls
+  back to local launcher termination when the adapter returns unsupported or
+  cannot complete the cancel path
 - `praxis doctor` reports machine-readable runtime checks with stable reason
-  codes for harness, launch, dispatch-bundle, active-runtime, worktree, and log
-  health
+  codes for harness, launch, dispatch-bundle, active-runtime, sidecar,
+  tool-usage, worktree, and log health
 - `praxis inspect` provides a read-only operator surface for the active run,
   worker, session, logs, trace stream, and lifecycle events
 - `praxis status` reports the run cursor plus `dispatch_bundle`,
-  `active_runtime`, approvals, policies, and trace summaries from durable state
+  `active_runtime`, `sidecars`, `tool_usage`, approvals, policies, and trace
+  summaries from durable state
 - `praxis build-worker-launch` compiles the bounded worker payload and loads the
   repo-scoped harness surface for the active adapter
 - `praxis submit-stage-result` validates the stage-result contract, confirms the
-  active stage and artifact directory match, and checkpoints story boundaries
-  when handoff data and commit metadata are present
+  active stage and artifact directory match, rejects non-owner sidecar results,
+  and checkpoints story boundaries when commit and handoff data are present
 
 `praxis dispatch` currently:
 
-- handles `session_worker` and `worktree_worker` plans
+- handles owner `session_worker` and `worktree_worker` plans
 - attempts provider-native resume only for durable `session_worker` cursors
   that are still marked resumable and have a stored provider locator
 - persists a bounded dispatch bundle under `.praxis/runtime/dispatches/`
@@ -106,6 +109,15 @@ New control-plane commands:
   `worker_process_completed` telemetry
 - lets the launcher update durable session state when a fresh provider launch
   yields a real provider locator
+
+`praxis dispatch-sidecar` currently:
+
+- launches explicit `subagent_worker` sidecars for bounded helper work
+- persists a sidecar request plus a sidecar dispatch bundle under the dedicated
+  sidecar namespace
+- records sidecar worker, session, launch, and trace artifacts without changing
+  the owner run cursor
+- keeps sidecar artifact outputs separate from owner stage artifacts
 
 `praxis inspect` currently:
 
@@ -122,11 +134,13 @@ New control-plane commands:
 
 The shipped CLI still keeps these limits:
 
-- `subagent_worker` bookkeeping is durable, but the public dispatch contract is
-  still centered on primary `session_worker` and `worktree_worker` flows
+- the tool broker is a shipped runtime surface, but it is still exposed through
+  `python3 -m praxis.runtime.tool_broker`, not a top-level `praxis` command
 - `praxis continue` stays in the command tree for compatibility even though
   `praxis approve` is the clearer confirmation verb
 - `praxis inspect run` is still active-run only in v1; historical run browsing
   has not shipped yet
+- adapters currently return `native_cancel_unsupported`, so cancel evidence is
+  richer than true provider-native bounded-session cancellation
 - future packaging layers such as a binary rewrite or npm wrapper remain
   follow-on product work

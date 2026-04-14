@@ -210,7 +210,11 @@ def dispatch_worker(*, repo_root: Path, timestamp: str, session_id: str | None =
         launch_source = "control_plane_resume_fallback"
 
     if worker["worktree_mode"] == "isolated":
-        worktree_path = ensure_isolated_worktree(repo_root=repo_root, worker_id=worker["worker_id"])
+        worktree_path = ensure_isolated_worktree(
+            repo_root=repo_root,
+            worker_id=worker["worker_id"],
+            payload=payload,
+        )
 
     payload_relpath = payload["bundle"]["worker_launch_path"]
     if resume.get("resume_attempted") or resume.get("resume_outcome"):

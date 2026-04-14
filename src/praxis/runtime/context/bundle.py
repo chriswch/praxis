@@ -223,11 +223,15 @@ def load_dispatch_bundle_status(
         status["default_item_count"] = manifest["selection_summary"]["default_item_count"]
         status["stage_specific_item_count"] = manifest["selection_summary"]["stage_specific_item_count"]
         status["carry_forward_item_count"] = manifest["selection_summary"]["carry_forward_item_count"]
+        status["policy_enforcement_mode"] = manifest["runtime_policy"]["enforcement_mode"]
+        status["control_plane_access"] = manifest["runtime_policy"]["control_plane_access"]
 
     if tool_manifest_path.exists():
         manifest = load_json(tool_manifest_path)
         validate_contract_payload("tool-manifest.schema.json", manifest)
         status["tool_count"] = manifest["tool_count"]
+        status["policy_enforcement_mode"] = manifest["policy"]["enforcement_mode"]
+        status["control_plane_access"] = manifest["policy"]["control_plane_access"]
 
     recovery_state, recovery_reason_code, recovery_reason = _classify_bundle_recovery_status(
         recovery=recovery,

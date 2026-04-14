@@ -49,8 +49,9 @@ def policy_record_relpath(
     worker_id: str | None,
     dispatch_id: str | None,
     slice_id: str | None,
+    source: str | None = None,
 ) -> str:
-    if dispatch_id and gate_type != "story_boundary":
+    if dispatch_id and gate_type != "story_boundary" and source == "dispatch_compiler":
         return f".praxis/runtime/policies/{dispatch_id}-{gate_type}.json"
     ts = recorded_at.replace("-", "").replace(":", "").replace(".", "")
     suffix = _slug(slice_id or worker_id or gate_type, fallback=gate_type)
@@ -71,8 +72,13 @@ def build_policy_record(
     dispatch_record_path: str | None = None,
     context_manifest_path: str | None = None,
     worker_class: str | None = None,
+    worker_id: str | None = None,
     permission_profile: str | None = None,
     worktree_mode: str | None = None,
+    scope: str | None = None,
+    slice_id: str | None = None,
+    artifact_dir: str | None = None,
+    stage: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     ensure_run_vnext_defaults(run)
     dispatch = _dispatch_from_run(run)
@@ -84,11 +90,11 @@ def build_policy_record(
       "recorded_at": recorded_at,
       "run_id": run["run_id"],
       "workflow": run["workflow"],
-      "scope": current.get("scope"),
-      "slice_id": current.get("slice_id"),
-      "artifact_dir": current.get("artifact_dir"),
-      "stage": current.get("stage"),
-      "worker_id": current.get("worker_id"),
+      "scope": current.get("scope") if scope is None else scope,
+      "slice_id": current.get("slice_id") if slice_id is None else slice_id,
+      "artifact_dir": current.get("artifact_dir") if artifact_dir is None else artifact_dir,
+      "stage": current.get("stage") if stage is None else stage,
+      "worker_id": current.get("worker_id") if worker_id is None else worker_id,
       "worker_class": worker_class if worker_class is not None else (worker_plan or {}).get("worker_class"),
       "permission_profile": permission_profile if permission_profile is not None else (worker_plan or {}).get("permission_profile"),
       "worktree_mode": worktree_mode if worktree_mode is not None else (worker_plan or {}).get("worktree_mode"),
@@ -110,6 +116,7 @@ def build_policy_record(
             worker_id=current.get("worker_id"),
             dispatch_id=record["dispatch_id"],
             slice_id=current.get("slice_id"),
+            source=source,
         ),
         record,
     )
@@ -159,6 +166,17 @@ def build_dispatch_policy_records(
             if permissions["destructive_commands_allowed"]
             else "Destructive commands are denied for this worker profile.",
         ),
+        (
+            "control_plane_write",
+            permissions["control_plane_access"],
+            "denied" if permissions["control_plane_access"] == "projected_read_only" else "allowed",
+            "control_plane_projected_read_only"
+            if permissions["control_plane_access"] == "projected_read_only"
+            else "control_plane_direct_repo",
+            "The worker sees a projected read-only control plane and cannot rewrite durable state directly."
+            if permissions["control_plane_access"] == "projected_read_only"
+            else "The worker runs against the direct repo view, so control-plane protection remains advisory.",
+        ),
     ]
     return [
         build_policy_record(
@@ -174,8 +192,13 @@ def build_dispatch_policy_records(
             dispatch_record_path=dispatch_record_path,
             context_manifest_path=context_manifest_path,
             worker_class=worker["worker_class"],
+            worker_id=worker["worker_id"],
             permission_profile=permissions["profile"],
             worktree_mode=worker["worktree_mode"],
+            scope=payload["dispatch"]["scope"],
+            slice_id=payload["dispatch"]["slice_id"],
+            artifact_dir=payload["dispatch"]["artifact_dir"],
+            stage=payload["dispatch"]["stage"],
         )
         for gate_type, configured_value, decision, reason_code, reason in configured
     ]
@@ -207,10 +230,17 @@ def policy_history_snapshot(*, repo_root: Path, limit: int = 8) -> dict[str, Any
         return {"count": 0, "latest": None, "items": []}
 
     paths = sorted(policies_dir.glob("*.json"))
-    items: list[dict[str, Any]] = []
-    for path in paths[-limit:]:
+    loaded: list[tuple[dict[str, Any], Path]] = []
+    for path in paths:
         record = load_json(path)
         validate_contract_payload("policy-record.schema.json", record)
+        loaded.append((record, path))
+
+    loaded.sort(
+        key=lambda item: (str(item[0].get("recorded_at") or ""), str(item[1])),
+    )
+    items: list[dict[str, Any]] = []
+    for record, path in loaded[-limit:]:
         items.append(
             {
                 "record_path": str(path.relative_to(repo_root)),
@@ -221,6 +251,9 @@ def policy_history_snapshot(*, repo_root: Path, limit: int = 8) -> dict[str, Any
                 "source": record["source"],
                 "reason_code": record["reason_code"],
                 "reason": record["reason"],
+                "enforcement_mode": "enforced"
+                if record["gate_type"] == "control_plane_write" and record["decision"] == "denied"
+                else "advisory",
                 "stage": record["stage"],
                 "slice_id": record["slice_id"],
                 "worker_id": record["worker_id"],
@@ -229,7 +262,7 @@ def policy_history_snapshot(*, repo_root: Path, limit: int = 8) -> dict[str, Any
         )
 
     return {
-        "count": len(paths),
+        "count": len(loaded),
         "latest": items[-1] if items else None,
         "items": items,
     }

@@ -12,6 +12,7 @@ from praxis.commands import (
     cancel,
     continue_run,
     dispatch,
+    dispatch_sidecar,
     doctor,
     harness,
     inspect,
@@ -43,6 +44,8 @@ def execute_command(args, repo_root: Path, timestamp: str):
         return cancel.handle(args, repo_root, timestamp)
     if args.command == "dispatch":
         return dispatch.handle(args, repo_root, timestamp)
+    if args.command == "dispatch-sidecar":
+        return dispatch_sidecar.handle(args, repo_root, timestamp)
     if args.command == "submit-stage-result":
         return submit_stage_result.handle(args, repo_root, timestamp)
     if args.command == "build-worker-launch":

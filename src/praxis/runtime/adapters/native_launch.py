@@ -333,6 +333,11 @@ def _commit_launch_artifacts(
     )
 
 
+def _run_routing_owned(payload: dict[str, Any]) -> bool:
+    ownership = payload.get("ownership") or {}
+    return bool(ownership.get("run_routing_owned", True))
+
+
 def write_native_launch_record(
     *,
     repo_root: Path,
@@ -360,9 +365,12 @@ def write_native_launch_record(
         record_rel=record_rel,
     )
 
-    mark_worker_started(run, session_id=record["session"]["id"])
-    run["timestamps"]["updated_at"] = recorded_at
-    validate_state_payloads(run=run)
+    run_update: dict[str, str] = {}
+    if _run_routing_owned(payload):
+        mark_worker_started(run, session_id=record["session"]["id"])
+        run["timestamps"]["updated_at"] = recorded_at
+        validate_state_payloads(run=run)
+        run_update[".praxis/run.json"] = dump_json(run)
 
     trace_path = record["harness"]["trace_path"]
     trace_event = build_trace_event(
@@ -410,7 +418,6 @@ def write_native_launch_record(
         recorded_at=recorded_at,
         events=events,
         extra_files={
-            ".praxis/run.json": dump_json(run),
             payload["bundle"]["dispatch_record_path"]: dump_json(
                 build_updated_dispatch_record(
                     repo_root=repo_root,
@@ -432,6 +439,7 @@ def write_native_launch_record(
                 trace_path=trace_path,
                 events=[trace_event],
             ),
+            **run_update,
         },
         metadata={"adapter": payload["adapter"], "slice_id": payload["dispatch"]["slice_id"]},
     )

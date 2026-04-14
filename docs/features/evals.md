@@ -1,7 +1,7 @@
 # Evals
 
-Praxis currently ships a local eval pack and contract tests for the shared
-runtime behavior.
+Praxis ships a local eval pack and contract tests for the shared runtime
+behavior.
 
 ## Eval Pack
 
@@ -46,9 +46,12 @@ Current coverage areas include:
 
 - public CLI behavior and packaging smoke tests
 - orchestrator runtime behavior
-- worker planning, dispatch, and provider resume
+- worker planning, dispatch, projected-policy reporting, and provider resume
 - story-boundary transitions and recovery
 - harness configuration loading and hook integration
+- adapter runtime launch, resume, status, and cancel surfaces
+- real sidecar execution plus non-owner result guards
+- brokered tool-use recording, denials, and operator summaries
 - trace summaries, eval gating, and documentation references
 
 ## Fixtures

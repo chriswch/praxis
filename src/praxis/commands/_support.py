@@ -30,8 +30,10 @@ from praxis.runtime.state.durable_state import (
     recover_pending_transaction,
     validate_state_payloads,
 )
+from praxis.runtime.tool_broker import tool_usage_snapshot
 from praxis.runtime.workers.dispatch import dispatch_worker
 from praxis.runtime.workers.planning import build_worker_plan, ensure_run_vnext_defaults, sync_worker_cursor
+from praxis.runtime.workers.sidecar import list_sidecar_workers
 
 
 def utc_now() -> str:
@@ -407,6 +409,12 @@ def build_run_snapshot(repo_root: Path) -> dict[str, Any]:
         repo_root=repo_root,
         dispatch_bundle=dispatch_bundle,
     )
+    sidecars = list_sidecar_workers(repo_root=repo_root)
+    active_dispatch_id = None if dispatch_bundle is None else dispatch_bundle.get("dispatch_id")
+    tool_usage = {
+        "active_dispatch": tool_usage_snapshot(repo_root=repo_root, dispatch_id=active_dispatch_id),
+        "overall": tool_usage_snapshot(repo_root=repo_root),
+    }
 
     return {
         "workflow": run.get("workflow"),
@@ -437,6 +445,11 @@ def build_run_snapshot(repo_root: Path) -> dict[str, Any]:
         "handoff_status": handoff_status,
         "dispatch_bundle": dispatch_bundle,
         "active_runtime": active_runtime,
+        "sidecars": {
+            "count": len(sidecars),
+            "items": sidecars,
+        },
+        "tool_usage": tool_usage,
         "approvals": approvals,
         "policies": policies,
         "dispatch": dispatch,

@@ -153,7 +153,7 @@ class WorkerDispatchContractTest(unittest.TestCase):
         validate_contract_payload("tool-manifest.schema.json", tool_manifest)
         self.assertEqual(tool_manifest["tool_count"], 4)
         policy_records = sorted((self.repo_root / ".praxis" / "runtime" / "policies").glob("*.json"))
-        self.assertEqual(len(policy_records), 3)
+        self.assertEqual(len(policy_records), 4)
         for policy_path in policy_records:
             validate_contract_payload("policy-record.schema.json", load_json(policy_path))
 
@@ -303,7 +303,7 @@ class WorkerDispatchContractTest(unittest.TestCase):
                 "args": args,
             }
 
-        with patch("praxis.runtime.adapters.provider_resume._run_command", side_effect=fake_run_command):
+        with patch("praxis.runtime.adapters.codex.adapter_runtime._run_command", side_effect=fake_run_command):
             action = dispatch_worker(
                 repo_root=self.repo_root,
                 timestamp="2026-04-12T05:43:00Z",
