@@ -17,6 +17,11 @@ import { compileDispatch } from "./dispatch-compiler.js";
 import { loadAndValidateStageResult } from "./stage-result-validator.js";
 import { decideNextRouting } from "./workflow-router.js";
 import { getAdapter } from "../adapters/index.js";
+import {
+  checkpointStoryBoundary,
+  clearBoundaryHandoffIfConsumed,
+  initializeStoryLedgerFromSliceMap
+} from "./story-boundary.js";
 
 export type RunCreateInput = {
   workflow: WorkflowName;
@@ -266,6 +271,20 @@ export class RunController {
 
     const accepted = await loadAndValidateStageResult(this.repo.paths.root, stageResultPath, run);
     await this.repo.validateAndAppendStageResult(accepted.result);
+    let ledger = await this.repo.loadStoryLedger();
+
+    if (
+      accepted.result.stage === "slicing-stories" &&
+      accepted.result.data.outcome_code === "slice_map_ready"
+    ) {
+      ledger = await initializeStoryLedgerFromSliceMap(
+        this.repo.paths.root,
+        run,
+        run.execution.mode
+      );
+      await this.repo.saveStoryLedger(ledger);
+    }
+
     const routingDecision = decideNextRouting(run, accepted);
 
     run.status = routingDecision.status;
@@ -278,6 +297,30 @@ export class RunController {
     run.active.resumable = false;
     run.active.session_id = null;
 
+    const boundaryTransitionRequired =
+      run.mode === "multi_slice" &&
+      (accepted.transition.route_kind === "next_slice" ||
+        accepted.transition.route_kind === "done" ||
+        (accepted.transition.route_kind === "proceed" && accepted.transition.next_stage === null));
+
+    if (boundaryTransitionRequired) {
+      if (!ledger) {
+        throw new Error("Story boundary transition requires .praxis/story-ledger.json.");
+      }
+      const boundary = await checkpointStoryBoundary(
+        this.repo.paths.root,
+        run,
+        ledger,
+        accepted.result
+      );
+      ledger = boundary.ledger;
+      run.routing.reason = boundary.handoff_path
+        ? `Story boundary checkpointed (${boundary.handoff_path}). ${run.routing.reason}`
+        : run.routing.reason;
+      await this.repo.saveStoryLedger(ledger);
+    }
+
+    clearBoundaryHandoffIfConsumed(run);
     await this.repo.saveRun(run);
 
     await this.repo.appendLifecycleEvent({
