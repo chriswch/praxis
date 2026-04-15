@@ -11,7 +11,13 @@ import {
   validateRunRecord,
   validateStageResult
 } from "../../contracts/validators.js";
-import { appendJsonLine, ensureDir, readJsonFileIfExists, writeJsonFile } from "./store.js";
+import {
+  appendJsonLine,
+  ensureDir,
+  readJsonFileIfExists,
+  readJsonLines,
+  writeJsonFile
+} from "./store.js";
 import { resolvePraxisPaths, type PraxisPathSet } from "./paths.js";
 
 export class PraxisStateRepository {
@@ -79,5 +85,22 @@ export class PraxisStateRepository {
 
   async appendPolicyRecord(payload: Record<string, unknown>): Promise<void> {
     await appendJsonLine(join(this.paths.policyDir, "tool-records.jsonl"), payload);
+  }
+
+  async listLifecycleEvents(limit = 50): Promise<Record<string, unknown>[]> {
+    const events = await readJsonLines<Record<string, unknown>>(this.paths.eventsFile);
+    return events.slice(-limit);
+  }
+
+  async listStageHistory(limit = 50): Promise<Record<string, unknown>[]> {
+    const records = await readJsonLines<Record<string, unknown>>(this.paths.stageHistoryFile);
+    return records.slice(-limit);
+  }
+
+  async listPolicyRecords(limit = 50): Promise<Record<string, unknown>[]> {
+    const records = await readJsonLines<Record<string, unknown>>(
+      join(this.paths.policyDir, "tool-records.jsonl")
+    );
+    return records.slice(-limit);
   }
 }

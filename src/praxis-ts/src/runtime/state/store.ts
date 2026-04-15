@@ -34,3 +34,16 @@ export async function appendJsonLine(path: string, payload: unknown): Promise<vo
   const encoded = `${JSON.stringify(payload)}\n`;
   await appendFile(path, encoded, "utf8");
 }
+
+export async function readJsonLines<T>(path: string): Promise<T[]> {
+  if (!(await exists(path))) {
+    return [];
+  }
+
+  const raw = await readFile(path, "utf8");
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as T);
+}

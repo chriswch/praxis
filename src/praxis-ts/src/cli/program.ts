@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { resolveCommandOptions } from "./context.js";
 import {
   runApproveCommand,
@@ -13,7 +13,14 @@ import {
   runSubmitStageResultCommand,
   runStatusCommand
 } from "./commands/index.js";
-import type { AdapterName, ExecutionMode, WorkflowName } from "../contracts/model.js";
+import {
+  ADAPTER_NAMES,
+  EXECUTION_MODES,
+  WORKFLOW_NAMES,
+  type AdapterName,
+  type ExecutionMode,
+  type WorkflowName
+} from "../contracts/model.js";
 
 type GlobalOptions = {
   repoRoot?: string;
@@ -37,9 +44,21 @@ function registerLifecycleCommands(program: Command): void {
     .command("run")
     .description("Create and initialize a Praxis run")
     .requiredOption("--entry-task <text>", "Entry task summary")
-    .option("--workflow <workflow>", "Workflow name", "forge")
-    .option("--adapter <adapter>", "Adapter name", "codex")
-    .option("--execution-mode <mode>", "Execution mode", "manual")
+    .addOption(
+      new Option("--workflow <workflow>", "Workflow name")
+        .choices([...WORKFLOW_NAMES])
+        .default("forge")
+    )
+    .addOption(
+      new Option("--adapter <adapter>", "Adapter name")
+        .choices([...ADAPTER_NAMES])
+        .default("codex")
+    )
+    .addOption(
+      new Option("--execution-mode <mode>", "Execution mode")
+        .choices([...EXECUTION_MODES])
+        .default("manual")
+    )
     .option("--entrypoint <entrypoint>", "Runtime entrypoint")
     .action(async (opts: RunOptions, cmd: Command) => {
       const global = toGlobalOptions(cmd);

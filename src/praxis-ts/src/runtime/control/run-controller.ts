@@ -8,6 +8,7 @@ import type {
   StageName,
   WorkflowName
 } from "../../contracts/model.js";
+import { BlockedStateError, RejectedProgressionError } from "../../contracts/errors.js";
 import { validateRunRecord } from "../../contracts/validators.js";
 import { nowIsoUtc } from "../common/time.js";
 import { buildRunId } from "../common/ids.js";
@@ -36,12 +37,17 @@ export type InspectProjection = {
   status: StatusProjection;
   run: RunRecord;
   ledger_present: boolean;
+  recent_events: Record<string, unknown>[];
+  recent_stage_history: Record<string, unknown>[];
+  recent_policy_records: Record<string, unknown>[];
   state_paths: {
     run_file: string;
     story_ledger_file: string;
     events_file: string;
+    stage_history_file: string;
     dispatches_dir: string;
     sessions_dir: string;
+    policy_dir: string;
   };
 };
 
@@ -94,7 +100,9 @@ export class RunController {
 
     const existing = await this.repo.loadRun();
     if (existing) {
-      throw new Error("A run already exists at .praxis/run.json. Use status/inspect/resume instead.");
+      throw new RejectedProgressionError(
+        "A run already exists at .praxis/run.json. Use status/inspect/resume instead."
+      );
     }
 
     const timestamp = nowIsoUtc();
@@ -155,7 +163,7 @@ export class RunController {
   async getStatus(): Promise<StatusProjection> {
     const run = await this.repo.loadRun();
     if (!run) {
-      throw new Error("No active run found at .praxis/run.json.");
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
 
     const ledger = await this.repo.loadStoryLedger();
@@ -165,20 +173,31 @@ export class RunController {
   async inspectRun(): Promise<InspectProjection> {
     const run = await this.repo.loadRun();
     if (!run) {
-      throw new Error("No active run found at .praxis/run.json.");
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
 
     const ledger = await this.repo.loadStoryLedger();
+    const [recentEvents, recentStageHistory, recentPolicyRecords] = await Promise.all([
+      this.repo.listLifecycleEvents(40),
+      this.repo.listStageHistory(40),
+      this.repo.listPolicyRecords(40)
+    ]);
+
     return {
       status: projectStatus(run, ledger),
       run,
       ledger_present: ledger !== null,
+      recent_events: recentEvents,
+      recent_stage_history: recentStageHistory,
+      recent_policy_records: recentPolicyRecords,
       state_paths: {
         run_file: this.repo.paths.runFile,
         story_ledger_file: this.repo.paths.storyLedgerFile,
         events_file: this.repo.paths.eventsFile,
+        stage_history_file: this.repo.paths.stageHistoryFile,
         dispatches_dir: this.repo.paths.dispatchesDir,
-        sessions_dir: this.repo.paths.sessionsDir
+        sessions_dir: this.repo.paths.sessionsDir,
+        policy_dir: this.repo.paths.policyDir
       }
     };
   }
@@ -186,7 +205,7 @@ export class RunController {
   async createDispatch(): Promise<DispatchRecord> {
     const run = await this.repo.loadRun();
     if (!run) {
-      throw new Error("No active run found at .praxis/run.json.");
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
 
     const handoffData = run.routing.boundary_handoff_path
@@ -230,15 +249,15 @@ export class RunController {
   async buildWorkerLaunch(): Promise<WorkerLaunchPayload> {
     const run = await this.repo.loadRun();
     if (!run) {
-      throw new Error("No active run found at .praxis/run.json.");
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
     if (!run.active.dispatch_id) {
-      throw new Error("No active dispatch found. Run `praxis dispatch` first.");
+      throw new RejectedProgressionError("No active dispatch found. Run `praxis dispatch` first.");
     }
 
     const dispatch = await this.repo.loadDispatch(run.active.dispatch_id);
     if (!dispatch) {
-      throw new Error(`Dispatch ${run.active.dispatch_id} does not exist.`);
+      throw new BlockedStateError(`Dispatch ${run.active.dispatch_id} does not exist.`);
     }
 
     const boundaryHandoff = run.routing.boundary_handoff_path
@@ -274,7 +293,7 @@ export class RunController {
   async submitStageResult(stageResultPath: string): Promise<SubmitStageResultOutcome> {
     const run = await this.repo.loadRun();
     if (!run) {
-      throw new Error("No active run found at .praxis/run.json.");
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
 
     const accepted = await loadAndValidateStageResult(this.repo.paths.root, stageResultPath, run);
@@ -320,7 +339,7 @@ export class RunController {
 
     if (boundaryTransitionRequired) {
       if (!ledger) {
-        throw new Error("Story boundary transition requires .praxis/story-ledger.json.");
+        throw new BlockedStateError("Story boundary transition requires .praxis/story-ledger.json.");
       }
       const boundary = await checkpointStoryBoundary(
         this.repo.paths.root,
@@ -367,15 +386,15 @@ export class RunController {
   async continueRun(): Promise<LifecycleActionOutcome> {
     const run = await this.repo.loadRun();
     if (!run) {
-      throw new Error("No active run found at .praxis/run.json.");
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
     if (run.routing.next_action !== "confirm_then_run") {
-      throw new Error(
+      throw new RejectedProgressionError(
         `continue is only valid when next_action is confirm_then_run (found ${run.routing.next_action}).`
       );
     }
     if (!run.current.stage) {
-      throw new Error("Cannot continue a run without an active stage.");
+      throw new BlockedStateError("Cannot continue a run without an active stage.");
     }
 
     run.status = "running";
@@ -406,13 +425,15 @@ export class RunController {
   async approveRun(note: string | null): Promise<LifecycleActionOutcome> {
     const run = await this.repo.loadRun();
     if (!run) {
-      throw new Error("No active run found at .praxis/run.json.");
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
     if (!run.current.stage) {
-      throw new Error("Cannot approve a run without an active stage.");
+      throw new BlockedStateError("Cannot approve a run without an active stage.");
     }
     if (!["confirm_then_run", "ask_user"].includes(run.routing.next_action)) {
-      throw new Error(`approve is not valid while next_action is ${run.routing.next_action}.`);
+      throw new RejectedProgressionError(
+        `approve is not valid while next_action is ${run.routing.next_action}.`
+      );
     }
 
     const approvalId = `approval_${Date.now()}`;
@@ -453,18 +474,18 @@ export class RunController {
   async resumeRun(): Promise<LifecycleActionOutcome> {
     const run = await this.repo.loadRun();
     if (!run) {
-      throw new Error("No active run found at .praxis/run.json.");
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
     if (!run.current.stage) {
-      throw new Error("Cannot resume a run without an active stage.");
+      throw new BlockedStateError("Cannot resume a run without an active stage.");
     }
 
     if (run.status === "cancelled" || run.routing.next_action === "finish") {
-      throw new Error("Cannot resume a terminal run.");
+      throw new RejectedProgressionError("Cannot resume a terminal run.");
     }
 
     if (run.routing.next_action === "confirm_then_run" || run.routing.next_action === "ask_user") {
-      throw new Error("Run is waiting for operator input. Use continue or approve.");
+      throw new RejectedProgressionError("Run is waiting for operator input. Use continue or approve.");
     }
 
     run.status = "running";
@@ -495,7 +516,7 @@ export class RunController {
   async cancelRun(note: string | null): Promise<LifecycleActionOutcome> {
     const run = await this.repo.loadRun();
     if (!run) {
-      throw new Error("No active run found at .praxis/run.json.");
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
 
     let cancellationReason = "Run cancelled by operator.";

@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { readJsonFile, writeJsonFile } from "../state/index.js";
 import type { RunRecord, StageResultRecord, StoryLedgerRecord } from "../../contracts/model.js";
 import { nowIsoUtc } from "../common/time.js";
+import { BlockedStateError, InvalidInputError } from "../../contracts/errors.js";
 
 type SliceMapStory = {
   id: string;
@@ -22,7 +23,7 @@ export async function initializeStoryLedgerFromSliceMap(
   const sliceMap = await readJsonFile<SliceMapDocument>(sliceMapPath);
 
   if (!sliceMap.slices || sliceMap.slices.length === 0) {
-    throw new Error("Slice map does not contain any slices.");
+    throw new InvalidInputError("Slice map does not contain any slices.");
   }
 
   const first = sliceMap.slices[0];
@@ -103,7 +104,7 @@ export async function checkpointStoryBoundary(
 }> {
   const activeStoryId = ledger.stories.active;
   if (!activeStoryId) {
-    throw new Error("No active story to checkpoint.");
+    throw new BlockedStateError("No active story to checkpoint.");
   }
 
   const activeStory = ledger.stories.items[activeStoryId];
