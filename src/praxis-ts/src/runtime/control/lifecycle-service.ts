@@ -3,7 +3,7 @@ import { BlockedStateError, RejectedProgressionError } from "../../contracts/err
 import { nowIsoUtc } from "../common/time.js";
 import type { RunRecord } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
-import type { LifecycleActionOutcome } from "./run-controller.js";
+import type { LifecycleActionOutcome } from "./types.js";
 import type { AdapterCancellationHandle } from "../adapters/types.js";
 
 type SessionRecord = {

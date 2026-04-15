@@ -11,8 +11,10 @@ export {
 } from "./story-boundary.js";
 export type {
   InspectProjection,
+  LifecycleActionOutcome,
   RegisterWorkerSessionOutcome,
   RunCreateInput,
+  SubmitStageResultOutcome,
   WorkerLaunchPayload
-} from "./run-controller.js";
+} from "./types.js";
 export type { StatusProjection } from "./status-projector.js";
