@@ -317,3 +317,36 @@ test("smoke: transition-aware contracts set verifying artifacts by predecessor p
   const verifyFromImprove = await readActiveDispatch(repoRoot2);
   assert.deepEqual(verifyFromImprove.inputs.required_artifacts, [".praxis/improvement.md"]);
 });
+
+test("smoke: submit-stage-result rejects non-derived route metadata", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "route metadata coherence"
+    }),
+    0
+  );
+
+  const resultPath = await writeStageResult(
+    repoRoot,
+    "clarifying-intent",
+    ".praxis",
+    "story_spec_ready",
+    "proceed",
+    {
+      dispatch_id: await prepareDispatch(repoRoot),
+      needs_confirmation: true,
+      route: {
+        kind: "proceed",
+        next_stage: "sketching-design",
+        next_slice_id: null,
+        reason: "worker-supplied"
+      }
+    }
+  );
+
+  assert.equal(await runSubmitStageResultCommand(repoRoot, true, resultPath), 2);
+});

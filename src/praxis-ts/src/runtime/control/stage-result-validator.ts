@@ -45,6 +45,12 @@ export async function loadAndValidateStageResult(
 
   validateStageResult(result);
 
+  if (result.route.next_stage !== null || result.route.next_slice_id !== null) {
+    throw new InvalidInputError(
+      "Stage result route metadata is derived by runtime; route.next_stage and route.next_slice_id must be null."
+    );
+  }
+
   if (result.run_id !== null && result.run_id !== run.run_id) {
     throw new RejectedProgressionError(
       `Stage result run_id mismatch. Expected ${run.run_id}, received ${result.run_id}.`

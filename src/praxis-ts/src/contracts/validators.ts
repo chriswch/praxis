@@ -157,9 +157,11 @@ export function validateStageResult(result: StageResultRecord): void {
 
   if (result.route.next_stage !== null) {
     assertEnum(result.route.next_stage, STAGE_NAMES, "route.next_stage");
+    throw new ContractError("route.next_stage must be null because next-stage routing is runtime-derived");
   }
   if (result.route.next_slice_id !== null) {
     assertPlainString(result.route.next_slice_id, "route.next_slice_id");
+    throw new ContractError("route.next_slice_id must be null because next-slice routing is runtime-derived");
   }
 
   assertPraxisPath(result.summary_path, "summary_path");
