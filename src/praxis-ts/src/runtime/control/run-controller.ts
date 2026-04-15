@@ -107,6 +107,19 @@ export type RegisterWorkerSessionOutcome = {
   reason: string;
 };
 
+type StageResultIngestPhase = {
+  run: RunRecord;
+  accepted: Awaited<ReturnType<typeof loadAndValidateStageResult>>;
+  ledger: Awaited<ReturnType<PraxisStateRepository["loadStoryLedger"]>>;
+};
+
+type StageResultRoutingPhase = {
+  run: RunRecord;
+  accepted: Awaited<ReturnType<typeof loadAndValidateStageResult>>;
+  ledger: Awaited<ReturnType<PraxisStateRepository["loadStoryLedger"]>>;
+  routingDecision: ReturnType<typeof decideNextRouting>;
+};
+
 export class RunController {
   private readonly lifecycle: RunLifecycleService;
 
@@ -447,7 +460,7 @@ export class RunController {
     };
   }
 
-  async submitStageResult(stageResultPath: string): Promise<SubmitStageResultOutcome> {
+  private async ingestStageResultPhase(stageResultPath: string): Promise<StageResultIngestPhase> {
     const run = await this.repo.loadRun();
     if (!run) {
       throw new BlockedStateError("No active run found at .praxis/run.json.");
@@ -483,6 +496,11 @@ export class RunController {
       await this.repo.saveStoryLedger(ledger);
     }
 
+    return { run, accepted, ledger };
+  }
+
+  private routingProjectionPhase(phase: StageResultIngestPhase): StageResultRoutingPhase {
+    const { run, accepted, ledger } = phase;
     const routingDecision = decideNextRouting(run, accepted);
 
     run.status = routingDecision.status;
@@ -498,6 +516,13 @@ export class RunController {
     run.active.worker_id = null;
     run.active.resumable = false;
     run.active.session_id = null;
+
+    return { run, accepted, ledger, routingDecision };
+  }
+
+  private async boundaryMutationPhase(phase: StageResultRoutingPhase): Promise<StageResultRoutingPhase> {
+    const { run, accepted, routingDecision } = phase;
+    let { ledger } = phase;
 
     const boundaryTransitionRequired =
       run.mode === "multi_slice" &&
@@ -523,6 +548,18 @@ export class RunController {
     }
 
     clearBoundaryHandoffIfConsumed(run);
+
+    return {
+      run,
+      accepted,
+      ledger,
+      routingDecision
+    };
+  }
+
+  private async persistenceCommitPhase(phase: StageResultRoutingPhase): Promise<SubmitStageResultOutcome> {
+    const { run, accepted, routingDecision } = phase;
+
     await this.repo.saveRun(run);
     await this.repo.appendStageResultRecord(accepted.result);
     const telemetry = new ToolTelemetry(this.repo);
@@ -557,6 +594,13 @@ export class RunController {
       run_status: routingDecision.status,
       reason: routingDecision.reason
     };
+  }
+
+  async submitStageResult(stageResultPath: string): Promise<SubmitStageResultOutcome> {
+    const ingestPhase = await this.ingestStageResultPhase(stageResultPath);
+    const routingPhase = this.routingProjectionPhase(ingestPhase);
+    const boundaryPhase = await this.boundaryMutationPhase(routingPhase);
+    return this.persistenceCommitPhase(boundaryPhase);
   }
 
   async continueRun(): Promise<LifecycleActionOutcome> {
