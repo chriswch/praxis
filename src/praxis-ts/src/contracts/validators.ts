@@ -409,4 +409,7 @@ export function validateWorkerSessionRegistration(payload: WorkerSessionRegistra
   if (payload.locator !== null) {
     assertPlainString(payload.locator, "locator");
   }
+  if (payload.details !== undefined && payload.details !== null) {
+    assertRecord(payload.details, "details");
+  }
 }

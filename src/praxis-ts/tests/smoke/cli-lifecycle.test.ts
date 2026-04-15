@@ -86,6 +86,16 @@ test("smoke: public CLI run auto-launches the first worker", async () => {
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.ok(run.active.dispatch_id);
   assert.ok(run.active.worker_id);
+  assert.ok(run.active.session_id);
+
+  const sessionRecord = await readJson<{
+    provider_details?: {
+      command?: {
+        binary?: string;
+      };
+    } | null;
+  }>(join(repoRoot, ".praxis", "sessions", `${run.active.session_id}.json`));
+  assert.equal(sessionRecord.provider_details?.command?.binary, "codex");
 });
 
 test("smoke: build-worker-launch exposes stage contract, policy, and repo instruction surfaces", async () => {
@@ -353,7 +363,7 @@ test("smoke: doctor returns a health-specific exit code when an adapter is unhea
         exit_code: number;
         reasons: string[];
       };
-      adapters: Array<{ adapter: string; healthy: boolean }>;
+      adapters: Array<{ adapter: string; healthy: boolean; version: string | null }>;
     };
   };
 
@@ -363,6 +373,10 @@ test("smoke: doctor returns a health-specific exit code when an adapter is unhea
   assert.equal(envelope.data.summary.exit_code, EXIT_CODE.HEALTH_FAILED);
   assert.equal(
     envelope.data.adapters.some((adapter) => adapter.adapter === "claude" && adapter.healthy === false),
+    true
+  );
+  assert.equal(
+    envelope.data.adapters.some((adapter) => adapter.adapter === "codex" && typeof adapter.version === "string"),
     true
   );
 });

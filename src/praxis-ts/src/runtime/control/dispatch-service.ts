@@ -129,7 +129,8 @@ export class DispatchService {
       resumable,
       started_at: input.started_at,
       locator: input.locator,
-      recorded_at: now
+      recorded_at: now,
+      provider_details: input.details ?? null
     });
     await this.repo.saveRun(run);
     await this.repo.appendLifecycleEvent({
@@ -142,7 +143,8 @@ export class DispatchService {
         dispatch_id: dispatch.dispatch_id,
         worker_id: input.worker_id,
         session_id: input.session_id,
-        resumable
+        resumable,
+        provider_details: input.details ?? null
       }
     });
 

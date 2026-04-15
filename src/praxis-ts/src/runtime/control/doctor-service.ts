@@ -18,6 +18,8 @@ export type DoctorReport = {
     healthy: boolean;
     supports_resume: boolean;
     reason: string;
+    binary: string | null;
+    version: string | null;
     instruction_surfaces_found: string[];
   }>;
   recoverability: {
@@ -47,6 +49,8 @@ export async function buildDoctorReport(repoRoot: string): Promise<DoctorReport>
         healthy: health.healthy,
         supports_resume: health.supports_resume,
         reason: health.reason,
+        binary: health.binary,
+        version: health.version,
         instruction_surfaces_found: selectInstructionSurfaces(instructionSurfaces, health.adapter).map(
           (surface) => surface.path
         )

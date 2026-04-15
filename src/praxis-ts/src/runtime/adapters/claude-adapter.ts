@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { nowIsoUtc } from "../common/time.js";
+import { probeCommand } from "./command-probe.js";
 import { selectInstructionSurfaces } from "../workers/context-manifest.js";
 import type { AdapterHealth, AdapterLaunchRequest, AdapterLaunchResponse, RuntimeAdapter } from "./types.js";
 
@@ -7,33 +8,51 @@ export class ClaudeAdapter implements RuntimeAdapter {
   readonly name = "claude" as const;
 
   async health(): Promise<AdapterHealth> {
+    const probe = await probeCommand("claude");
     const hasHome = Boolean(process.env.HOME);
+    const healthy = probe.healthy && hasHome;
 
     return {
       adapter: this.name,
-      healthy: hasHome,
+      healthy,
       supports_resume: true,
-      reason: hasHome ? "Runtime prerequisites satisfied." : "HOME is required to initialize Claude runtime home."
+      reason: !probe.healthy
+        ? probe.reason
+        : hasHome
+          ? "claude is available and HOME is configured."
+          : "HOME is required to initialize Claude runtime home.",
+      binary: probe.binary,
+      version: probe.version
     };
   }
 
   async launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
     const instructionSurfaces = selectInstructionSurfaces(request.launch.context_manifest.instruction_surfaces, "claude");
+    const commandPreview = buildClaudeCommandPreview(request);
     return {
       worker_id: `wrk_claude_${request.dispatch.stage}_${randomUUID()}`,
       session_id: `claude_session_${randomUUID()}`,
       started_at: nowIsoUtc(),
-      locator: `claude://${request.dispatch.dispatch_id}?entrypoint=${encodeURIComponent(request.launch.runtime.entrypoint)}&instructions=${instructionSurfaces.length}`
+      locator: `claude-cli://${request.dispatch.dispatch_id}?entrypoint=${encodeURIComponent(request.launch.runtime.entrypoint)}&instructions=${instructionSurfaces.length}`,
+      details: {
+        command: commandPreview,
+        instruction_surfaces: instructionSurfaces.map((surface) => surface.path)
+      }
     };
   }
 
   async resume(sessionId: string, request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
     const instructionSurfaces = selectInstructionSurfaces(request.launch.context_manifest.instruction_surfaces, "claude");
+    const commandPreview = buildClaudeCommandPreview(request, sessionId);
     return {
       worker_id: `wrk_claude_resume_${request.dispatch.stage}_${randomUUID()}`,
       session_id: sessionId,
       started_at: nowIsoUtc(),
-      locator: `claude://${request.dispatch.dispatch_id}?resume=true&instructions=${instructionSurfaces.length}`
+      locator: `claude-cli://${request.dispatch.dispatch_id}?resume=true&instructions=${instructionSurfaces.length}`,
+      details: {
+        command: commandPreview,
+        instruction_surfaces: instructionSurfaces.map((surface) => surface.path)
+      }
     };
   }
 
@@ -55,4 +74,33 @@ export class ClaudeAdapter implements RuntimeAdapter {
       reason: "No cancellation handle provided."
     };
   }
+}
+
+function buildClaudeCommandPreview(
+  request: AdapterLaunchRequest,
+  resumeSessionId: string | null = null
+): Record<string, unknown> {
+  const prompt = buildStagePrompt(request);
+  const args = resumeSessionId
+    ? ["--resume", resumeSessionId]
+    : ["-p", prompt, "--add-dir", request.launch.execution.workspace_root];
+
+  return {
+    binary: "claude",
+    args,
+    cwd: request.launch.execution.workspace_root,
+    primary_output: request.launch.contract.primary_output,
+    stage_result_path: request.launch.stage_result_path
+  };
+}
+
+function buildStagePrompt(request: AdapterLaunchRequest): string {
+  return [
+    `Stage: ${request.launch.stage}`,
+    `Goal: ${request.launch.contract.stage_goal}`,
+    `Instructions: ${request.launch.contract.stage_instructions.join(" | ")}`,
+    `Required inputs: ${request.launch.inputs.required_artifacts.join(", ") || "none"}`,
+    `Primary output: ${request.launch.contract.primary_output ?? "none"}`,
+    `Stage result: ${request.launch.stage_result_path}`
+  ].join("\n");
 }

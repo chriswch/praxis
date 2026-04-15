@@ -47,7 +47,8 @@ export class WorkerExecutionService {
         session_id: response.session_id,
         started_at: response.started_at,
         locator: response.locator,
-        resumable: response.session_id !== null
+        resumable: response.session_id !== null,
+        details: response.details ?? null
       });
 
       return {
@@ -96,7 +97,8 @@ export class WorkerExecutionService {
         session_id: response.session_id,
         started_at: response.started_at,
         locator: response.locator,
-        resumable: true
+        resumable: true,
+        details: response.details ?? null
       });
 
       return {

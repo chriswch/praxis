@@ -252,6 +252,7 @@ export type WorkerSessionRegistration = {
   started_at: string;
   locator: string | null;
   resumable: boolean;
+  details?: Record<string, unknown> | null;
 };
 
 export type StoryLedgerRecord = {

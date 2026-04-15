@@ -6,6 +6,8 @@ export type AdapterHealth = {
   healthy: boolean;
   supports_resume: boolean;
   reason: string;
+  binary: string | null;
+  version: string | null;
 };
 
 export type AdapterLaunchRequest = {
@@ -19,6 +21,7 @@ export type AdapterLaunchResponse = {
   session_id: string | null;
   started_at: string;
   locator: string | null;
+  details?: Record<string, unknown>;
 };
 
 export type AdapterCancellationHandle = {
