@@ -22,7 +22,25 @@ export async function loadAndValidateStageResult(
   run: RunRecord,
   activeDispatch: DispatchRecord
 ): Promise<StageResultAcceptance> {
+  if (stageResultPath.startsWith("/") || /^[A-Za-z]:[\\/]/.test(stageResultPath)) {
+    throw new InvalidInputError("Stage result path must be a relative .praxis path.");
+  }
+
+  const praxisRoot = resolve(repoRoot, ".praxis");
   const absolutePath = resolve(repoRoot, stageResultPath);
+  const normalizeForCompare = (value: string): string => value.replaceAll("\\", "/");
+  const isUnderPraxisRoot = (value: string): boolean => {
+    const candidate = normalizeForCompare(value);
+    const root = normalizeForCompare(praxisRoot);
+    return candidate === root || candidate.startsWith(`${root}/`);
+  };
+
+  if (!isUnderPraxisRoot(absolutePath)) {
+    throw new InvalidInputError(
+      `Stage result path must resolve under .praxis (received ${stageResultPath}).`
+    );
+  }
+
   const result = await readJsonFile<StageResultRecord>(absolutePath);
 
   validateStageResult(result);
@@ -40,6 +58,12 @@ export async function loadAndValidateStageResult(
   }
 
   const expectedResultPath = resolve(repoRoot, activeDispatch.stage_result_path);
+  if (!isUnderPraxisRoot(expectedResultPath)) {
+    throw new RejectedProgressionError(
+      `Active dispatch stage_result_path is outside .praxis: ${activeDispatch.stage_result_path}.`
+    );
+  }
+
   if (absolutePath !== expectedResultPath) {
     throw new RejectedProgressionError(
       `Stage result path mismatch. Expected ${activeDispatch.stage_result_path}, received ${stageResultPath}.`

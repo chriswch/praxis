@@ -1,3 +1,4 @@
+import { posix } from "node:path";
 import {
   ADAPTER_NAMES,
   DISPATCH_WORKER_MODES,
@@ -35,7 +36,21 @@ function assertPraxisPath(value: string | null, label: string): void {
     return;
   }
 
-  if (!value.startsWith(".praxis")) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new ContractError(`${label} must be a non-empty string path`);
+  }
+
+  const normalized = posix.normalize(value.replaceAll("\\", "/"));
+  const isAbsolute = normalized.startsWith("/") || /^[A-Za-z]:\//.test(normalized);
+  if (isAbsolute) {
+    throw new ContractError(`${label} must be a relative .praxis path: ${value}`);
+  }
+
+  if (normalized === "." || normalized === ".." || normalized.startsWith("../")) {
+    throw new ContractError(`${label} must not escape the repo root: ${value}`);
+  }
+
+  if (normalized !== ".praxis" && !normalized.startsWith(".praxis/")) {
     throw new ContractError(`${label} must be scoped under .praxis: ${value}`);
   }
 }
