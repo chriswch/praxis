@@ -22,6 +22,7 @@ import {
   clearBoundaryHandoffIfConsumed,
   initializeStoryLedgerFromSliceMap
 } from "./story-boundary.js";
+import { ToolTelemetry } from "../tools/index.js";
 
 export type RunCreateInput = {
   workflow: WorkflowName;
@@ -196,6 +197,13 @@ export class RunController {
 
     const dispatch = compileDispatch({ run, boundaryHandoff: handoffData });
     await this.repo.saveDispatch(dispatch);
+    const telemetry = new ToolTelemetry(this.repo);
+    await telemetry.recordPolicyDecision({
+      run_id: run.run_id,
+      stage: dispatch.stage,
+      dispatch_id: dispatch.dispatch_id,
+      policy: dispatch.tool_policy
+    });
 
     run.active.dispatch_id = dispatch.dispatch_id;
     run.active.worker_id = `wrk_${dispatch.scope}_${dispatch.stage}`;
@@ -271,6 +279,13 @@ export class RunController {
 
     const accepted = await loadAndValidateStageResult(this.repo.paths.root, stageResultPath, run);
     await this.repo.validateAndAppendStageResult(accepted.result);
+    const telemetry = new ToolTelemetry(this.repo);
+    await telemetry.recordToolUse({
+      run_id: run.run_id,
+      stage: accepted.result.stage,
+      tool: "submit-stage-result",
+      status: "granted"
+    });
     let ledger = await this.repo.loadStoryLedger();
 
     if (

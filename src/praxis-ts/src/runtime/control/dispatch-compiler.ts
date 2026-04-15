@@ -3,6 +3,7 @@ import type { DispatchRecord, RunRecord } from "../../contracts/model.js";
 import { buildDispatchId } from "../common/ids.js";
 import { nowIsoUtc } from "../common/time.js";
 import { expectedInputArtifacts } from "../../workflows/index.js";
+import { buildToolPolicy } from "../tools/index.js";
 
 export type DispatchCompileInput = {
   run: RunRecord;
@@ -19,6 +20,7 @@ export function compileDispatch(input: DispatchCompileInput): DispatchRecord {
 
   const artifactDir = run.current.artifact_dir;
   const dispatchId = buildDispatchId();
+  const policy = buildToolPolicy(stage);
 
   return {
     version: 1,
@@ -40,9 +42,9 @@ export function compileDispatch(input: DispatchCompileInput): DispatchRecord {
       mode: run.active.resumable ? "same_stage_resume" : "fresh_session"
     },
     tool_policy: {
-      writable_roots: ["."],
-      blocked_paths: [".git"],
-      network: "enabled"
+      writable_roots: policy.writable_roots,
+      blocked_paths: policy.blocked_paths,
+      network: policy.network
     }
   };
 }
