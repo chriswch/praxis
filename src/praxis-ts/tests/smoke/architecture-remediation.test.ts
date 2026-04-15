@@ -164,6 +164,60 @@ test("smoke: submit-stage-result rejects missing required booleans", async () =>
   assert.equal(await runSubmitStageResultCommand(repoRoot, true, resultPath), 2);
 });
 
+test("smoke: submit-stage-result requires session provenance when active session exists", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "session provenance required"
+    }),
+    0
+  );
+
+  const dispatchId = await prepareDispatch(repoRoot);
+  assert.equal(
+    await runRegisterWorkerSessionCommand(repoRoot, true, {
+      dispatchId,
+      workerId: "wrk_provenance",
+      sessionId: "codex_session_provenance",
+      startedAt: "2026-04-15T00:00:00.000Z",
+      locator: "codex://provenance",
+      resumable: true
+    }),
+    0
+  );
+
+  // Missing top-level session_id must fail closed when run.active.session_id is set.
+  const missingSessionResult = await writeStageResult(
+    repoRoot,
+    "clarifying-intent",
+    ".praxis",
+    "story_spec_ready",
+    "proceed",
+    {
+      dispatch_id: dispatchId,
+      needs_confirmation: true
+    }
+  );
+  assert.equal(await runSubmitStageResultCommand(repoRoot, true, missingSessionResult), 4);
+
+  const matchingSessionResult = await writeStageResult(
+    repoRoot,
+    "clarifying-intent",
+    ".praxis",
+    "story_spec_ready",
+    "proceed",
+    {
+      dispatch_id: dispatchId,
+      session_id: "codex_session_provenance",
+      needs_confirmation: true
+    }
+  );
+  assert.equal(await runSubmitStageResultCommand(repoRoot, true, matchingSessionResult), 0);
+});
+
 test("smoke: duplicate slice IDs and traversal stage-result paths fail closed", async () => {
   const repoRoot = await createTempRepo();
   assert.equal(

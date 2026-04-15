@@ -94,9 +94,20 @@ export async function loadAndValidateStageResult(
     );
   }
 
-  if (result.session_id !== undefined && result.session_id !== run.active.session_id) {
+  if (run.active.session_id !== null) {
+    if (result.session_id === undefined || result.session_id === null) {
+      throw new RejectedProgressionError(
+        `Stage result session_id is required when an active session exists (${run.active.session_id}).`
+      );
+    }
+    if (result.session_id !== run.active.session_id) {
+      throw new RejectedProgressionError(
+        `Stage result session_id mismatch. Expected ${run.active.session_id}, received ${result.session_id}.`
+      );
+    }
+  } else if (result.session_id !== undefined && result.session_id !== null) {
     throw new RejectedProgressionError(
-      `Stage result session_id mismatch. Expected ${run.active.session_id}, received ${result.session_id}.`
+      `Stage result session_id mismatch. Expected null, received ${result.session_id}.`
     );
   }
 
