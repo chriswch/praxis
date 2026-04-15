@@ -10,6 +10,8 @@ import {
   RUN_STATUS,
   STAGE_NAMES,
   STAGE_RESULT_STATUS,
+  TOOL_KINDS,
+  TOOL_USE_STATUS,
   WORKTREE_MODES,
   WORKER_CLASSES,
   WORKFLOW_NAMES,
@@ -243,6 +245,24 @@ export function validateStageResult(result: StageResultRecord): void {
     assertRecord(result.verification, "verification");
     assertBoolean(result.verification.tests_run, "verification.tests_run");
     assertBoolean(result.verification.diff_reviewed, "verification.diff_reviewed");
+  }
+
+  if (result.tool_uses !== undefined) {
+    if (!Array.isArray(result.tool_uses)) {
+      throw new ContractError("tool_uses must be an array");
+    }
+    for (const [index, toolUse] of result.tool_uses.entries()) {
+      assertRecord(toolUse, `tool_uses[${index}]`);
+      assertPlainString(toolUse.tool, `tool_uses[${index}].tool`);
+      assertEnum(toolUse.kind, TOOL_KINDS, `tool_uses[${index}].kind`);
+      assertEnum(toolUse.status, TOOL_USE_STATUS, `tool_uses[${index}].status`);
+      if (toolUse.target_path !== undefined && toolUse.target_path !== null) {
+        assertRepoRelativePath(toolUse.target_path, `tool_uses[${index}].target_path`);
+      }
+      if (toolUse.reason !== undefined && toolUse.reason !== null) {
+        assertPlainString(toolUse.reason, `tool_uses[${index}].reason`);
+      }
+    }
   }
 
   if (result.handoff !== undefined && result.handoff !== null) {

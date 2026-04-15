@@ -37,6 +37,52 @@ async function readActiveDispatch(repoRoot: string): Promise<DispatchRecord> {
   );
 }
 
+async function advanceForgeToCodeReviewing(repoRoot: string): Promise<DispatchRecord> {
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "advance to review"
+    }),
+    0
+  );
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot,
+      true,
+      await writeStageResult(repoRoot, "clarifying-intent", ".praxis", "story_spec_ready", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot),
+        needs_confirmation: true
+      })
+    ),
+    0
+  );
+  assert.equal(await runContinueCommand(repoRoot, true), 0);
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot,
+      true,
+      await writeStageResult(repoRoot, "sketching-design", ".praxis", "sketch_skipped", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot)
+      })
+    ),
+    0
+  );
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot,
+      true,
+      await writeStageResult(repoRoot, "rapid-implementing", ".praxis", "implementation_complete", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot)
+      })
+    ),
+    0
+  );
+  await prepareDispatch(repoRoot);
+  return readActiveDispatch(repoRoot);
+}
+
 test("smoke: register-worker-session persists resumable state and enables resume", async () => {
   const repoRoot = await createTempRepo();
   assert.equal(
@@ -608,51 +654,7 @@ test("smoke: code-reviewing dispatch prepares an isolated workspace", async () =
   await execFileAsync("git", ["add", "README.md"], { cwd: repoRoot });
   await execFileAsync("git", ["-c", "commit.gpgSign=false", "commit", "-m", "init"], { cwd: repoRoot });
 
-  assert.equal(
-    await runRunCommand(repoRoot, true, {
-      workflow: "forge",
-      adapter: "codex",
-      executionMode: "autopilot",
-      entryTask: "isolated review dispatch"
-    }),
-    0
-  );
-
-  assert.equal(
-    await runSubmitStageResultCommand(
-      repoRoot,
-      true,
-      await writeStageResult(repoRoot, "clarifying-intent", ".praxis", "story_spec_ready", "proceed", {
-        dispatch_id: await prepareDispatch(repoRoot),
-        needs_confirmation: true
-      })
-    ),
-    0
-  );
-  assert.equal(await runContinueCommand(repoRoot, true), 0);
-  assert.equal(
-    await runSubmitStageResultCommand(
-      repoRoot,
-      true,
-      await writeStageResult(repoRoot, "sketching-design", ".praxis", "sketch_skipped", "proceed", {
-        dispatch_id: await prepareDispatch(repoRoot)
-      })
-    ),
-    0
-  );
-  assert.equal(
-    await runSubmitStageResultCommand(
-      repoRoot,
-      true,
-      await writeStageResult(repoRoot, "rapid-implementing", ".praxis", "implementation_complete", "proceed", {
-        dispatch_id: await prepareDispatch(repoRoot)
-      })
-    ),
-    0
-  );
-
-  await prepareDispatch(repoRoot);
-  const reviewDispatch = await readActiveDispatch(repoRoot);
+  const reviewDispatch = await advanceForgeToCodeReviewing(repoRoot);
   assert.equal(reviewDispatch.stage, "code-reviewing");
   assert.equal(reviewDispatch.worker.mode, "isolated_worktree");
   assert.equal(reviewDispatch.worker.worker_class, "worktree_worker");
@@ -665,6 +667,61 @@ test("smoke: code-reviewing dispatch prepares an isolated workspace", async () =
   );
   assert.equal(worktreeRecord.workspace_origin, "git_worktree");
   assert.equal(worktreeRecord.workspace_root, reviewDispatch.execution.workspace_root);
+});
+
+test("smoke: review-stage results reject granted network access and record denied tool usage", async () => {
+  const repoRoot = await createTempRepo();
+  const reviewDispatch = await advanceForgeToCodeReviewing(repoRoot);
+  assert.equal(reviewDispatch.tool_policy.network, "restricted");
+
+  const grantedNetworkResult = await writeStageResult(
+    repoRoot,
+    "code-reviewing",
+    ".praxis",
+    "review_ready",
+    "proceed",
+    {
+      dispatch_id: reviewDispatch.dispatch_id,
+      tool_uses: [
+        {
+          tool: "fetch",
+          kind: "network",
+          status: "granted",
+          reason: "downloaded remote context"
+        }
+      ]
+    }
+  );
+  assert.equal(await runSubmitStageResultCommand(repoRoot, true, grantedNetworkResult), 2);
+
+  const deniedNetworkResult = await writeStageResult(
+    repoRoot,
+    "code-reviewing",
+    ".praxis",
+    "review_ready",
+    "proceed",
+    {
+      dispatch_id: reviewDispatch.dispatch_id,
+      tool_uses: [
+        {
+          tool: "fetch",
+          kind: "network",
+          status: "denied",
+          reason: "policy blocked"
+        }
+      ]
+    }
+  );
+  assert.equal(await runSubmitStageResultCommand(repoRoot, true, deniedNetworkResult), 0);
+
+  const policyLog = (await readFile(join(repoRoot, ".praxis", "policy", "tool-records.jsonl"), "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as { tool?: string; status?: string; type?: string });
+  assert.equal(
+    policyLog.some((entry) => entry.type === "tool_use" && entry.tool === "fetch" && entry.status === "denied"),
+    true
+  );
 });
 
 test("smoke: submit-stage-result rejects non-derived route metadata", async () => {

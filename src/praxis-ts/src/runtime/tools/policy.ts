@@ -26,10 +26,11 @@ function stageToProfile(stage: StageName): ToolPolicy["profile"] {
 }
 
 export function buildToolPolicy(stage: StageName): ToolPolicy {
+  const reviewLikeStage = stage === "code-reviewing" || stage === "verifying-and-adapting";
   return {
     writable_roots: ["."],
     blocked_paths: [".git", ".env"],
-    network: "enabled",
+    network: reviewLikeStage ? "restricted" : "enabled",
     profile: stageToProfile(stage)
   };
 }

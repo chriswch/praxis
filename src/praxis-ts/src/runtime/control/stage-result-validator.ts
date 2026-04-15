@@ -46,6 +46,7 @@ export async function loadAndValidateStageResult(
 
   validateStageResult(result);
   await validateResultArtifacts(repoRoot, result);
+  validateReportedToolUses(result, activeDispatch);
 
   if (result.route.next_stage !== null || result.route.next_slice_id !== null) {
     throw new InvalidInputError(
@@ -139,6 +140,46 @@ export async function loadAndValidateStageResult(
       next_stage: transition.nextStage
     }
   };
+}
+
+function validateReportedToolUses(result: StageResultRecord, activeDispatch: DispatchRecord): void {
+  for (const toolUse of result.tool_uses ?? []) {
+    if (toolUse.kind === "network" && toolUse.status === "granted" && activeDispatch.tool_policy.network !== "enabled") {
+      throw new InvalidInputError(
+        `Stage result reports granted network access for ${result.stage}, but the dispatch policy restricts network access.`
+      );
+    }
+
+    if (toolUse.status !== "granted" || !toolUse.target_path) {
+      continue;
+    }
+
+    const targetPath = normalizeRepoRelativePath(toolUse.target_path);
+    if (activeDispatch.tool_policy.blocked_paths.some((blockedPath) => pathMatchesRoot(targetPath, blockedPath))) {
+      throw new InvalidInputError(
+        `Stage result reports granted access to blocked path ${toolUse.target_path}.`
+      );
+    }
+
+    if (!activeDispatch.tool_policy.writable_roots.some((root) => pathMatchesRoot(targetPath, root))) {
+      throw new InvalidInputError(
+        `Stage result reports granted access outside writable roots: ${toolUse.target_path}.`
+      );
+    }
+  }
+}
+
+function normalizeRepoRelativePath(path: string): string {
+  return path.replaceAll("\\", "/").replace(/^\.\/+/, "");
+}
+
+function pathMatchesRoot(path: string, root: string): boolean {
+  const normalizedPath = normalizeRepoRelativePath(path);
+  const normalizedRoot = normalizeRepoRelativePath(root);
+  if (normalizedRoot === "." || normalizedRoot === "") {
+    return true;
+  }
+  return normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}/`);
 }
 
 async function validateResultArtifacts(

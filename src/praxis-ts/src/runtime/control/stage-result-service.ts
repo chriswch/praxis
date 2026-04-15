@@ -156,6 +156,15 @@ export class StageResultService {
       tool: "submit-stage-result",
       status: "granted"
     });
+    for (const toolUse of accepted.result.tool_uses ?? []) {
+      await telemetry.recordToolUse({
+        run_id: run.run_id,
+        stage: accepted.result.stage,
+        tool: toolUse.tool,
+        status: toolUse.status,
+        reason: toolUse.reason ?? undefined
+      });
+    }
 
     await this.repo.appendLifecycleEvent({
       ts: run.timestamps.updated_at,

@@ -63,6 +63,12 @@ export type PermissionProfile = (typeof PERMISSION_PROFILES)[number];
 export const WORKTREE_MODES = ["shared", "isolated"] as const;
 export type WorktreeMode = (typeof WORKTREE_MODES)[number];
 
+export const TOOL_KINDS = ["filesystem", "shell", "git", "search", "patch", "network"] as const;
+export type ToolKind = (typeof TOOL_KINDS)[number];
+
+export const TOOL_USE_STATUS = ["granted", "denied", "failed"] as const;
+export type ToolUseStatus = (typeof TOOL_USE_STATUS)[number];
+
 export const STAGE_NAMES = [
   "clarifying-intent",
   "slicing-stories",
@@ -115,6 +121,13 @@ export type StageResultRecord = {
     tests_run: boolean;
     diff_reviewed: boolean;
   };
+  tool_uses?: Array<{
+    tool: string;
+    kind: ToolKind;
+    status: ToolUseStatus;
+    target_path?: string | null;
+    reason?: string | null;
+  }>;
   handoff?: Record<string, unknown> | null;
   needs_user_input: boolean;
   needs_confirmation: boolean;
