@@ -4,4 +4,5 @@ export { runInspectCommand } from "./inspect.js";
 export { runDispatchCommand } from "./dispatch.js";
 export { runBuildWorkerLaunchCommand } from "./build-worker-launch.js";
 export { runDoctorCommand } from "./doctor.js";
+export { runSubmitStageResultCommand } from "./submit-stage-result.js";
 export { runStubCommand } from "./stub-command.js";

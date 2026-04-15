@@ -6,6 +6,7 @@ import {
   runDispatchCommand,
   runInspectCommand,
   runRunCommand,
+  runSubmitStageResultCommand,
   runStatusCommand,
   runStubCommand
 } from "./commands/index.js";
@@ -117,9 +118,14 @@ function registerInternalCommands(program: Command): void {
   program
     .command("submit-stage-result")
     .description("Submit a stage result artifact for routing")
-    .action((_, cmd: Command) => {
+    .requiredOption("--stage-result-path <path>", "Path to stage result JSON")
+    .action(async (opts: { stageResultPath: string }, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = runStubCommand("submit-stage-result", global.json);
+      process.exitCode = await runSubmitStageResultCommand(
+        global.repoRoot,
+        global.json,
+        opts.stageResultPath
+      );
     });
 
   program

@@ -13,6 +13,7 @@ import { buildRunId } from "../common/ids.js";
 import { projectStatus, type StatusProjection } from "./status-projector.js";
 import { PraxisStateRepository } from "../state/index.js";
 import { compileDispatch } from "./dispatch-compiler.js";
+import { loadAndValidateStageResult } from "./stage-result-validator.js";
 
 export type RunCreateInput = {
   workflow: WorkflowName;
@@ -56,6 +57,13 @@ export type WorkerLaunchPayload = {
     entrypoint: string;
     fresh_context_per_story: boolean;
   };
+};
+
+export type SubmitStageResultOutcome = {
+  stage: string;
+  outcome_code: string;
+  route_kind: string;
+  next_stage: string | null;
 };
 
 export class RunController {
@@ -233,6 +241,37 @@ export class RunController {
         entrypoint: run.runtime.entrypoint,
         fresh_context_per_story: run.execution.fresh_context_per_story
       }
+    };
+  }
+
+  async submitStageResult(stageResultPath: string): Promise<SubmitStageResultOutcome> {
+    const run = await this.repo.loadRun();
+    if (!run) {
+      throw new Error("No active run found at .praxis/run.json.");
+    }
+
+    const accepted = await loadAndValidateStageResult(this.repo.paths.root, stageResultPath, run);
+    await this.repo.validateAndAppendStageResult(accepted.result);
+
+    const now = nowIsoUtc();
+    await this.repo.appendLifecycleEvent({
+      ts: now,
+      type: "stage_result_accepted",
+      run_id: run.run_id,
+      stage: accepted.result.stage,
+      action: "submit-stage-result",
+      details: {
+        outcome_code: accepted.result.data.outcome_code,
+        route_kind: accepted.transition.route_kind,
+        next_stage: accepted.transition.next_stage
+      }
+    });
+
+    return {
+      stage: accepted.result.stage,
+      outcome_code: accepted.result.data.outcome_code,
+      route_kind: accepted.transition.route_kind,
+      next_stage: accepted.transition.next_stage
     };
   }
 }

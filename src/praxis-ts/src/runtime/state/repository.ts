@@ -1,6 +1,16 @@
 import { join } from "node:path";
-import type { DispatchRecord, LifecycleEvent, RunRecord, StoryLedgerRecord } from "../../contracts/model.js";
-import { validateDispatchRecord, validateRunRecord } from "../../contracts/validators.js";
+import type {
+  DispatchRecord,
+  LifecycleEvent,
+  RunRecord,
+  StageResultRecord,
+  StoryLedgerRecord
+} from "../../contracts/model.js";
+import {
+  validateDispatchRecord,
+  validateRunRecord,
+  validateStageResult
+} from "../../contracts/validators.js";
 import { appendJsonLine, ensureDir, readJsonFileIfExists, writeJsonFile } from "./store.js";
 import { resolvePraxisPaths, type PraxisPathSet } from "./paths.js";
 
@@ -48,6 +58,15 @@ export class PraxisStateRepository {
 
   async appendLifecycleEvent(event: LifecycleEvent): Promise<void> {
     await appendJsonLine(this.paths.eventsFile, event);
+  }
+
+  async appendStageResultRecord(payload: Record<string, unknown>): Promise<void> {
+    await appendJsonLine(this.paths.stageHistoryFile, payload);
+  }
+
+  async validateAndAppendStageResult(payload: StageResultRecord): Promise<void> {
+    validateStageResult(payload);
+    await this.appendStageResultRecord(payload);
   }
 
   async saveSessionRecord(sessionId: string, payload: Record<string, unknown>): Promise<void> {
