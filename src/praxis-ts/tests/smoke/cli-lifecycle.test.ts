@@ -20,6 +20,7 @@ import {
   runSubmitStageResultCommand,
   runContinueCommand
 } from "../../src/cli/commands/index.js";
+import { EXIT_CODE } from "../../src/cli/exit-codes.js";
 import type { RunRecord } from "../../src/contracts/model.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 
@@ -171,6 +172,72 @@ test("smoke: build-worker-launch exposes stage contract, policy, and repo instru
   assert.equal(surfaceByPath.get(".codex-plugin")?.authoritative, false);
 });
 
+test("smoke: inspect exposes active dispatch, session, and artifact status", async () => {
+  const repoRoot = await createTempRepo();
+  const tsxCli = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
+
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "Inspect detail"
+    }),
+    0
+  );
+  const dispatchId = await prepareDispatch(repoRoot);
+  await writeFile(join(repoRoot, ".praxis", "spec.md"), "spec\n", "utf8");
+  assert.equal(
+    await runRegisterWorkerSessionCommand(repoRoot, true, {
+      dispatchId,
+      workerId: "wrk_inspect",
+      sessionId: "codex_session_inspect",
+      startedAt: "2026-04-15T00:00:00.000Z",
+      locator: "codex://inspect",
+      resumable: true
+    }),
+    0
+  );
+
+  const { stdout } = await execFileAsync(process.execPath, [
+    tsxCli,
+    "src/index.ts",
+    "--repo-root",
+    repoRoot,
+    "--json",
+    "inspect"
+  ], {
+    cwd: process.cwd()
+  });
+
+  const envelope = JSON.parse(stdout.trim()) as {
+    ok: boolean;
+    data: {
+      active_dispatch: { dispatch_id: string } | null;
+      active_session: { worker_id: string } | null;
+      active_worktree: Record<string, unknown> | null;
+      artifact_inspection: {
+        expected_outputs: Array<{ path: string; exists: boolean }>;
+      } | null;
+      state_paths: {
+        worktrees_dir: string;
+      };
+    };
+  };
+
+  assert.equal(envelope.ok, true);
+  assert.equal(envelope.data.active_dispatch?.dispatch_id, dispatchId);
+  assert.equal(envelope.data.active_session?.worker_id, "wrk_inspect");
+  assert.equal(envelope.data.active_worktree, null);
+  assert.ok(envelope.data.state_paths.worktrees_dir.endsWith("/.praxis/worktrees"));
+  assert.equal(
+    envelope.data.artifact_inspection?.expected_outputs.some(
+      (artifact) => artifact.path === ".praxis/spec.md" && artifact.exists
+    ),
+    true
+  );
+});
+
 test("smoke: forge single-story progression completes run", async () => {
   const repoRoot = await createTempRepo();
 
@@ -251,6 +318,53 @@ test("smoke: forge single-story progression completes run", async () => {
   assert.equal(run.routing.next_action, "finish");
   assert.equal(run.current.stage, null);
   assert.equal(run.active.dispatch_id, null);
+});
+
+test("smoke: doctor returns a health-specific exit code when an adapter is unhealthy", async () => {
+  const repoRoot = await createTempRepo();
+  const tsxCli = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
+
+  let failure: Error & { code?: number; stdout?: string } | null = null;
+  try {
+    await execFileAsync(
+      process.execPath,
+      [tsxCli, "src/index.ts", "--repo-root", repoRoot, "--json", "doctor"],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          HOME: ""
+        }
+      }
+    );
+  } catch (error) {
+    failure = error as Error & { code?: number; stdout?: string };
+  }
+
+  assert.ok(failure);
+  assert.equal(failure.code, EXIT_CODE.HEALTH_FAILED);
+
+  const envelope = JSON.parse((failure.stdout ?? "").trim()) as {
+    ok: boolean;
+    code: number;
+    data: {
+      summary: {
+        healthy: boolean;
+        exit_code: number;
+        reasons: string[];
+      };
+      adapters: Array<{ adapter: string; healthy: boolean }>;
+    };
+  };
+
+  assert.equal(envelope.ok, false);
+  assert.equal(envelope.code, EXIT_CODE.HEALTH_FAILED);
+  assert.equal(envelope.data.summary.healthy, false);
+  assert.equal(envelope.data.summary.exit_code, EXIT_CODE.HEALTH_FAILED);
+  assert.equal(
+    envelope.data.adapters.some((adapter) => adapter.adapter === "claude" && adapter.healthy === false),
+    true
+  );
 });
 
 test("smoke: submit rejects result without active dispatch", async () => {

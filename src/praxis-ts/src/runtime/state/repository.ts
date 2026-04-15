@@ -29,6 +29,10 @@ export class PraxisStateRepository {
     this.paths = resolvePraxisPaths(repoRoot);
   }
 
+  resolvePath(relativePath: string): string {
+    return join(this.repoRoot, relativePath);
+  }
+
   async ensureLayout(): Promise<void> {
     await ensureDir(this.paths.praxisDir);
     await ensureDir(this.paths.tracesDir);

@@ -21,6 +21,15 @@ export type InspectProjection = {
   status: StatusProjection;
   run: RunRecord;
   ledger_present: boolean;
+  active_dispatch: DispatchRecord | null;
+  active_session: Record<string, unknown> | null;
+  active_worktree: Record<string, unknown> | null;
+  artifact_inspection: {
+    required_inputs: Array<{ path: string; exists: boolean }>;
+    expected_outputs: Array<{ path: string; exists: boolean }>;
+    stage_result: { path: string; exists: boolean } | null;
+    boundary_handoff: { path: string; exists: boolean } | null;
+  } | null;
   recent_events: Record<string, unknown>[];
   recent_stage_history: Record<string, unknown>[];
   recent_policy_records: Record<string, unknown>[];
@@ -31,6 +40,7 @@ export type InspectProjection = {
     stage_history_file: string;
     dispatches_dir: string;
     sessions_dir: string;
+    worktrees_dir: string;
     policy_dir: string;
   };
 };
