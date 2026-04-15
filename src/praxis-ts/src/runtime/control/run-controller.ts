@@ -10,7 +10,11 @@ import type {
   WorkflowName
 } from "../../contracts/model.js";
 import { BlockedStateError, RejectedProgressionError } from "../../contracts/errors.js";
-import { validateRunRecord, validateWorkerSessionRegistration } from "../../contracts/validators.js";
+import {
+  validateRunRecord,
+  validateStageResult,
+  validateWorkerSessionRegistration
+} from "../../contracts/validators.js";
 import { nowIsoUtc } from "../common/time.js";
 import { buildRunId } from "../common/ids.js";
 import { projectStatus, type StatusProjection } from "./status-projector.js";
@@ -428,14 +432,7 @@ export class RunController {
       run,
       activeDispatch
     );
-    await this.repo.validateAndAppendStageResult(accepted.result);
-    const telemetry = new ToolTelemetry(this.repo);
-    await telemetry.recordToolUse({
-      run_id: run.run_id,
-      stage: accepted.result.stage,
-      tool: "submit-stage-result",
-      status: "granted"
-    });
+    validateStageResult(accepted.result);
     let ledger = await this.repo.loadStoryLedger();
 
     if (
@@ -489,6 +486,14 @@ export class RunController {
 
     clearBoundaryHandoffIfConsumed(run);
     await this.repo.saveRun(run);
+    await this.repo.appendStageResultRecord(accepted.result);
+    const telemetry = new ToolTelemetry(this.repo);
+    await telemetry.recordToolUse({
+      run_id: run.run_id,
+      stage: accepted.result.stage,
+      tool: "submit-stage-result",
+      status: "granted"
+    });
 
     await this.repo.appendLifecycleEvent({
       ts: run.timestamps.updated_at,
