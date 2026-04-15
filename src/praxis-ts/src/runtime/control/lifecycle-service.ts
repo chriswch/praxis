@@ -15,13 +15,22 @@ export class RunLifecycleService {
 
   async continueRun(): Promise<LifecycleActionOutcome> {
     const run = await this.loadRunOrThrow();
-    if (run.routing.next_action !== "confirm_then_run") {
+    if (!run.current.stage) {
+      throw new BlockedStateError("Cannot continue a run without an active stage.");
+    }
+
+    if (!["confirm_then_run", "ask_user"].includes(run.routing.next_action)) {
       throw new RejectedProgressionError(
-        `continue is only valid when next_action is confirm_then_run (found ${run.routing.next_action}).`
+        `continue is only valid when next_action is confirm_then_run or ask_user (found ${run.routing.next_action}).`
       );
     }
 
-    this.activateStage(run, `Continue acknowledged. Ready to run ${run.current.stage}.`);
+    const reason =
+      run.routing.next_action === "ask_user"
+        ? `User input acknowledged. Ready to re-run ${run.current.stage}.`
+        : `Continue acknowledged. Ready to run ${run.current.stage}.`;
+
+    this.activateStage(run, reason);
 
     await this.repo.saveRun(run);
     await this.repo.appendLifecycleEvent({
@@ -40,9 +49,9 @@ export class RunLifecycleService {
     if (!run.current.stage) {
       throw new BlockedStateError("Cannot approve a run without an active stage.");
     }
-    if (!["confirm_then_run", "ask_user"].includes(run.routing.next_action)) {
+    if (run.routing.next_action !== "confirm_then_run") {
       throw new RejectedProgressionError(
-        `approve is not valid while next_action is ${run.routing.next_action}.`
+        `approve is only valid when next_action is confirm_then_run (found ${run.routing.next_action}).`
       );
     }
 

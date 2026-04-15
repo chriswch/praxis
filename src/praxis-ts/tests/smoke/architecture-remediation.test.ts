@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { writeFile, readFile } from "node:fs/promises";
+import { writeFile, readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
@@ -429,6 +429,41 @@ test("smoke: missing boundary handoff blocks dispatch and emits explicit blocked
   assert.equal(blocked.routing.stop_reason_code, "boundary_handoff_load_failed");
   assert.match(blocked.routing.reason, /Boundary handoff load failed/);
   assert.match(blocked.routing.reason, /retry dispatch/);
+});
+
+test("smoke: missing required stage artifacts block dispatch and emit explicit blocked reason", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "required artifact gate"
+    }),
+    0
+  );
+
+  const clarifyPath = await writeStageResult(
+    repoRoot,
+    "clarifying-intent",
+    ".praxis",
+    "story_spec_ready",
+    "proceed",
+    {
+      dispatch_id: await prepareDispatch(repoRoot),
+      needs_confirmation: true
+    }
+  );
+  assert.equal(await runSubmitStageResultCommand(repoRoot, true, clarifyPath), 0);
+  assert.equal(await runContinueCommand(repoRoot, true), 0);
+  await unlink(join(repoRoot, ".praxis", "spec.md"));
+  assert.equal(await runDispatchCommand(repoRoot, true), 3);
+
+  const blocked = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(blocked.status, "blocked");
+  assert.equal(blocked.routing.stop_reason_code, "missing_required_artifacts");
+  assert.match(blocked.routing.reason, /Missing required artifacts/);
+  assert.match(blocked.routing.reason, /\.praxis\/spec\.md/);
 });
 
 test("smoke: transition-aware contracts set verifying artifacts by predecessor path", async () => {

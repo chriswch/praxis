@@ -3,6 +3,7 @@ import { readJsonFile } from "../state/index.js";
 import { nowIsoUtc } from "../common/time.js";
 import { compileDispatch } from "./dispatch-compiler.js";
 import { ToolTelemetry } from "../tools/index.js";
+import { exists } from "../state/store.js";
 import {
   validateWorkerSessionRegistration
 } from "../../contracts/validators.js";
@@ -29,6 +30,7 @@ export class DispatchService {
     const handoffData = await this.loadBoundaryHandoffOrBlock(run, "dispatch");
 
     const dispatch = compileDispatch({ run, boundaryHandoff: handoffData });
+    await this.ensureRequiredArtifactsExistOrBlock(run, dispatch.inputs.required_artifacts, "dispatch");
     await this.repo.saveDispatch(dispatch);
     const telemetry = new ToolTelemetry(this.repo);
     await telemetry.recordPolicyDecision({
@@ -154,6 +156,11 @@ export class DispatchService {
     }
 
     const boundaryHandoff = await this.loadBoundaryHandoffOrBlock(run, "build-worker-launch");
+    await this.ensureRequiredArtifactsExistOrBlock(
+      run,
+      dispatch.inputs.required_artifacts,
+      "build-worker-launch"
+    );
 
     return {
       run_id: run.run_id,
@@ -241,5 +248,45 @@ export class DispatchService {
       });
       throw new BlockedStateError(blockedReason);
     }
+  }
+
+  private async ensureRequiredArtifactsExistOrBlock(
+    run: RunRecord,
+    requiredArtifacts: string[],
+    action: "dispatch" | "build-worker-launch"
+  ): Promise<void> {
+    const missingArtifacts: string[] = [];
+
+    for (const artifactPath of requiredArtifacts) {
+      const absolutePath = join(this.repo.paths.root, artifactPath);
+      if (!(await exists(absolutePath))) {
+        missingArtifacts.push(artifactPath);
+      }
+    }
+
+    if (missingArtifacts.length === 0) {
+      return;
+    }
+
+    const now = nowIsoUtc();
+    const blockedReason = `Missing required artifacts for ${action}: ${missingArtifacts.join(", ")}. Produce the required artifacts and retry ${action}.`;
+
+    run.status = "blocked";
+    run.routing.next_action = "ask_user";
+    run.routing.reason = blockedReason;
+    run.routing.stop_reason_code = "missing_required_artifacts";
+    run.timestamps.updated_at = now;
+    await this.repo.saveRun(run);
+    await this.repo.appendLifecycleEvent({
+      ts: now,
+      type: "missing_required_artifacts",
+      run_id: run.run_id,
+      stage: run.current.stage,
+      action,
+      details: {
+        missing_artifacts: missingArtifacts
+      }
+    });
+    throw new BlockedStateError(blockedReason);
   }
 }

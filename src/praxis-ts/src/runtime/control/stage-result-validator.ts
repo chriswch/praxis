@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { readJsonFile } from "../state/index.js";
+import { exists } from "../state/store.js";
 import { validateStageResult } from "../../contracts/validators.js";
 import type { DispatchRecord, RunRecord, StageName, StageResultRecord } from "../../contracts/model.js";
 import { resolveWorkflowTransition } from "../../workflows/index.js";
@@ -44,6 +45,7 @@ export async function loadAndValidateStageResult(
   const result = await readJsonFile<StageResultRecord>(absolutePath);
 
   validateStageResult(result);
+  await validateResultArtifacts(repoRoot, result);
 
   if (result.route.next_stage !== null || result.route.next_slice_id !== null) {
     throw new InvalidInputError(
@@ -137,4 +139,37 @@ export async function loadAndValidateStageResult(
       next_stage: transition.nextStage
     }
   };
+}
+
+async function validateResultArtifacts(
+  repoRoot: string,
+  result: StageResultRecord
+): Promise<void> {
+  const requiredPaths = new Set<string>();
+
+  if (result.summary_path) {
+    requiredPaths.add(result.summary_path);
+  }
+
+  for (const artifactPath of result.artifacts_written) {
+    requiredPaths.add(artifactPath);
+  }
+
+  for (const artifactPath of result.output_artifacts ?? []) {
+    requiredPaths.add(artifactPath);
+  }
+
+  const missingPaths: string[] = [];
+  for (const artifactPath of requiredPaths) {
+    const absoluteArtifactPath = resolve(repoRoot, artifactPath);
+    if (!(await exists(absoluteArtifactPath))) {
+      missingPaths.push(artifactPath);
+    }
+  }
+
+  if (missingPaths.length > 0) {
+    throw new InvalidInputError(
+      `Stage result declares missing artifacts: ${missingPaths.join(", ")}.`
+    );
+  }
 }

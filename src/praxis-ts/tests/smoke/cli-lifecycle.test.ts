@@ -276,6 +276,8 @@ test("smoke: ask_user routes to workflow-resolved next stage", async () => {
   assert.equal(run.routing.next_action, "ask_user");
   assert.equal(run.routing.next_stage, "clarifying-intent");
   assert.equal(run.current.stage, "clarifying-intent");
+  assert.equal(await runApproveCommand(repoRoot, true, "should fail"), 4);
+  assert.equal(await runContinueCommand(repoRoot, true), 0);
 });
 
 test("smoke: corrupted story ledger is rejected at read boundaries", async () => {
