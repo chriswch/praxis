@@ -231,8 +231,13 @@ export function validateStoryLedgerRecord(ledger: StoryLedgerRecord): void {
   assertEnum(ledger.execution_mode, EXECUTION_MODES, "ledger.execution_mode");
 
   const { order, active, last_completed, items } = ledger.stories;
+  const seenOrderIds = new Set<string>();
   for (const storyId of order) {
     assertPlainString(storyId, "stories.order item");
+    if (seenOrderIds.has(storyId)) {
+      throw new ContractError(`stories.order contains duplicate story id ${storyId}`);
+    }
+    seenOrderIds.add(storyId);
     if (!items[storyId]) {
       throw new ContractError(`stories.items missing entry for ${storyId}`);
     }

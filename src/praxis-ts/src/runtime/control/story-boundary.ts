@@ -27,27 +27,41 @@ export async function initializeStoryLedgerFromSliceMap(
   }
 
   const first = sliceMap.slices[0];
+  const firstId = typeof first.id === "string" ? first.id.trim() : "";
+  if (!firstId) {
+    throw new InvalidInputError("Slice map first story id is empty.");
+  }
   const items: StoryLedgerRecord["stories"]["items"] = {};
   const order: string[] = [];
+  const seenStoryIds = new Set<string>();
 
   for (const slice of sliceMap.slices) {
-    order.push(slice.id);
-    items[slice.id] = {
-      id: slice.id,
-      title: slice.title ?? slice.id,
-      artifact_dir: `.praxis/slices/${slice.id}`,
-      status: slice.id === first.id ? "active" : "pending",
+    const storyId = typeof slice.id === "string" ? slice.id.trim() : "";
+    if (!storyId) {
+      throw new InvalidInputError("Slice map contains a story with an empty id.");
+    }
+    if (seenStoryIds.has(storyId)) {
+      throw new InvalidInputError(`Slice map contains duplicate story id: ${storyId}`);
+    }
+    seenStoryIds.add(storyId);
+
+    order.push(storyId);
+    items[storyId] = {
+      id: storyId,
+      title: slice.title ?? storyId,
+      artifact_dir: `.praxis/slices/${storyId}`,
+      status: storyId === firstId ? "active" : "pending",
       carry_forward_from: null,
       handoff_path: null
     };
 
-    await mkdir(join(repoRoot, items[slice.id].artifact_dir, "results"), { recursive: true });
+    await mkdir(join(repoRoot, items[storyId].artifact_dir, "results"), { recursive: true });
   }
 
   run.mode = "multi_slice";
   run.current.scope = "slice";
-  run.current.slice_id = first.id;
-  run.current.artifact_dir = items[first.id].artifact_dir;
+  run.current.slice_id = firstId;
+  run.current.artifact_dir = items[firstId].artifact_dir;
   run.current.stage = "clarifying-intent";
 
   const ledger: StoryLedgerRecord = {
@@ -57,7 +71,7 @@ export async function initializeStoryLedgerFromSliceMap(
     execution_mode: executionMode,
     stories: {
       order,
-      active: first.id,
+      active: firstId,
       last_completed: null,
       items
     }
