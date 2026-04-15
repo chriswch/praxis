@@ -306,6 +306,11 @@ export class RunController {
       throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
     this.assertDispatchLaunchAllowed(run, "dispatch");
+    if (run.active.dispatch_id) {
+      throw new RejectedProgressionError(
+        `Dispatch ${run.active.dispatch_id} is already active. Submit a stage result, register a worker session, or cancel before creating another dispatch.`
+      );
+    }
 
     const handoffData = await this.loadBoundaryHandoffOrBlock(run, "dispatch");
 

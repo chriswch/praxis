@@ -218,6 +218,25 @@ test("smoke: submit-stage-result requires session provenance when active session
   assert.equal(await runSubmitStageResultCommand(repoRoot, true, matchingSessionResult), 0);
 });
 
+test("smoke: dispatch creation rejects replacing an already active dispatch", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "single active dispatch invariant"
+    }),
+    0
+  );
+
+  const firstDispatch = await prepareDispatch(repoRoot);
+  assert.equal(await runDispatchCommand(repoRoot, true), 4);
+
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(run.active.dispatch_id, firstDispatch);
+});
+
 test("smoke: duplicate slice IDs and traversal stage-result paths fail closed", async () => {
   const repoRoot = await createTempRepo();
   assert.equal(
