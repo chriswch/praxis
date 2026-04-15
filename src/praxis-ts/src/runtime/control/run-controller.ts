@@ -6,10 +6,11 @@ import type {
   ExecutionMode,
   RunRecord,
   StageName,
+  WorkerSessionRegistration,
   WorkflowName
 } from "../../contracts/model.js";
 import { BlockedStateError, RejectedProgressionError } from "../../contracts/errors.js";
-import { validateRunRecord } from "../../contracts/validators.js";
+import { validateRunRecord, validateWorkerSessionRegistration } from "../../contracts/validators.js";
 import { nowIsoUtc } from "../common/time.js";
 import { buildRunId } from "../common/ids.js";
 import { projectStatus, type StatusProjection } from "./status-projector.js";
@@ -89,6 +90,16 @@ export type LifecycleActionOutcome = {
   status: string;
   next_action: string;
   next_stage: StageName | null;
+  reason: string;
+};
+
+export type RegisterWorkerSessionOutcome = {
+  run_id: string;
+  dispatch_id: string;
+  worker_id: string;
+  session_id: string | null;
+  resumable: boolean;
+  stage: StageName | null;
   reason: string;
 };
 
@@ -252,9 +263,10 @@ export class RunController {
     });
 
     run.active.dispatch_id = dispatch.dispatch_id;
-    run.active.worker_id = null;
-    run.active.session_id = null;
-    run.active.resumable = false;
+    if (!run.active.resumable) {
+      run.active.worker_id = null;
+      run.active.session_id = null;
+    }
     run.timestamps.updated_at = nowIsoUtc();
     run.routing.reason = `Dispatch ${dispatch.dispatch_id} prepared for ${dispatch.stage}.`;
 
@@ -271,6 +283,83 @@ export class RunController {
     });
 
     return dispatch;
+  }
+
+  async registerWorkerSession(input: WorkerSessionRegistration): Promise<RegisterWorkerSessionOutcome> {
+    validateWorkerSessionRegistration(input);
+
+    const run = await this.repo.loadRun();
+    if (!run) {
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
+    }
+    if (!run.current.stage) {
+      throw new RejectedProgressionError("Cannot register a worker session without an active stage.");
+    }
+    if (!run.active.dispatch_id) {
+      throw new RejectedProgressionError(
+        "Cannot register a worker session without an active dispatch. Run `praxis dispatch` first."
+      );
+    }
+    if (run.active.dispatch_id !== input.dispatch_id) {
+      throw new RejectedProgressionError(
+        `Worker session dispatch mismatch. Expected ${run.active.dispatch_id}, received ${input.dispatch_id}.`
+      );
+    }
+
+    const dispatch = await this.repo.loadDispatch(run.active.dispatch_id);
+    if (!dispatch) {
+      throw new BlockedStateError(`Active dispatch ${run.active.dispatch_id} does not exist.`);
+    }
+
+    const resumable = input.resumable && input.session_id !== null;
+    const sessionRecordId = input.session_id ?? `worker_${input.worker_id}`;
+    const now = nowIsoUtc();
+
+    run.active.worker_id = input.worker_id;
+    run.active.session_id = input.session_id;
+    run.active.resumable = resumable;
+    run.timestamps.updated_at = now;
+    run.routing.reason = `Worker session registered for ${dispatch.stage} (${input.worker_id}).`;
+
+    await this.repo.saveSessionRecord(sessionRecordId, {
+      version: 1,
+      run_id: run.run_id,
+      dispatch_id: dispatch.dispatch_id,
+      stage: dispatch.stage,
+      scope: dispatch.scope,
+      artifact_dir: dispatch.artifact_dir,
+      adapter: dispatch.worker.adapter,
+      worker_id: input.worker_id,
+      session_id: input.session_id,
+      resumable,
+      started_at: input.started_at,
+      locator: input.locator,
+      recorded_at: now
+    });
+    await this.repo.saveRun(run);
+    await this.repo.appendLifecycleEvent({
+      ts: now,
+      type: "worker_session_registered",
+      run_id: run.run_id,
+      stage: dispatch.stage,
+      action: "register-worker-session",
+      details: {
+        dispatch_id: dispatch.dispatch_id,
+        worker_id: input.worker_id,
+        session_id: input.session_id,
+        resumable
+      }
+    });
+
+    return {
+      run_id: run.run_id,
+      dispatch_id: dispatch.dispatch_id,
+      worker_id: input.worker_id,
+      session_id: input.session_id,
+      resumable,
+      stage: run.current.stage,
+      reason: run.routing.reason
+    };
   }
 
   async buildWorkerLaunch(): Promise<WorkerLaunchPayload> {

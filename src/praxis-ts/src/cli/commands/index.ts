@@ -7,6 +7,7 @@ export { runResumeCommand } from "./resume.js";
 export { runCancelCommand } from "./cancel.js";
 export { runDispatchCommand } from "./dispatch.js";
 export { runBuildWorkerLaunchCommand } from "./build-worker-launch.js";
+export { runRegisterWorkerSessionCommand } from "./register-worker-session.js";
 export { runDoctorCommand } from "./doctor.js";
 export { runSubmitStageResultCommand } from "./submit-stage-result.js";
 export { runStubCommand } from "./stub-command.js";

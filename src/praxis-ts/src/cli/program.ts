@@ -8,6 +8,7 @@ import {
   runDoctorCommand,
   runDispatchCommand,
   runInspectCommand,
+  runRegisterWorkerSessionCommand,
   runResumeCommand,
   runRunCommand,
   runSubmitStageResultCommand,
@@ -159,6 +160,39 @@ function registerInternalCommands(program: Command): void {
       const global = toGlobalOptions(cmd);
       process.exitCode = await runBuildWorkerLaunchCommand(global.repoRoot, global.json);
     });
+
+  program
+    .command("register-worker-session")
+    .description("Persist adapter launch metadata for lifecycle resume/cancel")
+    .requiredOption("--dispatch-id <dispatch-id>", "Dispatch identifier")
+    .requiredOption("--worker-id <worker-id>", "Adapter worker identifier")
+    .requiredOption("--started-at <iso8601>", "Worker launch timestamp")
+    .option("--session-id <session-id>", "Adapter session identifier")
+    .option("--locator <locator>", "Adapter worker locator")
+    .option("--resumable", "Mark session as resumable", false)
+    .action(
+      async (
+        opts: {
+          dispatchId: string;
+          workerId: string;
+          startedAt: string;
+          sessionId?: string;
+          locator?: string;
+          resumable?: boolean;
+        },
+        cmd: Command
+      ) => {
+        const global = toGlobalOptions(cmd);
+        process.exitCode = await runRegisterWorkerSessionCommand(global.repoRoot, global.json, {
+          dispatchId: opts.dispatchId,
+          workerId: opts.workerId,
+          sessionId: opts.sessionId ?? null,
+          startedAt: opts.startedAt,
+          locator: opts.locator ?? null,
+          resumable: opts.resumable ?? false
+        });
+      }
+    );
 }
 
 export function buildProgram(): Command {

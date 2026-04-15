@@ -9,5 +9,10 @@ export {
   clearBoundaryHandoffIfConsumed,
   initializeStoryLedgerFromSliceMap
 } from "./story-boundary.js";
-export type { InspectProjection, RunCreateInput, WorkerLaunchPayload } from "./run-controller.js";
+export type {
+  InspectProjection,
+  RegisterWorkerSessionOutcome,
+  RunCreateInput,
+  WorkerLaunchPayload
+} from "./run-controller.js";
 export type { StatusProjection } from "./status-projector.js";
