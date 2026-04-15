@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { readJsonFileIfExists } from "../state/index.js";
+import { readJsonFile } from "../state/index.js";
 import type {
   AdapterName,
   DispatchRecord,
@@ -136,6 +136,48 @@ export class RunController {
     }
   }
 
+  private async loadBoundaryHandoffOrBlock(
+    run: RunRecord,
+    action: "dispatch" | "build-worker-launch"
+  ): Promise<Record<string, unknown> | null> {
+    const handoffPath = run.routing.boundary_handoff_path;
+    if (!handoffPath) {
+      return null;
+    }
+
+    const absolutePath = join(this.repo.paths.root, handoffPath);
+    try {
+      const handoff = await readJsonFile<unknown>(absolutePath);
+      if (typeof handoff !== "object" || handoff === null || Array.isArray(handoff)) {
+        throw new Error("boundary handoff must be a JSON object");
+      }
+      return handoff as Record<string, unknown>;
+    } catch (error) {
+      const now = nowIsoUtc();
+      const detailMessage = error instanceof Error ? error.message : String(error);
+      const blockedReason = `Boundary handoff load failed for ${handoffPath}. Recreate the handoff artifact and retry ${action}.`;
+
+      run.status = "blocked";
+      run.routing.next_action = "ask_user";
+      run.routing.reason = blockedReason;
+      run.routing.stop_reason_code = "boundary_handoff_load_failed";
+      run.timestamps.updated_at = now;
+      await this.repo.saveRun(run);
+      await this.repo.appendLifecycleEvent({
+        ts: now,
+        type: "boundary_handoff_load_failed",
+        run_id: run.run_id,
+        stage: run.current.stage,
+        action,
+        details: {
+          boundary_handoff_path: handoffPath,
+          error: detailMessage
+        }
+      });
+      throw new BlockedStateError(blockedReason);
+    }
+  }
+
   async initializeRun(input: RunCreateInput): Promise<RunRecord> {
     await this.repo.ensureLayout();
 
@@ -250,11 +292,7 @@ export class RunController {
     }
     this.assertDispatchLaunchAllowed(run, "dispatch");
 
-    const handoffData = run.routing.boundary_handoff_path
-      ? await readJsonFileIfExists<Record<string, unknown>>(
-          join(this.repo.paths.root, run.routing.boundary_handoff_path)
-        )
-      : null;
+    const handoffData = await this.loadBoundaryHandoffOrBlock(run, "dispatch");
 
     const dispatch = compileDispatch({ run, boundaryHandoff: handoffData });
     await this.repo.saveDispatch(dispatch);
@@ -381,11 +419,7 @@ export class RunController {
       throw new BlockedStateError(`Dispatch ${run.active.dispatch_id} does not exist.`);
     }
 
-    const boundaryHandoff = run.routing.boundary_handoff_path
-      ? await readJsonFileIfExists<Record<string, unknown>>(
-          join(this.repo.paths.root, run.routing.boundary_handoff_path)
-        )
-      : null;
+    const boundaryHandoff = await this.loadBoundaryHandoffOrBlock(run, "build-worker-launch");
 
     return {
       run_id: run.run_id,

@@ -148,3 +148,35 @@ test("smoke: duplicate slice IDs and traversal stage-result paths fail closed", 
   // A traversal input must be rejected before file read or transition logic.
   assert.equal(await runSubmitStageResultCommand(repoRoot, true, "../outside.json"), 2);
 });
+
+test("smoke: missing boundary handoff blocks dispatch and emits explicit blocked reason", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "boundary handoff invariant"
+    }),
+    0
+  );
+
+  const runPath = join(repoRoot, ".praxis", "run.json");
+  const run = await readJson<RunRecord>(runPath);
+  run.current.scope = "slice";
+  run.current.slice_id = "S-002";
+  run.current.artifact_dir = ".praxis/slices/S-002";
+  run.current.stage = "clarifying-intent";
+  run.routing.next_action = "run_stage";
+  run.routing.next_stage = "clarifying-intent";
+  run.routing.boundary_handoff_path = ".praxis/slices/S-001/handoff.json";
+  await writeFile(runPath, `${JSON.stringify(run, null, 2)}\n`, "utf8");
+
+  assert.equal(await runDispatchCommand(repoRoot, true), 3);
+
+  const blocked = await readJson<RunRecord>(runPath);
+  assert.equal(blocked.status, "blocked");
+  assert.equal(blocked.routing.stop_reason_code, "boundary_handoff_load_failed");
+  assert.match(blocked.routing.reason, /Boundary handoff load failed/);
+  assert.match(blocked.routing.reason, /retry dispatch/);
+});
