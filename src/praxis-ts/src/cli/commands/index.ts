@@ -1,6 +1,10 @@
 export { runRunCommand } from "./run.js";
 export { runStatusCommand } from "./status.js";
 export { runInspectCommand } from "./inspect.js";
+export { runContinueCommand } from "./continue.js";
+export { runApproveCommand } from "./approve.js";
+export { runResumeCommand } from "./resume.js";
+export { runCancelCommand } from "./cancel.js";
 export { runDispatchCommand } from "./dispatch.js";
 export { runBuildWorkerLaunchCommand } from "./build-worker-launch.js";
 export { runDoctorCommand } from "./doctor.js";

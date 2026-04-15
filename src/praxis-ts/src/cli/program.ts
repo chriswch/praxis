@@ -1,14 +1,17 @@
 import { Command } from "commander";
 import { resolveCommandOptions } from "./context.js";
 import {
+  runApproveCommand,
   runBuildWorkerLaunchCommand,
+  runCancelCommand,
+  runContinueCommand,
   runDoctorCommand,
   runDispatchCommand,
   runInspectCommand,
+  runResumeCommand,
   runRunCommand,
   runSubmitStageResultCommand,
-  runStatusCommand,
-  runStubCommand
+  runStatusCommand
 } from "./commands/index.js";
 import type { AdapterName, ExecutionMode, WorkflowName } from "../contracts/model.js";
 
@@ -52,33 +55,35 @@ function registerLifecycleCommands(program: Command): void {
   program
     .command("continue")
     .description("Advance a paused run")
-    .action((_, cmd: Command) => {
+    .action(async (_, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = runStubCommand("continue", global.json);
+      process.exitCode = await runContinueCommand(global.repoRoot, global.json);
     });
 
   program
     .command("resume")
     .description("Resume an in-progress worker when safe")
-    .action((_, cmd: Command) => {
+    .action(async (_, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = runStubCommand("resume", global.json);
+      process.exitCode = await runResumeCommand(global.repoRoot, global.json);
     });
 
   program
     .command("approve")
     .description("Resolve a human gate")
-    .action((_, cmd: Command) => {
+    .option("--note <text>", "Approval note")
+    .action(async (opts: { note?: string }, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = runStubCommand("approve", global.json);
+      process.exitCode = await runApproveCommand(global.repoRoot, global.json, opts.note ?? null);
     });
 
   program
     .command("cancel")
     .description("Cancel the active run or worker")
-    .action((_, cmd: Command) => {
+    .option("--note <text>", "Cancellation note")
+    .action(async (opts: { note?: string }, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = runStubCommand("cancel", global.json);
+      process.exitCode = await runCancelCommand(global.repoRoot, global.json, opts.note ?? null);
     });
 
   program
