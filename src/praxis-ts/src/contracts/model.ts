@@ -190,6 +190,15 @@ export type DispatchRecord = {
   };
 };
 
+export type WorkerSessionRegistration = {
+  dispatch_id: string;
+  worker_id: string;
+  session_id: string | null;
+  started_at: string;
+  locator: string | null;
+  resumable: boolean;
+};
+
 export type StoryLedgerRecord = {
   version: number;
   run_id: string;

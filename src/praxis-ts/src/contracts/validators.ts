@@ -13,7 +13,8 @@ import {
   type DispatchRecord,
   type RunRecord,
   type StageResultRecord,
-  type StoryLedgerRecord
+  type StoryLedgerRecord,
+  type WorkerSessionRegistration
 } from "./model.js";
 
 export class ContractError extends Error {
@@ -175,5 +176,27 @@ export function validateStoryLedgerRecord(ledger: StoryLedgerRecord): void {
   }
   if (last_completed !== null && !items[last_completed]) {
     throw new ContractError(`stories.last_completed references missing story ${last_completed}`);
+  }
+}
+
+export function validateWorkerSessionRegistration(payload: WorkerSessionRegistration): void {
+  assertPlainString(payload.dispatch_id, "dispatch_id");
+  assertPlainString(payload.worker_id, "worker_id");
+
+  if (payload.session_id !== null) {
+    assertPlainString(payload.session_id, "session_id");
+  }
+
+  if (typeof payload.resumable !== "boolean") {
+    throw new ContractError("resumable must be a boolean");
+  }
+
+  if (payload.resumable && payload.session_id === null) {
+    throw new ContractError("session_id is required when resumable is true");
+  }
+
+  assertPlainString(payload.started_at, "started_at");
+  if (payload.locator !== null) {
+    assertPlainString(payload.locator, "locator");
   }
 }
