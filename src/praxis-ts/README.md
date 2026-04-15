@@ -39,6 +39,7 @@ Internal commands:
 - `praxis dispatch`
 - `praxis submit-stage-result`
 - `praxis build-worker-launch`
+- `praxis register-worker-session`
 
 Global flags:
 
@@ -67,6 +68,13 @@ This runtime stores operational state at `<repo-root>/.praxis/`:
 - `dispatches/*.json`: durable worker dispatch payloads.
 - `approvals/*.json`: approval records.
 - `policy/tool-records.jsonl`: tool and policy evidence.
+
+## Worker Lifecycle (Operator Sequence)
+
+1. Run `praxis dispatch`.
+2. Run `praxis build-worker-launch` and start the worker from that payload.
+3. Once a worker session is live, run `praxis register-worker-session`.
+4. Worker writes a stage result file, then run `praxis submit-stage-result`.
 
 ## Notes
 
