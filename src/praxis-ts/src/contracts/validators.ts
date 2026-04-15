@@ -1,14 +1,19 @@
 import {
   ADAPTER_NAMES,
+  DISPATCH_WORKER_MODES,
   EXECUTION_MODES,
   ROUTE_KINDS,
+  RUN_NEXT_ACTIONS,
+  RUN_SCOPES,
   RUN_STATUS,
   STAGE_NAMES,
   STAGE_RESULT_STATUS,
+  WORKER_CLASSES,
   WORKFLOW_NAMES,
   type DispatchRecord,
   type RunRecord,
-  type StageResultRecord
+  type StageResultRecord,
+  type StoryLedgerRecord
 } from "./model.js";
 
 export class ContractError extends Error {
@@ -34,6 +39,12 @@ function assertPraxisPath(value: string | null, label: string): void {
   }
 }
 
+function assertPlainString(value: unknown, label: string): asserts value is string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new ContractError(`${label} must be a non-empty string`);
+  }
+}
+
 export function validateRunRecord(run: RunRecord): void {
   if (run.version < 1) {
     throw new ContractError("run.version must be >= 1");
@@ -43,6 +54,8 @@ export function validateRunRecord(run: RunRecord): void {
   assertEnum(run.runtime.adapter, ADAPTER_NAMES, "runtime.adapter");
   assertEnum(run.execution.mode, EXECUTION_MODES, "execution.mode");
   assertEnum(run.status, RUN_STATUS, "status");
+  assertEnum(run.current.scope, RUN_SCOPES, "current.scope");
+  assertEnum(run.routing.next_action, RUN_NEXT_ACTIONS, "routing.next_action");
 
   if (run.current.stage !== null) {
     assertEnum(run.current.stage, STAGE_NAMES, "current.stage");
@@ -52,8 +65,20 @@ export function validateRunRecord(run: RunRecord): void {
     assertEnum(run.routing.next_stage, STAGE_NAMES, "routing.next_stage");
   }
 
+  if (run.routing.next_slice_id !== null) {
+    assertPlainString(run.routing.next_slice_id, "routing.next_slice_id");
+  }
+
   assertPraxisPath(run.current.artifact_dir, "current.artifact_dir");
   assertPraxisPath(run.routing.boundary_handoff_path, "routing.boundary_handoff_path");
+
+  if (run.current.scope === "root" && run.current.slice_id !== null) {
+    throw new ContractError("current.slice_id must be null when current.scope is root");
+  }
+
+  if (run.current.scope === "slice" && run.current.slice_id === null) {
+    throw new ContractError("current.slice_id is required when current.scope is slice");
+  }
 }
 
 export function validateStageResult(result: StageResultRecord): void {
@@ -61,12 +86,19 @@ export function validateStageResult(result: StageResultRecord): void {
     throw new ContractError("stage result version must be >= 2");
   }
 
+  assertPlainString(result.dispatch_id, "dispatch_id");
+  if (result.session_id !== undefined && result.session_id !== null) {
+    assertPlainString(result.session_id, "session_id");
+  }
   assertEnum(result.stage, STAGE_NAMES, "stage");
   assertEnum(result.status, STAGE_RESULT_STATUS, "status");
   assertEnum(result.route.kind, ROUTE_KINDS, "route.kind");
 
   if (result.route.next_stage !== null) {
     assertEnum(result.route.next_stage, STAGE_NAMES, "route.next_stage");
+  }
+  if (result.route.next_slice_id !== null) {
+    assertPlainString(result.route.next_slice_id, "route.next_slice_id");
   }
 
   assertPraxisPath(result.artifact_dir, "artifact_dir");
@@ -79,6 +111,13 @@ export function validateStageResult(result: StageResultRecord): void {
   if (!result.data.outcome_code || typeof result.data.outcome_code !== "string") {
     throw new ContractError("data.outcome_code is required");
   }
+
+  if (result.worker) {
+    assertEnum(result.worker.worker_class, WORKER_CLASSES, "worker.worker_class");
+    if (result.worker.adapter !== null) {
+      assertEnum(result.worker.adapter, ADAPTER_NAMES, "worker.adapter");
+    }
+  }
 }
 
 export function validateDispatchRecord(dispatch: DispatchRecord): void {
@@ -89,11 +128,52 @@ export function validateDispatchRecord(dispatch: DispatchRecord): void {
   assertEnum(dispatch.workflow, WORKFLOW_NAMES, "dispatch.workflow");
   assertEnum(dispatch.stage, STAGE_NAMES, "dispatch.stage");
   assertEnum(dispatch.worker.adapter, ADAPTER_NAMES, "dispatch.worker.adapter");
+  assertEnum(dispatch.scope, RUN_SCOPES, "dispatch.scope");
+  assertEnum(dispatch.worker.mode, DISPATCH_WORKER_MODES, "dispatch.worker.mode");
 
   assertPraxisPath(dispatch.artifact_dir, "dispatch.artifact_dir");
   assertPraxisPath(dispatch.stage_result_path, "dispatch.stage_result_path");
 
   for (const path of dispatch.inputs.required_artifacts) {
     assertPraxisPath(path, "required_artifacts item");
+  }
+}
+
+export function validateStoryLedgerRecord(ledger: StoryLedgerRecord): void {
+  if (ledger.version < 1) {
+    throw new ContractError("story ledger version must be >= 1");
+  }
+
+  assertEnum(ledger.workflow, WORKFLOW_NAMES, "ledger.workflow");
+  assertEnum(ledger.execution_mode, EXECUTION_MODES, "ledger.execution_mode");
+
+  const { order, active, last_completed, items } = ledger.stories;
+  for (const storyId of order) {
+    assertPlainString(storyId, "stories.order item");
+    if (!items[storyId]) {
+      throw new ContractError(`stories.items missing entry for ${storyId}`);
+    }
+  }
+
+  const statuses = ["pending", "active", "active_next", "completed"] as const;
+  for (const [storyId, story] of Object.entries(items)) {
+    if (storyId !== story.id) {
+      throw new ContractError(`stories.items key (${storyId}) must match story.id (${story.id})`);
+    }
+    assertPraxisPath(story.artifact_dir, `stories.items.${storyId}.artifact_dir`);
+    assertEnum(story.status, statuses, `stories.items.${storyId}.status`);
+    if (story.carry_forward_from !== null && !items[story.carry_forward_from]) {
+      throw new ContractError(
+        `stories.items.${storyId}.carry_forward_from references missing story ${story.carry_forward_from}`
+      );
+    }
+    assertPraxisPath(story.handoff_path, `stories.items.${storyId}.handoff_path`);
+  }
+
+  if (active !== null && !items[active]) {
+    throw new ContractError(`stories.active references missing story ${active}`);
+  }
+  if (last_completed !== null && !items[last_completed]) {
+    throw new ContractError(`stories.last_completed references missing story ${last_completed}`);
   }
 }

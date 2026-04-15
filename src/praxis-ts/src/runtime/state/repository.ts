@@ -9,7 +9,8 @@ import type {
 import {
   validateDispatchRecord,
   validateRunRecord,
-  validateStageResult
+  validateStageResult,
+  validateStoryLedgerRecord
 } from "../../contracts/validators.js";
 import {
   appendJsonLine,
@@ -37,7 +38,11 @@ export class PraxisStateRepository {
   }
 
   async loadRun(): Promise<RunRecord | null> {
-    return readJsonFileIfExists<RunRecord>(this.paths.runFile);
+    const run = await readJsonFileIfExists<RunRecord>(this.paths.runFile);
+    if (run) {
+      validateRunRecord(run);
+    }
+    return run;
   }
 
   async saveRun(run: RunRecord): Promise<void> {
@@ -46,10 +51,15 @@ export class PraxisStateRepository {
   }
 
   async loadStoryLedger(): Promise<StoryLedgerRecord | null> {
-    return readJsonFileIfExists<StoryLedgerRecord>(this.paths.storyLedgerFile);
+    const ledger = await readJsonFileIfExists<StoryLedgerRecord>(this.paths.storyLedgerFile);
+    if (ledger) {
+      validateStoryLedgerRecord(ledger);
+    }
+    return ledger;
   }
 
   async saveStoryLedger(ledger: StoryLedgerRecord): Promise<void> {
+    validateStoryLedgerRecord(ledger);
     await writeJsonFile(this.paths.storyLedgerFile, ledger);
   }
 
@@ -59,7 +69,13 @@ export class PraxisStateRepository {
   }
 
   async loadDispatch(dispatchId: string): Promise<DispatchRecord | null> {
-    return readJsonFileIfExists<DispatchRecord>(join(this.paths.dispatchesDir, `${dispatchId}.json`));
+    const dispatch = await readJsonFileIfExists<DispatchRecord>(
+      join(this.paths.dispatchesDir, `${dispatchId}.json`)
+    );
+    if (dispatch) {
+      validateDispatchRecord(dispatch);
+    }
+    return dispatch;
   }
 
   async appendLifecycleEvent(event: LifecycleEvent): Promise<void> {

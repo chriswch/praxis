@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { readJsonFile } from "../state/index.js";
 import { validateStageResult } from "../../contracts/validators.js";
-import type { RunRecord, StageName, StageResultRecord } from "../../contracts/model.js";
+import type { DispatchRecord, RunRecord, StageName, StageResultRecord } from "../../contracts/model.js";
 import { resolveWorkflowTransition } from "../../workflows/index.js";
 import {
   InvalidInputError,
@@ -19,7 +19,8 @@ export type StageResultAcceptance = {
 export async function loadAndValidateStageResult(
   repoRoot: string,
   stageResultPath: string,
-  run: RunRecord
+  run: RunRecord,
+  activeDispatch: DispatchRecord
 ): Promise<StageResultAcceptance> {
   const absolutePath = resolve(repoRoot, stageResultPath);
   const result = await readJsonFile<StageResultRecord>(absolutePath);
@@ -29,6 +30,43 @@ export async function loadAndValidateStageResult(
   if (result.run_id !== null && result.run_id !== run.run_id) {
     throw new RejectedProgressionError(
       `Stage result run_id mismatch. Expected ${run.run_id}, received ${result.run_id}.`
+    );
+  }
+
+  if (result.dispatch_id !== activeDispatch.dispatch_id) {
+    throw new RejectedProgressionError(
+      `Stage result dispatch_id mismatch. Expected ${activeDispatch.dispatch_id}, received ${result.dispatch_id}.`
+    );
+  }
+
+  const expectedResultPath = resolve(repoRoot, activeDispatch.stage_result_path);
+  if (absolutePath !== expectedResultPath) {
+    throw new RejectedProgressionError(
+      `Stage result path mismatch. Expected ${activeDispatch.stage_result_path}, received ${stageResultPath}.`
+    );
+  }
+
+  if (activeDispatch.stage !== result.stage) {
+    throw new RejectedProgressionError(
+      `Stage result stage mismatch for active dispatch. Dispatch stage is ${activeDispatch.stage}, received ${result.stage}.`
+    );
+  }
+
+  if (activeDispatch.artifact_dir !== result.artifact_dir) {
+    throw new RejectedProgressionError(
+      `Stage result artifact mismatch for active dispatch. Dispatch artifact dir is ${activeDispatch.artifact_dir}, received ${result.artifact_dir}.`
+    );
+  }
+
+  if (activeDispatch.run_id !== run.run_id) {
+    throw new RejectedProgressionError(
+      `Active dispatch run mismatch. Dispatch run is ${activeDispatch.run_id}, expected ${run.run_id}.`
+    );
+  }
+
+  if (result.session_id !== undefined && result.session_id !== run.active.session_id) {
+    throw new RejectedProgressionError(
+      `Stage result session_id mismatch. Expected ${run.active.session_id}, received ${result.session_id}.`
     );
   }
 

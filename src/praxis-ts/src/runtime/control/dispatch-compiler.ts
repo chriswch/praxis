@@ -34,7 +34,7 @@ export function compileDispatch(input: DispatchCompileInput): DispatchRecord {
     stage_result_path: join(artifactDir, "results", `${stage}.json`).replace(/\\/g, "/"),
     created_at: nowIsoUtc(),
     inputs: {
-      required_artifacts: expectedInputArtifacts(stage, artifactDir),
+      required_artifacts: expectedInputArtifacts(run),
       boundary_handoff: boundaryHandoff
     },
     worker: {

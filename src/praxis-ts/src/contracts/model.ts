@@ -7,6 +7,9 @@ export type AdapterName = (typeof ADAPTER_NAMES)[number];
 export const EXECUTION_MODES = ["manual", "autopilot"] as const;
 export type ExecutionMode = (typeof EXECUTION_MODES)[number];
 
+export const RUN_SCOPES = ["root", "slice"] as const;
+export type RunScope = (typeof RUN_SCOPES)[number];
+
 export const RUN_STATUS = [
   "running",
   "waiting_for_user",
@@ -24,6 +27,30 @@ export type RouteKind = (typeof ROUTE_KINDS)[number];
 export const STAGE_RESULT_STATUS = ["completed", "blocked", "failed", "skipped"] as const;
 export type StageResultStatus = (typeof STAGE_RESULT_STATUS)[number];
 
+export const RUN_NEXT_ACTIONS = [
+  "run_stage",
+  "ask_user",
+  "confirm_then_run",
+  "finish",
+  "cancel",
+  "idle"
+] as const;
+export type RunNextAction = (typeof RUN_NEXT_ACTIONS)[number];
+
+export const WORKER_CLASSES = [
+  "interactive_orchestrator",
+  "session_worker",
+  "worktree_worker"
+] as const;
+export type WorkerClass = (typeof WORKER_CLASSES)[number];
+
+export const DISPATCH_WORKER_MODES = [
+  "fresh_session",
+  "same_stage_resume",
+  "isolated_worktree"
+] as const;
+export type DispatchWorkerMode = (typeof DISPATCH_WORKER_MODES)[number];
+
 export const STAGE_NAMES = [
   "clarifying-intent",
   "slicing-stories",
@@ -36,8 +63,6 @@ export const STAGE_NAMES = [
 ] as const;
 export type StageName = (typeof STAGE_NAMES)[number];
 
-export type RunScope = "root" | "slice";
-
 export type StageRoute = {
   kind: RouteKind;
   next_stage: StageName | null;
@@ -48,6 +73,8 @@ export type StageRoute = {
 export type StageResultRecord = {
   version: number;
   run_id: string | null;
+  dispatch_id: string;
+  session_id?: string | null;
   stage: StageName;
   artifact_dir: string;
   status: StageResultStatus;
@@ -62,7 +89,7 @@ export type StageResultRecord = {
     worker_id: string | null;
     adapter: AdapterName | null;
     session_id: string | null;
-    worker_class: "interactive_orchestrator" | "session_worker" | "worktree_worker";
+    worker_class: WorkerClass;
   };
   execution?: {
     permission_profile: "planning" | "design" | "implementation" | "review" | "verification";
@@ -118,7 +145,7 @@ export type RunRecord = {
     stage: StageName | null;
   };
   routing: {
-    next_action: "run_stage" | "ask_user" | "confirm_then_run" | "finish" | "cancel" | "idle";
+    next_action: RunNextAction;
     next_stage: StageName | null;
     next_slice_id: string | null;
     reason: string;
@@ -154,7 +181,7 @@ export type DispatchRecord = {
   };
   worker: {
     adapter: AdapterName;
-    mode: "fresh_session" | "same_stage_resume" | "isolated_worktree";
+    mode: DispatchWorkerMode;
   };
   tool_policy: {
     writable_roots: string[];

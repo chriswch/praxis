@@ -42,8 +42,9 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
   const nextStage = transition.next_stage;
 
   if (transition.route_kind === "ask_user") {
+    const askUserStage = nextStage ?? result.stage;
     return pauseForUser(
-      result.stage,
+      askUserStage,
       `Stage ${result.stage} requested user input (${result.data.outcome_code}).`,
       "needs_user_input"
     );

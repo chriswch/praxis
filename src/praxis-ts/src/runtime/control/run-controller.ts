@@ -17,13 +17,13 @@ import { PraxisStateRepository } from "../state/index.js";
 import { compileDispatch } from "./dispatch-compiler.js";
 import { loadAndValidateStageResult } from "./stage-result-validator.js";
 import { decideNextRouting } from "./workflow-router.js";
-import { getAdapter } from "../adapters/index.js";
 import {
   checkpointStoryBoundary,
   clearBoundaryHandoffIfConsumed,
   initializeStoryLedgerFromSliceMap
 } from "./story-boundary.js";
 import { ToolTelemetry } from "../tools/index.js";
+import { RunLifecycleService } from "./lifecycle-service.js";
 
 export type RunCreateInput = {
   workflow: WorkflowName;
@@ -93,7 +93,33 @@ export type LifecycleActionOutcome = {
 };
 
 export class RunController {
-  constructor(private readonly repo: PraxisStateRepository) {}
+  private readonly lifecycle: RunLifecycleService;
+
+  constructor(private readonly repo: PraxisStateRepository) {
+    this.lifecycle = new RunLifecycleService(repo);
+  }
+
+  private assertDispatchLaunchAllowed(run: RunRecord, action: "dispatch" | "build-worker-launch"): void {
+    if (!run.current.stage) {
+      throw new BlockedStateError(`Cannot ${action} without an active stage.`);
+    }
+
+    if (run.status === "cancelled" || run.routing.next_action === "finish") {
+      throw new RejectedProgressionError(`Cannot ${action} for a terminal run.`);
+    }
+
+    if (run.routing.next_action !== "run_stage") {
+      throw new RejectedProgressionError(
+        `Cannot ${action} while next_action is ${run.routing.next_action}. Expected run_stage.`
+      );
+    }
+
+    if (run.routing.next_stage !== run.current.stage) {
+      throw new RejectedProgressionError(
+        `Cannot ${action} while next_stage (${run.routing.next_stage}) differs from current stage (${run.current.stage}).`
+      );
+    }
+  }
 
   async initializeRun(input: RunCreateInput): Promise<RunRecord> {
     await this.repo.ensureLayout();
@@ -207,6 +233,7 @@ export class RunController {
     if (!run) {
       throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
+    this.assertDispatchLaunchAllowed(run, "dispatch");
 
     const handoffData = run.routing.boundary_handoff_path
       ? await readJsonFileIfExists<Record<string, unknown>>(
@@ -225,7 +252,7 @@ export class RunController {
     });
 
     run.active.dispatch_id = dispatch.dispatch_id;
-    run.active.worker_id = `wrk_${dispatch.scope}_${dispatch.stage}`;
+    run.active.worker_id = null;
     run.active.session_id = null;
     run.active.resumable = false;
     run.timestamps.updated_at = nowIsoUtc();
@@ -251,6 +278,7 @@ export class RunController {
     if (!run) {
       throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
+    this.assertDispatchLaunchAllowed(run, "build-worker-launch");
     if (!run.active.dispatch_id) {
       throw new RejectedProgressionError("No active dispatch found. Run `praxis dispatch` first.");
     }
@@ -295,8 +323,22 @@ export class RunController {
     if (!run) {
       throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
+    if (!run.active.dispatch_id) {
+      throw new RejectedProgressionError(
+        "No active dispatch exists for this run. Prepare a dispatch before submitting a stage result."
+      );
+    }
+    const activeDispatch = await this.repo.loadDispatch(run.active.dispatch_id);
+    if (!activeDispatch) {
+      throw new BlockedStateError(`Active dispatch ${run.active.dispatch_id} does not exist.`);
+    }
 
-    const accepted = await loadAndValidateStageResult(this.repo.paths.root, stageResultPath, run);
+    const accepted = await loadAndValidateStageResult(
+      this.repo.paths.root,
+      stageResultPath,
+      run,
+      activeDispatch
+    );
     await this.repo.validateAndAppendStageResult(accepted.result);
     const telemetry = new ToolTelemetry(this.repo);
     await telemetry.recordToolUse({
@@ -328,6 +370,8 @@ export class RunController {
     run.routing.reason = routingDecision.reason;
     run.routing.stop_reason_code = routingDecision.stop_reason_code;
     run.timestamps.updated_at = nowIsoUtc();
+    run.active.dispatch_id = null;
+    run.active.worker_id = null;
     run.active.resumable = false;
     run.active.session_id = null;
 
@@ -366,7 +410,7 @@ export class RunController {
       details: {
         outcome_code: accepted.result.data.outcome_code,
         route_kind: accepted.transition.route_kind,
-        next_stage: accepted.transition.next_stage,
+        next_stage: routingDecision.next_stage,
         next_action: routingDecision.next_action,
         run_status: routingDecision.status
       }
@@ -376,7 +420,7 @@ export class RunController {
       stage: accepted.result.stage,
       outcome_code: accepted.result.data.outcome_code,
       route_kind: accepted.transition.route_kind,
-      next_stage: accepted.transition.next_stage,
+      next_stage: routingDecision.next_stage,
       next_action: routingDecision.next_action,
       run_status: routingDecision.status,
       reason: routingDecision.reason
@@ -384,172 +428,18 @@ export class RunController {
   }
 
   async continueRun(): Promise<LifecycleActionOutcome> {
-    const run = await this.repo.loadRun();
-    if (!run) {
-      throw new BlockedStateError("No active run found at .praxis/run.json.");
-    }
-    if (run.routing.next_action !== "confirm_then_run") {
-      throw new RejectedProgressionError(
-        `continue is only valid when next_action is confirm_then_run (found ${run.routing.next_action}).`
-      );
-    }
-    if (!run.current.stage) {
-      throw new BlockedStateError("Cannot continue a run without an active stage.");
-    }
-
-    run.status = "running";
-    run.routing.next_action = "run_stage";
-    run.routing.next_stage = run.current.stage;
-    run.routing.stop_reason_code = null;
-    run.routing.reason = `Continue acknowledged. Ready to run ${run.current.stage}.`;
-    run.timestamps.updated_at = nowIsoUtc();
-
-    await this.repo.saveRun(run);
-    await this.repo.appendLifecycleEvent({
-      ts: run.timestamps.updated_at,
-      type: "run_continued",
-      run_id: run.run_id,
-      stage: run.current.stage,
-      action: "continue"
-    });
-
-    return {
-      run_id: run.run_id,
-      status: run.status,
-      next_action: run.routing.next_action,
-      next_stage: run.routing.next_stage,
-      reason: run.routing.reason
-    };
+    return this.lifecycle.continueRun();
   }
 
   async approveRun(note: string | null): Promise<LifecycleActionOutcome> {
-    const run = await this.repo.loadRun();
-    if (!run) {
-      throw new BlockedStateError("No active run found at .praxis/run.json.");
-    }
-    if (!run.current.stage) {
-      throw new BlockedStateError("Cannot approve a run without an active stage.");
-    }
-    if (!["confirm_then_run", "ask_user"].includes(run.routing.next_action)) {
-      throw new RejectedProgressionError(
-        `approve is not valid while next_action is ${run.routing.next_action}.`
-      );
-    }
-
-    const approvalId = `approval_${Date.now()}`;
-    run.status = "running";
-    run.routing.next_action = "run_stage";
-    run.routing.next_stage = run.current.stage;
-    run.routing.stop_reason_code = null;
-    run.routing.reason = `Approval ${approvalId} accepted for stage ${run.current.stage}.`;
-    run.timestamps.updated_at = nowIsoUtc();
-
-    await this.repo.saveApprovalRecord(approvalId, {
-      run_id: run.run_id,
-      stage: run.current.stage,
-      note,
-      approved_at: run.timestamps.updated_at
-    });
-    await this.repo.saveRun(run);
-    await this.repo.appendLifecycleEvent({
-      ts: run.timestamps.updated_at,
-      type: "run_approved",
-      run_id: run.run_id,
-      stage: run.current.stage,
-      action: "approve",
-      details: {
-        approval_id: approvalId
-      }
-    });
-
-    return {
-      run_id: run.run_id,
-      status: run.status,
-      next_action: run.routing.next_action,
-      next_stage: run.routing.next_stage,
-      reason: run.routing.reason
-    };
+    return this.lifecycle.approveRun(note);
   }
 
   async resumeRun(): Promise<LifecycleActionOutcome> {
-    const run = await this.repo.loadRun();
-    if (!run) {
-      throw new BlockedStateError("No active run found at .praxis/run.json.");
-    }
-    if (!run.current.stage) {
-      throw new BlockedStateError("Cannot resume a run without an active stage.");
-    }
-
-    if (run.status === "cancelled" || run.routing.next_action === "finish") {
-      throw new RejectedProgressionError("Cannot resume a terminal run.");
-    }
-
-    if (run.routing.next_action === "confirm_then_run" || run.routing.next_action === "ask_user") {
-      throw new RejectedProgressionError("Run is waiting for operator input. Use continue or approve.");
-    }
-
-    run.status = "running";
-    run.routing.next_action = "run_stage";
-    run.routing.next_stage = run.current.stage;
-    run.routing.stop_reason_code = null;
-    run.routing.reason = `Resume requested. Continue ${run.current.stage}.`;
-    run.timestamps.updated_at = nowIsoUtc();
-
-    await this.repo.saveRun(run);
-    await this.repo.appendLifecycleEvent({
-      ts: run.timestamps.updated_at,
-      type: "run_resumed",
-      run_id: run.run_id,
-      stage: run.current.stage,
-      action: "resume"
-    });
-
-    return {
-      run_id: run.run_id,
-      status: run.status,
-      next_action: run.routing.next_action,
-      next_stage: run.routing.next_stage,
-      reason: run.routing.reason
-    };
+    return this.lifecycle.resumeRun();
   }
 
   async cancelRun(note: string | null): Promise<LifecycleActionOutcome> {
-    const run = await this.repo.loadRun();
-    if (!run) {
-      throw new BlockedStateError("No active run found at .praxis/run.json.");
-    }
-
-    let cancellationReason = "Run cancelled by operator.";
-    if (run.active.session_id) {
-      const adapter = getAdapter(run.runtime.adapter);
-      const cancellation = await adapter.cancel(run.active.session_id);
-      cancellationReason = cancellation.reason;
-    }
-
-    run.status = "cancelled";
-    run.routing.next_action = "finish";
-    run.routing.next_stage = null;
-    run.routing.stop_reason_code = "cancelled";
-    run.routing.reason = note ? `${cancellationReason} Note: ${note}` : cancellationReason;
-    run.current.stage = null;
-    run.timestamps.updated_at = nowIsoUtc();
-
-    await this.repo.saveRun(run);
-    await this.repo.appendLifecycleEvent({
-      ts: run.timestamps.updated_at,
-      type: "run_cancelled",
-      run_id: run.run_id,
-      stage: null,
-      action: "cancel",
-      details: note ? { note } : undefined
-    });
-
-    return {
-      run_id: run.run_id,
-      status: run.status,
-      next_action: run.routing.next_action,
-      next_stage: run.routing.next_stage,
-      reason: run.routing.reason
-    };
+    return this.lifecycle.cancelRun(note);
   }
 }

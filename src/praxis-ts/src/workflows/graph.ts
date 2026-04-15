@@ -1,4 +1,11 @@
-import type { StageName, StageResultRecord, WorkflowDefinition, WorkflowName, WorkflowTransition } from "../contracts/model.js";
+import type {
+  RunRecord,
+  StageName,
+  StageResultRecord,
+  WorkflowDefinition,
+  WorkflowName,
+  WorkflowTransition
+} from "../contracts/model.js";
 
 function transition(routeKind: WorkflowTransition["routeKind"], nextStage: StageName | null): WorkflowTransition {
   return { routeKind, nextStage };
@@ -157,14 +164,38 @@ export function shouldPauseAfterStageResult(workflow: WorkflowName, stageResult:
   return false;
 }
 
-export function expectedInputArtifacts(stage: StageName, artifactDir: string): string[] {
+export function expectedInputArtifacts(run: Pick<RunRecord, "current" | "mode">): string[] {
+  const stage = run.current.stage;
+  const artifactDir = run.current.artifact_dir;
+
+  if (!stage) {
+    return [];
+  }
+
   if (stage === "clarifying-intent") {
-    return [`${artifactDir}/spec.md`, `${artifactDir}/results/clarifying-intent.json`];
+    // Bootstrap and normal clarifying-intent dispatches are user/handoff driven.
+    return [];
   }
 
   if (stage === "slicing-stories") {
-    return [".praxis/brief.md", ".praxis/slice-map.json"];
+    return [".praxis/brief.md"];
   }
 
-  return [`${artifactDir}/results/${stage}.json`];
+  if (stage === "sketching-design" || stage === "driving-tdd" || stage === "rapid-implementing") {
+    return [`${artifactDir}/spec.md`];
+  }
+
+  if (stage === "code-reviewing") {
+    return [`${artifactDir}/implementation.md`];
+  }
+
+  if (stage === "code-improving") {
+    return [`${artifactDir}/review.md`];
+  }
+
+  if (stage === "verifying-and-adapting") {
+    return [`${artifactDir}/improvement.md`];
+  }
+
+  return [];
 }
