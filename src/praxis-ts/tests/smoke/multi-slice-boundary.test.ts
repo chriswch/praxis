@@ -6,11 +6,19 @@ import { join } from "node:path";
 
 import {
   runContinueCommand,
+  runDispatchCommand,
   runRunCommand,
   runSubmitStageResultCommand
 } from "../../src/cli/commands/index.js";
 import type { RunRecord, StoryLedgerRecord } from "../../src/contracts/model.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
+
+async function prepareDispatch(repoRoot: string): Promise<string> {
+  assert.equal(await runDispatchCommand(repoRoot, true), 0);
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.ok(run.active.dispatch_id);
+  return run.active.dispatch_id;
+}
 
 test("smoke: multi-slice forge checkpoints boundary and carries handoff", async () => {
   const repoRoot = await createTempRepo();
@@ -31,7 +39,10 @@ test("smoke: multi-slice forge checkpoints boundary and carries handoff", async 
     ".praxis",
     "feature_brief_ready",
     "proceed",
-    { needs_confirmation: true }
+    {
+      dispatch_id: await prepareDispatch(repoRoot),
+      needs_confirmation: true
+    }
   );
   assert.equal(await runSubmitStageResultCommand(repoRoot, true, rootClarifyPath), 0);
   assert.equal(await runContinueCommand(repoRoot, true), 0);
@@ -55,7 +66,10 @@ test("smoke: multi-slice forge checkpoints boundary and carries handoff", async 
     "slicing-stories",
     ".praxis",
     "slice_map_ready",
-    "proceed"
+    "proceed",
+    {
+      dispatch_id: await prepareDispatch(repoRoot)
+    }
   );
   assert.equal(await runSubmitStageResultCommand(repoRoot, true, slicingPath), 0);
 
@@ -65,7 +79,10 @@ test("smoke: multi-slice forge checkpoints boundary and carries handoff", async 
     ".praxis/slices/S-001",
     "story_spec_ready",
     "proceed",
-    { needs_confirmation: true }
+    {
+      dispatch_id: await prepareDispatch(repoRoot),
+      needs_confirmation: true
+    }
   );
   assert.equal(await runSubmitStageResultCommand(repoRoot, true, sliceClarifyPath), 0);
   assert.equal(await runContinueCommand(repoRoot, true), 0);
@@ -79,7 +96,8 @@ test("smoke: multi-slice forge checkpoints boundary and carries handoff", async 
         "sketching-design",
         ".praxis/slices/S-001",
         "sketch_skipped",
-        "proceed"
+        "proceed",
+        { dispatch_id: await prepareDispatch(repoRoot) }
       )
     ),
     0
@@ -94,7 +112,8 @@ test("smoke: multi-slice forge checkpoints boundary and carries handoff", async 
         "rapid-implementing",
         ".praxis/slices/S-001",
         "implementation_complete",
-        "proceed"
+        "proceed",
+        { dispatch_id: await prepareDispatch(repoRoot) }
       )
     ),
     0
@@ -104,7 +123,9 @@ test("smoke: multi-slice forge checkpoints boundary and carries handoff", async 
     await runSubmitStageResultCommand(
       repoRoot,
       true,
-      await writeStageResult(repoRoot, "code-reviewing", ".praxis/slices/S-001", "review_ready", "proceed")
+      await writeStageResult(repoRoot, "code-reviewing", ".praxis/slices/S-001", "review_ready", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot)
+      })
     ),
     0
   );
@@ -118,7 +139,8 @@ test("smoke: multi-slice forge checkpoints boundary and carries handoff", async 
         "code-improving",
         ".praxis/slices/S-001",
         "improvement_ready",
-        "proceed"
+        "proceed",
+        { dispatch_id: await prepareDispatch(repoRoot) }
       )
     ),
     0

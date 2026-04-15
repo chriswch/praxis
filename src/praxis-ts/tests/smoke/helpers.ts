@@ -26,6 +26,7 @@ export async function writeStageResult(
   const base: StageResultRecord = {
     version: 3,
     run_id: null,
+    dispatch_id: "dispatch_test",
     stage,
     artifact_dir: artifactDir,
     status: "completed",
