@@ -4,6 +4,11 @@ import { nowIsoUtc } from "../common/time.js";
 import type { RunRecord } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import type { LifecycleActionOutcome } from "./run-controller.js";
+import type { AdapterCancellationHandle } from "../adapters/types.js";
+
+type SessionRecord = {
+  locator?: unknown;
+};
 
 export class RunLifecycleService {
   constructor(private readonly repo: PraxisStateRepository) {}
@@ -106,9 +111,18 @@ export class RunLifecycleService {
     const run = await this.loadRunOrThrow();
 
     let cancellationReason = "Run cancelled by operator.";
-    if (run.active.resumable && run.active.session_id) {
+    if (run.active.worker_id) {
+      const cancellationHandle = await this.loadCancellationHandle(run);
+      if (!cancellationHandle) {
+        throw new BlockedStateError(
+          "Active worker cannot be cancelled because no session_id or locator is registered."
+        );
+      }
       const adapter = getAdapter(run.runtime.adapter);
-      const cancellation = await adapter.cancel(run.active.session_id);
+      const cancellation = await adapter.cancel(cancellationHandle);
+      if (!cancellation.cancelled) {
+        throw new BlockedStateError(cancellation.reason);
+      }
       cancellationReason = cancellation.reason;
     }
 
@@ -135,6 +149,36 @@ export class RunLifecycleService {
     });
 
     return this.toOutcome(run);
+  }
+
+  private async loadCancellationHandle(run: RunRecord): Promise<AdapterCancellationHandle | null> {
+    const sessionId = run.active.session_id;
+    let locator: string | null = null;
+
+    if (sessionId) {
+      const sessionRecord = await this.repo.loadSessionRecord(sessionId);
+      locator = this.readLocatorFromSessionRecord(sessionRecord);
+    } else if (run.active.worker_id) {
+      const sessionRecord = await this.repo.loadSessionRecord(`worker_${run.active.worker_id}`);
+      locator = this.readLocatorFromSessionRecord(sessionRecord);
+    }
+
+    if (!sessionId && !locator) {
+      return null;
+    }
+
+    return {
+      session_id: sessionId,
+      locator
+    };
+  }
+
+  private readLocatorFromSessionRecord(sessionRecord: Record<string, unknown> | null): string | null {
+    if (!sessionRecord) {
+      return null;
+    }
+    const candidate = (sessionRecord as SessionRecord).locator;
+    return typeof candidate === "string" && candidate.length > 0 ? candidate : null;
   }
 
   private async loadRunOrThrow(): Promise<RunRecord> {

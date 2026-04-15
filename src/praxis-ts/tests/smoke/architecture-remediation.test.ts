@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  runCancelCommand,
   runContinueCommand,
   runDispatchCommand,
   runRegisterWorkerSessionCommand,
@@ -66,6 +67,68 @@ test("smoke: register-worker-session persists resumable state and enables resume
 
   const sessionFile = join(repoRoot, ".praxis", "sessions", "codex_session_test_01.json");
   assert.equal(existsSync(sessionFile), true);
+});
+
+test("smoke: cancel uses locator handle when session_id is unavailable", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "cancel via locator"
+    }),
+    0
+  );
+
+  const dispatchId = await prepareDispatch(repoRoot);
+  assert.equal(
+    await runRegisterWorkerSessionCommand(repoRoot, true, {
+      dispatchId,
+      workerId: "wrk_locator_only",
+      sessionId: null,
+      startedAt: "2026-04-15T00:00:00.000Z",
+      locator: "codex://locator-only",
+      resumable: false
+    }),
+    0
+  );
+
+  assert.equal(await runCancelCommand(repoRoot, true, "stop via locator"), 0);
+
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(run.status, "cancelled");
+  assert.match(run.routing.reason, /Cancelled worker at codex:\/\/locator-only/);
+});
+
+test("smoke: cancel fails closed when active worker has no cancellable handle", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "cancel blocked without handle"
+    }),
+    0
+  );
+
+  const dispatchId = await prepareDispatch(repoRoot);
+  assert.equal(
+    await runRegisterWorkerSessionCommand(repoRoot, true, {
+      dispatchId,
+      workerId: "wrk_no_handle",
+      sessionId: null,
+      startedAt: "2026-04-15T00:00:00.000Z",
+      locator: null,
+      resumable: false
+    }),
+    0
+  );
+
+  assert.equal(await runCancelCommand(repoRoot, true, "stop blocked"), 3);
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(run.status, "running");
 });
 
 test("smoke: submit-stage-result rejects missing required booleans", async () => {

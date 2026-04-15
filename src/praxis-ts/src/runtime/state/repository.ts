@@ -95,6 +95,12 @@ export class PraxisStateRepository {
     await writeJsonFile(join(this.paths.sessionsDir, `${sessionId}.json`), payload);
   }
 
+  async loadSessionRecord(sessionId: string): Promise<Record<string, unknown> | null> {
+    return readJsonFileIfExists<Record<string, unknown>>(
+      join(this.paths.sessionsDir, `${sessionId}.json`)
+    );
+  }
+
   async saveApprovalRecord(approvalId: string, payload: Record<string, unknown>): Promise<void> {
     await writeJsonFile(join(this.paths.approvalsDir, `${approvalId}.json`), payload);
   }

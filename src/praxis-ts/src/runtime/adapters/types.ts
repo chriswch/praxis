@@ -20,10 +20,15 @@ export type AdapterLaunchResponse = {
   locator: string | null;
 };
 
+export type AdapterCancellationHandle = {
+  session_id: string | null;
+  locator: string | null;
+};
+
 export interface RuntimeAdapter {
   readonly name: AdapterName;
   health(): Promise<AdapterHealth>;
   launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse>;
   resume(sessionId: string, request: AdapterLaunchRequest): Promise<AdapterLaunchResponse>;
-  cancel(sessionId: string): Promise<{ cancelled: boolean; reason: string }>;
+  cancel(handle: AdapterCancellationHandle): Promise<{ cancelled: boolean; reason: string }>;
 }

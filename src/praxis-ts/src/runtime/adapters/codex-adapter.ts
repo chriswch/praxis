@@ -35,10 +35,22 @@ export class CodexAdapter implements RuntimeAdapter {
     };
   }
 
-  async cancel(sessionId: string): Promise<{ cancelled: boolean; reason: string }> {
+  async cancel(handle: { session_id: string | null; locator: string | null }): Promise<{ cancelled: boolean; reason: string }> {
+    if (handle.session_id) {
+      return {
+        cancelled: true,
+        reason: `Cancelled session ${handle.session_id}.`
+      };
+    }
+    if (handle.locator) {
+      return {
+        cancelled: true,
+        reason: `Cancelled worker at ${handle.locator}.`
+      };
+    }
     return {
-      cancelled: true,
-      reason: `Cancelled session ${sessionId}.`
+      cancelled: false,
+      reason: "No cancellation handle provided."
     };
   }
 }
