@@ -263,6 +263,12 @@ export function validateDispatchRecord(dispatch: DispatchRecord): void {
   assertEnum(dispatch.worker.worker_class, WORKER_CLASSES, "dispatch.worker.worker_class");
   assertEnum(dispatch.execution.worktree_mode, WORKTREE_MODES, "dispatch.execution.worktree_mode");
   assertBoolean(dispatch.execution.fresh_context, "dispatch.execution.fresh_context");
+  assertPlainString(dispatch.execution.workspace_root, "dispatch.execution.workspace_root");
+  assertEnum(
+    dispatch.execution.workspace_origin,
+    ["shared", "git_worktree", "snapshot"],
+    "dispatch.execution.workspace_origin"
+  );
   assertEnum(dispatch.tool_policy.profile, PERMISSION_PROFILES, "dispatch.tool_policy.profile");
 
   assertPraxisPath(dispatch.artifact_dir, "dispatch.artifact_dir");

@@ -34,6 +34,7 @@ export class PraxisStateRepository {
     await ensureDir(this.paths.tracesDir);
     await ensureDir(this.paths.dispatchesDir);
     await ensureDir(this.paths.sessionsDir);
+    await ensureDir(this.paths.worktreesDir);
     await ensureDir(this.paths.approvalsDir);
     await ensureDir(this.paths.policyDir);
   }
@@ -116,6 +117,16 @@ export class PraxisStateRepository {
   async loadSessionRecord(sessionId: string): Promise<Record<string, unknown> | null> {
     return readJsonFileIfExists<Record<string, unknown>>(
       join(this.paths.sessionsDir, `${sessionId}.json`)
+    );
+  }
+
+  async saveWorktreeRecord(dispatchId: string, payload: Record<string, unknown>): Promise<void> {
+    await writeJsonFile(join(this.paths.worktreesDir, `${dispatchId}.json`), payload);
+  }
+
+  async loadWorktreeRecord(dispatchId: string): Promise<Record<string, unknown> | null> {
+    return readJsonFileIfExists<Record<string, unknown>>(
+      join(this.paths.worktreesDir, `${dispatchId}.json`)
     );
   }
 

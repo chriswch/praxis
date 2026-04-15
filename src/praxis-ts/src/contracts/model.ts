@@ -221,6 +221,8 @@ export type DispatchRecord = {
   execution: {
     fresh_context: boolean;
     worktree_mode: WorktreeMode;
+    workspace_root: string;
+    workspace_origin: "shared" | "git_worktree" | "snapshot";
   };
   tool_policy: {
     writable_roots: string[];

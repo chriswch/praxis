@@ -7,6 +7,10 @@ import { buildToolPolicy } from "../tools/index.js";
 import { buildInstructionSurfaceManifest } from "../workers/context-manifest.js";
 import { buildStageContract } from "../workers/stage-contract.js";
 
+function requiresIsolatedWorkspace(stage: DispatchRecord["stage"]): boolean {
+  return stage === "code-reviewing";
+}
+
 export type DispatchCompileInput = {
   run: RunRecord;
   boundaryHandoff: Record<string, unknown> | null;
@@ -28,7 +32,12 @@ export function compileDispatch(input: DispatchCompileInput): DispatchRecord {
     from_stage: run.routing.entered_from_stage,
     from_outcome_code: run.routing.entered_from_outcome_code
   });
-  const workerMode = run.active.resumable ? "same_stage_resume" : "fresh_session";
+  const isolatedWorkspace = requiresIsolatedWorkspace(stage);
+  const workerMode = isolatedWorkspace
+    ? "isolated_worktree"
+    : run.active.resumable
+      ? "same_stage_resume"
+      : "fresh_session";
 
   return {
     version: 1,
@@ -54,11 +63,13 @@ export function compileDispatch(input: DispatchCompileInput): DispatchRecord {
     worker: {
       adapter: run.runtime.adapter,
       mode: workerMode,
-      worker_class: "session_worker"
+      worker_class: isolatedWorkspace ? "worktree_worker" : "session_worker"
     },
     execution: {
       fresh_context: true,
-      worktree_mode: "shared"
+      worktree_mode: isolatedWorkspace ? "isolated" : "shared",
+      workspace_root: repoRoot,
+      workspace_origin: "shared"
     },
     tool_policy: {
       writable_roots: policy.writable_roots,

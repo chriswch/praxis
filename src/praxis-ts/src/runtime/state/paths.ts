@@ -11,6 +11,7 @@ export type PraxisPathSet = {
   tracesDir: string;
   dispatchesDir: string;
   sessionsDir: string;
+  worktreesDir: string;
   approvalsDir: string;
   policyDir: string;
 };
@@ -29,6 +30,7 @@ export function resolvePraxisPaths(repoRoot: string): PraxisPathSet {
     tracesDir: join(praxisDir, "traces"),
     dispatchesDir: join(praxisDir, "dispatches"),
     sessionsDir: join(praxisDir, "sessions"),
+    worktreesDir: join(praxisDir, "worktrees"),
     approvalsDir: join(praxisDir, "approvals"),
     policyDir: join(praxisDir, "policy")
   };

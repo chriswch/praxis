@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { writeFile, readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { execFile } from "node:child_process";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import {
   runCancelCommand,
@@ -17,6 +19,8 @@ import {
 } from "../../src/cli/commands/index.js";
 import type { DispatchRecord, RunRecord, StoryLedgerRecord } from "../../src/contracts/model.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
+
+const execFileAsync = promisify(execFile);
 
 async function prepareDispatch(repoRoot: string): Promise<string> {
   assert.equal(await runDispatchCommand(repoRoot, true), 0);
@@ -593,6 +597,74 @@ test("smoke: transition-aware contracts set verifying artifacts by predecessor p
   await prepareDispatch(repoRoot2);
   const verifyFromImprove = await readActiveDispatch(repoRoot2);
   assert.deepEqual(verifyFromImprove.inputs.required_artifacts, [".praxis/improvement.md"]);
+});
+
+test("smoke: code-reviewing dispatch prepares an isolated workspace", async () => {
+  const repoRoot = await createTempRepo();
+  await writeFile(join(repoRoot, "README.md"), "isolated workspace fixture\n", "utf8");
+  await execFileAsync("git", ["init"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.email", "smoke@example.com"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "Smoke Test"], { cwd: repoRoot });
+  await execFileAsync("git", ["add", "README.md"], { cwd: repoRoot });
+  await execFileAsync("git", ["-c", "commit.gpgSign=false", "commit", "-m", "init"], { cwd: repoRoot });
+
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "isolated review dispatch"
+    }),
+    0
+  );
+
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot,
+      true,
+      await writeStageResult(repoRoot, "clarifying-intent", ".praxis", "story_spec_ready", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot),
+        needs_confirmation: true
+      })
+    ),
+    0
+  );
+  assert.equal(await runContinueCommand(repoRoot, true), 0);
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot,
+      true,
+      await writeStageResult(repoRoot, "sketching-design", ".praxis", "sketch_skipped", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot)
+      })
+    ),
+    0
+  );
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot,
+      true,
+      await writeStageResult(repoRoot, "rapid-implementing", ".praxis", "implementation_complete", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot)
+      })
+    ),
+    0
+  );
+
+  await prepareDispatch(repoRoot);
+  const reviewDispatch = await readActiveDispatch(repoRoot);
+  assert.equal(reviewDispatch.stage, "code-reviewing");
+  assert.equal(reviewDispatch.worker.mode, "isolated_worktree");
+  assert.equal(reviewDispatch.worker.worker_class, "worktree_worker");
+  assert.equal(reviewDispatch.execution.worktree_mode, "isolated");
+  assert.equal(reviewDispatch.execution.workspace_origin, "git_worktree");
+  assert.equal(existsSync(reviewDispatch.execution.workspace_root), true);
+
+  const worktreeRecord = await readJson<Record<string, unknown>>(
+    join(repoRoot, ".praxis", "worktrees", `${reviewDispatch.dispatch_id}.json`)
+  );
+  assert.equal(worktreeRecord.workspace_origin, "git_worktree");
+  assert.equal(worktreeRecord.workspace_root, reviewDispatch.execution.workspace_root);
 });
 
 test("smoke: submit-stage-result rejects non-derived route metadata", async () => {
