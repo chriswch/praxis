@@ -5,6 +5,7 @@ import type {
   DispatchRecord,
   ExecutionMode,
   RunRecord,
+  StageName,
   WorkflowName
 } from "../../contracts/model.js";
 import { validateRunRecord } from "../../contracts/validators.js";
@@ -14,6 +15,7 @@ import { projectStatus, type StatusProjection } from "./status-projector.js";
 import { PraxisStateRepository } from "../state/index.js";
 import { compileDispatch } from "./dispatch-compiler.js";
 import { loadAndValidateStageResult } from "./stage-result-validator.js";
+import { decideNextRouting } from "./workflow-router.js";
 
 export type RunCreateInput = {
   workflow: WorkflowName;
@@ -63,7 +65,10 @@ export type SubmitStageResultOutcome = {
   stage: string;
   outcome_code: string;
   route_kind: string;
-  next_stage: string | null;
+  next_stage: StageName | null;
+  next_action: string;
+  run_status: string;
+  reason: string;
 };
 
 export class RunController {
@@ -252,10 +257,22 @@ export class RunController {
 
     const accepted = await loadAndValidateStageResult(this.repo.paths.root, stageResultPath, run);
     await this.repo.validateAndAppendStageResult(accepted.result);
+    const routingDecision = decideNextRouting(run, accepted);
 
-    const now = nowIsoUtc();
+    run.status = routingDecision.status;
+    run.current.stage = routingDecision.current_stage;
+    run.routing.next_action = routingDecision.next_action;
+    run.routing.next_stage = routingDecision.next_stage;
+    run.routing.reason = routingDecision.reason;
+    run.routing.stop_reason_code = routingDecision.stop_reason_code;
+    run.timestamps.updated_at = nowIsoUtc();
+    run.active.resumable = false;
+    run.active.session_id = null;
+
+    await this.repo.saveRun(run);
+
     await this.repo.appendLifecycleEvent({
-      ts: now,
+      ts: run.timestamps.updated_at,
       type: "stage_result_accepted",
       run_id: run.run_id,
       stage: accepted.result.stage,
@@ -263,7 +280,9 @@ export class RunController {
       details: {
         outcome_code: accepted.result.data.outcome_code,
         route_kind: accepted.transition.route_kind,
-        next_stage: accepted.transition.next_stage
+        next_stage: accepted.transition.next_stage,
+        next_action: routingDecision.next_action,
+        run_status: routingDecision.status
       }
     });
 
@@ -271,7 +290,10 @@ export class RunController {
       stage: accepted.result.stage,
       outcome_code: accepted.result.data.outcome_code,
       route_kind: accepted.transition.route_kind,
-      next_stage: accepted.transition.next_stage
+      next_stage: accepted.transition.next_stage,
+      next_action: routingDecision.next_action,
+      run_status: routingDecision.status,
+      reason: routingDecision.reason
     };
   }
 }

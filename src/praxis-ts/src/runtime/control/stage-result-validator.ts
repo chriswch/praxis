@@ -1,14 +1,14 @@
 import { resolve } from "node:path";
 import { readJsonFile } from "../state/index.js";
 import { validateStageResult } from "../../contracts/validators.js";
-import type { RunRecord, StageResultRecord } from "../../contracts/model.js";
+import type { RunRecord, StageName, StageResultRecord } from "../../contracts/model.js";
 import { resolveWorkflowTransition } from "../../workflows/index.js";
 
 export type StageResultAcceptance = {
   result: StageResultRecord;
   transition: {
     route_kind: string;
-    next_stage: string | null;
+    next_stage: StageName | null;
   };
 };
 
