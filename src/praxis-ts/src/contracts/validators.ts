@@ -46,6 +46,30 @@ function assertPlainString(value: unknown, label: string): asserts value is stri
   }
 }
 
+function assertBoolean(value: unknown, label: string): asserts value is boolean {
+  if (typeof value !== "boolean") {
+    throw new ContractError(`${label} must be a boolean`);
+  }
+}
+
+function assertRecord(value: unknown, label: string): asserts value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ContractError(`${label} must be an object`);
+  }
+}
+
+function assertStringArray(value: unknown, label: string): asserts value is string[] {
+  if (!Array.isArray(value)) {
+    throw new ContractError(`${label} must be an array`);
+  }
+
+  for (const [index, item] of value.entries()) {
+    if (typeof item !== "string") {
+      throw new ContractError(`${label}[${index}] must be a string`);
+    }
+  }
+}
+
 export function validateRunRecord(run: RunRecord): void {
   if (run.version < 1) {
     throw new ContractError("run.version must be >= 1");
@@ -83,8 +107,14 @@ export function validateRunRecord(run: RunRecord): void {
 }
 
 export function validateStageResult(result: StageResultRecord): void {
+  assertRecord(result, "stage result");
+
   if (result.version < 2) {
     throw new ContractError("stage result version must be >= 2");
+  }
+
+  if (result.run_id !== null && typeof result.run_id !== "string") {
+    throw new ContractError("run_id must be a string or null");
   }
 
   assertPlainString(result.dispatch_id, "dispatch_id");
@@ -92,7 +122,14 @@ export function validateStageResult(result: StageResultRecord): void {
     assertPlainString(result.session_id, "session_id");
   }
   assertEnum(result.stage, STAGE_NAMES, "stage");
+  assertPlainString(result.artifact_dir, "artifact_dir");
   assertEnum(result.status, STAGE_RESULT_STATUS, "status");
+  if (result.summary_path !== null) {
+    assertPlainString(result.summary_path, "summary_path");
+  }
+  assertStringArray(result.artifacts_written, "artifacts_written");
+
+  assertRecord(result.route, "route");
   assertEnum(result.route.kind, ROUTE_KINDS, "route.kind");
 
   if (result.route.next_stage !== null) {
@@ -102,22 +139,67 @@ export function validateStageResult(result: StageResultRecord): void {
     assertPlainString(result.route.next_slice_id, "route.next_slice_id");
   }
 
-  assertPraxisPath(result.artifact_dir, "artifact_dir");
   assertPraxisPath(result.summary_path, "summary_path");
 
   for (const path of result.artifacts_written) {
+    assertPlainString(path, "artifacts_written item");
     assertPraxisPath(path, "artifacts_written item");
   }
 
+  assertRecord(result.data, "data");
   if (!result.data.outcome_code || typeof result.data.outcome_code !== "string") {
     throw new ContractError("data.outcome_code is required");
   }
 
+  assertBoolean(result.needs_user_input, "needs_user_input");
+  assertBoolean(result.needs_confirmation, "needs_confirmation");
+
+  if (result.input_artifacts !== undefined) {
+    assertStringArray(result.input_artifacts, "input_artifacts");
+    for (const path of result.input_artifacts) {
+      assertPraxisPath(path, "input_artifacts item");
+    }
+  }
+
+  if (result.output_artifacts !== undefined) {
+    assertStringArray(result.output_artifacts, "output_artifacts");
+    for (const path of result.output_artifacts) {
+      assertPraxisPath(path, "output_artifacts item");
+    }
+  }
+
   if (result.worker) {
+    assertRecord(result.worker, "worker");
     assertEnum(result.worker.worker_class, WORKER_CLASSES, "worker.worker_class");
+    if (result.worker.worker_id !== null) {
+      assertPlainString(result.worker.worker_id, "worker.worker_id");
+    }
     if (result.worker.adapter !== null) {
       assertEnum(result.worker.adapter, ADAPTER_NAMES, "worker.adapter");
     }
+    if (result.worker.session_id !== null) {
+      assertPlainString(result.worker.session_id, "worker.session_id");
+    }
+  }
+
+  if (result.execution !== undefined) {
+    assertRecord(result.execution, "execution");
+    const permissionProfiles = ["planning", "design", "implementation", "review", "verification"] as const;
+    const worktreeModes = ["shared", "isolated"] as const;
+    assertEnum(result.execution.permission_profile, permissionProfiles, "execution.permission_profile");
+    assertEnum(result.execution.worktree_mode, worktreeModes, "execution.worktree_mode");
+    assertBoolean(result.execution.fresh_context, "execution.fresh_context");
+    assertBoolean(result.execution.resumed, "execution.resumed");
+  }
+
+  if (result.verification !== undefined) {
+    assertRecord(result.verification, "verification");
+    assertBoolean(result.verification.tests_run, "verification.tests_run");
+    assertBoolean(result.verification.diff_reviewed, "verification.diff_reviewed");
+  }
+
+  if (result.handoff !== undefined && result.handoff !== null) {
+    assertRecord(result.handoff, "handoff");
   }
 }
 
