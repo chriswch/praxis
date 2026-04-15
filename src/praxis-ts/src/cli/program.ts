@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { resolveCommandOptions } from "./context.js";
 import {
   runBuildWorkerLaunchCommand,
+  runDoctorCommand,
   runDispatchCommand,
   runInspectCommand,
   runRunCommand,
@@ -98,9 +99,9 @@ function registerLifecycleCommands(program: Command): void {
   program
     .command("doctor")
     .description("Report runtime and adapter health")
-    .action((_, cmd: Command) => {
+    .action(async (_, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = runStubCommand("doctor", global.json);
+      process.exitCode = await runDoctorCommand(global.repoRoot, global.json);
     });
 }
 
