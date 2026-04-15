@@ -1,9 +1,18 @@
-import type { AdapterName, ExecutionMode, RunRecord, WorkflowName } from "../../contracts/model.js";
+import { join } from "node:path";
+import { readJsonFileIfExists } from "../state/index.js";
+import type {
+  AdapterName,
+  DispatchRecord,
+  ExecutionMode,
+  RunRecord,
+  WorkflowName
+} from "../../contracts/model.js";
 import { validateRunRecord } from "../../contracts/validators.js";
 import { nowIsoUtc } from "../common/time.js";
 import { buildRunId } from "../common/ids.js";
 import { projectStatus, type StatusProjection } from "./status-projector.js";
 import { PraxisStateRepository } from "../state/index.js";
+import { compileDispatch } from "./dispatch-compiler.js";
 
 export type RunCreateInput = {
   workflow: WorkflowName;
@@ -23,6 +32,29 @@ export type InspectProjection = {
     events_file: string;
     dispatches_dir: string;
     sessions_dir: string;
+  };
+};
+
+export type WorkerLaunchPayload = {
+  run_id: string;
+  dispatch_id: string;
+  workflow: string;
+  stage: string;
+  scope: string;
+  artifact_dir: string;
+  stage_result_path: string;
+  inputs: {
+    required_artifacts: string[];
+    boundary_handoff: Record<string, unknown> | null;
+  };
+  worker: {
+    adapter: string;
+    mode: string;
+    resume_session_id: string | null;
+  };
+  runtime: {
+    entrypoint: string;
+    fresh_context_per_story: boolean;
   };
 };
 
@@ -119,6 +151,87 @@ export class RunController {
         events_file: this.repo.paths.eventsFile,
         dispatches_dir: this.repo.paths.dispatchesDir,
         sessions_dir: this.repo.paths.sessionsDir
+      }
+    };
+  }
+
+  async createDispatch(): Promise<DispatchRecord> {
+    const run = await this.repo.loadRun();
+    if (!run) {
+      throw new Error("No active run found at .praxis/run.json.");
+    }
+
+    const handoffData = run.routing.boundary_handoff_path
+      ? await readJsonFileIfExists<Record<string, unknown>>(
+          join(this.repo.paths.root, run.routing.boundary_handoff_path)
+        )
+      : null;
+
+    const dispatch = compileDispatch({ run, boundaryHandoff: handoffData });
+    await this.repo.saveDispatch(dispatch);
+
+    run.active.dispatch_id = dispatch.dispatch_id;
+    run.active.worker_id = `wrk_${dispatch.scope}_${dispatch.stage}`;
+    run.active.session_id = null;
+    run.active.resumable = false;
+    run.timestamps.updated_at = nowIsoUtc();
+    run.routing.reason = `Dispatch ${dispatch.dispatch_id} prepared for ${dispatch.stage}.`;
+
+    await this.repo.saveRun(run);
+    await this.repo.appendLifecycleEvent({
+      ts: run.timestamps.updated_at,
+      type: "dispatch_prepared",
+      run_id: run.run_id,
+      stage: run.current.stage,
+      action: "dispatch",
+      details: {
+        dispatch_id: dispatch.dispatch_id
+      }
+    });
+
+    return dispatch;
+  }
+
+  async buildWorkerLaunch(): Promise<WorkerLaunchPayload> {
+    const run = await this.repo.loadRun();
+    if (!run) {
+      throw new Error("No active run found at .praxis/run.json.");
+    }
+    if (!run.active.dispatch_id) {
+      throw new Error("No active dispatch found. Run `praxis dispatch` first.");
+    }
+
+    const dispatch = await this.repo.loadDispatch(run.active.dispatch_id);
+    if (!dispatch) {
+      throw new Error(`Dispatch ${run.active.dispatch_id} does not exist.`);
+    }
+
+    const boundaryHandoff = run.routing.boundary_handoff_path
+      ? await readJsonFileIfExists<Record<string, unknown>>(
+          join(this.repo.paths.root, run.routing.boundary_handoff_path)
+        )
+      : null;
+
+    return {
+      run_id: run.run_id,
+      dispatch_id: dispatch.dispatch_id,
+      workflow: run.workflow,
+      stage: dispatch.stage,
+      scope: dispatch.scope,
+      artifact_dir: dispatch.artifact_dir,
+      stage_result_path: dispatch.stage_result_path,
+      inputs: {
+        required_artifacts: dispatch.inputs.required_artifacts,
+        boundary_handoff: boundaryHandoff ?? dispatch.inputs.boundary_handoff
+      },
+      worker: {
+        adapter: dispatch.worker.adapter,
+        mode: dispatch.worker.mode,
+        resume_session_id: run.active.resumable ? run.active.session_id : null
+      },
+      runtime: {
+        entrypoint: run.runtime.entrypoint,
+        fresh_context_per_story: run.execution.fresh_context_per_story
       }
     };
   }

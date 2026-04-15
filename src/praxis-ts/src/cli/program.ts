@@ -1,6 +1,13 @@
 import { Command } from "commander";
 import { resolveCommandOptions } from "./context.js";
-import { runInspectCommand, runRunCommand, runStatusCommand, runStubCommand } from "./commands/index.js";
+import {
+  runBuildWorkerLaunchCommand,
+  runDispatchCommand,
+  runInspectCommand,
+  runRunCommand,
+  runStatusCommand,
+  runStubCommand
+} from "./commands/index.js";
 import type { AdapterName, ExecutionMode, WorkflowName } from "../contracts/model.js";
 
 type GlobalOptions = {
@@ -101,9 +108,9 @@ function registerInternalCommands(program: Command): void {
   program
     .command("dispatch")
     .description("Compile and persist next worker dispatch")
-    .action((_, cmd: Command) => {
+    .action(async (_, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = runStubCommand("dispatch", global.json);
+      process.exitCode = await runDispatchCommand(global.repoRoot, global.json);
     });
 
   program
@@ -117,9 +124,9 @@ function registerInternalCommands(program: Command): void {
   program
     .command("build-worker-launch")
     .description("Build worker launch payload from durable state")
-    .action((_, cmd: Command) => {
+    .action(async (_, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = runStubCommand("build-worker-launch", global.json);
+      process.exitCode = await runBuildWorkerLaunchCommand(global.repoRoot, global.json);
     });
 }
 
