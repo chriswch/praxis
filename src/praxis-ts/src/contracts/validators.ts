@@ -3,12 +3,14 @@ import {
   ADAPTER_NAMES,
   DISPATCH_WORKER_MODES,
   EXECUTION_MODES,
+  PERMISSION_PROFILES,
   ROUTE_KINDS,
   RUN_NEXT_ACTIONS,
   RUN_SCOPES,
   RUN_STATUS,
   STAGE_NAMES,
   STAGE_RESULT_STATUS,
+  WORKTREE_MODES,
   WORKER_CLASSES,
   WORKFLOW_NAMES,
   type DispatchRecord,
@@ -52,6 +54,26 @@ function assertPraxisPath(value: string | null, label: string): void {
 
   if (normalized !== ".praxis" && !normalized.startsWith(".praxis/")) {
     throw new ContractError(`${label} must be scoped under .praxis: ${value}`);
+  }
+}
+
+function assertRepoRelativePath(value: string | null, label: string): void {
+  if (value === null) {
+    return;
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new ContractError(`${label} must be a non-empty string path`);
+  }
+
+  const normalized = posix.normalize(value.replaceAll("\\", "/"));
+  const isAbsolute = normalized.startsWith("/") || /^[A-Za-z]:\//.test(normalized);
+  if (isAbsolute) {
+    throw new ContractError(`${label} must be repo-relative: ${value}`);
+  }
+
+  if (normalized === ".." || normalized.startsWith("../")) {
+    throw new ContractError(`${label} must not escape the repo root: ${value}`);
   }
 }
 
@@ -238,12 +260,62 @@ export function validateDispatchRecord(dispatch: DispatchRecord): void {
   assertEnum(dispatch.worker.adapter, ADAPTER_NAMES, "dispatch.worker.adapter");
   assertEnum(dispatch.scope, RUN_SCOPES, "dispatch.scope");
   assertEnum(dispatch.worker.mode, DISPATCH_WORKER_MODES, "dispatch.worker.mode");
+  assertEnum(dispatch.worker.worker_class, WORKER_CLASSES, "dispatch.worker.worker_class");
+  assertEnum(dispatch.execution.worktree_mode, WORKTREE_MODES, "dispatch.execution.worktree_mode");
+  assertBoolean(dispatch.execution.fresh_context, "dispatch.execution.fresh_context");
+  assertEnum(dispatch.tool_policy.profile, PERMISSION_PROFILES, "dispatch.tool_policy.profile");
 
   assertPraxisPath(dispatch.artifact_dir, "dispatch.artifact_dir");
   assertPraxisPath(dispatch.stage_result_path, "dispatch.stage_result_path");
 
   for (const path of dispatch.inputs.required_artifacts) {
     assertPraxisPath(path, "required_artifacts item");
+  }
+
+  assertPlainString(dispatch.contract.stage_goal, "dispatch.contract.stage_goal");
+  assertStringArray(dispatch.contract.stage_instructions, "dispatch.contract.stage_instructions");
+  for (const instruction of dispatch.contract.stage_instructions) {
+    assertPlainString(instruction, "dispatch.contract.stage_instructions item");
+  }
+  assertStringArray(dispatch.contract.expected_output_artifacts, "dispatch.contract.expected_output_artifacts");
+  for (const path of dispatch.contract.expected_output_artifacts) {
+    assertPraxisPath(path, "dispatch.contract.expected_output_artifacts item");
+  }
+  assertPraxisPath(dispatch.contract.primary_output, "dispatch.contract.primary_output");
+
+  assertStringArray(dispatch.context_manifest.declared_inputs, "dispatch.context_manifest.declared_inputs");
+  for (const path of dispatch.context_manifest.declared_inputs) {
+    assertPraxisPath(path, "dispatch.context_manifest.declared_inputs item");
+  }
+  assertPraxisPath(
+    dispatch.context_manifest.boundary_handoff_path,
+    "dispatch.context_manifest.boundary_handoff_path"
+  );
+  for (const [index, surface] of dispatch.context_manifest.instruction_surfaces.entries()) {
+    assertRecord(surface, `dispatch.context_manifest.instruction_surfaces[${index}]`);
+    assertRepoRelativePath(surface.path, `dispatch.context_manifest.instruction_surfaces[${index}].path`);
+    assertEnum(surface.kind, ["file", "directory"], `dispatch.context_manifest.instruction_surfaces[${index}].kind`);
+    assertEnum(
+      surface.provider,
+      ["shared", "codex", "claude"],
+      `dispatch.context_manifest.instruction_surfaces[${index}].provider`
+    );
+    assertBoolean(
+      surface.authoritative,
+      `dispatch.context_manifest.instruction_surfaces[${index}].authoritative`
+    );
+    assertBoolean(surface.exists, `dispatch.context_manifest.instruction_surfaces[${index}].exists`);
+    assertPlainString(
+      surface.description,
+      `dispatch.context_manifest.instruction_surfaces[${index}].description`
+    );
+  }
+
+  for (const path of dispatch.tool_policy.writable_roots) {
+    assertRepoRelativePath(path, "dispatch.tool_policy.writable_roots item");
+  }
+  for (const path of dispatch.tool_policy.blocked_paths) {
+    assertRepoRelativePath(path, "dispatch.tool_policy.blocked_paths item");
   }
 }
 

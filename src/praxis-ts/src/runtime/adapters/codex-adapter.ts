@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { nowIsoUtc } from "../common/time.js";
+import { selectInstructionSurfaces } from "../workers/context-manifest.js";
 import type { AdapterHealth, AdapterLaunchRequest, AdapterLaunchResponse, RuntimeAdapter } from "./types.js";
 
 export class CodexAdapter implements RuntimeAdapter {
@@ -18,20 +19,22 @@ export class CodexAdapter implements RuntimeAdapter {
   }
 
   async launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
+    const instructionSurfaces = selectInstructionSurfaces(request.launch.context_manifest.instruction_surfaces, "codex");
     return {
       worker_id: `wrk_codex_${request.dispatch.stage}_${randomUUID()}`,
       session_id: `codex_session_${randomUUID()}`,
       started_at: nowIsoUtc(),
-      locator: `codex://${request.dispatch.dispatch_id}`
+      locator: `codex://${request.dispatch.dispatch_id}?entrypoint=${encodeURIComponent(request.launch.runtime.entrypoint)}&instructions=${instructionSurfaces.length}`
     };
   }
 
   async resume(sessionId: string, request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
+    const instructionSurfaces = selectInstructionSurfaces(request.launch.context_manifest.instruction_surfaces, "codex");
     return {
       worker_id: `wrk_codex_resume_${request.dispatch.stage}_${randomUUID()}`,
       session_id: sessionId,
       started_at: nowIsoUtc(),
-      locator: `codex://${request.dispatch.dispatch_id}?resume=true`
+      locator: `codex://${request.dispatch.dispatch_id}?resume=true&instructions=${instructionSurfaces.length}`
     };
   }
 

@@ -33,12 +33,13 @@ export class WorkerExecutionService {
     }
 
     const adapter = getAdapter(dispatch.worker.adapter);
+    const launch = await this.dispatchService.buildWorkerLaunch();
 
     try {
       const response = await adapter.launch({
         dispatch,
-        repoRoot: this.repo.paths.root,
-        entrypoint: run.runtime.entrypoint
+        launch,
+        repoRoot: this.repo.paths.root
       });
       const registration = await this.dispatchService.registerWorkerSession({
         dispatch_id: dispatch.dispatch_id,
@@ -81,12 +82,13 @@ export class WorkerExecutionService {
     }
 
     const adapter = getAdapter(dispatch.worker.adapter);
+    const launch = await this.dispatchService.buildWorkerLaunch();
 
     try {
       const response = await adapter.resume(run.active.session_id, {
         dispatch,
-        repoRoot: this.repo.paths.root,
-        entrypoint: run.runtime.entrypoint
+        launch,
+        repoRoot: this.repo.paths.root
       });
       const registration = await this.dispatchService.registerWorkerSession({
         dispatch_id: dispatch.dispatch_id,

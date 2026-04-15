@@ -29,7 +29,7 @@ export class DispatchService {
 
     const handoffData = await this.loadBoundaryHandoffOrBlock(run, "dispatch");
 
-    const dispatch = compileDispatch({ run, boundaryHandoff: handoffData });
+    const dispatch = compileDispatch({ run, boundaryHandoff: handoffData, repoRoot: this.repo.paths.root });
     await this.ensureRequiredArtifactsExistOrBlock(run, dispatch.inputs.required_artifacts, "dispatch");
     await this.repo.saveDispatch(dispatch);
     const telemetry = new ToolTelemetry(this.repo);
@@ -170,15 +170,20 @@ export class DispatchService {
       scope: dispatch.scope,
       artifact_dir: dispatch.artifact_dir,
       stage_result_path: dispatch.stage_result_path,
+      contract: dispatch.contract,
+      context_manifest: dispatch.context_manifest,
       inputs: {
         required_artifacts: dispatch.inputs.required_artifacts,
         boundary_handoff: boundaryHandoff ?? dispatch.inputs.boundary_handoff
       },
+      policy: dispatch.tool_policy,
       worker: {
         adapter: dispatch.worker.adapter,
         mode: dispatch.worker.mode,
+        worker_class: dispatch.worker.worker_class,
         resume_session_id: run.active.resumable ? run.active.session_id : null
       },
+      execution: dispatch.execution,
       runtime: {
         entrypoint: run.runtime.entrypoint,
         fresh_context_per_story: run.execution.fresh_context_per_story

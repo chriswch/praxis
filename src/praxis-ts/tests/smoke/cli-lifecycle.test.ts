@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -85,6 +85,90 @@ test("smoke: public CLI run auto-launches the first worker", async () => {
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.ok(run.active.dispatch_id);
   assert.ok(run.active.worker_id);
+});
+
+test("smoke: build-worker-launch exposes stage contract, policy, and repo instruction surfaces", async () => {
+  const repoRoot = await createTempRepo();
+  const tsxCli = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
+
+  await writeFile(join(repoRoot, "AGENTS.md"), "repo instructions\n", "utf8");
+  await mkdir(join(repoRoot, ".codex", "agents"), { recursive: true });
+  await writeFile(join(repoRoot, ".codex", "config.toml"), "model = 'gpt-5'\n", "utf8");
+  await writeFile(join(repoRoot, ".codex", "hooks.json"), "{}\n", "utf8");
+  await mkdir(join(repoRoot, ".codex-plugin"), { recursive: true });
+
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "Worker launch contract"
+    }),
+    0
+  );
+  const dispatchId = await prepareDispatch(repoRoot);
+
+  const { stdout } = await execFileAsync(process.execPath, [
+    tsxCli,
+    "src/index.ts",
+    "--repo-root",
+    repoRoot,
+    "--json",
+    "build-worker-launch"
+  ], {
+    cwd: process.cwd()
+  });
+
+  const envelope = JSON.parse(stdout.trim()) as {
+    ok: boolean;
+    data: {
+      dispatch_id: string;
+      contract: {
+        stage_goal: string;
+        expected_output_artifacts: string[];
+        primary_output: string | null;
+      };
+      context_manifest: {
+        declared_inputs: string[];
+        instruction_surfaces: Array<{
+          path: string;
+          exists: boolean;
+          authoritative: boolean;
+        }>;
+      };
+      policy: {
+        profile: string;
+        writable_roots: string[];
+      };
+      worker: {
+        worker_class: string;
+      };
+      execution: {
+        worktree_mode: string;
+      };
+    };
+  };
+
+  assert.equal(envelope.ok, true);
+  assert.equal(envelope.data.dispatch_id, dispatchId);
+  assert.match(envelope.data.contract.stage_goal, /Clarify/);
+  assert.equal(envelope.data.contract.primary_output, ".praxis/spec.md");
+  assert.ok(envelope.data.contract.expected_output_artifacts.includes(".praxis/spec.md"));
+  assert.deepEqual(envelope.data.context_manifest.declared_inputs, []);
+  assert.deepEqual(envelope.data.policy.writable_roots, ["."]);
+  assert.equal(envelope.data.policy.profile, "planning");
+  assert.equal(envelope.data.worker.worker_class, "session_worker");
+  assert.equal(envelope.data.execution.worktree_mode, "shared");
+
+  const surfaceByPath = new Map(
+    envelope.data.context_manifest.instruction_surfaces.map((surface) => [surface.path, surface])
+  );
+  assert.equal(surfaceByPath.get("AGENTS.md")?.exists, true);
+  assert.equal(surfaceByPath.get(".codex/config.toml")?.exists, true);
+  assert.equal(surfaceByPath.get(".codex/hooks.json")?.exists, true);
+  assert.equal(surfaceByPath.get(".codex/agents")?.exists, true);
+  assert.equal(surfaceByPath.get(".codex-plugin")?.exists, true);
+  assert.equal(surfaceByPath.get(".codex-plugin")?.authoritative, false);
 });
 
 test("smoke: forge single-story progression completes run", async () => {

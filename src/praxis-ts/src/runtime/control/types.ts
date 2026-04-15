@@ -43,15 +43,20 @@ export type WorkerLaunchPayload = {
   scope: string;
   artifact_dir: string;
   stage_result_path: string;
+  contract: DispatchRecord["contract"];
+  context_manifest: DispatchRecord["context_manifest"];
   inputs: {
     required_artifacts: string[];
     boundary_handoff: Record<string, unknown> | null;
   };
+  policy: DispatchRecord["tool_policy"];
   worker: {
     adapter: string;
     mode: string;
+    worker_class: DispatchRecord["worker"]["worker_class"];
     resume_session_id: string | null;
   };
+  execution: DispatchRecord["execution"];
   runtime: {
     entrypoint: string;
     fresh_context_per_story: boolean;

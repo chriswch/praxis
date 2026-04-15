@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { nowIsoUtc } from "../common/time.js";
+import { selectInstructionSurfaces } from "../workers/context-manifest.js";
 import type { AdapterHealth, AdapterLaunchRequest, AdapterLaunchResponse, RuntimeAdapter } from "./types.js";
 
 export class ClaudeAdapter implements RuntimeAdapter {
@@ -17,20 +18,22 @@ export class ClaudeAdapter implements RuntimeAdapter {
   }
 
   async launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
+    const instructionSurfaces = selectInstructionSurfaces(request.launch.context_manifest.instruction_surfaces, "claude");
     return {
       worker_id: `wrk_claude_${request.dispatch.stage}_${randomUUID()}`,
       session_id: `claude_session_${randomUUID()}`,
       started_at: nowIsoUtc(),
-      locator: `claude://${request.dispatch.dispatch_id}`
+      locator: `claude://${request.dispatch.dispatch_id}?entrypoint=${encodeURIComponent(request.launch.runtime.entrypoint)}&instructions=${instructionSurfaces.length}`
     };
   }
 
   async resume(sessionId: string, request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
+    const instructionSurfaces = selectInstructionSurfaces(request.launch.context_manifest.instruction_surfaces, "claude");
     return {
       worker_id: `wrk_claude_resume_${request.dispatch.stage}_${randomUUID()}`,
       session_id: sessionId,
       started_at: nowIsoUtc(),
-      locator: `claude://${request.dispatch.dispatch_id}?resume=true`
+      locator: `claude://${request.dispatch.dispatch_id}?resume=true&instructions=${instructionSurfaces.length}`
     };
   }
 

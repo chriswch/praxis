@@ -51,6 +51,18 @@ export const DISPATCH_WORKER_MODES = [
 ] as const;
 export type DispatchWorkerMode = (typeof DISPATCH_WORKER_MODES)[number];
 
+export const PERMISSION_PROFILES = [
+  "planning",
+  "design",
+  "implementation",
+  "review",
+  "verification"
+] as const;
+export type PermissionProfile = (typeof PERMISSION_PROFILES)[number];
+
+export const WORKTREE_MODES = ["shared", "isolated"] as const;
+export type WorktreeMode = (typeof WORKTREE_MODES)[number];
+
 export const STAGE_NAMES = [
   "clarifying-intent",
   "slicing-stories",
@@ -123,6 +135,15 @@ export type WorkflowDefinition = {
   stages: Record<StageName, WorkflowStageDefinition | undefined>;
 };
 
+export type RepoInstructionSurface = {
+  path: string;
+  kind: "file" | "directory";
+  provider: "shared" | "codex" | "claude";
+  authoritative: boolean;
+  exists: boolean;
+  description: string;
+};
+
 export type RunRecord = {
   version: number;
   run_id: string;
@@ -181,14 +202,31 @@ export type DispatchRecord = {
     required_artifacts: string[];
     boundary_handoff: Record<string, unknown> | null;
   };
+  contract: {
+    stage_goal: string;
+    stage_instructions: string[];
+    expected_output_artifacts: string[];
+    primary_output: string | null;
+  };
+  context_manifest: {
+    declared_inputs: string[];
+    boundary_handoff_path: string | null;
+    instruction_surfaces: RepoInstructionSurface[];
+  };
   worker: {
     adapter: AdapterName;
     mode: DispatchWorkerMode;
+    worker_class: WorkerClass;
+  };
+  execution: {
+    fresh_context: boolean;
+    worktree_mode: WorktreeMode;
   };
   tool_policy: {
     writable_roots: string[];
     blocked_paths: string[];
     network: "enabled" | "restricted";
+    profile: PermissionProfile;
   };
 };
 

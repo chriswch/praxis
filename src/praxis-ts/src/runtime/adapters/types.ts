@@ -1,4 +1,5 @@
 import type { AdapterName, DispatchRecord } from "../../contracts/model.js";
+import type { WorkerLaunchPayload } from "../control/types.js";
 
 export type AdapterHealth = {
   adapter: AdapterName;
@@ -9,8 +10,8 @@ export type AdapterHealth = {
 
 export type AdapterLaunchRequest = {
   dispatch: DispatchRecord;
+  launch: WorkerLaunchPayload;
   repoRoot: string;
-  entrypoint: string;
 };
 
 export type AdapterLaunchResponse = {
