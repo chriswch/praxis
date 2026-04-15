@@ -58,6 +58,18 @@ export type WorkerLaunchPayload = {
   };
 };
 
+export type LaunchStageOutcome = {
+  run_id: string;
+  dispatch_id: string;
+  stage: StageName | null;
+  worker_id: string;
+  session_id: string | null;
+  locator: string | null;
+  resumable: boolean;
+  mode: "launch" | "resume";
+  reason: string;
+};
+
 export type SubmitStageResultOutcome = {
   stage: string;
   outcome_code: string;

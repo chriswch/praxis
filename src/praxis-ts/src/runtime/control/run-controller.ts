@@ -8,8 +8,10 @@ import { RunLifecycleService } from "./lifecycle-service.js";
 import { DispatchService } from "./dispatch-service.js";
 import { StageResultService } from "./stage-result-service.js";
 import { RunQueryService } from "./run-query-service.js";
+import { WorkerExecutionService } from "./worker-execution-service.js";
 import type {
   InspectProjection,
+  LaunchStageOutcome,
   LifecycleActionOutcome,
   RegisterWorkerSessionInput,
   RegisterWorkerSessionOutcome,
@@ -24,12 +26,14 @@ export class RunController {
   private readonly dispatchService: DispatchService;
   private readonly stageResultService: StageResultService;
   private readonly queryService: RunQueryService;
+  private readonly workerExecutionService: WorkerExecutionService;
 
   constructor(private readonly repo: PraxisStateRepository) {
     this.lifecycle = new RunLifecycleService(repo);
     this.dispatchService = new DispatchService(repo);
     this.stageResultService = new StageResultService(repo);
     this.queryService = new RunQueryService(repo);
+    this.workerExecutionService = new WorkerExecutionService(repo);
   }
 
   async initializeRun(input: RunCreateInput): Promise<RunRecord> {
@@ -117,6 +121,14 @@ export class RunController {
 
   async buildWorkerLaunch(): Promise<WorkerLaunchPayload> {
     return this.dispatchService.buildWorkerLaunch();
+  }
+
+  async launchReadyStage(): Promise<LaunchStageOutcome> {
+    return this.workerExecutionService.launchReadyStage();
+  }
+
+  async resumeRegisteredStage(): Promise<LaunchStageOutcome> {
+    return this.workerExecutionService.resumeRegisteredStage();
   }
 
   async submitStageResult(stageResultPath: string): Promise<SubmitStageResultOutcome> {

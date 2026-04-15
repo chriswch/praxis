@@ -1,4 +1,5 @@
 export { RunController } from "./run-controller.js";
+export { WorkerExecutionService } from "./worker-execution-service.js";
 export { projectStatus } from "./status-projector.js";
 export { compileDispatch } from "./dispatch-compiler.js";
 export { buildDoctorReport } from "./doctor-service.js";
@@ -11,6 +12,7 @@ export {
 } from "./story-boundary.js";
 export type {
   InspectProjection,
+  LaunchStageOutcome,
   LifecycleActionOutcome,
   RegisterWorkerSessionOutcome,
   RunCreateInput,

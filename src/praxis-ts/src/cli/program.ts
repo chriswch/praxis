@@ -69,7 +69,7 @@ function registerLifecycleCommands(program: Command): void {
         executionMode: opts.executionMode,
         entryTask: opts.entryTask,
         entrypoint: opts.entrypoint
-      });
+      }, { orchestrate: true });
     });
 
   program
@@ -77,7 +77,7 @@ function registerLifecycleCommands(program: Command): void {
     .description("Advance a paused run")
     .action(async (_, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = await runContinueCommand(global.repoRoot, global.json);
+      process.exitCode = await runContinueCommand(global.repoRoot, global.json, { orchestrate: true });
     });
 
   program
@@ -85,7 +85,7 @@ function registerLifecycleCommands(program: Command): void {
     .description("Resume an in-progress worker when safe")
     .action(async (_, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = await runResumeCommand(global.repoRoot, global.json);
+      process.exitCode = await runResumeCommand(global.repoRoot, global.json, { orchestrate: true });
     });
 
   program
@@ -94,7 +94,12 @@ function registerLifecycleCommands(program: Command): void {
     .option("--note <text>", "Approval note")
     .action(async (opts: { note?: string }, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = await runApproveCommand(global.repoRoot, global.json, opts.note ?? null);
+      process.exitCode = await runApproveCommand(
+        global.repoRoot,
+        global.json,
+        opts.note ?? null,
+        { orchestrate: true }
+      );
     });
 
   program

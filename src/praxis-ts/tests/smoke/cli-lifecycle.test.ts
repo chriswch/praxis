@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 import {
   runApproveCommand,
@@ -11,6 +13,7 @@ import {
   runDispatchCommand,
   runDoctorCommand,
   runInspectCommand,
+  runRegisterWorkerSessionCommand,
   runResumeCommand,
   runRunCommand,
   runStatusCommand,
@@ -19,6 +22,8 @@ import {
 } from "../../src/cli/commands/index.js";
 import type { RunRecord } from "../../src/contracts/model.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
+
+const execFileAsync = promisify(execFile);
 
 async function prepareDispatch(repoRoot: string): Promise<string> {
   assert.equal(await runDispatchCommand(repoRoot, true), 0);
@@ -46,6 +51,40 @@ test("smoke: run, status, inspect, dispatch, launch, and doctor", async () => {
 
   assert.equal(existsSync(join(repoRoot, ".praxis", "run.json")), true);
   assert.equal(existsSync(join(repoRoot, ".praxis", "dispatches")), true);
+});
+
+test("smoke: public CLI run auto-launches the first worker", async () => {
+  const repoRoot = await createTempRepo();
+  const tsxCli = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
+
+  const { stdout } = await execFileAsync(process.execPath, [
+    tsxCli,
+    "src/index.ts",
+    "--repo-root",
+    repoRoot,
+    "--json",
+    "run",
+    "--workflow",
+    "forge",
+    "--adapter",
+    "codex",
+    "--execution-mode",
+    "autopilot",
+    "--entry-task",
+    "CLI orchestration"
+  ], {
+    cwd: process.cwd()
+  });
+
+  const envelope = JSON.parse(stdout.trim()) as {
+    ok: boolean;
+    data: { launched: { dispatch_id: string; worker_id: string } | null };
+  };
+  assert.equal(envelope.ok, true);
+  assert.ok(envelope.data.launched);
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.ok(run.active.dispatch_id);
+  assert.ok(run.active.worker_id);
 });
 
 test("smoke: forge single-story progression completes run", async () => {
@@ -218,6 +257,39 @@ test("smoke: approve, resume rejection, and cancel lifecycle actions", async () 
   assert.equal(await runCancelCommand(repoRoot, true, "operator stop"), 0);
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.equal(run.status, "cancelled");
+});
+
+test("smoke: orchestrated resume re-issues adapter resume against the active session", async () => {
+  const repoRoot = await createTempRepo();
+
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "Resume orchestration"
+    }),
+    0
+  );
+
+  const dispatchId = await prepareDispatch(repoRoot);
+  assert.equal(
+    await runRegisterWorkerSessionCommand(repoRoot, true, {
+      dispatchId,
+      workerId: "wrk_resume_seed",
+      sessionId: "codex_session_resume_seed",
+      startedAt: "2026-04-15T00:00:00.000Z",
+      locator: "codex://resume-seed",
+      resumable: true
+    }),
+    0
+  );
+
+  assert.equal(await runResumeCommand(repoRoot, true, { orchestrate: true }), 0);
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(run.active.dispatch_id, dispatchId);
+  assert.equal(run.active.session_id, "codex_session_resume_seed");
+  assert.notEqual(run.active.worker_id, "wrk_resume_seed");
 });
 
 test("smoke: ask_user routes to workflow-resolved next stage", async () => {
