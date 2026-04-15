@@ -1,0 +1,24 @@
+{
+  "name": "praxis-ts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Praxis TypeScript CLI",
+  "type": "module",
+  "bin": {
+    "praxis": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test tests/smoke/**/*.test.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
