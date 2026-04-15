@@ -185,7 +185,51 @@ export function expectedInputArtifacts(run: Pick<RunRecord, "current" | "mode">)
     return [`${artifactDir}/spec.md`];
   }
 
+  if (stage === "code-improving") {
+    return [`${artifactDir}/review.md`];
+  }
+
+  return [];
+}
+
+export function expectedInputArtifactsForTransition(
+  run: Pick<RunRecord, "current" | "routing">,
+  transition: {
+    from_stage: StageName | null;
+    from_outcome_code: string | null;
+  }
+): string[] {
+  const stage = run.current.stage;
+  const artifactDir = run.current.artifact_dir;
+
+  if (!stage) {
+    return [];
+  }
+
+  if (stage === "clarifying-intent") {
+    // Bootstrap and normal clarifying-intent dispatches are user/handoff driven.
+    return [];
+  }
+
+  if (stage === "slicing-stories") {
+    return [".praxis/brief.md"];
+  }
+
+  if (stage === "sketching-design" || stage === "driving-tdd" || stage === "rapid-implementing") {
+    return [`${artifactDir}/spec.md`];
+  }
+
   if (stage === "code-reviewing") {
+    if (
+      transition.from_stage === "rapid-implementing" &&
+      transition.from_outcome_code === "implementation_complete"
+    ) {
+      return [`${artifactDir}/implementation.md`];
+    }
+    if (transition.from_stage === "driving-tdd" && transition.from_outcome_code === "tdd_complete") {
+      return [`${artifactDir}/implementation.md`];
+    }
+    // Fallback for resumed runs missing transition metadata.
     return [`${artifactDir}/implementation.md`];
   }
 
@@ -194,6 +238,17 @@ export function expectedInputArtifacts(run: Pick<RunRecord, "current" | "mode">)
   }
 
   if (stage === "verifying-and-adapting") {
+    if (transition.from_stage === "code-reviewing" && transition.from_outcome_code === "review_skipped") {
+      return [`${artifactDir}/review.md`];
+    }
+    if (
+      transition.from_stage === "code-improving" &&
+      (transition.from_outcome_code === "improvement_ready" ||
+        transition.from_outcome_code === "improvement_skipped")
+    ) {
+      return [`${artifactDir}/improvement.md`];
+    }
+    // Fallback for resumed runs missing transition metadata.
     return [`${artifactDir}/improvement.md`];
   }
 

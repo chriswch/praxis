@@ -13,7 +13,7 @@ import {
   runRunCommand,
   runSubmitStageResultCommand
 } from "../../src/cli/commands/index.js";
-import type { RunRecord } from "../../src/contracts/model.js";
+import type { DispatchRecord, RunRecord } from "../../src/contracts/model.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 
 async function prepareDispatch(repoRoot: string): Promise<string> {
@@ -21,6 +21,14 @@ async function prepareDispatch(repoRoot: string): Promise<string> {
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.ok(run.active.dispatch_id);
   return run.active.dispatch_id;
+}
+
+async function readActiveDispatch(repoRoot: string): Promise<DispatchRecord> {
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.ok(run.active.dispatch_id);
+  return readJson<DispatchRecord>(
+    join(repoRoot, ".praxis", "dispatches", `${run.active.dispatch_id}.json`)
+  );
 }
 
 test("smoke: register-worker-session persists resumable state and enables resume", async () => {
@@ -179,4 +187,133 @@ test("smoke: missing boundary handoff blocks dispatch and emits explicit blocked
   assert.equal(blocked.routing.stop_reason_code, "boundary_handoff_load_failed");
   assert.match(blocked.routing.reason, /Boundary handoff load failed/);
   assert.match(blocked.routing.reason, /retry dispatch/);
+});
+
+test("smoke: transition-aware contracts set verifying artifacts by predecessor path", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "craft",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "transition-aware contracts"
+    }),
+    0
+  );
+
+  const clarifyPath = await writeStageResult(
+    repoRoot,
+    "clarifying-intent",
+    ".praxis",
+    "story_spec_ready",
+    "proceed",
+    {
+      dispatch_id: await prepareDispatch(repoRoot),
+      needs_confirmation: true
+    }
+  );
+  assert.equal(await runSubmitStageResultCommand(repoRoot, true, clarifyPath), 0);
+  assert.equal(await runContinueCommand(repoRoot, true), 0);
+
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot,
+      true,
+      await writeStageResult(repoRoot, "sketching-design", ".praxis", "sketch_skipped", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot)
+      })
+    ),
+    0
+  );
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot,
+      true,
+      await writeStageResult(repoRoot, "driving-tdd", ".praxis", "tdd_complete", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot)
+      })
+    ),
+    0
+  );
+
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot,
+      true,
+      await writeStageResult(repoRoot, "code-reviewing", ".praxis", "review_skipped", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot)
+      })
+    ),
+    0
+  );
+  await prepareDispatch(repoRoot);
+  const verifyFromReview = await readActiveDispatch(repoRoot);
+  assert.deepEqual(verifyFromReview.inputs.required_artifacts, [".praxis/review.md"]);
+
+  // Run a second craft flow through code-improving -> verifying-and-adapting.
+  const repoRoot2 = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot2, true, {
+      workflow: "craft",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "transition-aware contracts (improvement path)"
+    }),
+    0
+  );
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot2,
+      true,
+      await writeStageResult(repoRoot2, "clarifying-intent", ".praxis", "story_spec_ready", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot2),
+        needs_confirmation: true
+      })
+    ),
+    0
+  );
+  assert.equal(await runContinueCommand(repoRoot2, true), 0);
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot2,
+      true,
+      await writeStageResult(repoRoot2, "sketching-design", ".praxis", "sketch_skipped", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot2)
+      })
+    ),
+    0
+  );
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot2,
+      true,
+      await writeStageResult(repoRoot2, "driving-tdd", ".praxis", "tdd_complete", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot2)
+      })
+    ),
+    0
+  );
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot2,
+      true,
+      await writeStageResult(repoRoot2, "code-reviewing", ".praxis", "review_ready", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot2)
+      })
+    ),
+    0
+  );
+  assert.equal(
+    await runSubmitStageResultCommand(
+      repoRoot2,
+      true,
+      await writeStageResult(repoRoot2, "code-improving", ".praxis", "improvement_ready", "proceed", {
+        dispatch_id: await prepareDispatch(repoRoot2)
+      })
+    ),
+    0
+  );
+  await prepareDispatch(repoRoot2);
+  const verifyFromImprove = await readActiveDispatch(repoRoot2);
+  assert.deepEqual(verifyFromImprove.inputs.required_artifacts, [".praxis/improvement.md"]);
 });

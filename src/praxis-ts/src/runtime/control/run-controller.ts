@@ -216,7 +216,9 @@ export class RunController {
         next_slice_id: null,
         reason: "Run initialized. Start with clarifying-intent.",
         stop_reason_code: null,
-        boundary_handoff_path: null
+        boundary_handoff_path: null,
+        entered_from_stage: null,
+        entered_from_outcome_code: null
       },
       active: {
         dispatch_id: null,
@@ -489,6 +491,8 @@ export class RunController {
     run.routing.next_stage = routingDecision.next_stage;
     run.routing.reason = routingDecision.reason;
     run.routing.stop_reason_code = routingDecision.stop_reason_code;
+    run.routing.entered_from_stage = accepted.result.stage;
+    run.routing.entered_from_outcome_code = accepted.result.data.outcome_code;
     run.timestamps.updated_at = nowIsoUtc();
     run.active.dispatch_id = null;
     run.active.worker_id = null;

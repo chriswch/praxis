@@ -151,6 +151,8 @@ export type RunRecord = {
     reason: string;
     stop_reason_code: string | null;
     boundary_handoff_path: string | null;
+    entered_from_stage: StageName | null;
+    entered_from_outcome_code: string | null;
   };
   active: {
     dispatch_id: string | null;

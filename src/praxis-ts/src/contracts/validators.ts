@@ -104,9 +104,17 @@ export function validateRunRecord(run: RunRecord): void {
   if (run.routing.next_stage !== null) {
     assertEnum(run.routing.next_stage, STAGE_NAMES, "routing.next_stage");
   }
+  const enteredFromStage = run.routing.entered_from_stage ?? null;
+  if (enteredFromStage !== null) {
+    assertEnum(enteredFromStage, STAGE_NAMES, "routing.entered_from_stage");
+  }
 
   if (run.routing.next_slice_id !== null) {
     assertPlainString(run.routing.next_slice_id, "routing.next_slice_id");
+  }
+  const enteredFromOutcomeCode = run.routing.entered_from_outcome_code ?? null;
+  if (enteredFromOutcomeCode !== null) {
+    assertPlainString(enteredFromOutcomeCode, "routing.entered_from_outcome_code");
   }
 
   assertPraxisPath(run.current.artifact_dir, "current.artifact_dir");

@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { DispatchRecord, RunRecord } from "../../contracts/model.js";
 import { buildDispatchId } from "../common/ids.js";
 import { nowIsoUtc } from "../common/time.js";
-import { expectedInputArtifacts } from "../../workflows/index.js";
+import { expectedInputArtifactsForTransition } from "../../workflows/index.js";
 import { buildToolPolicy } from "../tools/index.js";
 
 export type DispatchCompileInput = {
@@ -34,7 +34,10 @@ export function compileDispatch(input: DispatchCompileInput): DispatchRecord {
     stage_result_path: join(artifactDir, "results", `${stage}.json`).replace(/\\/g, "/"),
     created_at: nowIsoUtc(),
     inputs: {
-      required_artifacts: expectedInputArtifacts(run),
+      required_artifacts: expectedInputArtifactsForTransition(run, {
+        from_stage: run.routing.entered_from_stage,
+        from_outcome_code: run.routing.entered_from_outcome_code
+      }),
       boundary_handoff: boundaryHandoff
     },
     worker: {

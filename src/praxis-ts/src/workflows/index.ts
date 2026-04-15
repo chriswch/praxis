@@ -1,1 +1,7 @@
-export { WORKFLOW_GRAPH, expectedInputArtifacts, resolveWorkflowTransition, shouldPauseAfterStageResult } from "./graph.js";
+export {
+  WORKFLOW_GRAPH,
+  expectedInputArtifacts,
+  expectedInputArtifactsForTransition,
+  resolveWorkflowTransition,
+  shouldPauseAfterStageResult
+} from "./graph.js";
