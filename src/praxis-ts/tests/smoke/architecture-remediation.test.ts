@@ -12,9 +12,10 @@ import {
   runBuildWorkerLaunchCommand,
   runResumeCommand,
   runRunCommand,
+  runStatusCommand,
   runSubmitStageResultCommand
 } from "../../src/cli/commands/index.js";
-import type { DispatchRecord, RunRecord } from "../../src/contracts/model.js";
+import type { DispatchRecord, RunRecord, StoryLedgerRecord } from "../../src/contracts/model.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 
 async function prepareDispatch(repoRoot: string): Promise<string> {
@@ -235,6 +236,111 @@ test("smoke: dispatch creation rejects replacing an already active dispatch", as
 
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.equal(run.active.dispatch_id, firstDispatch);
+});
+
+test("smoke: run/ledger transaction marker recovers coherent state after interrupted write", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "run-ledger transactional recovery"
+    }),
+    0
+  );
+
+  const runPath = join(repoRoot, ".praxis", "run.json");
+  const ledgerPath = join(repoRoot, ".praxis", "story-ledger.json");
+  const txnPath = join(repoRoot, ".praxis", "run-ledger-transaction.json");
+
+  const staleRun = await readJson<RunRecord>(runPath);
+  const staleLedger: StoryLedgerRecord = {
+    version: 1,
+    run_id: staleRun.run_id,
+    workflow: staleRun.workflow,
+    execution_mode: staleRun.execution.mode,
+    stories: {
+      order: ["S-001"],
+      active: "S-001",
+      last_completed: null,
+      items: {
+        "S-001": {
+          id: "S-001",
+          title: "Old",
+          artifact_dir: ".praxis/slices/S-001",
+          status: "active",
+          carry_forward_from: null,
+          handoff_path: null
+        }
+      }
+    }
+  };
+  await writeFile(ledgerPath, `${JSON.stringify(staleLedger, null, 2)}\n`, "utf8");
+
+  const recoveredRun: RunRecord = {
+    ...staleRun,
+    mode: "multi_slice",
+    current: {
+      ...staleRun.current,
+      scope: "slice",
+      slice_id: "S-002",
+      artifact_dir: ".praxis/slices/S-002",
+      stage: "clarifying-intent"
+    },
+    routing: {
+      ...staleRun.routing,
+      next_action: "run_stage",
+      next_stage: "clarifying-intent",
+      reason: "Recovered from transaction marker."
+    }
+  };
+  const recoveredLedger: StoryLedgerRecord = {
+    ...staleLedger,
+    stories: {
+      order: ["S-001", "S-002"],
+      active: "S-002",
+      last_completed: "S-001",
+      items: {
+        "S-001": {
+          ...staleLedger.stories.items["S-001"],
+          status: "completed",
+          handoff_path: ".praxis/slices/S-001/handoff.json"
+        },
+        "S-002": {
+          id: "S-002",
+          title: "Next",
+          artifact_dir: ".praxis/slices/S-002",
+          status: "active",
+          carry_forward_from: "S-001",
+          handoff_path: null
+        }
+      }
+    }
+  };
+
+  await writeFile(
+    txnPath,
+    `${JSON.stringify(
+      {
+        version: 1,
+        run: recoveredRun,
+        ledger: recoveredLedger
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+
+  assert.equal(await runStatusCommand(repoRoot, true), 0);
+  const runAfterRecovery = await readJson<RunRecord>(runPath);
+  const ledgerAfterRecovery = await readJson<StoryLedgerRecord>(ledgerPath);
+  assert.equal(runAfterRecovery.mode, "multi_slice");
+  assert.equal(runAfterRecovery.current.slice_id, "S-002");
+  assert.equal(ledgerAfterRecovery.stories.active, "S-002");
+  assert.equal(ledgerAfterRecovery.stories.last_completed, "S-001");
+  assert.equal(existsSync(txnPath), false);
 });
 
 test("smoke: duplicate slice IDs and traversal stage-result paths fail closed", async () => {

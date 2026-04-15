@@ -111,12 +111,14 @@ type StageResultIngestPhase = {
   run: RunRecord;
   accepted: Awaited<ReturnType<typeof loadAndValidateStageResult>>;
   ledger: Awaited<ReturnType<PraxisStateRepository["loadStoryLedger"]>>;
+  ledgerNeedsCommit: boolean;
 };
 
 type StageResultRoutingPhase = {
   run: RunRecord;
   accepted: Awaited<ReturnType<typeof loadAndValidateStageResult>>;
   ledger: Awaited<ReturnType<PraxisStateRepository["loadStoryLedger"]>>;
+  ledgerNeedsCommit: boolean;
   routingDecision: ReturnType<typeof decideNextRouting>;
 };
 
@@ -488,6 +490,7 @@ export class RunController {
     );
     validateStageResult(accepted.result);
     let ledger = await this.repo.loadStoryLedger();
+    let ledgerNeedsCommit = false;
 
     if (
       accepted.result.stage === "slicing-stories" &&
@@ -498,14 +501,14 @@ export class RunController {
         run,
         run.execution.mode
       );
-      await this.repo.saveStoryLedger(ledger);
+      ledgerNeedsCommit = true;
     }
 
-    return { run, accepted, ledger };
+    return { run, accepted, ledger, ledgerNeedsCommit };
   }
 
   private routingProjectionPhase(phase: StageResultIngestPhase): StageResultRoutingPhase {
-    const { run, accepted, ledger } = phase;
+    const { run, accepted, ledger, ledgerNeedsCommit } = phase;
     const routingDecision = decideNextRouting(run, accepted);
 
     run.status = routingDecision.status;
@@ -522,12 +525,13 @@ export class RunController {
     run.active.resumable = false;
     run.active.session_id = null;
 
-    return { run, accepted, ledger, routingDecision };
+    return { run, accepted, ledger, ledgerNeedsCommit, routingDecision };
   }
 
   private async boundaryMutationPhase(phase: StageResultRoutingPhase): Promise<StageResultRoutingPhase> {
     const { run, accepted, routingDecision } = phase;
     let { ledger } = phase;
+    let { ledgerNeedsCommit } = phase;
 
     const boundaryTransitionRequired =
       run.mode === "multi_slice" &&
@@ -546,10 +550,10 @@ export class RunController {
         accepted.result
       );
       ledger = boundary.ledger;
+      ledgerNeedsCommit = true;
       run.routing.reason = boundary.handoff_path
         ? `Story boundary checkpointed (${boundary.handoff_path}). ${run.routing.reason}`
         : run.routing.reason;
-      await this.repo.saveStoryLedger(ledger);
     }
 
     clearBoundaryHandoffIfConsumed(run);
@@ -558,14 +562,19 @@ export class RunController {
       run,
       accepted,
       ledger,
+      ledgerNeedsCommit,
       routingDecision
     };
   }
 
   private async persistenceCommitPhase(phase: StageResultRoutingPhase): Promise<SubmitStageResultOutcome> {
-    const { run, accepted, routingDecision } = phase;
+    const { run, accepted, routingDecision, ledger, ledgerNeedsCommit } = phase;
 
-    await this.repo.saveRun(run);
+    if (ledgerNeedsCommit && ledger) {
+      await this.repo.saveRunAndStoryLedger(run, ledger);
+    } else {
+      await this.repo.saveRun(run);
+    }
     await this.repo.appendStageResultRecord(accepted.result);
     const telemetry = new ToolTelemetry(this.repo);
     await telemetry.recordToolUse({

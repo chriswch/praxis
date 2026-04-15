@@ -5,6 +5,7 @@ export type PraxisPathSet = {
   praxisDir: string;
   runFile: string;
   storyLedgerFile: string;
+  runLedgerTransactionFile: string;
   eventsFile: string;
   stageHistoryFile: string;
   tracesDir: string;
@@ -22,6 +23,7 @@ export function resolvePraxisPaths(repoRoot: string): PraxisPathSet {
     praxisDir,
     runFile: join(praxisDir, "run.json"),
     storyLedgerFile: join(praxisDir, "story-ledger.json"),
+    runLedgerTransactionFile: join(praxisDir, "run-ledger-transaction.json"),
     eventsFile: join(praxisDir, "events.jsonl"),
     stageHistoryFile: join(praxisDir, "stage-history.jsonl"),
     tracesDir: join(praxisDir, "traces"),

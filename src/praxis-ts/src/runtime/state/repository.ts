@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { unlink } from "node:fs/promises";
 import type {
   DispatchRecord,
   LifecycleEvent,
@@ -38,6 +39,7 @@ export class PraxisStateRepository {
   }
 
   async loadRun(): Promise<RunRecord | null> {
+    await this.recoverRunLedgerTransactionIfPresent();
     const run = await readJsonFileIfExists<RunRecord>(this.paths.runFile);
     if (run) {
       validateRunRecord(run);
@@ -51,6 +53,7 @@ export class PraxisStateRepository {
   }
 
   async loadStoryLedger(): Promise<StoryLedgerRecord | null> {
+    await this.recoverRunLedgerTransactionIfPresent();
     const ledger = await readJsonFileIfExists<StoryLedgerRecord>(this.paths.storyLedgerFile);
     if (ledger) {
       validateStoryLedgerRecord(ledger);
@@ -61,6 +64,21 @@ export class PraxisStateRepository {
   async saveStoryLedger(ledger: StoryLedgerRecord): Promise<void> {
     validateStoryLedgerRecord(ledger);
     await writeJsonFile(this.paths.storyLedgerFile, ledger);
+  }
+
+  async saveRunAndStoryLedger(run: RunRecord, ledger: StoryLedgerRecord): Promise<void> {
+    validateRunRecord(run);
+    validateStoryLedgerRecord(ledger);
+
+    const pending = {
+      version: 1,
+      run,
+      ledger
+    };
+    await writeJsonFile(this.paths.runLedgerTransactionFile, pending);
+    await writeJsonFile(this.paths.runFile, run);
+    await writeJsonFile(this.paths.storyLedgerFile, ledger);
+    await this.removeRunLedgerTransactionMarker();
   }
 
   async saveDispatch(dispatch: DispatchRecord): Promise<void> {
@@ -124,5 +142,30 @@ export class PraxisStateRepository {
       join(this.paths.policyDir, "tool-records.jsonl")
     );
     return records.slice(-limit);
+  }
+
+  private async recoverRunLedgerTransactionIfPresent(): Promise<void> {
+    const pending = await readJsonFileIfExists<{
+      version: number;
+      run: RunRecord;
+      ledger: StoryLedgerRecord;
+    }>(this.paths.runLedgerTransactionFile);
+    if (!pending) {
+      return;
+    }
+
+    validateRunRecord(pending.run);
+    validateStoryLedgerRecord(pending.ledger);
+    await writeJsonFile(this.paths.runFile, pending.run);
+    await writeJsonFile(this.paths.storyLedgerFile, pending.ledger);
+    await this.removeRunLedgerTransactionMarker();
+  }
+
+  private async removeRunLedgerTransactionMarker(): Promise<void> {
+    try {
+      await unlink(this.paths.runLedgerTransactionFile);
+    } catch {
+      // Marker is best-effort cleanup; recovery remains safe when already removed.
+    }
   }
 }
