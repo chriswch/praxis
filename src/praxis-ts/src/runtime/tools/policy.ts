@@ -14,7 +14,6 @@ function stageToProfile(stage: StageName): ToolPolicy["profile"] {
       return "planning";
     case "sketching-design":
       return "design";
-    case "rapid-implementing":
     case "driving-tdd":
     case "code-improving":
       return "implementation";

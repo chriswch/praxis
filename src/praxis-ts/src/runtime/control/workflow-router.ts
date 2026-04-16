@@ -1,6 +1,9 @@
 import type { RunRecord, StageName } from "../../contracts/model.js";
 import type { StageResultAcceptance } from "./stage-result-validator.js";
-import { shouldPauseAfterStageResult } from "../../workflows/index.js";
+import {
+  decideStageEntryCheckpoint,
+  describeStageEntryCheckpoint
+} from "./checkpoint-policy.js";
 
 export type RoutingDecision = {
   next_action: RunRecord["routing"]["next_action"];
@@ -114,24 +117,25 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
     };
   }
 
-  if (run.execution.mode === "manual") {
-    return pauseForConfirmation(nextStage, `Manual checkpoint before ${nextStage}.`, "manual_checkpoint");
+  const checkpoint = decideStageEntryCheckpoint({
+    execution_mode: run.execution.mode,
+    stage: nextStage,
+    needs_user_input: result.needs_user_input,
+    needs_confirmation: result.needs_confirmation
+  });
+  const reason = describeStageEntryCheckpoint(nextStage, "stage_transition", checkpoint);
+  if (checkpoint.next_action === "ask_user") {
+    return pauseForUser(nextStage, reason, checkpoint.stop_reason_code ?? "needs_user_input");
   }
-
-  if (shouldPauseAfterStageResult(run.workflow, result)) {
-    if (result.needs_user_input) {
-      return pauseForUser(nextStage, `Paused for user input before ${nextStage}.`, "needs_user_input");
-    }
-
-    return pauseForConfirmation(nextStage, `Paused for confirmation before ${nextStage}.`, "confirmation_required");
+  if (checkpoint.next_action === "confirm_then_run") {
+    return pauseForConfirmation(nextStage, reason, checkpoint.stop_reason_code);
   }
-
   return {
-    next_action: "run_stage",
+    next_action: checkpoint.next_action,
     next_stage: nextStage,
-    status: "running",
-    reason: `Autopilot advanced to ${nextStage}.`,
-    stop_reason_code: null,
+    status: checkpoint.status,
+    reason,
+    stop_reason_code: checkpoint.stop_reason_code,
     current_stage: nextStage
   };
 }

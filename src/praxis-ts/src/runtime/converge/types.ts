@@ -1,7 +1,6 @@
 import type { AdapterName, CampaignRecord, CampaignStopReasonCode, FindingSeverity, ConvergeProfile } from "../../contracts/model.js";
 
 export type ConvergeRunInput = {
-  workflow: "forge";
   adapter: AdapterName;
   objective: string;
   profile: ConvergeProfile;

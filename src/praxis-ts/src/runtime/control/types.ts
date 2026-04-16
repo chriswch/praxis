@@ -4,13 +4,11 @@ import type {
   ExecutionMode,
   RunRecord,
   StageName,
-  WorkerSessionRegistration,
-  WorkflowName
+  WorkerSessionRegistration
 } from "../../contracts/model.js";
 import type { StatusProjection } from "./status-projector.js";
 
 export type RunCreateInput = {
-  workflow: WorkflowName;
   adapter: AdapterName;
   executionMode: ExecutionMode;
   entryTask: string;

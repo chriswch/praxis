@@ -164,7 +164,7 @@ export class ConvergeCampaignService {
     const campaign: CampaignRecord = {
       version: 1,
       campaign_id: `campaign_${Date.now()}`,
-      workflow: input.workflow,
+      workflow: "craft",
       adapter: input.adapter,
       objective: {
         source_path: input.objective,
@@ -476,12 +476,12 @@ export class ConvergeCampaignService {
       childRunRecord: Record<string, unknown>;
     };
     try {
-      launchResult = await this.launchChildForgeRun(campaign, passId, batchPlan.batch);
+      launchResult = await this.launchChildCraftRun(campaign, passId, batchPlan.batch);
     } catch (error) {
       campaign.status = "waiting_for_user";
       campaign.stop_reason_code = "blocked";
       campaign.reason =
-        `Pass ${passId} batch planned but child forge launch failed: ${stringifyError(error)}`;
+        `Pass ${passId} batch planned but child craft launch failed: ${stringifyError(error)}`;
       campaign.timestamps.updated_at = nowIsoUtc();
 
       const summary: PassSummaryRecord = {
@@ -539,12 +539,12 @@ export class ConvergeCampaignService {
       campaign.status = "running";
       campaign.stop_reason_code = null;
       campaign.reason =
-        `Pass ${passId} launched child forge run ${launchResult.childRunId}. Waiting for child completion before reassessment.`;
+        `Pass ${passId} launched child craft run ${launchResult.childRunId}. Waiting for child completion before reassessment.`;
     } else {
       campaign.status = "waiting_for_user";
       campaign.stop_reason_code = "needs_operator";
       campaign.reason =
-        `Pass ${passId} launched child forge remediation (${launchResult.childRunId}). Complete the child run and execute \`praxis converge continue\`.`;
+        `Pass ${passId} launched child craft remediation (${launchResult.childRunId}). Complete the child run and execute \`praxis converge continue\`.`;
     }
     campaign.timestamps.updated_at = nowIsoUtc();
 
@@ -845,7 +845,7 @@ export class ConvergeCampaignService {
     };
   }
 
-  private async launchChildForgeRun(
+  private async launchChildCraftRun(
     campaign: CampaignRecord,
     passId: string,
     batch: PassBatchRecord
@@ -857,7 +857,7 @@ export class ConvergeCampaignService {
     if (existingRun) {
       if (!isRunTerminal(existingRun.status)) {
         throw new BlockedStateError(
-          `Cannot launch child forge run while run ${existingRun.run_id} is ${existingRun.status}.`
+          `Cannot launch child craft run while run ${existingRun.run_id} is ${existingRun.status}.`
         );
       }
       await this.repo.clearRunControlState();
@@ -867,14 +867,13 @@ export class ConvergeCampaignService {
 
     const controller = new RunController(this.repo);
     const run = await controller.initializeRun({
-      workflow: "forge",
       adapter: campaign.adapter,
       executionMode: "autopilot",
       entryTask: `Converge remediation for ${passId}`
     });
     const launch = await controller.launchReadyStage();
     const launchCommand =
-      `praxis run --workflow forge --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge remediation for ${passId}"`;
+      `praxis run --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge remediation for ${passId}"`;
     return {
       childRunId: run.run_id,
       childRunRecord: {

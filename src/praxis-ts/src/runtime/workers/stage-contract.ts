@@ -15,7 +15,6 @@ function expectedOutputArtifacts(stage: StageName, artifactDir: string): string[
       return [".praxis/slice-map.json", ".praxis/slice-map.md", resultPath(".praxis", stage)];
     case "sketching-design":
       return [join(artifactDir, "sketch.md").replace(/\\/g, "/"), resultPath(artifactDir, stage)];
-    case "rapid-implementing":
     case "driving-tdd":
       return [join(artifactDir, "implementation.md").replace(/\\/g, "/"), resultPath(artifactDir, stage)];
     case "code-reviewing":
@@ -35,7 +34,6 @@ function primaryOutput(stage: StageName, artifactDir: string): string | null {
       return ".praxis/slice-map.md";
     case "sketching-design":
       return join(artifactDir, "sketch.md").replace(/\\/g, "/");
-    case "rapid-implementing":
     case "driving-tdd":
       return join(artifactDir, "implementation.md").replace(/\\/g, "/");
     case "code-reviewing":
@@ -55,8 +53,6 @@ function stageGoal(workflow: WorkflowName, stage: StageName): string {
       return "Split the feature brief into a durable slice map and activate the first slice.";
     case "sketching-design":
       return "Map the approved spec to the codebase and produce the minimal design sketch needed for implementation.";
-    case "rapid-implementing":
-      return "Implement the approved story directly against the current spec and write the implementation summary.";
     case "driving-tdd":
       return "Drive the approved story through implementation and capture the resulting implementation summary.";
     case "code-reviewing":
@@ -88,7 +84,6 @@ function stageInstructions(stage: StageName): string[] {
         "Prefer existing code patterns over novel architecture.",
         "Write the sketch artifact only when it adds value."
       ];
-    case "rapid-implementing":
     case "driving-tdd":
       return [
         "Work only from the approved spec and declared inputs.",

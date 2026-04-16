@@ -26,12 +26,10 @@ import {
   CONVERGE_PROFILES,
   EXECUTION_MODES,
   FINDING_SEVERITIES,
-  WORKFLOW_NAMES,
   type AdapterName,
   type ConvergeProfile,
   type ExecutionMode,
-  type FindingSeverity,
-  type WorkflowName
+  type FindingSeverity
 } from "../contracts/model.js";
 
 type GlobalOptions = {
@@ -40,7 +38,6 @@ type GlobalOptions = {
 };
 
 type RunOptions = GlobalOptions & {
-  workflow: WorkflowName;
   adapter: AdapterName;
   executionMode: ExecutionMode;
   entryTask: string;
@@ -48,7 +45,6 @@ type RunOptions = GlobalOptions & {
 };
 
 type ConvergeRunOptions = GlobalOptions & {
-  workflow: "forge";
   adapter: AdapterName;
   objective: string;
   profile: ConvergeProfile;
@@ -80,11 +76,6 @@ function registerLifecycleCommands(program: Command): void {
     .description("Create and initialize a Praxis run")
     .requiredOption("--entry-task <text>", "Entry task summary")
     .addOption(
-      new Option("--workflow <workflow>", "Workflow name")
-        .choices([...WORKFLOW_NAMES])
-        .default("forge")
-    )
-    .addOption(
       new Option("--adapter <adapter>", "Adapter name")
         .choices([...ADAPTER_NAMES])
         .default("codex")
@@ -98,7 +89,6 @@ function registerLifecycleCommands(program: Command): void {
     .action(async (opts: RunOptions, cmd: Command) => {
       const global = toGlobalOptions(cmd);
       process.exitCode = await runRunCommand(global.repoRoot, global.json, {
-        workflow: opts.workflow,
         adapter: opts.adapter,
         executionMode: opts.executionMode,
         entryTask: opts.entryTask,
@@ -173,17 +163,12 @@ function registerLifecycleCommands(program: Command): void {
 function registerConvergeCommands(program: Command): void {
   const converge = program
     .command("converge")
-    .description("Campaign-level iterative convergence using child forge remediation");
+    .description("Campaign-level iterative convergence using child craft remediation");
 
   converge
     .command("run")
     .description("Start a converge campaign")
     .requiredOption("--objective <path>", "Objective document path")
-    .addOption(
-      new Option("--workflow <workflow>", "Child remediation workflow")
-        .choices(["forge"])
-        .default("forge")
-    )
     .addOption(
       new Option("--adapter <adapter>", "Adapter name")
         .choices([...ADAPTER_NAMES])
@@ -209,7 +194,6 @@ function registerConvergeCommands(program: Command): void {
     .action(async (opts: ConvergeRunOptions, cmd: Command) => {
       const global = toGlobalOptions(cmd);
       process.exitCode = await runConvergeRunCommand(global.repoRoot, global.json, {
-        workflow: "forge",
         adapter: opts.adapter,
         objective: opts.objective,
         profile: opts.profile,

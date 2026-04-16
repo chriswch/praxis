@@ -2,10 +2,9 @@ import { EXIT_CODE } from "../exit-codes.js";
 import { PraxisStateRepository } from "../../runtime/state/index.js";
 import { RunController } from "../../runtime/control/index.js";
 import { runCommandWithEnvelope } from "./shared.js";
-import type { AdapterName, ExecutionMode, WorkflowName } from "../../contracts/model.js";
+import type { AdapterName, ExecutionMode } from "../../contracts/model.js";
 
 export type RunCommandArgs = {
-  workflow: WorkflowName;
   adapter: AdapterName;
   executionMode: ExecutionMode;
   entryTask: string;
@@ -26,13 +25,13 @@ export async function runRunCommand(
     const repo = new PraxisStateRepository(repoRoot);
     const controller = new RunController(repo);
     const run = await controller.initializeRun({
-      workflow: args.workflow,
       adapter: args.adapter,
       executionMode: args.executionMode,
       entryTask: args.entryTask,
       entrypoint: args.entrypoint
     });
-    const launched = options.orchestrate ? await controller.launchReadyStage() : null;
+    const shouldLaunch = options.orchestrate && run.routing.next_action === "run_stage";
+    const launched = shouldLaunch ? await controller.launchReadyStage() : null;
 
     return {
       ok: true,

@@ -1,4 +1,4 @@
-export const WORKFLOW_NAMES = ["craft", "forge"] as const;
+export const WORKFLOW_NAMES = ["craft"] as const;
 export type WorkflowName = (typeof WORKFLOW_NAMES)[number];
 
 export const CONVERGE_PROFILES = ["product-spec-gap", "architecture-gap"] as const;
@@ -110,7 +110,6 @@ export const STAGE_NAMES = [
   "slicing-stories",
   "sketching-design",
   "driving-tdd",
-  "rapid-implementing",
   "code-reviewing",
   "code-improving",
   "verifying-and-adapting"
@@ -334,7 +333,7 @@ export type ObjectiveManifest = {
 export type CampaignRecord = {
   version: number;
   campaign_id: string;
-  workflow: "forge";
+  workflow: "craft";
   adapter: AdapterName;
   objective: ObjectiveManifest;
   profile: ConvergeProfile;

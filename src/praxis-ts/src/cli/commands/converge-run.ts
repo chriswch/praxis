@@ -9,7 +9,6 @@ import type {
 } from "../../contracts/model.js";
 
 export type ConvergeRunCommandArgs = {
-  workflow: "forge";
   adapter: AdapterName;
   objective: string;
   profile: ConvergeProfile;
@@ -31,7 +30,6 @@ export async function runConvergeRunCommand(
   return runCommandWithEnvelope(json, async () => {
     const service = new ConvergeCampaignService(new PraxisStateRepository(repoRoot));
     const outcome = await service.runCampaign({
-      workflow: args.workflow,
       adapter: args.adapter,
       objective: args.objective,
       profile: args.profile,

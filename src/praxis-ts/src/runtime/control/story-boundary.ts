@@ -4,6 +4,10 @@ import { readJsonFile, writeJsonFile } from "../state/index.js";
 import type { RunRecord, StageResultRecord, StoryLedgerRecord } from "../../contracts/model.js";
 import { nowIsoUtc } from "../common/time.js";
 import { BlockedStateError, InvalidInputError } from "../../contracts/errors.js";
+import {
+  decideStageEntryCheckpoint,
+  describeStageEntryCheckpoint
+} from "./checkpoint-policy.js";
 
 type SliceMapStory = {
   id: string;
@@ -155,20 +159,20 @@ export async function checkpointStoryBoundary(
 
   const nextStory = ledger.stories.items[nextStoryId];
   nextStory.carry_forward_from = activeStoryId;
-
-  if (run.execution.mode === "autopilot") {
-    nextStory.status = "active";
-    run.status = "running";
-    run.routing.next_action = "run_stage";
-    run.routing.reason = `Boundary checkpoint complete. Autopilot advanced to ${nextStoryId}.`;
-    run.routing.stop_reason_code = null;
-  } else {
-    nextStory.status = "active_next";
-    run.status = "waiting_for_user";
-    run.routing.next_action = "confirm_then_run";
-    run.routing.reason = `Boundary checkpoint complete. Confirm to activate ${nextStoryId}.`;
-    run.routing.stop_reason_code = "boundary_confirmation";
-  }
+  const stageCheckpoint = decideStageEntryCheckpoint({
+    execution_mode: run.execution.mode,
+    stage: "clarifying-intent"
+  });
+  const requiresConfirmation = stageCheckpoint.next_action === "confirm_then_run";
+  nextStory.status = requiresConfirmation ? "active_next" : "active";
+  run.status = stageCheckpoint.status;
+  run.routing.next_action = stageCheckpoint.next_action;
+  run.routing.reason = `${describeStageEntryCheckpoint(
+    "clarifying-intent",
+    "story_boundary",
+    stageCheckpoint
+  )} Next slice: ${nextStoryId}.`;
+  run.routing.stop_reason_code = stageCheckpoint.stop_reason_code;
 
   run.current.scope = "slice";
   run.current.slice_id = nextStoryId;

@@ -9,6 +9,10 @@ import { DispatchService } from "./dispatch-service.js";
 import { StageResultService } from "./stage-result-service.js";
 import { RunQueryService } from "./run-query-service.js";
 import { WorkerExecutionService } from "./worker-execution-service.js";
+import {
+  decideStageEntryCheckpoint,
+  describeStageEntryCheckpoint
+} from "./checkpoint-policy.js";
 import type {
   InspectProjection,
   LaunchStageOutcome,
@@ -47,16 +51,20 @@ export class RunController {
     }
 
     const timestamp = nowIsoUtc();
+    const initialCheckpoint = decideStageEntryCheckpoint({
+      execution_mode: input.executionMode,
+      stage: "clarifying-intent"
+    });
     const run: RunRecord = {
       version: 1,
       run_id: buildRunId(),
-      workflow: input.workflow,
+      workflow: "craft",
       status: "running",
       mode: "single_story",
       entry_task: input.entryTask,
       runtime: {
         adapter: input.adapter,
-        entrypoint: input.entrypoint ?? `praxis:${input.workflow}`
+        entrypoint: input.entrypoint ?? "praxis:craft"
       },
       execution: {
         mode: input.executionMode,
@@ -69,11 +77,11 @@ export class RunController {
         stage: "clarifying-intent"
       },
       routing: {
-        next_action: "run_stage",
+        next_action: initialCheckpoint.next_action,
         next_stage: "clarifying-intent",
         next_slice_id: null,
-        reason: "Run initialized. Start with clarifying-intent.",
-        stop_reason_code: null,
+        reason: describeStageEntryCheckpoint("clarifying-intent", "run_initialization", initialCheckpoint),
+        stop_reason_code: initialCheckpoint.stop_reason_code,
         boundary_handoff_path: null,
         entered_from_stage: null,
         entered_from_outcome_code: null
@@ -89,6 +97,7 @@ export class RunController {
         updated_at: timestamp
       }
     };
+    run.status = initialCheckpoint.status;
 
     validateRunRecord(run);
     await this.repo.saveRun(run);

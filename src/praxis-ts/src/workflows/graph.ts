@@ -70,62 +70,7 @@ export const WORKFLOW_GRAPH: Record<WorkflowName, WorkflowDefinition> = {
           rework_needed: transition("rework", "driving-tdd"),
           escalation_needed: transition("escalate", "clarifying-intent")
         }
-      },
-      "rapid-implementing": undefined
-    }
-  },
-  forge: {
-    name: "forge",
-    stages: {
-      "clarifying-intent": {
-        stage: "clarifying-intent",
-        outcomes: {
-          trivial_change: transition("done", null),
-          bug_fix_ready: transition("proceed", "rapid-implementing"),
-          story_spec_ready: transition("proceed", "sketching-design"),
-          feature_brief_ready: transition("proceed", "slicing-stories"),
-          clarification_needed: transition("ask_user", "clarifying-intent")
-        }
-      },
-      "slicing-stories": {
-        stage: "slicing-stories",
-        outcomes: {
-          slice_map_ready: transition("proceed", "clarifying-intent"),
-          blocking_questions: transition("ask_user", "slicing-stories")
-        }
-      },
-      "sketching-design": {
-        stage: "sketching-design",
-        outcomes: {
-          sketch_ready: transition("proceed", "rapid-implementing"),
-          sketch_skipped: transition("proceed", "rapid-implementing"),
-          spec_issue: transition("ask_user", "clarifying-intent")
-        }
-      },
-      "rapid-implementing": {
-        stage: "rapid-implementing",
-        outcomes: {
-          implementation_complete: transition("proceed", "code-reviewing"),
-          spec_feedback: transition("ask_user", "clarifying-intent")
-        }
-      },
-      "code-reviewing": {
-        stage: "code-reviewing",
-        outcomes: {
-          review_ready: transition("proceed", "code-improving"),
-          review_skipped: transition("proceed", null)
-        }
-      },
-      "code-improving": {
-        stage: "code-improving",
-        outcomes: {
-          improvement_ready: transition("proceed", null),
-          improvement_skipped: transition("proceed", null),
-          spec_feedback: transition("ask_user", "clarifying-intent")
-        }
-      },
-      "driving-tdd": undefined,
-      "verifying-and-adapting": undefined
+      }
     }
   }
 };
@@ -152,18 +97,6 @@ export function resolveWorkflowTransition(
   return resolved;
 }
 
-export function shouldPauseAfterStageResult(workflow: WorkflowName, stageResult: StageResultRecord): boolean {
-  if (stageResult.needs_user_input || stageResult.needs_confirmation) {
-    return true;
-  }
-
-  if (workflow === "forge" && stageResult.stage === "clarifying-intent") {
-    return true;
-  }
-
-  return false;
-}
-
 export function expectedInputArtifacts(run: Pick<RunRecord, "current" | "mode">): string[] {
   const stage = run.current.stage;
   const artifactDir = run.current.artifact_dir;
@@ -181,7 +114,7 @@ export function expectedInputArtifacts(run: Pick<RunRecord, "current" | "mode">)
     return [".praxis/brief.md"];
   }
 
-  if (stage === "sketching-design" || stage === "driving-tdd" || stage === "rapid-implementing") {
+  if (stage === "sketching-design" || stage === "driving-tdd") {
     return [`${artifactDir}/spec.md`];
   }
 
@@ -215,17 +148,11 @@ export function expectedInputArtifactsForTransition(
     return [".praxis/brief.md"];
   }
 
-  if (stage === "sketching-design" || stage === "driving-tdd" || stage === "rapid-implementing") {
+  if (stage === "sketching-design" || stage === "driving-tdd") {
     return [`${artifactDir}/spec.md`];
   }
 
   if (stage === "code-reviewing") {
-    if (
-      transition.from_stage === "rapid-implementing" &&
-      transition.from_outcome_code === "implementation_complete"
-    ) {
-      return [`${artifactDir}/implementation.md`];
-    }
     if (transition.from_stage === "driving-tdd" && transition.from_outcome_code === "tdd_complete") {
       return [`${artifactDir}/implementation.md`];
     }

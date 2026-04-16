@@ -45,6 +45,15 @@ function assertEnum<T extends string>(value: string, allowed: readonly T[], labe
   }
 }
 
+function assertWorkflowName(value: string, label: string): asserts value is (typeof WORKFLOW_NAMES)[number] {
+  if (value === "forge") {
+    throw new ContractError(
+      `Invalid ${label}: forge. Legacy forge state is not supported; start a fresh run or campaign using craft.`
+    );
+  }
+  assertEnum(value, WORKFLOW_NAMES, label);
+}
+
 function assertPraxisPath(value: string | null, label: string): void {
   if (value === null) {
     return;
@@ -124,7 +133,7 @@ export function validateRunRecord(run: RunRecord): void {
     throw new ContractError("run.version must be >= 1");
   }
 
-  assertEnum(run.workflow, WORKFLOW_NAMES, "workflow");
+  assertWorkflowName(run.workflow, "workflow");
   assertEnum(run.runtime.adapter, ADAPTER_NAMES, "runtime.adapter");
   assertEnum(run.execution.mode, EXECUTION_MODES, "execution.mode");
   assertEnum(run.status, RUN_STATUS, "status");
@@ -285,7 +294,7 @@ export function validateDispatchRecord(dispatch: DispatchRecord): void {
     throw new ContractError("dispatch.version must be >= 1");
   }
 
-  assertEnum(dispatch.workflow, WORKFLOW_NAMES, "dispatch.workflow");
+  assertWorkflowName(dispatch.workflow, "dispatch.workflow");
   assertEnum(dispatch.stage, STAGE_NAMES, "dispatch.stage");
   assertEnum(dispatch.worker.adapter, ADAPTER_NAMES, "dispatch.worker.adapter");
   assertEnum(dispatch.scope, RUN_SCOPES, "dispatch.scope");
@@ -360,7 +369,7 @@ export function validateStoryLedgerRecord(ledger: StoryLedgerRecord): void {
     throw new ContractError("story ledger version must be >= 1");
   }
 
-  assertEnum(ledger.workflow, WORKFLOW_NAMES, "ledger.workflow");
+  assertWorkflowName(ledger.workflow, "ledger.workflow");
   assertEnum(ledger.execution_mode, EXECUTION_MODES, "ledger.execution_mode");
 
   const { order, active, last_completed, items } = ledger.stories;
@@ -429,7 +438,13 @@ export function validateCampaignRecord(campaign: CampaignRecord): void {
     throw new ContractError("campaign.version must be >= 1");
   }
   assertPlainString(campaign.campaign_id, "campaign_id");
-  assertEnum(campaign.workflow, ["forge"], "campaign.workflow");
+  const campaignWorkflow = campaign.workflow as string;
+  if (campaignWorkflow === "forge") {
+    throw new ContractError(
+      "Invalid campaign.workflow: forge. Legacy forge campaigns are unsupported; start a fresh campaign."
+    );
+  }
+  assertEnum(campaignWorkflow, ["craft"], "campaign.workflow");
   assertEnum(campaign.adapter, ADAPTER_NAMES, "campaign.adapter");
   assertEnum(campaign.profile, CONVERGE_PROFILES, "campaign.profile");
   assertEnum(campaign.severity_threshold, FINDING_SEVERITIES, "campaign.severity_threshold");

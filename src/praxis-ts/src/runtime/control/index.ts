@@ -6,6 +6,10 @@ export { buildDoctorReport } from "./doctor-service.js";
 export { loadAndValidateStageResult } from "./stage-result-validator.js";
 export { decideNextRouting } from "./workflow-router.js";
 export {
+  decideStageEntryCheckpoint,
+  describeStageEntryCheckpoint
+} from "./checkpoint-policy.js";
+export {
   checkpointStoryBoundary,
   clearBoundaryHandoffIfConsumed,
   initializeStoryLedgerFromSliceMap

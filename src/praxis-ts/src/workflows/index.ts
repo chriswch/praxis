@@ -2,6 +2,5 @@ export {
   WORKFLOW_GRAPH,
   expectedInputArtifacts,
   expectedInputArtifactsForTransition,
-  resolveWorkflowTransition,
-  shouldPauseAfterStageResult
+  resolveWorkflowTransition
 } from "./graph.js";
