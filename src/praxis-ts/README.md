@@ -56,7 +56,7 @@ Global flags:
 ## Runtime Planes
 
 - `src/cli/`: Commander command plane, envelopes, exit-code behavior.
-- `src/workflows/`: workflow graph and routing rules for `craft` and `forge`.
+- `src/workflows/`: workflow graph and routing rules for `craft`.
 - `src/runtime/control/`: run supervisor, dispatch compiler, stage-result
   validator, boundary checkpointing, and status projections.
 - `src/runtime/adapters/`: Codex and Claude adapter abstractions.

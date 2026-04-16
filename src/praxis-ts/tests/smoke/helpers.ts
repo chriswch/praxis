@@ -118,7 +118,6 @@ function expectedStageArtifacts(stage: StageName, artifactDir: string, outcomeCo
       return [".praxis/slice-map.md", ".praxis/slice-map.json"];
     case "sketching-design":
       return outcomeCode === "sketch_ready" ? [`${artifactDir}/sketch.md`] : [];
-    case "rapid-implementing":
     case "driving-tdd":
       return [`${artifactDir}/implementation.md`];
     case "code-reviewing":
