@@ -96,15 +96,63 @@ function formatObjectiveMarkdown(campaign: CampaignRecord): string {
 
 function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText: string): string {
   const trimmed = objectiveText.trim();
+  const objectiveLines = trimmed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const listItems = objectiveLines
+    .map((line) => /^(?:[-*]|\d+\.)\s+(.+)$/.exec(line)?.[1]?.trim())
+    .filter((line): line is string => Boolean(line && line.length > 0));
+  const headings = objectiveLines
+    .map((line) => /^#{1,6}\s+(.+)$/.exec(line)?.[1]?.trim())
+    .filter((line): line is string => Boolean(line && line.length > 0));
+  const candidateGoal = headings.find((heading) => !/^objective$/i.test(heading))
+    ?? listItems[0]
+    ?? objectiveLines.find((line) => !/^#{1,6}\s+/.test(line))
+    ?? "Close the identified remediation scope against an explicit target.";
+  const acceptanceCriteria = listItems.length > 0
+    ? listItems
+    : [
+        "Target behavior is specific enough for repo-level gap assessment.",
+        "Scope and non-goals are explicit enough to reject out-of-scope noise.",
+        "Success criteria are testable for bounded remediation slices."
+      ];
+
   return [
     "# Target Spec",
+    "",
+    "## Goal",
+    "",
+    candidateGoal,
+    "",
+    "## Scope",
+    "",
+    ...(campaign.objective.scope.length > 0
+      ? campaign.objective.scope.map((path) => `- ${path}`)
+      : ["- (repo root)"]),
+    "",
+    "## Non-Goals",
+    "",
+    "- Do not expand beyond the current converge campaign scope.",
+    "- Do not merge unrelated findings into a single broad remediation task.",
+    "",
+    "## Constraints",
+    "",
+    "- Keep remediation bounded to selected findings for each pass.",
+    "- Preserve fresh-session execution boundaries for child stories.",
+    "- Keep stage contracts stable for future skill-swappable stage workers.",
+    "",
+    "## Acceptance Criteria",
+    "",
+    ...acceptanceCriteria.map((criterion) => `- ${criterion}`),
+    "",
+    "## References",
     "",
     `- Campaign: ${campaign.campaign_id}`,
     `- Source objective: ${campaign.objective.normalized_path}`,
     `- Profile: ${campaign.profile}`,
-    `- Scope: ${campaign.objective.scope.length > 0 ? campaign.objective.scope.join(", ") : "(repo root)"}`,
     "",
-    "## Imported objective content",
+    "## Imported Objective Content",
     "",
     trimmed.length > 0 ? trimmed : "(empty objective source)",
     ""
@@ -145,6 +193,17 @@ function listCompletedStoryIds(ledger: StoryLedgerRecord | null): string[] {
 
 function requiredCommitsForCompletion(completedStoryIds: string[]): number {
   return completedStoryIds.length > 0 ? completedStoryIds.length : 1;
+}
+
+function buildConvergeClarifyingArtifacts(briefPath: string): string[] {
+  return [
+    briefPath,
+    ".praxis/target-spec.md",
+    ".praxis/gap.md",
+    ".praxis/gap.json",
+    ".praxis/remediation-map.md",
+    ".praxis/remediation-map.json"
+  ];
 }
 
 export class ConvergeCampaignService {
@@ -219,7 +278,21 @@ export class ConvergeCampaignService {
     await this.repo.saveCampaign(campaign);
     await this.repo.saveCampaignLedger(ledger);
     await this.repo.saveObjectiveMarkdown(formatObjectiveMarkdown(campaign));
-    await this.repo.saveTargetSpecMarkdown(formatTargetSpecMarkdown(campaign, objectiveText));
+    await this.repo.saveTargetSpecArtifacts({
+      targetSpecMarkdown: formatTargetSpecMarkdown(campaign, objectiveText),
+      stageResult: {
+        version: 1,
+        stage: "clarifying-intent",
+        status: "completed",
+        profile: campaign.profile,
+        route: {
+          kind: "proceed"
+        },
+        data: {
+          outcome_code: "target_spec_ready"
+        }
+      }
+    });
     const targetSpecText = await readFile(this.repo.paths.targetSpecFile, "utf8");
 
     const progressed = await this.progressCampaign(campaign, ledger, targetSpecText);
@@ -902,6 +975,8 @@ export class ConvergeCampaignService {
       `- Campaign: ${campaign.campaign_id}`,
       `- Pass: ${passId}`,
       "- Target spec: .praxis/target-spec.md",
+      "- Gap assessment: .praxis/gap.md",
+      "- Remediation map: .praxis/remediation-map.md",
       `- Selected findings: ${remediationMap.selected_finding_ids.join(", ") || "(none)"}`,
       `- Commit per story: ${campaign.commit_per_story ? "required" : "optional"}`,
       "",
@@ -966,8 +1041,9 @@ export class ConvergeCampaignService {
       run,
       run.execution.mode
     );
+    const clarifyingArtifacts = buildConvergeClarifyingArtifacts(briefPath);
     run.constraints = {
-      clarifying_required_artifacts: [briefPath],
+      clarifying_required_artifacts: clarifyingArtifacts,
       clarifying_allowed_outcomes: ["story_spec_ready", "bug_fix_ready", "clarification_needed"],
       bounded_scope: {
         kind: "converge_pass",

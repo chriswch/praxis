@@ -190,6 +190,18 @@ export class PraxisStateRepository {
     await writeFile(this.paths.targetSpecFile, `${markdown.trimEnd()}\n`, "utf8");
   }
 
+  async saveTargetSpecArtifacts(
+    payload: {
+      targetSpecMarkdown: string;
+      stageResult: Record<string, unknown>;
+    }
+  ): Promise<void> {
+    const resultsDir = join(this.paths.praxisDir, "results");
+    await mkdir(resultsDir, { recursive: true });
+    await writeFile(this.paths.targetSpecFile, `${payload.targetSpecMarkdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(join(resultsDir, "clarifying-intent.json"), payload.stageResult);
+  }
+
   async saveReviewArtifacts(
     reviewId: string,
     payload: {
