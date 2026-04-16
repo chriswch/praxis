@@ -416,7 +416,9 @@ export type CampaignLedgerRecord = {
   };
 };
 
-export type GapFinding = Omit<CampaignFinding, "finding_id" | "status" | "introduced_in_pass" | "resolved_in_pass" | "child_run_ids" | "story_ids" | "commit_refs" | "last_seen_pass">;
+export type GapFinding = {
+  finding_id: string;
+} & Omit<CampaignFinding, "finding_id" | "status" | "introduced_in_pass" | "resolved_in_pass" | "child_run_ids" | "story_ids" | "commit_refs" | "last_seen_pass">;
 export type ObjectiveFinding = GapFinding;
 
 export type GapAssessmentResult = {

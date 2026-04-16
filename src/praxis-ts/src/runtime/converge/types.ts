@@ -49,9 +49,14 @@ export type ConvergeStatusProjection = {
 
 export type ConvergeInspectProjection = {
   campaign: CampaignRecord;
-  objective_path: string;
+  target_spec_path: string;
   artifacts: {
     objective_file: string;
+    target_spec_file: string;
+    gap_file: string;
+    gap_data_file: string;
+    remediation_map_file: string;
+    remediation_map_data_file: string;
     campaign_file: string;
     campaign_ledger_file: string;
     reviews_dir: string;

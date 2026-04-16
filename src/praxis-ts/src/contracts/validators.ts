@@ -610,6 +610,7 @@ export function validateObjectiveAssessmentResult(result: ObjectiveAssessmentRes
   }
 
   for (const [index, finding] of result.findings.entries()) {
+    assertPlainString(finding.finding_id, `objective finding ${index}.finding_id`);
     assertPlainString(finding.fingerprint, `objective finding ${index}.fingerprint`);
     assertPlainString(finding.title, `objective finding ${index}.title`);
     assertEnum(finding.kind, FINDING_KINDS, `objective finding ${index}.kind`);

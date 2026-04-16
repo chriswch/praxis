@@ -2,8 +2,8 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type {
   ConvergeProfile,
-  ObjectiveAssessmentResult,
-  ObjectiveFinding
+  GapAssessmentResult,
+  GapFinding
 } from "../../contracts/model.js";
 import { buildFindingFingerprint } from "./identity.js";
 import { compareSeverity } from "./severity.js";
@@ -11,8 +11,8 @@ import { compareSeverity } from "./severity.js";
 type AssessmentInput = {
   repoRoot: string;
   profile: ConvergeProfile;
-  objectivePath: string;
-  objectiveText: string;
+  targetSpecPath: string;
+  targetSpecText: string;
   scope: string[];
   reviewId: string;
   generatedAt: string;
@@ -71,8 +71,8 @@ function toRepoPath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\.\/+/, "");
 }
 
-function parseObjectiveRequirements(objectivePath: string, objectiveText: string): ObjectiveRequirement[] {
-  const lines = objectiveText.split(/\r?\n/);
+function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: string): ObjectiveRequirement[] {
+  const lines = targetSpecText.split(/\r?\n/);
   const requirements: ObjectiveRequirement[] = [];
   let section = "Objective";
   let fallbackCount = 0;
@@ -101,7 +101,7 @@ function parseObjectiveRequirements(objectivePath: string, objectiveText: string
     requirements.push({
       section,
       text: statement,
-      objectiveRef: `${objectivePath}#${refAnchor}`,
+      objectiveRef: `${targetSpecPath}#${refAnchor}`,
       line: index + 1
     });
   }
@@ -110,7 +110,7 @@ function parseObjectiveRequirements(objectivePath: string, objectiveText: string
     return requirements;
   }
 
-  for (const [index, sentence] of objectiveText.split(/[.!?]\s+/).entries()) {
+  for (const [index, sentence] of targetSpecText.split(/[.!?]\s+/).entries()) {
     const trimmed = sentence.trim();
     if (trimmed.length < 20) {
       continue;
@@ -119,7 +119,7 @@ function parseObjectiveRequirements(objectivePath: string, objectiveText: string
     requirements.push({
       section: "Objective",
       text: trimmed,
-      objectiveRef: `${objectivePath}#line-${index + 1}`,
+      objectiveRef: `${targetSpecPath}#line-${index + 1}`,
       line: index + 1
     });
     if (fallbackCount >= 12) {
@@ -165,8 +165,8 @@ function classifyCategory(requirement: string): string {
   if (lower.includes("cli") || lower.includes("command") || lower.includes("--")) {
     return "cli-surface";
   }
-  if (lower.includes("assessment") || lower.includes("objective") || lower.includes("profile")) {
-    return "objective-assessment";
+  if (lower.includes("assessment") || lower.includes("target") || lower.includes("profile")) {
+    return "gap-assessment";
   }
   if (lower.includes("ledger") || lower.includes("artifact") || lower.includes("durable")) {
     return "durable-state";
@@ -190,7 +190,7 @@ function defaultAffectedPathsForCategory(category: string): string[] {
   switch (category) {
     case "cli-surface":
       return ["src/cli"];
-    case "objective-assessment":
+    case "gap-assessment":
       return ["src/runtime/converge/assessment.ts"];
     case "durable-state":
       return ["src/runtime/state"];
@@ -211,7 +211,7 @@ function inferSeverity(
   profile: ConvergeProfile,
   requirement: string,
   coverage: number
-): ObjectiveFinding["severity"] {
+): GapFinding["severity"] {
   const lower = requirement.toLowerCase();
   const strict = lower.includes("must") || lower.includes("required") || lower.includes("authoritative");
   const foundational =
@@ -329,14 +329,15 @@ function shouldEmitFinding(profile: ConvergeProfile, coverage: number, requireme
   return coverage < threshold;
 }
 
-export async function assessObjective(input: AssessmentInput): Promise<{
-  assessmentMarkdown: string;
-  assessment: ObjectiveAssessmentResult;
+export async function assessGaps(input: AssessmentInput): Promise<{
+  gapMarkdown: string;
+  gap: GapAssessmentResult;
 }> {
-  const requirements = parseObjectiveRequirements(input.objectivePath, input.objectiveText);
+  const requirements = parseObjectiveRequirements(input.targetSpecPath, input.targetSpecText);
   const documents = await listRepoDocuments(input.repoRoot, input.scope);
-  const findings: ObjectiveFinding[] = [];
+  const findings: GapFinding[] = [];
 
+  let ordinal = 0;
   for (const requirement of requirements) {
     const keywords = extractKeywords(requirement.text);
     if (keywords.length === 0) {
@@ -366,11 +367,15 @@ export async function assessObjective(input: AssessmentInput): Promise<{
       ? topMatches.map((match) => match.path)
       : defaultAffectedPathsForCategory(category);
     const severity = inferSeverity(input.profile, requirement.text, coverage);
+    ordinal += 1;
+    const kind = coverage <= 0.2 ? "missing" : coverage <= 0.55 ? "partial" : "wrong";
+    const recommended = recommendedAction(input.profile, requirement);
 
-    const objectiveFinding: ObjectiveFinding = {
+    const objectiveFinding: GapFinding = {
+      finding_id: `G-${String(ordinal).padStart(3, "0")}`,
       fingerprint: "",
       title: `${requirement.section}: objective gap`,
-      kind: coverage <= 0.2 ? "missing" : "partial",
+      kind,
       severity,
       category,
       summary: `Requirement is not fully implemented: ${requirement.text}`,
@@ -379,8 +384,8 @@ export async function assessObjective(input: AssessmentInput): Promise<{
       evidence: summarizeEvidence(requirement, matchedTokens, keywords, topMatches),
       objective_refs: [requirement.objectiveRef],
       affected_paths: affectedPaths,
-      recommended_direction: recommendedAction(input.profile, requirement),
-      recommended_action: recommendedAction(input.profile, requirement),
+      recommended_direction: recommended,
+      recommended_action: recommended,
       confidence: confidenceFromCoverage(coverage)
     };
     objectiveFinding.fingerprint = buildFindingFingerprint(input.profile, objectiveFinding);
@@ -395,38 +400,54 @@ export async function assessObjective(input: AssessmentInput): Promise<{
     return left.title.localeCompare(right.title);
   });
 
-  const assessment: ObjectiveAssessmentResult = {
+  const assessment: GapAssessmentResult = {
     version: 1,
     profile: input.profile,
     review_id: input.reviewId,
-    target_spec_path: input.objectivePath,
+    target_spec_path: input.targetSpecPath,
     findings,
     generated_at: input.generatedAt
   };
 
   const markdownLines: string[] = [
-    "# Objective Assessment",
+    "# Gap Assessment",
     "",
+    "## Assessment Scope",
+    "",
+    `- Target spec: ${input.targetSpecPath}`,
     `- Profile: ${input.profile}`,
-    `- Objective: ${input.objectivePath}`,
+    `- Scope: ${input.scope.length > 0 ? input.scope.join(", ") : "(repo root)"}`,
     `- Requirements analyzed: ${requirements.length}`,
     `- Findings: ${findings.length}`,
     "",
-    findings.length === 0 ? "No findings at this pass." : "## Findings",
+    "## Overall Conclusion",
+    "",
+    findings.length === 0
+      ? "No material in-scope gaps were identified for this pass."
+      : `${findings.length} in-scope gap(s) were identified relative to the target spec.`,
+    "",
+    findings.length === 0 ? "## Findings" : "## Ordered Findings",
     ""
   ];
   for (const finding of findings) {
-    markdownLines.push(`### ${finding.title}`);
+    markdownLines.push(`### ${finding.finding_id} ${finding.title}`);
+    markdownLines.push(`- Kind: ${finding.kind}`);
     markdownLines.push(`- Severity: ${finding.severity}`);
+    markdownLines.push(`- Confidence: ${finding.confidence}`);
     markdownLines.push(`- Category: ${finding.category}`);
+    markdownLines.push(`- Expected behavior: ${finding.expected_behavior}`);
+    markdownLines.push(`- Current behavior: ${finding.current_behavior}`);
     markdownLines.push(`- Summary: ${finding.summary}`);
-    markdownLines.push(`- Recommended action: ${finding.recommended_action}`);
+    markdownLines.push(`- Evidence: ${finding.evidence.join(" | ")}`);
     markdownLines.push(`- Affected paths: ${finding.affected_paths.join(", ") || "(none)"}`);
+    markdownLines.push(`- Recommended direction: ${finding.recommended_direction}`);
     markdownLines.push("");
   }
 
   return {
-    assessmentMarkdown: markdownLines.join("\n"),
-    assessment
+    gapMarkdown: markdownLines.join("\n"),
+    gap: assessment
   };
 }
+
+export const assessObjective = assessGaps;

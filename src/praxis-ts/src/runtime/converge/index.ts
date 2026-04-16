@@ -1,6 +1,6 @@
 export { ConvergeCampaignService } from "./campaign-service.js";
-export { assessObjective } from "./assessment.js";
-export { planPassBatch } from "./planner.js";
+export { assessGaps, assessObjective } from "./assessment.js";
+export { planRemediation, planPassBatch } from "./planner.js";
 export {
   createEmptyCampaignLedger,
   mergeAssessmentIntoLedger,

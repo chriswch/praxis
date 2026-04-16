@@ -2,7 +2,8 @@ import type {
   CampaignFinding,
   CampaignLedgerRecord,
   FindingSeverity,
-  PassBatchRecord
+  RemediationMapRecord,
+  RemediationSliceRecord
 } from "../../contracts/model.js";
 import { buildPassId } from "./identity.js";
 import { compareSeverity, isAtOrAboveSeverity } from "./severity.js";
@@ -120,10 +121,10 @@ function rankCandidates(candidates: CampaignFinding[]): RankedCandidate[] {
     });
 }
 
-export function planPassBatch(input: PlannerInput): {
+export function planRemediation(input: PlannerInput): {
   passId: string;
-  batch: PassBatchRecord;
-  batchMarkdown: string;
+  remediationMap: RemediationMapRecord;
+  remediationMarkdown: string;
 } {
   const passId = buildPassId(input.passNumber);
   const candidates = listActiveFindings(input.ledger)
@@ -134,18 +135,21 @@ export function planPassBatch(input: PlannerInput): {
   const selected = rankedCandidates.slice(0, maxSelection);
   const deferred = rankedCandidates.slice(maxSelection);
 
-  const stories = selected.map((candidate, index) => ({
-    story_id: `S-${String(index + 1).padStart(3, "0")}`,
-    title: formatStoryTitle(candidate.finding),
+  const slices: RemediationSliceRecord[] = selected.map((candidate, index) => ({
+    slice_id: `S-${String(index + 1).padStart(3, "0")}`,
     finding_ids: [candidate.finding.finding_id],
-    objective_context: candidate.finding.summary,
+    title: formatStoryTitle(candidate.finding),
+    objective: candidate.finding.summary,
+    scope: candidate.finding.affected_paths.length > 0 ? [...candidate.finding.affected_paths] : ["src/runtime/converge"],
     non_goals: [
       "Do not widen scope beyond selected findings for this pass.",
       "Record newly discovered out-of-scope risks for reassessment instead of implementing them now."
-    ]
+    ],
+    dependencies: candidate.dependsOnFindingIds,
+    done_condition: `Finding ${candidate.finding.finding_id} is resolved and reassessment confirms no regression.`
   }));
 
-  const batch: PassBatchRecord = {
+  const remediationMap: RemediationMapRecord = {
     version: 1,
     campaign_id: input.campaignId,
     pass_id: passId,
@@ -172,46 +176,49 @@ export function planPassBatch(input: PlannerInput): {
         reason: "deferred_by_batch_limit"
       }))
     },
-    stories,
+    slices,
     generated_at: input.generatedAt
   };
 
   const lines: string[] = [
-    "# Remediation Batch",
+    "# Remediation Map",
     "",
     `- Pass: ${passId}`,
     `- Review: ${input.reviewId}`,
     `- Severity threshold: ${input.severityThreshold}`,
-    `- Selected findings: ${batch.selected_finding_ids.length}`,
-    `- Deferred findings: ${batch.deferred_finding_ids.length}`,
+    `- Selected findings: ${remediationMap.selected_finding_ids.length}`,
+    `- Deferred findings: ${remediationMap.deferred_finding_ids.length}`,
     "",
     "## Selection Policy",
     "",
-    ...batch.selection.policy.map((line) => `- ${line}`),
+    ...remediationMap.selection.policy.map((line) => `- ${line}`),
     ""
   ];
 
-  if (stories.length === 0) {
+  if (slices.length === 0) {
     lines.push("No eligible findings selected for remediation in this pass.");
     lines.push("");
   } else {
-    lines.push("## Stories");
+    lines.push("## Slices");
     lines.push("");
-    for (const story of stories) {
-      const selectedMeta = batch.selection.selected.find((item) => item.finding_id === story.finding_ids[0]);
-      lines.push(`### ${story.story_id} ${story.title}`);
-      lines.push(`- Finding IDs: ${story.finding_ids.join(", ")}`);
-      lines.push(`- Objective context: ${story.objective_context}`);
+    for (const slice of slices) {
+      const selectedMeta = remediationMap.selection.selected.find((item) => item.finding_id === slice.finding_ids[0]);
+      lines.push(`### ${slice.slice_id} ${slice.title}`);
+      lines.push(`- Target findings: ${slice.finding_ids.join(", ")}`);
+      lines.push(`- Objective: ${slice.objective}`);
+      lines.push(`- Scope: ${slice.scope.join(", ")}`);
+      lines.push(`- Dependencies: ${slice.dependencies.length > 0 ? slice.dependencies.join(", ") : "(none)"}`);
+      lines.push(`- Done condition: ${slice.done_condition}`);
       lines.push(`- Selection reason: ${selectedMeta?.reason ?? "n/a"}`);
-      lines.push(`- Non-goals: ${story.non_goals.join(" ")}`);
+      lines.push(`- Non-goals: ${slice.non_goals.join(" ")}`);
       lines.push("");
     }
   }
 
-  if (batch.selection.deferred.length > 0) {
+  if (remediationMap.selection.deferred.length > 0) {
     lines.push("## Deferred Findings");
     lines.push("");
-    for (const deferredFinding of batch.selection.deferred) {
+    for (const deferredFinding of remediationMap.selection.deferred) {
       lines.push(`- ${deferredFinding.finding_id}: ${deferredFinding.reason}`);
     }
     lines.push("");
@@ -219,7 +226,9 @@ export function planPassBatch(input: PlannerInput): {
 
   return {
     passId,
-    batch,
-    batchMarkdown: lines.join("\n")
+    remediationMap,
+    remediationMarkdown: lines.join("\n")
   };
 }
+
+export const planPassBatch = planRemediation;
