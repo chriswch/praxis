@@ -3,6 +3,7 @@ import { unlink, writeFile, mkdir, rm } from "node:fs/promises";
 import type {
   CampaignLedgerRecord,
   CampaignRecord,
+  ConvergeStageResultRecord,
   DispatchRecord,
   GapAssessmentResult,
   LifecycleEvent,
@@ -16,6 +17,7 @@ import type {
 import {
   validateCampaignLedgerRecord,
   validateCampaignRecord,
+  validateConvergeStageResult,
   validateDispatchRecord,
   validateObjectiveAssessmentResult,
   validatePassBatchRecord,
@@ -193,11 +195,12 @@ export class PraxisStateRepository {
   async saveTargetSpecArtifacts(
     payload: {
       targetSpecMarkdown: string;
-      stageResult: Record<string, unknown>;
+      stageResult: ConvergeStageResultRecord & { stage: "clarifying-intent" };
     }
   ): Promise<void> {
     const resultsDir = join(this.paths.praxisDir, "results");
     await mkdir(resultsDir, { recursive: true });
+    validateConvergeStageResult(payload.stageResult);
     await writeFile(this.paths.targetSpecFile, `${payload.targetSpecMarkdown.trimEnd()}\n`, "utf8");
     await writeJsonFile(join(resultsDir, "clarifying-intent.json"), payload.stageResult);
   }
@@ -207,7 +210,7 @@ export class PraxisStateRepository {
     payload: {
       assessmentMarkdown: string;
       findings: GapAssessmentResult;
-      stageResult: Record<string, unknown>;
+      stageResult: ConvergeStageResultRecord & { stage: "objective-assessing" };
     }
   ): Promise<void> {
     const reviewDir = join(this.paths.reviewsDir, reviewId);
@@ -215,6 +218,7 @@ export class PraxisStateRepository {
     await mkdir(resultsDir, { recursive: true });
 
     validateObjectiveAssessmentResult(payload.findings);
+    validateConvergeStageResult(payload.stageResult);
     await writeFile(join(reviewDir, "assessment.md"), `${payload.assessmentMarkdown.trimEnd()}\n`, "utf8");
     await writeJsonFile(join(reviewDir, "findings.json"), payload.findings);
     await writeJsonFile(join(resultsDir, "objective-assessing.json"), payload.stageResult);
@@ -224,10 +228,11 @@ export class PraxisStateRepository {
     payload: {
       gapMarkdown: string;
       gap: GapAssessmentResult;
-      stageResult: Record<string, unknown>;
+      stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
     }
   ): Promise<void> {
     validateObjectiveAssessmentResult(payload.gap);
+    validateConvergeStageResult(payload.stageResult);
     const resultsDir = join(this.paths.praxisDir, "results");
     await mkdir(resultsDir, { recursive: true });
     await writeFile(this.paths.gapFile, `${payload.gapMarkdown.trimEnd()}\n`, "utf8");
@@ -255,9 +260,7 @@ export class PraxisStateRepository {
     validateRemediationMapRecord(remediationMap);
     const resultsDir = join(this.paths.praxisDir, "results");
     await mkdir(resultsDir, { recursive: true });
-    await writeFile(this.paths.remediationMapFile, `${markdown.trimEnd()}\n`, "utf8");
-    await writeJsonFile(this.paths.remediationMapDataFile, remediationMap);
-    await writeJsonFile(join(resultsDir, "planning-remediation.json"), {
+    const stageResult: ConvergeStageResultRecord = {
       version: 1,
       stage: "planning-remediation",
       status: "completed",
@@ -270,7 +273,11 @@ export class PraxisStateRepository {
         deferred_findings_count: remediationMap.deferred_finding_ids.length,
         slices_count: remediationMap.slices.length
       }
-    });
+    };
+    validateConvergeStageResult(stageResult);
+    await writeFile(this.paths.remediationMapFile, `${markdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(this.paths.remediationMapDataFile, remediationMap);
+    await writeJsonFile(join(resultsDir, "planning-remediation.json"), stageResult);
   }
 
   async savePassSummary(passId: string, summary: PassSummaryRecord): Promise<void> {

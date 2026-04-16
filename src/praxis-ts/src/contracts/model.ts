@@ -119,6 +119,15 @@ export const STAGE_NAMES = [
 ] as const;
 export type StageName = (typeof STAGE_NAMES)[number];
 
+export const CONVERGE_STAGE_NAMES = [
+  "clarifying-intent",
+  "assessing-gaps",
+  "planning-remediation",
+  // Legacy stage identifier kept for backward-compatible review artifacts.
+  "objective-assessing"
+] as const;
+export type ConvergeStageName = (typeof CONVERGE_STAGE_NAMES)[number];
+
 export type StageRoute = {
   kind: RouteKind;
   next_stage: StageName | null;
@@ -169,6 +178,21 @@ export type StageResultRecord = {
   handoff?: Record<string, unknown> | null;
   needs_user_input: boolean;
   needs_confirmation: boolean;
+};
+
+export type ConvergeStageResultRecord = {
+  version: number;
+  stage: ConvergeStageName;
+  status: StageResultStatus;
+  profile?: ConvergeProfile;
+  review_id?: string;
+  route: {
+    kind: RouteKind;
+  };
+  data: {
+    outcome_code: string;
+    [key: string]: unknown;
+  };
 };
 
 export type WorkflowTransition = {

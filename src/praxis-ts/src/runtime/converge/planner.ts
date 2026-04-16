@@ -17,6 +17,7 @@ type PlannerInput = {
   severityThreshold: FindingSeverity;
   maxFindingsPerPass: number;
   maxStoriesPerPass: number;
+  minimumConfidence?: number;
   generatedAt: string;
 };
 
@@ -125,15 +126,29 @@ export function planRemediation(input: PlannerInput): {
   passId: string;
   remediationMap: RemediationMapRecord;
   remediationMarkdown: string;
+  confidenceGate: number;
+  confidenceDeferredFindingIds: string[];
 } {
   const passId = buildPassId(input.passNumber);
-  const candidates = listActiveFindings(input.ledger)
+  const confidenceGate = Math.max(0, Math.min(1, input.minimumConfidence ?? 0));
+  const candidatesAtSeverity = listActiveFindings(input.ledger)
     .filter((finding) => isAtOrAboveSeverity(finding.severity, input.severityThreshold));
+  const confidenceEligible = candidatesAtSeverity
+    .filter((finding) => finding.confidence >= confidenceGate);
+  const confidenceDeferred = candidatesAtSeverity
+    .filter((finding) => finding.confidence < confidenceGate)
+    .sort((left, right) => {
+      const severityOrder = compareSeverity(left.severity, right.severity);
+      if (severityOrder !== 0) {
+        return severityOrder;
+      }
+      return left.finding_id.localeCompare(right.finding_id);
+    });
 
-  const rankedCandidates = rankCandidates(candidates);
+  const rankedCandidates = rankCandidates(confidenceEligible);
   const maxSelection = Math.min(input.maxFindingsPerPass, input.maxStoriesPerPass);
   const selected = rankedCandidates.slice(0, maxSelection);
-  const deferred = rankedCandidates.slice(maxSelection);
+  const deferredByBatchLimit = rankedCandidates.slice(maxSelection);
 
   const slices: RemediationSliceRecord[] = selected.map((candidate, index) => ({
     slice_id: `S-${String(index + 1).padStart(3, "0")}`,
@@ -156,11 +171,15 @@ export function planRemediation(input: PlannerInput): {
     pass_number: input.passNumber,
     review_id: input.reviewId,
     selected_finding_ids: selected.map((candidate) => candidate.finding.finding_id),
-    deferred_finding_ids: deferred.map((candidate) => candidate.finding.finding_id),
+    deferred_finding_ids: [
+      ...deferredByBatchLimit.map((candidate) => candidate.finding.finding_id),
+      ...confidenceDeferred.map((candidate) => candidate.finding_id)
+    ],
     selection: {
       policy: [
         "Severity-first ordering",
         "Dependency ordering where affected paths overlap",
+        `Confidence gate (>= ${confidenceGate.toFixed(2)}) before remediation selection`,
         "Bounded by max findings and max stories",
         "Risk and confidence inform tie-breaks"
       ],
@@ -171,10 +190,16 @@ export function planRemediation(input: PlannerInput): {
         depends_on_finding_ids: candidate.dependsOnFindingIds,
         reason: candidate.selectionReason
       })),
-      deferred: deferred.map((candidate) => ({
-        finding_id: candidate.finding.finding_id,
-        reason: "deferred_by_batch_limit"
-      }))
+      deferred: [
+        ...deferredByBatchLimit.map((candidate) => ({
+          finding_id: candidate.finding.finding_id,
+          reason: "deferred_by_batch_limit"
+        })),
+        ...confidenceDeferred.map((candidate) => ({
+          finding_id: candidate.finding_id,
+          reason: "deferred_low_confidence"
+        }))
+      ]
     },
     slices,
     generated_at: input.generatedAt
@@ -186,6 +211,7 @@ export function planRemediation(input: PlannerInput): {
     `- Pass: ${passId}`,
     `- Review: ${input.reviewId}`,
     `- Severity threshold: ${input.severityThreshold}`,
+    `- Confidence gate: ${confidenceGate.toFixed(2)}`,
     `- Selected findings: ${remediationMap.selected_finding_ids.length}`,
     `- Deferred findings: ${remediationMap.deferred_finding_ids.length}`,
     "",
@@ -227,7 +253,9 @@ export function planRemediation(input: PlannerInput): {
   return {
     passId,
     remediationMap,
-    remediationMarkdown: lines.join("\n")
+    remediationMarkdown: lines.join("\n"),
+    confidenceGate,
+    confidenceDeferredFindingIds: confidenceDeferred.map((finding) => finding.finding_id)
   };
 }
 

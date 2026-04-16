@@ -3,6 +3,7 @@ import {
   ADAPTER_NAMES,
   CAMPAIGN_STATUS,
   CAMPAIGN_STOP_REASON_CODES,
+  CONVERGE_STAGE_NAMES,
   CONVERGE_PROFILES,
   DISPATCH_WORKER_MODES,
   EXECUTION_MODES,
@@ -23,6 +24,7 @@ import {
   WORKFLOW_NAMES,
   type CampaignLedgerRecord,
   type CampaignRecord,
+  type ConvergeStageResultRecord,
   type DispatchRecord,
   type ObjectiveAssessmentResult,
   type PassBatchRecord,
@@ -334,6 +336,29 @@ export function validateStageResult(result: StageResultRecord): void {
   if (result.handoff !== undefined && result.handoff !== null) {
     assertRecord(result.handoff, "handoff");
   }
+}
+
+export function validateConvergeStageResult(result: ConvergeStageResultRecord): void {
+  assertRecord(result, "converge stage result");
+
+  if (result.version < 1) {
+    throw new ContractError("converge stage result version must be >= 1");
+  }
+
+  assertEnum(result.stage, CONVERGE_STAGE_NAMES, "converge stage result stage");
+  assertEnum(result.status, STAGE_RESULT_STATUS, "converge stage result status");
+  if (result.profile !== undefined) {
+    assertEnum(result.profile, CONVERGE_PROFILES, "converge stage result profile");
+  }
+  if (result.review_id !== undefined) {
+    assertPlainString(result.review_id, "converge stage result review_id");
+  }
+
+  assertRecord(result.route, "converge stage result route");
+  assertEnum(result.route.kind, ROUTE_KINDS, "converge stage result route.kind");
+
+  assertRecord(result.data, "converge stage result data");
+  assertPlainString(result.data.outcome_code, "converge stage result data.outcome_code");
 }
 
 export function validateDispatchRecord(dispatch: DispatchRecord): void {

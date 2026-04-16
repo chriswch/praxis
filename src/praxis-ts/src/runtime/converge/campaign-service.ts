@@ -37,6 +37,7 @@ import type {
 } from "./types.js";
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const MIN_FINDING_CONFIDENCE_FOR_REMEDIATION = 0.65;
 
 function normalizeRepoPath(repoRoot: string, candidatePath: string): string {
   const absolute = isAbsolute(candidatePath)
@@ -557,6 +558,7 @@ export class ConvergeCampaignService {
       severityThreshold: campaign.severity_threshold,
       maxFindingsPerPass: campaign.max_findings_per_pass,
       maxStoriesPerPass: campaign.max_stories_per_pass,
+      minimumConfidence: MIN_FINDING_CONFIDENCE_FOR_REMEDIATION,
       generatedAt: nowIsoUtc()
     });
 
@@ -572,6 +574,44 @@ export class ConvergeCampaignService {
         non_goals: slice.non_goals
       }))
     });
+
+    if (batchPlan.remediationMap.selected_finding_ids.length === 0) {
+      const confidenceGatedCount = batchPlan.confidenceDeferredFindingIds.length;
+      campaign.status = "waiting_for_user";
+      campaign.stop_reason_code = "needs_operator";
+      campaign.reason = confidenceGatedCount > 0
+        ? `Pass ${passId} selected no findings because ${confidenceGatedCount} finding(s) did not meet the confidence gate (${batchPlan.confidenceGate.toFixed(2)}). Review .praxis/gap.md and continue after objective clarification.`
+        : `Pass ${passId} selected no findings under the current severity and story limits. Review .praxis/gap.md and continue when ready.`;
+      campaign.timestamps.updated_at = nowIsoUtc();
+
+      await this.repo.savePassSummary(passId, {
+        version: 1,
+        campaign_id: campaign.campaign_id,
+        pass_id: passId,
+        pass_number: passNumber,
+        child_run_id: null,
+        assessment_review_id: campaign.current_review_id,
+        reassessment_review_id: null,
+        planned_finding_ids: [],
+        completed_story_ids: [],
+        produced_commits: [],
+        unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(ledger, campaign.severity_threshold),
+        outcome: "needs_operator",
+        generated_at: nowIsoUtc()
+      });
+      await this.repo.savePassChildRun(passId, {
+        version: 2,
+        child_run_id: null,
+        workflow: campaign.workflow,
+        adapter: campaign.adapter,
+        status: "not_launched",
+        reason: campaign.reason,
+        confidence_gate: batchPlan.confidenceGate,
+        confidence_deferred_finding_ids: batchPlan.confidenceDeferredFindingIds,
+        generated_at: nowIsoUtc()
+      });
+      return { campaign, ledger };
+    }
 
     let launchResult: {
       childRunId: string;
