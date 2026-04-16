@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
 import { InvalidInputError, BlockedStateError, RejectedProgressionError } from "../../contracts/errors.js";
 import { nowIsoUtc } from "../common/time.js";
@@ -13,6 +13,7 @@ import type {
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import { RunController } from "../control/run-controller.js";
+import { initializeStoryLedgerFromSliceMap } from "../control/story-boundary.js";
 import { assessObjective } from "./assessment.js";
 import { buildPassId, buildReviewId } from "./identity.js";
 import {
@@ -835,6 +836,123 @@ export class ConvergeCampaignService {
     };
   }
 
+  private async writeConvergePassBrief(
+    campaign: CampaignRecord,
+    passId: string,
+    batch: PassBatchRecord
+  ): Promise<{ markdownPath: string; jsonPath: string }> {
+    const passDir = join(this.repo.paths.passesDir, passId);
+    await mkdir(passDir, { recursive: true });
+
+    const markdownPath = `.praxis/passes/${passId}/remediation-brief.md`;
+    const jsonPath = `.praxis/passes/${passId}/remediation-brief.json`;
+
+    const payload = {
+      version: 1,
+      campaign_id: campaign.campaign_id,
+      pass_id: passId,
+      objective_path: campaign.objective.normalized_path,
+      finding_ids: batch.selected_finding_ids,
+      story_ids: batch.stories.map((story) => story.story_id),
+      commit_policy: {
+        commit_per_story: campaign.commit_per_story
+      },
+      non_goals: [
+        "Do not widen remediation beyond selected finding IDs for this pass.",
+        "Record newly discovered out-of-scope findings for reassessment instead of implementing them now."
+      ],
+      generated_at: nowIsoUtc()
+    };
+
+    const markdown = [
+      "# Converge Remediation Brief",
+      "",
+      `- Campaign: ${campaign.campaign_id}`,
+      `- Pass: ${passId}`,
+      `- Objective: ${campaign.objective.normalized_path}`,
+      `- Selected findings: ${batch.selected_finding_ids.join(", ") || "(none)"}`,
+      `- Commit per story: ${campaign.commit_per_story ? "required" : "optional"}`,
+      "",
+      "## Scope",
+      "",
+      "This brief is authoritative for the active pass. Remediation must stay bounded to these stories and finding IDs.",
+      ""
+    ];
+    for (const story of batch.stories) {
+      markdown.push(`### ${story.story_id} ${story.title}`);
+      markdown.push(`- Finding IDs: ${story.finding_ids.join(", ")}`);
+      markdown.push(`- Objective context: ${story.objective_context}`);
+      markdown.push(`- Non-goals: ${story.non_goals.join(" ")}`);
+      markdown.push("");
+    }
+    markdown.push("## Pass Non-Goals");
+    markdown.push("");
+    markdown.push("- Do not expand scope beyond listed finding IDs.");
+    markdown.push("- Escalate high-risk out-of-scope gaps to reassessment.");
+    markdown.push("");
+
+    await writeFile(join(this.repo.paths.root, markdownPath), `${markdown.join("\n").trimEnd()}\n`, "utf8");
+    await writeFile(join(this.repo.paths.root, jsonPath), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+
+    return { markdownPath, jsonPath };
+  }
+
+  private async seedChildRunBoundedStories(
+    run: RunRecord,
+    campaign: CampaignRecord,
+    passId: string,
+    batch: PassBatchRecord,
+    briefPath: string,
+    beforeHead: string | null
+  ): Promise<void> {
+    const sliceMap = {
+      slices: batch.stories.map((story) => ({
+        id: story.story_id,
+        title: story.title
+      }))
+    };
+    const sliceMapMarkdown = [
+      "# Pass Slice Map",
+      "",
+      `- Source pass: ${passId}`,
+      `- Objective: ${campaign.objective.normalized_path}`,
+      "",
+      "## Stories",
+      "",
+      ...batch.stories.map((story) => `- ${story.story_id}: ${story.title}`),
+      ""
+    ].join("\n");
+
+    await writeFile(join(this.repo.paths.root, ".praxis", "slice-map.json"), `${JSON.stringify(sliceMap, null, 2)}\n`, "utf8");
+    await writeFile(join(this.repo.paths.root, ".praxis", "slice-map.md"), `${sliceMapMarkdown.trimEnd()}\n`, "utf8");
+
+    const storyLedger = await initializeStoryLedgerFromSliceMap(
+      this.repo.paths.root,
+      run,
+      run.execution.mode
+    );
+    run.constraints = {
+      clarifying_required_artifacts: [briefPath],
+      clarifying_allowed_outcomes: ["story_spec_ready", "bug_fix_ready", "clarification_needed"],
+      bounded_scope: {
+        kind: "converge_pass",
+        pass_id: passId,
+        objective_path: campaign.objective.normalized_path,
+        finding_ids: batch.selected_finding_ids,
+        story_ids: batch.stories.map((story) => story.story_id),
+        brief_path: briefPath
+      },
+      commit_per_story: {
+        enabled: campaign.commit_per_story,
+        last_verified_head: beforeHead,
+        pending_story_id: null
+      }
+    };
+    run.routing.reason = `Converge pass ${passId} bounded to remediation brief ${briefPath}.`;
+    run.timestamps.updated_at = nowIsoUtc();
+    await this.repo.saveRunAndStoryLedger(run, storyLedger);
+  }
+
   private toOutcome(campaign: CampaignRecord): ConvergeActionOutcome {
     return {
       campaign_id: campaign.campaign_id,
@@ -866,14 +984,17 @@ export class ConvergeCampaignService {
     const beforeHead = await readHeadCommit(this.repo.paths.root);
 
     const controller = new RunController(this.repo);
+    const brief = await this.writeConvergePassBrief(campaign, passId, batch);
     const run = await controller.initializeRun({
       adapter: campaign.adapter,
       executionMode: "autopilot",
-      entryTask: `Converge remediation for ${passId}`
+      entryTask: `Converge remediation for ${passId} with authoritative scope in ${brief.markdownPath}`
     });
+    await this.seedChildRunBoundedStories(run, campaign, passId, batch, brief.markdownPath, beforeHead);
+
     const launch = await controller.launchReadyStage();
     const launchCommand =
-      `praxis run --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge remediation for ${passId}"`;
+      `praxis run --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge remediation for ${passId} with authoritative scope in ${brief.markdownPath}"`;
     return {
       childRunId: run.run_id,
       childRunRecord: {
@@ -889,6 +1010,8 @@ export class ConvergeCampaignService {
         session_id: launch.session_id,
         locator: launch.locator,
         brief: {
+          path: brief.markdownPath,
+          json_path: brief.jsonPath,
           pass_id: passId,
           finding_ids: batch.selected_finding_ids,
           objective_path: campaign.objective.normalized_path,

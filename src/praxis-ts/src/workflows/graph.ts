@@ -97,7 +97,9 @@ export function resolveWorkflowTransition(
   return resolved;
 }
 
-export function expectedInputArtifacts(run: Pick<RunRecord, "current" | "mode">): string[] {
+export function expectedInputArtifacts(
+  run: Pick<RunRecord, "current" | "mode" | "constraints">
+): string[] {
   const stage = run.current.stage;
   const artifactDir = run.current.artifact_dir;
 
@@ -106,8 +108,7 @@ export function expectedInputArtifacts(run: Pick<RunRecord, "current" | "mode">)
   }
 
   if (stage === "clarifying-intent") {
-    // Bootstrap and normal clarifying-intent dispatches are user/handoff driven.
-    return [];
+    return run.constraints?.clarifying_required_artifacts ?? [];
   }
 
   if (stage === "slicing-stories") {
@@ -126,7 +127,7 @@ export function expectedInputArtifacts(run: Pick<RunRecord, "current" | "mode">)
 }
 
 export function expectedInputArtifactsForTransition(
-  run: Pick<RunRecord, "current" | "routing">,
+  run: Pick<RunRecord, "current" | "routing" | "constraints">,
   transition: {
     from_stage: StageName | null;
     from_outcome_code: string | null;
@@ -140,8 +141,7 @@ export function expectedInputArtifactsForTransition(
   }
 
   if (stage === "clarifying-intent") {
-    // Bootstrap and normal clarifying-intent dispatches are user/handoff driven.
-    return [];
+    return run.constraints?.clarifying_required_artifacts ?? [];
   }
 
   if (stage === "slicing-stories") {

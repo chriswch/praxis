@@ -132,6 +132,7 @@ export async function loadAndValidateStageResult(
       `Stage result route kind mismatch. Expected ${transition.routeKind}, received ${result.route.kind}.`
     );
   }
+  validateRunScopedOutcomeConstraints(run, result);
 
   return {
     result,
@@ -140,6 +141,22 @@ export async function loadAndValidateStageResult(
       next_stage: transition.nextStage
     }
   };
+}
+
+function validateRunScopedOutcomeConstraints(run: RunRecord, result: StageResultRecord): void {
+  if (result.stage !== "clarifying-intent") {
+    return;
+  }
+  const allowedOutcomes = run.constraints?.clarifying_allowed_outcomes;
+  if (!allowedOutcomes || allowedOutcomes.length === 0) {
+    return;
+  }
+  if (allowedOutcomes.includes(result.data.outcome_code)) {
+    return;
+  }
+  throw new InvalidInputError(
+    `Outcome ${result.data.outcome_code} is outside the bounded clarifying-intent scope for this run. Allowed outcomes: ${allowedOutcomes.join(", ")}.`
+  );
 }
 
 function validateReportedToolUses(result: StageResultRecord, activeDispatch: DispatchRecord): void {

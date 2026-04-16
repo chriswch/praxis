@@ -1,6 +1,7 @@
 import { getAdapter } from "../adapters/index.js";
 import { BlockedStateError, RejectedProgressionError } from "../../contracts/errors.js";
 import { nowIsoUtc } from "../common/time.js";
+import { hasUncommittedChanges, listCommitRange, readHeadCommit } from "../converge/git.js";
 import type { RunRecord } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import type { LifecycleActionOutcome } from "./types.js";
@@ -30,6 +31,7 @@ export class RunLifecycleService {
         ? `User input acknowledged. Ready to re-run ${run.current.stage}.`
         : `Continue acknowledged. Ready to run ${run.current.stage}.`;
 
+    await this.enforcePendingCommitGate(run);
     this.activateStage(run, reason);
 
     await this.repo.saveRun(run);
@@ -211,6 +213,32 @@ export class RunLifecycleService {
     run.routing.stop_reason_code = null;
     run.routing.reason = reason;
     run.timestamps.updated_at = nowIsoUtc();
+  }
+
+  private async enforcePendingCommitGate(run: RunRecord): Promise<void> {
+    const commitPolicy = run.constraints?.commit_per_story;
+    if (!commitPolicy?.enabled || !commitPolicy.pending_story_id) {
+      return;
+    }
+
+    const dirty = await hasUncommittedChanges(this.repo.paths.root);
+    const head = await readHeadCommit(this.repo.paths.root);
+    const producedCommits = await listCommitRange(
+      this.repo.paths.root,
+      commitPolicy.last_verified_head,
+      head
+    );
+
+    if (dirty || producedCommits.length === 0) {
+      throw new RejectedProgressionError(
+        dirty
+          ? `Story ${commitPolicy.pending_story_id} requires a clean commit checkpoint before continuing. Commit or stash local changes first.`
+          : `Story ${commitPolicy.pending_story_id} requires at least one new commit before continuing.`
+      );
+    }
+
+    commitPolicy.last_verified_head = head;
+    commitPolicy.pending_story_id = null;
   }
 
   private toOutcome(run: RunRecord): LifecycleActionOutcome {

@@ -170,6 +170,51 @@ export function validateRunRecord(run: RunRecord): void {
   if (run.current.scope === "slice" && run.current.slice_id === null) {
     throw new ContractError("current.slice_id is required when current.scope is slice");
   }
+
+  if (run.constraints !== undefined) {
+    assertRecord(run.constraints, "constraints");
+
+    if (run.constraints.clarifying_required_artifacts !== undefined) {
+      assertStringArray(run.constraints.clarifying_required_artifacts, "constraints.clarifying_required_artifacts");
+      for (const path of run.constraints.clarifying_required_artifacts) {
+        assertPraxisPath(path, "constraints.clarifying_required_artifacts item");
+      }
+    }
+
+    if (run.constraints.clarifying_allowed_outcomes !== undefined) {
+      assertStringArray(run.constraints.clarifying_allowed_outcomes, "constraints.clarifying_allowed_outcomes");
+      for (const outcomeCode of run.constraints.clarifying_allowed_outcomes) {
+        assertPlainString(outcomeCode, "constraints.clarifying_allowed_outcomes item");
+      }
+    }
+
+    if (run.constraints.bounded_scope !== undefined) {
+      assertRecord(run.constraints.bounded_scope, "constraints.bounded_scope");
+      assertEnum(run.constraints.bounded_scope.kind, ["converge_pass"], "constraints.bounded_scope.kind");
+      assertPlainString(run.constraints.bounded_scope.pass_id, "constraints.bounded_scope.pass_id");
+      assertRepoRelativePath(run.constraints.bounded_scope.objective_path, "constraints.bounded_scope.objective_path");
+      assertStringArray(run.constraints.bounded_scope.finding_ids, "constraints.bounded_scope.finding_ids");
+      assertStringArray(run.constraints.bounded_scope.story_ids, "constraints.bounded_scope.story_ids");
+      assertPraxisPath(run.constraints.bounded_scope.brief_path, "constraints.bounded_scope.brief_path");
+    }
+
+    if (run.constraints.commit_per_story !== undefined) {
+      assertRecord(run.constraints.commit_per_story, "constraints.commit_per_story");
+      assertBoolean(run.constraints.commit_per_story.enabled, "constraints.commit_per_story.enabled");
+      if (run.constraints.commit_per_story.last_verified_head !== null) {
+        assertPlainString(
+          run.constraints.commit_per_story.last_verified_head,
+          "constraints.commit_per_story.last_verified_head"
+        );
+      }
+      if (run.constraints.commit_per_story.pending_story_id !== null) {
+        assertPlainString(
+          run.constraints.commit_per_story.pending_story_id,
+          "constraints.commit_per_story.pending_story_id"
+        );
+      }
+    }
+  }
 }
 
 export function validateStageResult(result: StageResultRecord): void {

@@ -9,6 +9,7 @@ import { nowIsoUtc } from "../common/time.js";
 import { BlockedStateError, RejectedProgressionError } from "../../contracts/errors.js";
 import { loadAndValidateStageResult } from "./stage-result-validator.js";
 import { decideNextRouting } from "./workflow-router.js";
+import { hasUncommittedChanges, listCommitRange, readHeadCommit } from "../converge/git.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import type { SubmitStageResultOutcome } from "./types.js";
 import type { RunRecord } from "../../contracts/model.js";
@@ -105,6 +106,7 @@ export class StageResultService {
   private async boundaryMutationPhase(phase: StageResultRoutingPhase): Promise<StageResultRoutingPhase> {
     const { run, accepted, routingDecision } = phase;
     let { ledger, ledgerNeedsCommit } = phase;
+    const boundarySourceStoryId = ledger?.stories.active ?? null;
 
     const boundaryTransitionRequired =
       run.mode === "multi_slice" &&
@@ -127,6 +129,7 @@ export class StageResultService {
       run.routing.reason = boundary.handoff_path
         ? `Story boundary checkpointed (${boundary.handoff_path}). ${run.routing.reason}`
         : run.routing.reason;
+      await this.applyCommitPerStoryBoundaryGate(run, boundarySourceStoryId);
     }
 
     clearBoundaryHandoffIfConsumed(run);
@@ -138,6 +141,43 @@ export class StageResultService {
       ledgerNeedsCommit,
       routingDecision
     };
+  }
+
+  private async applyCommitPerStoryBoundaryGate(
+    run: RunRecord,
+    completedStoryId: string | null
+  ): Promise<void> {
+    const commitPolicy = run.constraints?.commit_per_story;
+    if (!commitPolicy?.enabled || !completedStoryId) {
+      return;
+    }
+
+    // For the terminal story, converge still verifies commit policy before reassessment.
+    if (run.current.stage === null) {
+      return;
+    }
+
+    const head = await readHeadCommit(this.repo.paths.root);
+    const producedCommits = await listCommitRange(
+      this.repo.paths.root,
+      commitPolicy.last_verified_head,
+      head
+    );
+    const worktreeDirty = await hasUncommittedChanges(this.repo.paths.root);
+
+    if (!worktreeDirty && producedCommits.length > 0) {
+      commitPolicy.last_verified_head = head;
+      commitPolicy.pending_story_id = null;
+      return;
+    }
+
+    commitPolicy.pending_story_id = completedStoryId;
+    run.status = "waiting_for_user";
+    run.routing.next_action = "ask_user";
+    run.routing.stop_reason_code = "commit_per_story_required";
+    run.routing.reason = worktreeDirty
+      ? `Story ${completedStoryId} completed, but commit-per-story is enabled and the worktree still has uncommitted changes. Commit the story before continuing.`
+      : `Story ${completedStoryId} completed, but commit-per-story is enabled and no new commit was detected for this boundary. Commit the story before continuing.`;
   }
 
   private async persistenceCommitPhase(phase: StageResultRoutingPhase): Promise<SubmitStageResultOutcome> {

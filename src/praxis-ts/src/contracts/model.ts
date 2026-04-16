@@ -229,6 +229,23 @@ export type RunRecord = {
     session_id: string | null;
     resumable: boolean;
   };
+  constraints?: {
+    clarifying_required_artifacts?: string[];
+    clarifying_allowed_outcomes?: string[];
+    bounded_scope?: {
+      kind: "converge_pass";
+      pass_id: string;
+      objective_path: string;
+      finding_ids: string[];
+      story_ids: string[];
+      brief_path: string;
+    };
+    commit_per_story?: {
+      enabled: boolean;
+      last_verified_head: string | null;
+      pending_story_id: string | null;
+    };
+  };
   timestamps: {
     created_at: string;
     updated_at: string;
