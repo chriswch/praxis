@@ -453,6 +453,16 @@ export function validateCampaignRecord(campaign: CampaignRecord): void {
   assertBoolean(campaign.auto_continue, "campaign.auto_continue");
   assertBoolean(campaign.allow_waive, "campaign.allow_waive");
   assertPlainString(campaign.reason, "campaign.reason");
+  assertRecord(campaign.metrics, "campaign.metrics");
+  if (
+    campaign.metrics.last_unresolved_at_or_above_threshold !== null
+    && campaign.metrics.last_unresolved_at_or_above_threshold < 0
+  ) {
+    throw new ContractError("campaign.metrics.last_unresolved_at_or_above_threshold must be >= 0");
+  }
+  if (campaign.metrics.no_progress_passes < 0) {
+    throw new ContractError("campaign.metrics.no_progress_passes must be >= 0");
+  }
   assertRecord(campaign.objective, "campaign.objective");
   assertPlainString(campaign.objective.source_path, "campaign.objective.source_path");
   assertRepoRelativePath(campaign.objective.normalized_path, "campaign.objective.normalized_path");

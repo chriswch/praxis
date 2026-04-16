@@ -353,6 +353,10 @@ export type CampaignRecord = {
   current_child_run_id: string | null;
   stop_reason_code: CampaignStopReasonCode | null;
   reason: string;
+  metrics: {
+    last_unresolved_at_or_above_threshold: number | null;
+    no_progress_passes: number;
+  };
   timestamps: {
     created_at: string;
     updated_at: string;

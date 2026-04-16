@@ -1,0 +1,58 @@
+import type { AdapterName, CampaignRecord, CampaignStopReasonCode, FindingSeverity, ConvergeProfile } from "../../contracts/model.js";
+
+export type ConvergeRunInput = {
+  workflow: "forge";
+  adapter: AdapterName;
+  objective: string;
+  profile: ConvergeProfile;
+  severityThreshold: FindingSeverity;
+  maxPasses: number;
+  maxFindingsPerPass: number;
+  maxStoriesPerPass: number;
+  scope: string[];
+  commitPerStory: boolean;
+  autoContinue: boolean;
+  allowWaive: boolean;
+};
+
+export type ConvergeActionOutcome = {
+  campaign_id: string;
+  status: CampaignRecord["status"];
+  current_pass: number;
+  stop_reason_code: CampaignStopReasonCode | null;
+  reason: string;
+};
+
+export type ConvergeStatusProjection = {
+  campaign_id: string;
+  status: CampaignRecord["status"];
+  profile: CampaignRecord["profile"];
+  severity_threshold: CampaignRecord["severity_threshold"];
+  current_pass: number;
+  max_passes: number;
+  stop_reason_code: CampaignStopReasonCode | null;
+  reason: string;
+  current_review_id: string | null;
+  current_child_run_id: string | null;
+  unresolved_at_or_above_threshold: number;
+};
+
+export type ConvergeInspectProjection = {
+  campaign: CampaignRecord;
+  objective_path: string;
+  artifacts: {
+    objective_file: string;
+    campaign_file: string;
+    campaign_ledger_file: string;
+    reviews_dir: string;
+    passes_dir: string;
+  };
+  unresolved_findings: Array<{
+    finding_id: string;
+    title: string;
+    severity: FindingSeverity;
+    status: string;
+    affected_paths: string[];
+  }>;
+  recent_pass_ids: string[];
+};
