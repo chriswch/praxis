@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { extname, join } from "node:path";
 import type {
   ConvergeProfile,
   ObjectiveAssessmentResult,
@@ -7,7 +7,6 @@ import type {
 } from "../../contracts/model.js";
 import { buildFindingFingerprint } from "./identity.js";
 import { compareSeverity } from "./severity.js";
-import { exists } from "../state/store.js";
 
 type AssessmentInput = {
   repoRoot: string;
@@ -19,220 +18,366 @@ type AssessmentInput = {
   generatedAt: string;
 };
 
-type CheckDefinition = {
-  id: string;
-  title: string;
-  severity: ObjectiveFinding["severity"];
-  category: string;
-  summary: string;
-  recommendedAction: string;
-  affectedPaths: string[];
-  evidence: string[];
-  confidence: number;
-  test: (repoRoot: string) => Promise<boolean>;
+type ObjectiveRequirement = {
+  section: string;
+  text: string;
+  objectiveRef: string;
+  line: number;
 };
 
-async function fileContains(repoRoot: string, relativePath: string, snippets: string[]): Promise<boolean> {
-  const absolutePath = join(repoRoot, relativePath);
-  if (!(await exists(absolutePath))) {
-    return false;
-  }
+type RepoDocument = {
+  path: string;
+  content: string;
+};
 
-  const content = await readFile(absolutePath, "utf8");
-  return snippets.every((snippet) => content.includes(snippet));
+const STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "be",
+  "by",
+  "for",
+  "from",
+  "if",
+  "in",
+  "into",
+  "is",
+  "it",
+  "must",
+  "of",
+  "on",
+  "or",
+  "that",
+  "the",
+  "to",
+  "with",
+  "without"
+]);
+
+const EXCLUDED_DIRS = new Set([".git", ".praxis", "node_modules", "dist", "build", ".next", "coverage"]);
+const ALLOWED_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".md", ".yml", ".yaml"]);
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
 }
 
-function inScope(scope: string[], affectedPaths: string[]): boolean {
-  if (scope.length === 0 || affectedPaths.length === 0) {
-    return true;
-  }
-
-  return affectedPaths.some((path) => scope.some((prefix) => path === prefix || path.startsWith(`${prefix}/`)));
+function toRepoPath(path: string): string {
+  return path.replaceAll("\\", "/").replace(/^\.\/+/, "");
 }
 
-function productSpecChecks(): CheckDefinition[] {
-  return [
-    {
-      id: "cli-converge-family",
-      title: "CLI is missing converge command family",
-      severity: "critical",
-      category: "cli-surface",
-      summary: "The public command plane does not expose `praxis converge` with lifecycle subcommands.",
-      recommendedAction: "Register a `converge` command group with run/status/inspect/resume/continue/cancel.",
-      affectedPaths: ["src/cli/program.ts"],
-      evidence: ["Expected subcommands: run,status,inspect,resume,continue,cancel"],
-      confidence: 0.98,
-      test: async (repoRoot) =>
-        fileContains(repoRoot, "src/cli/program.ts", [
-          ".command(\"converge\")",
-          ".command(\"run\")",
-          ".command(\"status\")",
-          ".command(\"inspect\")",
-          ".command(\"resume\")",
-          ".command(\"continue\")",
-          ".command(\"cancel\")"
-        ])
-    },
-    {
-      id: "cli-command-handlers",
-      title: "Converge command handlers are not exported",
-      severity: "high",
-      category: "cli-surface",
-      summary: "Command handlers for converge are not available from the shared command index.",
-      recommendedAction: "Add converge command handler modules and export them in src/cli/commands/index.ts.",
-      affectedPaths: ["src/cli/commands/index.ts"],
-      evidence: ["Expected runConverge*Command exports"],
-      confidence: 0.95,
-      test: async (repoRoot) =>
-        fileContains(repoRoot, "src/cli/commands/index.ts", [
-          "runConvergeRunCommand",
-          "runConvergeStatusCommand",
-          "runConvergeInspectCommand",
-          "runConvergeResumeCommand",
-          "runConvergeContinueCommand",
-          "runConvergeCancelCommand"
-        ])
-    },
-    {
-      id: "campaign-runtime-service",
-      title: "Campaign runtime service is missing",
-      severity: "critical",
-      category: "runtime-control",
-      summary: "The campaign controller does not exist, so iterative converge routing cannot execute.",
-      recommendedAction: "Implement a converge campaign service that owns assessment, batching, remediation linkage, and stop policy.",
-      affectedPaths: ["src/runtime/converge/campaign-service.ts"],
-      evidence: ["Expected campaign service module under src/runtime/converge"],
-      confidence: 0.99,
-      test: async (repoRoot) => exists(join(repoRoot, "src/runtime/converge/campaign-service.ts"))
-    },
-    {
-      id: "durable-campaign-artifacts",
-      title: "Campaign durable artifact wiring is incomplete",
-      severity: "high",
-      category: "durable-state",
-      summary: "State paths/repository APIs for campaign and findings artifacts are incomplete.",
-      recommendedAction: "Wire campaign/objective/ledger/passes/reviews paths and repository save/load helpers.",
-      affectedPaths: ["src/runtime/state/paths.ts", "src/runtime/state/repository.ts"],
-      evidence: ["Expected campaignFile, campaignLedgerFile, passesDir, reviewsDir and corresponding repository methods"],
-      confidence: 0.9,
-      test: async (repoRoot) =>
-        (await fileContains(repoRoot, "src/runtime/state/paths.ts", [
-          "campaignFile",
-          "campaignLedgerFile",
-          "passesDir",
-          "reviewsDir"
-        ]))
-        && (await fileContains(repoRoot, "src/runtime/state/repository.ts", [
-          "loadCampaign",
-          "saveCampaign",
-          "loadCampaignLedger",
-          "saveCampaignLedger",
-          "saveReviewArtifacts",
-          "savePassBatch",
-          "savePassSummary"
-        ]))
-    },
-    {
-      id: "assessment-profiles",
-      title: "Required assessment profiles are not fully supported",
-      severity: "medium",
-      category: "assessment",
-      summary: "Convergence requires explicit product-spec-gap and architecture-gap profiles.",
-      recommendedAction: "Define profile contracts and implement profile-aware assessors.",
-      affectedPaths: ["src/contracts/model.ts", "src/runtime/converge/assessment.ts"],
-      evidence: ["Expected product-spec-gap and architecture-gap profile support"],
-      confidence: 0.85,
-      test: async (repoRoot) =>
-        (await fileContains(repoRoot, "src/contracts/model.ts", [
-          "CONVERGE_PROFILES = [\"product-spec-gap\", \"architecture-gap\"]"
-        ]))
-        && (await exists(join(repoRoot, "src/runtime/converge/assessment.ts")))
+function parseObjectiveRequirements(objectivePath: string, objectiveText: string): ObjectiveRequirement[] {
+  const lines = objectiveText.split(/\r?\n/);
+  const requirements: ObjectiveRequirement[] = [];
+  let section = "Objective";
+  let fallbackCount = 0;
+
+  for (const [index, rawLine] of lines.entries()) {
+    const line = rawLine.trim();
+    if (line.length === 0) {
+      continue;
     }
-  ];
-}
 
-function architectureChecks(): CheckDefinition[] {
-  return [
-    {
-      id: "layered-campaign-runtime",
-      title: "Campaign runtime is not isolated from story run control",
-      severity: "high",
-      category: "architecture",
-      summary: "Converge control should live in a dedicated runtime module instead of expanding run-stage control directly.",
-      recommendedAction: "Keep campaign orchestration in src/runtime/converge and use run control only for child linkage.",
-      affectedPaths: ["src/runtime/converge", "src/runtime/control"],
-      evidence: ["Expected dedicated converge runtime module"],
-      confidence: 0.82,
-      test: async (repoRoot) => exists(join(repoRoot, "src/runtime/converge"))
-    },
-    {
-      id: "campaign-ledger-contract",
-      title: "Campaign findings ledger contract is missing",
-      severity: "critical",
-      category: "architecture",
-      summary: "Without a campaign findings ledger, converge cannot route passes from durable state.",
-      recommendedAction: "Add campaign-ledger contract with stable finding IDs and pass linkage.",
-      affectedPaths: ["src/contracts/model.ts", "src/contracts/validators.ts"],
-      evidence: ["Expected CampaignLedgerRecord with finding_id/fingerprint/status/pass linkage"],
-      confidence: 0.95,
-      test: async (repoRoot) =>
-        (await fileContains(repoRoot, "src/contracts/model.ts", ["export type CampaignLedgerRecord"])) &&
-        (await fileContains(repoRoot, "src/contracts/validators.ts", ["validateCampaignLedgerRecord"]))
-    },
-    {
-      id: "bounded-stop-policy",
-      title: "Convergence stop policy is not implemented",
-      severity: "medium",
-      category: "architecture",
-      summary: "Campaign decisions must stop on convergence, stall, block, or budget limits.",
-      recommendedAction: "Implement stop reason codes and route decisions in campaign runtime.",
-      affectedPaths: ["src/contracts/model.ts", "src/runtime/converge/campaign-service.ts"],
-      evidence: ["Expected campaign stop reason codes and enforcement in runtime"],
-      confidence: 0.8,
-      test: async (repoRoot) =>
-        (await fileContains(repoRoot, "src/contracts/model.ts", ["CAMPAIGN_STOP_REASON_CODES"])) &&
-        (await fileContains(repoRoot, "src/runtime/converge/campaign-service.ts", ["budget_exhausted", "stalled"]))
+    const heading = /^#{1,6}\s+(.+)$/.exec(line);
+    if (heading) {
+      section = heading[1].trim();
+      continue;
     }
-  ];
+
+    const listItem = /^(?:[-*]|\d+\.)\s+(.+)$/.exec(line);
+    if (!listItem) {
+      continue;
+    }
+    const statement = listItem[1].trim();
+    if (statement.length < 12) {
+      continue;
+    }
+    const refAnchor = slugify(section) || `line-${index + 1}`;
+    requirements.push({
+      section,
+      text: statement,
+      objectiveRef: `${objectivePath}#${refAnchor}`,
+      line: index + 1
+    });
+  }
+
+  if (requirements.length > 0) {
+    return requirements;
+  }
+
+  for (const [index, sentence] of objectiveText.split(/[.!?]\s+/).entries()) {
+    const trimmed = sentence.trim();
+    if (trimmed.length < 20) {
+      continue;
+    }
+    fallbackCount += 1;
+    requirements.push({
+      section: "Objective",
+      text: trimmed,
+      objectiveRef: `${objectivePath}#line-${index + 1}`,
+      line: index + 1
+    });
+    if (fallbackCount >= 12) {
+      break;
+    }
+  }
+  return requirements;
 }
 
-function objectiveRefsFromText(objectivePath: string, objectiveText: string): string[] {
-  const refs = [objectivePath];
-  if (objectiveText.includes("Acceptance Criteria")) {
-    refs.push(`${objectivePath}#acceptance-criteria`);
+function extractKeywords(text: string): string[] {
+  const fromCodeBlocks = [...text.matchAll(/`([^`]+)`/g)]
+    .map((match) => match[1].trim().toLowerCase())
+    .flatMap((value) => value.split(/\s+/))
+    .filter(Boolean);
+  const plainWords = text
+    .toLowerCase()
+    .replace(/[`"'():.,]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const ranked = [...fromCodeBlocks, ...plainWords]
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 || token.startsWith("--") || token.includes("/"))
+    .filter((token) => !STOPWORDS.has(token));
+
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const token of ranked) {
+    if (seen.has(token)) {
+      continue;
+    }
+    seen.add(token);
+    deduped.push(token);
+    if (deduped.length >= 14) {
+      break;
+    }
   }
-  if (objectiveText.includes("New Public CLI Surface")) {
-    refs.push(`${objectivePath}#new-public-cli-surface`);
+  return deduped;
+}
+
+function classifyCategory(requirement: string): string {
+  const lower = requirement.toLowerCase();
+  if (lower.includes("cli") || lower.includes("command") || lower.includes("--")) {
+    return "cli-surface";
   }
-  return refs;
+  if (lower.includes("assessment") || lower.includes("objective") || lower.includes("profile")) {
+    return "objective-assessment";
+  }
+  if (lower.includes("ledger") || lower.includes("artifact") || lower.includes("durable")) {
+    return "durable-state";
+  }
+  if (lower.includes("batch") || lower.includes("finding") || lower.includes("story")) {
+    return "batch-planning";
+  }
+  if (lower.includes("child") || lower.includes("scope") || lower.includes("craft")) {
+    return "child-remediation";
+  }
+  if (lower.includes("stop") || lower.includes("stalled") || lower.includes("budget") || lower.includes("converged")) {
+    return "stop-policy";
+  }
+  if (lower.includes("commit")) {
+    return "commit-policy";
+  }
+  return "objective-alignment";
+}
+
+function defaultAffectedPathsForCategory(category: string): string[] {
+  switch (category) {
+    case "cli-surface":
+      return ["src/cli"];
+    case "objective-assessment":
+      return ["src/runtime/converge/assessment.ts"];
+    case "durable-state":
+      return ["src/runtime/state"];
+    case "batch-planning":
+      return ["src/runtime/converge/planner.ts"];
+    case "child-remediation":
+      return ["src/runtime/converge/campaign-service.ts"];
+    case "stop-policy":
+      return ["src/runtime/converge/campaign-service.ts"];
+    case "commit-policy":
+      return ["src/runtime/control"];
+    default:
+      return ["src/runtime/converge"];
+  }
+}
+
+function inferSeverity(
+  profile: ConvergeProfile,
+  requirement: string,
+  coverage: number
+): ObjectiveFinding["severity"] {
+  const lower = requirement.toLowerCase();
+  const strict = lower.includes("must") || lower.includes("required") || lower.includes("authoritative");
+  const foundational =
+    lower.includes("assessment")
+    || lower.includes("stop")
+    || lower.includes("child")
+    || lower.includes("command")
+    || lower.includes("durable");
+
+  if (strict && foundational && coverage < 0.55) {
+    return "critical";
+  }
+  if ((strict && coverage < 0.72) || (profile === "architecture-gap" && foundational && coverage < 0.75)) {
+    return "high";
+  }
+  if (coverage < 0.85) {
+    return "medium";
+  }
+  return "low";
+}
+
+async function listRepoDocuments(repoRoot: string, scope: string[]): Promise<RepoDocument[]> {
+  const documents: RepoDocument[] = [];
+  const stack = scope.length > 0
+    ? scope.map((item) => join(repoRoot, item))
+    : [join(repoRoot, "src"), join(repoRoot, "README.md"), join(repoRoot, "product-spec.md"), join(repoRoot, ".plan")];
+
+  const visited = new Set<string>();
+  while (stack.length > 0) {
+    const candidate = stack.pop();
+    if (!candidate || visited.has(candidate)) {
+      continue;
+    }
+    visited.add(candidate);
+
+    let itemStats;
+    try {
+      itemStats = await stat(candidate);
+    } catch {
+      continue;
+    }
+
+    if (itemStats.isDirectory()) {
+      const name = candidate.split("/").at(-1) ?? "";
+      if (EXCLUDED_DIRS.has(name)) {
+        continue;
+      }
+      const entries = await readdir(candidate, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name.startsWith(".") && entry.name !== ".plan") {
+          continue;
+        }
+        stack.push(join(candidate, entry.name));
+      }
+      continue;
+    }
+
+    const extension = extname(candidate).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+      continue;
+    }
+
+    try {
+      const content = await readFile(candidate, "utf8");
+      const relativePath = toRepoPath(candidate.replace(`${repoRoot}/`, ""));
+      documents.push({
+        path: relativePath,
+        content: content.toLowerCase()
+      });
+    } catch {
+      // Best effort indexing: unreadable files are ignored.
+    }
+  }
+  return documents;
+}
+
+function summarizeEvidence(
+  requirement: ObjectiveRequirement,
+  matchedTokens: string[],
+  keywords: string[],
+  topMatches: Array<{ path: string; score: number }>
+): string[] {
+  const lines = [
+    `Objective requirement (line ${requirement.line}): ${requirement.text}`,
+    `Keyword coverage: ${matchedTokens.length}/${keywords.length}.`
+  ];
+  if (topMatches.length > 0) {
+    lines.push(
+      `Nearest implementation signals: ${topMatches.map((match) => `${match.path} (${match.score})`).join(", ")}.`
+    );
+  } else {
+    lines.push("Nearest implementation signals: none.");
+  }
+  return lines;
+}
+
+function recommendedAction(profile: ConvergeProfile, requirement: ObjectiveRequirement): string {
+  if (profile === "architecture-gap") {
+    return `Align runtime architecture with objective requirement: ${requirement.text}`;
+  }
+  return `Implement or tighten product behavior for objective requirement: ${requirement.text}`;
+}
+
+function confidenceFromCoverage(coverage: number): number {
+  const confidence = 0.55 + ((1 - coverage) * 0.4);
+  return Math.max(0.45, Math.min(0.99, Number.parseFloat(confidence.toFixed(2))));
+}
+
+function shouldEmitFinding(profile: ConvergeProfile, coverage: number, requirement: string): boolean {
+  const strict = /must|required|authoritative|stop|bounded|durable/i.test(requirement);
+  const threshold = profile === "architecture-gap" ? 0.72 : 0.78;
+  if (strict) {
+    return coverage < 0.9;
+  }
+  return coverage < threshold;
 }
 
 export async function assessObjective(input: AssessmentInput): Promise<{
   assessmentMarkdown: string;
   assessment: ObjectiveAssessmentResult;
 }> {
-  const checks = input.profile === "product-spec-gap" ? productSpecChecks() : architectureChecks();
+  const requirements = parseObjectiveRequirements(input.objectivePath, input.objectiveText);
+  const documents = await listRepoDocuments(input.repoRoot, input.scope);
   const findings: ObjectiveFinding[] = [];
 
-  for (const check of checks) {
-    if (!inScope(input.scope, check.affectedPaths)) {
+  for (const requirement of requirements) {
+    const keywords = extractKeywords(requirement.text);
+    if (keywords.length === 0) {
       continue;
     }
-    if (await check.test(input.repoRoot)) {
+
+    const matchedTokens = keywords.filter((token) => documents.some((document) => document.content.includes(token)));
+    const coverage = matchedTokens.length / keywords.length;
+    if (!shouldEmitFinding(input.profile, coverage, requirement.text)) {
       continue;
     }
+
+    const topMatches = documents
+      .map((document) => ({
+        path: document.path,
+        score: keywords.reduce(
+          (count, token) => (document.content.includes(token) ? count + 1 : count),
+          0
+        )
+      }))
+      .filter((match) => match.score > 0)
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 3);
+
+    const category = classifyCategory(requirement.text);
+    const affectedPaths = topMatches.length > 0
+      ? topMatches.map((match) => match.path)
+      : defaultAffectedPathsForCategory(category);
+    const severity = inferSeverity(input.profile, requirement.text, coverage);
 
     const objectiveFinding: ObjectiveFinding = {
       fingerprint: "",
-      title: check.title,
-      severity: check.severity,
-      category: check.category,
-      summary: check.summary,
-      evidence: check.evidence,
-      objective_refs: objectiveRefsFromText(input.objectivePath, input.objectiveText),
-      affected_paths: check.affectedPaths,
-      recommended_action: check.recommendedAction,
-      confidence: check.confidence
+      title: `${requirement.section}: objective gap`,
+      severity,
+      category,
+      summary: `Requirement is not fully implemented: ${requirement.text}`,
+      evidence: summarizeEvidence(requirement, matchedTokens, keywords, topMatches),
+      objective_refs: [requirement.objectiveRef],
+      affected_paths: affectedPaths,
+      recommended_action: recommendedAction(input.profile, requirement),
+      confidence: confidenceFromCoverage(coverage)
     };
     objectiveFinding.fingerprint = buildFindingFingerprint(input.profile, objectiveFinding);
     findings.push(objectiveFinding);
@@ -260,6 +405,7 @@ export async function assessObjective(input: AssessmentInput): Promise<{
     "",
     `- Profile: ${input.profile}`,
     `- Objective: ${input.objectivePath}`,
+    `- Requirements analyzed: ${requirements.length}`,
     `- Findings: ${findings.length}`,
     "",
     findings.length === 0 ? "No findings at this pass." : "## Findings",
