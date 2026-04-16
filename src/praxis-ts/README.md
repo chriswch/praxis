@@ -46,6 +46,7 @@ Internal commands:
 - `praxis submit-stage-result`
 - `praxis build-worker-launch`
 - `praxis register-worker-session`
+- `praxis run-codex-worker`
 
 Global flags:
 

@@ -15,6 +15,7 @@ import {
   runDispatchCommand,
   runInspectCommand,
   runRegisterWorkerSessionCommand,
+  runRunCodexWorkerCommand,
   runResumeCommand,
   runRunCommand,
   runSubmitStageResultCommand,
@@ -324,6 +325,39 @@ function registerInternalCommands(program: Command): void {
           startedAt: opts.startedAt,
           locator: opts.locator ?? null,
           resumable: opts.resumable ?? false
+        });
+      }
+    );
+
+  program
+    .command("run-codex-worker")
+    .description("Internal Codex worker host entrypoint")
+    .requiredOption("--dispatch-id <dispatch-id>", "Dispatch identifier")
+    .requiredOption("--worker-id <worker-id>", "Worker identifier")
+    .requiredOption("--handshake-path <path>", "Handshake artifact path under .praxis")
+    .requiredOption("--mode <mode>", "Worker host mode (launch|resume)")
+    .option("--expected-session-id <session-id>", "Expected provider session ID for resume")
+    .action(
+      async (
+        opts: {
+          dispatchId: string;
+          workerId: string;
+          handshakePath: string;
+          mode: string;
+          expectedSessionId?: string;
+        },
+        cmd: Command
+      ) => {
+        const global = toGlobalOptions(cmd);
+        if (opts.mode !== "launch" && opts.mode !== "resume") {
+          throw new Error(`Invalid run-codex-worker mode: ${opts.mode}`);
+        }
+        process.exitCode = await runRunCodexWorkerCommand(global.repoRoot, global.json, {
+          dispatchId: opts.dispatchId,
+          workerId: opts.workerId,
+          handshakePath: opts.handshakePath,
+          mode: opts.mode,
+          expectedSessionId: opts.expectedSessionId
         });
       }
     );
