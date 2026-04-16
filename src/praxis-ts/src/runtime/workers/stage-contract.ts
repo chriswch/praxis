@@ -1,49 +1,10 @@
-import { join } from "node:path";
 import type { DispatchRecord, StageName, WorkflowName } from "../../contracts/model.js";
+import {
+  expectedContractOutputArtifacts,
+  primaryContractOutputArtifact
+} from "../../workflows/stage-artifacts.js";
 
 type StageContract = DispatchRecord["contract"];
-
-function resultPath(artifactDir: string, stage: StageName): string {
-  return join(artifactDir, "results", `${stage}.json`).replace(/\\/g, "/");
-}
-
-function expectedOutputArtifacts(stage: StageName, artifactDir: string): string[] {
-  switch (stage) {
-    case "clarifying-intent":
-      return [join(artifactDir, "spec.md").replace(/\\/g, "/"), resultPath(artifactDir, stage)];
-    case "slicing-stories":
-      return [".praxis/slice-map.json", ".praxis/slice-map.md", resultPath(".praxis", stage)];
-    case "sketching-design":
-      return [join(artifactDir, "sketch.md").replace(/\\/g, "/"), resultPath(artifactDir, stage)];
-    case "driving-tdd":
-      return [join(artifactDir, "implementation.md").replace(/\\/g, "/"), resultPath(artifactDir, stage)];
-    case "code-reviewing":
-      return [join(artifactDir, "review.md").replace(/\\/g, "/"), resultPath(artifactDir, stage)];
-    case "code-improving":
-      return [join(artifactDir, "improvement.md").replace(/\\/g, "/"), resultPath(artifactDir, stage)];
-    case "verifying-and-adapting":
-      return [join(artifactDir, "verification.md").replace(/\\/g, "/"), resultPath(artifactDir, stage)];
-  }
-}
-
-function primaryOutput(stage: StageName, artifactDir: string): string | null {
-  switch (stage) {
-    case "clarifying-intent":
-      return join(artifactDir, "spec.md").replace(/\\/g, "/");
-    case "slicing-stories":
-      return ".praxis/slice-map.md";
-    case "sketching-design":
-      return join(artifactDir, "sketch.md").replace(/\\/g, "/");
-    case "driving-tdd":
-      return join(artifactDir, "implementation.md").replace(/\\/g, "/");
-    case "code-reviewing":
-      return join(artifactDir, "review.md").replace(/\\/g, "/");
-    case "code-improving":
-      return join(artifactDir, "improvement.md").replace(/\\/g, "/");
-    case "verifying-and-adapting":
-      return join(artifactDir, "verification.md").replace(/\\/g, "/");
-  }
-}
 
 function stageGoal(workflow: WorkflowName, stage: StageName): string {
   switch (stage) {
@@ -119,7 +80,7 @@ export function buildStageContract(
   return {
     stage_goal: stageGoal(workflow, stage),
     stage_instructions: stageInstructions(stage),
-    expected_output_artifacts: expectedOutputArtifacts(stage, artifactDir),
-    primary_output: primaryOutput(stage, artifactDir)
+    expected_output_artifacts: expectedContractOutputArtifacts(stage, artifactDir),
+    primary_output: primaryContractOutputArtifact(stage, artifactDir)
   };
 }

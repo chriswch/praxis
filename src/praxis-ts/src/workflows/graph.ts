@@ -6,6 +6,10 @@ import type {
   WorkflowName,
   WorkflowTransition
 } from "../contracts/model.js";
+import {
+  expectedInputArtifactsForStage,
+  expectedInputArtifactsForTransition as expectedInputArtifactsForTransitionStage
+} from "./stage-artifacts.js";
 
 function transition(routeKind: WorkflowTransition["routeKind"], nextStage: StageName | null): WorkflowTransition {
   return { routeKind, nextStage };
@@ -101,29 +105,16 @@ export function expectedInputArtifacts(
   run: Pick<RunRecord, "current" | "mode" | "constraints">
 ): string[] {
   const stage = run.current.stage;
-  const artifactDir = run.current.artifact_dir;
 
   if (!stage) {
     return [];
   }
 
-  if (stage === "clarifying-intent") {
-    return run.constraints?.clarifying_required_artifacts ?? [];
-  }
-
-  if (stage === "slicing-stories") {
-    return [".praxis/brief.md"];
-  }
-
-  if (stage === "sketching-design" || stage === "driving-tdd") {
-    return [`${artifactDir}/spec.md`];
-  }
-
-  if (stage === "code-improving") {
-    return [`${artifactDir}/review.md`];
-  }
-
-  return [];
+  return expectedInputArtifactsForStage(
+    stage,
+    run.current.artifact_dir,
+    run.constraints?.clarifying_required_artifacts ?? []
+  );
 }
 
 export function expectedInputArtifactsForTransition(
@@ -134,50 +125,15 @@ export function expectedInputArtifactsForTransition(
   }
 ): string[] {
   const stage = run.current.stage;
-  const artifactDir = run.current.artifact_dir;
 
   if (!stage) {
     return [];
   }
 
-  if (stage === "clarifying-intent") {
-    return run.constraints?.clarifying_required_artifacts ?? [];
-  }
-
-  if (stage === "slicing-stories") {
-    return [".praxis/brief.md"];
-  }
-
-  if (stage === "sketching-design" || stage === "driving-tdd") {
-    return [`${artifactDir}/spec.md`];
-  }
-
-  if (stage === "code-reviewing") {
-    if (transition.from_stage === "driving-tdd" && transition.from_outcome_code === "tdd_complete") {
-      return [`${artifactDir}/implementation.md`];
-    }
-    // Fallback for resumed runs missing transition metadata.
-    return [`${artifactDir}/implementation.md`];
-  }
-
-  if (stage === "code-improving") {
-    return [`${artifactDir}/review.md`];
-  }
-
-  if (stage === "verifying-and-adapting") {
-    if (transition.from_stage === "code-reviewing" && transition.from_outcome_code === "review_skipped") {
-      return [`${artifactDir}/review.md`];
-    }
-    if (
-      transition.from_stage === "code-improving" &&
-      (transition.from_outcome_code === "improvement_ready" ||
-        transition.from_outcome_code === "improvement_skipped")
-    ) {
-      return [`${artifactDir}/improvement.md`];
-    }
-    // Fallback for resumed runs missing transition metadata.
-    return [`${artifactDir}/improvement.md`];
-  }
-
-  return [];
+  return expectedInputArtifactsForTransitionStage(
+    stage,
+    run.current.artifact_dir,
+    transition,
+    run.constraints?.clarifying_required_artifacts ?? []
+  );
 }

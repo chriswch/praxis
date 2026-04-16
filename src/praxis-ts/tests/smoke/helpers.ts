@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { StageName, StageResultRecord } from "../../src/contracts/model.js";
+import { expectedOutcomeArtifacts } from "../../src/workflows/stage-artifacts.js";
 
 const fakeCodexPath = resolve(process.cwd(), "tests", "fixtures", "fake-codex-cli.mjs");
 process.env.PRAXIS_CODEX_BIN = process.env.PRAXIS_CODEX_BIN ?? fakeCodexPath;
@@ -87,7 +88,7 @@ export async function writeStageResult(
   for (const artifactPath of payload.output_artifacts ?? []) {
     artifactFiles.add(artifactPath);
   }
-  for (const artifactPath of expectedStageArtifacts(stage, artifactDir, payload.data.outcome_code)) {
+  for (const artifactPath of expectedOutcomeArtifacts(stage, artifactDir, payload.data.outcome_code)) {
     artifactFiles.add(artifactPath);
   }
 
@@ -102,29 +103,4 @@ export async function writeStageResult(
 
   await writeFile(fullPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
   return relativePath;
-}
-
-function expectedStageArtifacts(stage: StageName, artifactDir: string, outcomeCode: string): string[] {
-  switch (stage) {
-    case "clarifying-intent":
-      if (outcomeCode === "feature_brief_ready") {
-        return [".praxis/brief.md"];
-      }
-      if (outcomeCode === "story_spec_ready" || outcomeCode === "bug_fix_ready") {
-        return [`${artifactDir}/spec.md`];
-      }
-      return [];
-    case "slicing-stories":
-      return [".praxis/slice-map.md", ".praxis/slice-map.json"];
-    case "sketching-design":
-      return outcomeCode === "sketch_ready" ? [`${artifactDir}/sketch.md`] : [];
-    case "driving-tdd":
-      return [`${artifactDir}/implementation.md`];
-    case "code-reviewing":
-      return [`${artifactDir}/review.md`];
-    case "code-improving":
-      return [`${artifactDir}/improvement.md`];
-    case "verifying-and-adapting":
-      return [`${artifactDir}/verification.md`];
-  }
 }
