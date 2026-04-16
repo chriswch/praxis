@@ -4,10 +4,11 @@ import type {
   CampaignLedgerRecord,
   CampaignRecord,
   DispatchRecord,
+  GapAssessmentResult,
   LifecycleEvent,
-  ObjectiveAssessmentResult,
   PassBatchRecord,
   PassSummaryRecord,
+  RemediationMapRecord,
   RunRecord,
   StageResultRecord,
   StoryLedgerRecord
@@ -19,6 +20,7 @@ import {
   validateObjectiveAssessmentResult,
   validatePassBatchRecord,
   validatePassSummaryRecord,
+  validateRemediationMapRecord,
   validateRunRecord,
   validateStageResult,
   validateStoryLedgerRecord
@@ -184,11 +186,15 @@ export class PraxisStateRepository {
     await writeFile(this.paths.objectiveFile, `${markdown.trimEnd()}\n`, "utf8");
   }
 
+  async saveTargetSpecMarkdown(markdown: string): Promise<void> {
+    await writeFile(this.paths.targetSpecFile, `${markdown.trimEnd()}\n`, "utf8");
+  }
+
   async saveReviewArtifacts(
     reviewId: string,
     payload: {
       assessmentMarkdown: string;
-      findings: ObjectiveAssessmentResult;
+      findings: GapAssessmentResult;
       stageResult: Record<string, unknown>;
     }
   ): Promise<void> {
@@ -200,6 +206,21 @@ export class PraxisStateRepository {
     await writeFile(join(reviewDir, "assessment.md"), `${payload.assessmentMarkdown.trimEnd()}\n`, "utf8");
     await writeJsonFile(join(reviewDir, "findings.json"), payload.findings);
     await writeJsonFile(join(resultsDir, "objective-assessing.json"), payload.stageResult);
+  }
+
+  async saveGapArtifacts(
+    payload: {
+      gapMarkdown: string;
+      gap: GapAssessmentResult;
+      stageResult: Record<string, unknown>;
+    }
+  ): Promise<void> {
+    validateObjectiveAssessmentResult(payload.gap);
+    const resultsDir = join(this.paths.praxisDir, "results");
+    await mkdir(resultsDir, { recursive: true });
+    await writeFile(this.paths.gapFile, `${payload.gapMarkdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(this.paths.gapDataFile, payload.gap);
+    await writeJsonFile(join(resultsDir, "assessing-gaps.json"), payload.stageResult);
   }
 
   async savePassBatch(passId: string, batchMarkdown: string, batch: PassBatchRecord): Promise<void> {
@@ -216,6 +237,12 @@ export class PraxisStateRepository {
       validatePassBatchRecord(batch);
     }
     return batch;
+  }
+
+  async saveRemediationMap(markdown: string, remediationMap: RemediationMapRecord): Promise<void> {
+    validateRemediationMapRecord(remediationMap);
+    await writeFile(this.paths.remediationMapFile, `${markdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(this.paths.remediationMapDataFile, remediationMap);
   }
 
   async savePassSummary(passId: string, summary: PassSummaryRecord): Promise<void> {

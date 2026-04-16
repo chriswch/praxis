@@ -6,6 +6,7 @@ import {
   CONVERGE_PROFILES,
   DISPATCH_WORKER_MODES,
   EXECUTION_MODES,
+  FINDING_KINDS,
   FINDING_SEVERITIES,
   FINDING_STATUS,
   PERMISSION_PROFILES,
@@ -26,6 +27,7 @@ import {
   type ObjectiveAssessmentResult,
   type PassBatchRecord,
   type PassSummaryRecord,
+  type RemediationMapRecord,
   type RunRecord,
   type StageResultRecord,
   type StoryLedgerRecord,
@@ -560,15 +562,19 @@ export function validateCampaignLedgerRecord(ledger: CampaignLedgerRecord): void
     }
     assertPlainString(finding.fingerprint, `${findingId}.fingerprint`);
     assertPlainString(finding.title, `${findingId}.title`);
+    assertEnum(finding.kind, FINDING_KINDS, `${findingId}.kind`);
     assertEnum(finding.severity, FINDING_SEVERITIES, `${findingId}.severity`);
     assertPlainString(finding.category, `${findingId}.category`);
     assertPlainString(finding.summary, `${findingId}.summary`);
+    assertPlainString(finding.expected_behavior, `${findingId}.expected_behavior`);
+    assertPlainString(finding.current_behavior, `${findingId}.current_behavior`);
     assertStringArray(finding.evidence, `${findingId}.evidence`);
     assertStringArray(finding.objective_refs, `${findingId}.objective_refs`);
     assertStringArray(finding.affected_paths, `${findingId}.affected_paths`);
     for (const path of finding.affected_paths) {
       assertRepoRelativePath(path, `${findingId}.affected_paths item`);
     }
+    assertPlainString(finding.recommended_direction, `${findingId}.recommended_direction`);
     assertPlainString(finding.recommended_action, `${findingId}.recommended_action`);
     assertEnum(finding.status, FINDING_STATUS, `${findingId}.status`);
     if (typeof finding.confidence !== "number" || Number.isNaN(finding.confidence)) {
@@ -598,7 +604,7 @@ export function validateObjectiveAssessmentResult(result: ObjectiveAssessmentRes
   }
   assertEnum(result.profile, CONVERGE_PROFILES, "objective assessment profile");
   assertPlainString(result.review_id, "objective assessment review_id");
-  assertRepoRelativePath(result.objective_path, "objective assessment objective_path");
+  assertRepoRelativePath(result.target_spec_path, "objective assessment target_spec_path");
   if (!Array.isArray(result.findings)) {
     throw new ContractError("objective assessment findings must be an array");
   }
@@ -606,19 +612,79 @@ export function validateObjectiveAssessmentResult(result: ObjectiveAssessmentRes
   for (const [index, finding] of result.findings.entries()) {
     assertPlainString(finding.fingerprint, `objective finding ${index}.fingerprint`);
     assertPlainString(finding.title, `objective finding ${index}.title`);
+    assertEnum(finding.kind, FINDING_KINDS, `objective finding ${index}.kind`);
     assertEnum(finding.severity, FINDING_SEVERITIES, `objective finding ${index}.severity`);
     assertPlainString(finding.category, `objective finding ${index}.category`);
     assertPlainString(finding.summary, `objective finding ${index}.summary`);
+    assertPlainString(finding.expected_behavior, `objective finding ${index}.expected_behavior`);
+    assertPlainString(finding.current_behavior, `objective finding ${index}.current_behavior`);
     assertStringArray(finding.evidence, `objective finding ${index}.evidence`);
     assertStringArray(finding.objective_refs, `objective finding ${index}.objective_refs`);
     assertStringArray(finding.affected_paths, `objective finding ${index}.affected_paths`);
     for (const path of finding.affected_paths) {
       assertRepoRelativePath(path, `objective finding ${index}.affected_paths item`);
     }
+    assertPlainString(finding.recommended_direction, `objective finding ${index}.recommended_direction`);
     assertPlainString(finding.recommended_action, `objective finding ${index}.recommended_action`);
     if (typeof finding.confidence !== "number" || Number.isNaN(finding.confidence)) {
       throw new ContractError(`objective finding ${index}.confidence must be a number`);
     }
+  }
+}
+
+export function validateRemediationMapRecord(remediationMap: RemediationMapRecord): void {
+  if (remediationMap.version < 1) {
+    throw new ContractError("remediation map version must be >= 1");
+  }
+  assertPlainString(remediationMap.campaign_id, "remediation map campaign_id");
+  assertPlainString(remediationMap.pass_id, "remediation map pass_id");
+  if (remediationMap.pass_number < 1) {
+    throw new ContractError("remediation map pass_number must be >= 1");
+  }
+  assertPlainString(remediationMap.review_id, "remediation map review_id");
+  assertStringArray(remediationMap.selected_finding_ids, "remediation map selected_finding_ids");
+  assertStringArray(remediationMap.deferred_finding_ids, "remediation map deferred_finding_ids");
+  assertRecord(remediationMap.selection, "remediation map selection");
+  assertStringArray(remediationMap.selection.policy, "remediation map selection.policy");
+  if (!Array.isArray(remediationMap.selection.selected)) {
+    throw new ContractError("remediation map selection.selected must be an array");
+  }
+  for (const [index, selected] of remediationMap.selection.selected.entries()) {
+    assertPlainString(selected.finding_id, `remediation map selection.selected[${index}].finding_id`);
+    if (typeof selected.priority_score !== "number" || Number.isNaN(selected.priority_score)) {
+      throw new ContractError(
+        `remediation map selection.selected[${index}].priority_score must be a number`
+      );
+    }
+    assertEnum(selected.risk, ["high", "medium", "low"], `remediation map selection.selected[${index}].risk`);
+    assertStringArray(
+      selected.depends_on_finding_ids,
+      `remediation map selection.selected[${index}].depends_on_finding_ids`
+    );
+    assertPlainString(selected.reason, `remediation map selection.selected[${index}].reason`);
+  }
+  if (!Array.isArray(remediationMap.selection.deferred)) {
+    throw new ContractError("remediation map selection.deferred must be an array");
+  }
+  for (const [index, deferred] of remediationMap.selection.deferred.entries()) {
+    assertPlainString(deferred.finding_id, `remediation map selection.deferred[${index}].finding_id`);
+    assertPlainString(deferred.reason, `remediation map selection.deferred[${index}].reason`);
+  }
+  if (!Array.isArray(remediationMap.slices)) {
+    throw new ContractError("remediation map slices must be an array");
+  }
+  for (const [index, slice] of remediationMap.slices.entries()) {
+    assertPlainString(slice.slice_id, `remediation map slices[${index}].slice_id`);
+    assertPlainString(slice.title, `remediation map slices[${index}].title`);
+    assertStringArray(slice.finding_ids, `remediation map slices[${index}].finding_ids`);
+    assertPlainString(slice.objective, `remediation map slices[${index}].objective`);
+    assertStringArray(slice.scope, `remediation map slices[${index}].scope`);
+    for (const path of slice.scope) {
+      assertRepoRelativePath(path, `remediation map slices[${index}].scope item`);
+    }
+    assertStringArray(slice.non_goals, `remediation map slices[${index}].non_goals`);
+    assertStringArray(slice.dependencies, `remediation map slices[${index}].dependencies`);
+    assertPlainString(slice.done_condition, `remediation map slices[${index}].done_condition`);
   }
 }
 

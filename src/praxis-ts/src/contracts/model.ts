@@ -7,6 +7,9 @@ export type ConvergeProfile = (typeof CONVERGE_PROFILES)[number];
 export const FINDING_SEVERITIES = ["critical", "high", "medium", "low"] as const;
 export type FindingSeverity = (typeof FINDING_SEVERITIES)[number];
 
+export const FINDING_KINDS = ["missing", "partial", "wrong"] as const;
+export type FindingKind = (typeof FINDING_KINDS)[number];
+
 export const FINDING_STATUS = [
   "open",
   "batched",
@@ -381,12 +384,16 @@ export type CampaignFinding = {
   finding_id: string;
   fingerprint: string;
   title: string;
+  kind: FindingKind;
   severity: FindingSeverity;
   category: string;
   summary: string;
+  expected_behavior: string;
+  current_behavior: string;
   evidence: string[];
   objective_refs: string[];
   affected_paths: string[];
+  recommended_direction: string;
   recommended_action: string;
   status: FindingStatus;
   confidence: number;
@@ -409,14 +416,55 @@ export type CampaignLedgerRecord = {
   };
 };
 
-export type ObjectiveFinding = Omit<CampaignFinding, "finding_id" | "status" | "introduced_in_pass" | "resolved_in_pass" | "child_run_ids" | "story_ids" | "commit_refs" | "last_seen_pass">;
+export type GapFinding = Omit<CampaignFinding, "finding_id" | "status" | "introduced_in_pass" | "resolved_in_pass" | "child_run_ids" | "story_ids" | "commit_refs" | "last_seen_pass">;
+export type ObjectiveFinding = GapFinding;
 
-export type ObjectiveAssessmentResult = {
+export type GapAssessmentResult = {
   version: number;
   profile: ConvergeProfile;
   review_id: string;
-  objective_path: string;
-  findings: ObjectiveFinding[];
+  target_spec_path: string;
+  findings: GapFinding[];
+  generated_at: string;
+};
+
+// Backward-compatible alias while runtime migration from objective-assessment naming is in progress.
+export type ObjectiveAssessmentResult = GapAssessmentResult;
+
+export type RemediationSliceRecord = {
+  slice_id: string;
+  finding_ids: string[];
+  title: string;
+  objective: string;
+  scope: string[];
+  non_goals: string[];
+  dependencies: string[];
+  done_condition: string;
+};
+
+export type RemediationMapRecord = {
+  version: number;
+  campaign_id: string;
+  pass_id: string;
+  pass_number: number;
+  review_id: string;
+  selected_finding_ids: string[];
+  deferred_finding_ids: string[];
+  selection: {
+    policy: string[];
+    selected: Array<{
+      finding_id: string;
+      priority_score: number;
+      risk: "high" | "medium" | "low";
+      depends_on_finding_ids: string[];
+      reason: string;
+    }>;
+    deferred: Array<{
+      finding_id: string;
+      reason: string;
+    }>;
+  };
+  slices: RemediationSliceRecord[];
   generated_at: string;
 };
 

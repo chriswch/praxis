@@ -68,12 +68,16 @@ export function mergeAssessmentIntoLedger(
     const existing = byFingerprint.get(assessedFinding.fingerprint);
     if (existing) {
       existing.title = assessedFinding.title;
+      existing.kind = assessedFinding.kind;
       existing.severity = assessedFinding.severity;
       existing.category = assessedFinding.category;
       existing.summary = assessedFinding.summary;
+      existing.expected_behavior = assessedFinding.expected_behavior;
+      existing.current_behavior = assessedFinding.current_behavior;
       existing.evidence = assessedFinding.evidence;
       existing.objective_refs = assessedFinding.objective_refs;
       existing.affected_paths = assessedFinding.affected_paths;
+      existing.recommended_direction = assessedFinding.recommended_direction;
       existing.recommended_action = assessedFinding.recommended_action;
       existing.confidence = assessedFinding.confidence;
       existing.status = unresolvedStatusFromPrevious(existing.status);
@@ -88,12 +92,16 @@ export function mergeAssessmentIntoLedger(
       finding_id: findingId,
       fingerprint: assessedFinding.fingerprint,
       title: assessedFinding.title,
+      kind: assessedFinding.kind,
       severity: assessedFinding.severity,
       category: assessedFinding.category,
       summary: assessedFinding.summary,
+      expected_behavior: assessedFinding.expected_behavior,
+      current_behavior: assessedFinding.current_behavior,
       evidence: assessedFinding.evidence,
       objective_refs: assessedFinding.objective_refs,
       affected_paths: assessedFinding.affected_paths,
+      recommended_direction: assessedFinding.recommended_direction,
       recommended_action: assessedFinding.recommended_action,
       status: "open",
       confidence: assessedFinding.confidence,

@@ -370,12 +370,16 @@ export async function assessObjective(input: AssessmentInput): Promise<{
     const objectiveFinding: ObjectiveFinding = {
       fingerprint: "",
       title: `${requirement.section}: objective gap`,
+      kind: coverage <= 0.2 ? "missing" : "partial",
       severity,
       category,
       summary: `Requirement is not fully implemented: ${requirement.text}`,
+      expected_behavior: requirement.text,
+      current_behavior: `Repository evidence currently covers ${matchedTokens.length} of ${keywords.length} key terms.`,
       evidence: summarizeEvidence(requirement, matchedTokens, keywords, topMatches),
       objective_refs: [requirement.objectiveRef],
       affected_paths: affectedPaths,
+      recommended_direction: recommendedAction(input.profile, requirement),
       recommended_action: recommendedAction(input.profile, requirement),
       confidence: confidenceFromCoverage(coverage)
     };
@@ -395,7 +399,7 @@ export async function assessObjective(input: AssessmentInput): Promise<{
     version: 1,
     profile: input.profile,
     review_id: input.reviewId,
-    objective_path: input.objectivePath,
+    target_spec_path: input.objectivePath,
     findings,
     generated_at: input.generatedAt
   };
