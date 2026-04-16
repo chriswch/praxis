@@ -34,3 +34,12 @@ export async function listCommitRange(
     return [];
   }
 }
+
+export async function hasUncommittedChanges(repoRoot: string): Promise<boolean> {
+  try {
+    const { stdout } = await execFileAsync("git", ["status", "--porcelain"], { cwd: repoRoot });
+    return stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
+}

@@ -25,7 +25,7 @@ import {
   mergeAssessmentIntoLedger
 } from "./ledger.js";
 import { planPassBatch } from "./planner.js";
-import { listCommitRange, readHeadCommit } from "./git.js";
+import { hasUncommittedChanges, listCommitRange, readHeadCommit } from "./git.js";
 import { isAtOrAboveSeverity } from "./severity.js";
 import type {
   ConvergeActionOutcome,
@@ -123,6 +123,10 @@ function listCompletedStoryIds(ledger: StoryLedgerRecord | null): string[] {
     return [];
   }
   return ledger.stories.order.filter((storyId) => ledger.stories.items[storyId]?.status === "completed");
+}
+
+function requiredCommitsForCompletion(completedStoryIds: string[]): number {
+  return completedStoryIds.length > 0 ? completedStoryIds.length : 1;
 }
 
 export class ConvergeCampaignService {
@@ -634,8 +638,39 @@ export class ConvergeCampaignService {
     }
 
     const completion = await this.collectChildCompletion(passId, childRun, batch);
-    if (campaign.commit_per_story && completion.producedCommits.length > 0) {
+    if (completion.producedCommits.length > 0) {
       attachCommitRefsToFindings(ledger, batch.selected_finding_ids, completion.producedCommits);
+    }
+
+    if (campaign.commit_per_story) {
+      const requiredCommits = requiredCommitsForCompletion(completion.completedStoryIds);
+      if (completion.worktreeDirty || completion.producedCommits.length < requiredCommits) {
+        campaign.status = "waiting_for_user";
+        campaign.stop_reason_code = "needs_operator";
+        campaign.reason = completion.worktreeDirty
+          ? `Child run ${childRun.run_id} completed, but commit-per-story is enabled and the worktree still has uncommitted changes. Commit each completed story and run \`praxis converge continue\`.`
+          : `Child run ${childRun.run_id} completed ${completion.completedStoryIds.length} stor${completion.completedStoryIds.length === 1 ? "y" : "ies"} but produced ${completion.producedCommits.length} commit(s). Commit-per-story is enabled, so each completed story must have a corresponding commit before reassessment.`;
+        campaign.timestamps.updated_at = nowIsoUtc();
+        await this.repo.savePassSummary(passId, {
+          ...summary,
+          completed_story_ids: completion.completedStoryIds,
+          produced_commits: completion.producedCommits,
+          outcome: "needs_operator",
+          generated_at: nowIsoUtc()
+        });
+        await this.repo.savePassChildRun(passId, {
+          ...(await this.repo.loadPassChildRun(passId) ?? {}),
+          status: "completed",
+          commit_policy: {
+            commit_per_story: true,
+            required_commits: requiredCommits,
+            produced_commits: completion.producedCommits.length,
+            worktree_dirty: completion.worktreeDirty
+          },
+          updated_at: nowIsoUtc()
+        });
+        return { campaign, ledger, continueToPlanning: false };
+      }
     }
 
     const reassessment = await this.assessAndMerge(
@@ -709,18 +744,20 @@ export class ConvergeCampaignService {
     passId: string,
     childRun: RunRecord,
     batch: PassBatchRecord
-  ): Promise<{ completedStoryIds: string[]; producedCommits: string[] }> {
+  ): Promise<{ completedStoryIds: string[]; producedCommits: string[]; worktreeDirty: boolean }> {
     const childRecord = await this.repo.loadPassChildRun(passId) ?? {};
     const beforeHead = readOptionalString(childRecord, "before_head");
     const afterHead = await readHeadCommit(this.repo.paths.root);
     const producedCommits = await listCommitRange(this.repo.paths.root, beforeHead, afterHead);
+    const worktreeDirty = await hasUncommittedChanges(this.repo.paths.root);
 
     const storyLedger = await this.repo.loadStoryLedger();
     const completedStoryIds = listCompletedStoryIds(storyLedger);
 
     return {
       completedStoryIds,
-      producedCommits
+      producedCommits,
+      worktreeDirty
     };
   }
 
