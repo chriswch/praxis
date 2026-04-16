@@ -1,14 +1,24 @@
 import { join } from "node:path";
-import { unlink } from "node:fs/promises";
+import { unlink, writeFile, mkdir } from "node:fs/promises";
 import type {
+  CampaignLedgerRecord,
+  CampaignRecord,
   DispatchRecord,
   LifecycleEvent,
+  ObjectiveAssessmentResult,
+  PassBatchRecord,
+  PassSummaryRecord,
   RunRecord,
   StageResultRecord,
   StoryLedgerRecord
 } from "../../contracts/model.js";
 import {
+  validateCampaignLedgerRecord,
+  validateCampaignRecord,
   validateDispatchRecord,
+  validateObjectiveAssessmentResult,
+  validatePassBatchRecord,
+  validatePassSummaryRecord,
   validateRunRecord,
   validateStageResult,
   validateStoryLedgerRecord
@@ -35,6 +45,8 @@ export class PraxisStateRepository {
 
   async ensureLayout(): Promise<void> {
     await ensureDir(this.paths.praxisDir);
+    await ensureDir(this.paths.passesDir);
+    await ensureDir(this.paths.reviewsDir);
     await ensureDir(this.paths.tracesDir);
     await ensureDir(this.paths.dispatchesDir);
     await ensureDir(this.paths.sessionsDir);
@@ -55,6 +67,32 @@ export class PraxisStateRepository {
   async saveRun(run: RunRecord): Promise<void> {
     validateRunRecord(run);
     await writeJsonFile(this.paths.runFile, run);
+  }
+
+  async loadCampaign(): Promise<CampaignRecord | null> {
+    const campaign = await readJsonFileIfExists<CampaignRecord>(this.paths.campaignFile);
+    if (campaign) {
+      validateCampaignRecord(campaign);
+    }
+    return campaign;
+  }
+
+  async saveCampaign(campaign: CampaignRecord): Promise<void> {
+    validateCampaignRecord(campaign);
+    await writeJsonFile(this.paths.campaignFile, campaign);
+  }
+
+  async loadCampaignLedger(): Promise<CampaignLedgerRecord | null> {
+    const ledger = await readJsonFileIfExists<CampaignLedgerRecord>(this.paths.campaignLedgerFile);
+    if (ledger) {
+      validateCampaignLedgerRecord(ledger);
+    }
+    return ledger;
+  }
+
+  async saveCampaignLedger(ledger: CampaignLedgerRecord): Promise<void> {
+    validateCampaignLedgerRecord(ledger);
+    await writeJsonFile(this.paths.campaignLedgerFile, ledger);
   }
 
   async loadStoryLedger(): Promise<StoryLedgerRecord | null> {
@@ -140,6 +178,43 @@ export class PraxisStateRepository {
 
   async appendPolicyRecord(payload: Record<string, unknown>): Promise<void> {
     await appendJsonLine(join(this.paths.policyDir, "tool-records.jsonl"), payload);
+  }
+
+  async saveObjectiveMarkdown(markdown: string): Promise<void> {
+    await writeFile(this.paths.objectiveFile, `${markdown.trimEnd()}\n`, "utf8");
+  }
+
+  async saveReviewArtifacts(
+    reviewId: string,
+    payload: {
+      assessmentMarkdown: string;
+      findings: ObjectiveAssessmentResult;
+      stageResult: Record<string, unknown>;
+    }
+  ): Promise<void> {
+    const reviewDir = join(this.paths.reviewsDir, reviewId);
+    const resultsDir = join(reviewDir, "results");
+    await mkdir(resultsDir, { recursive: true });
+
+    validateObjectiveAssessmentResult(payload.findings);
+    await writeFile(join(reviewDir, "assessment.md"), `${payload.assessmentMarkdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(join(reviewDir, "findings.json"), payload.findings);
+    await writeJsonFile(join(resultsDir, "objective-assessing.json"), payload.stageResult);
+  }
+
+  async savePassBatch(passId: string, batchMarkdown: string, batch: PassBatchRecord): Promise<void> {
+    validatePassBatchRecord(batch);
+    const passDir = join(this.paths.passesDir, passId);
+    await mkdir(passDir, { recursive: true });
+    await writeFile(join(passDir, "batch.md"), `${batchMarkdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(join(passDir, "batch.json"), batch);
+  }
+
+  async savePassSummary(passId: string, summary: PassSummaryRecord): Promise<void> {
+    validatePassSummaryRecord(summary);
+    const passDir = join(this.paths.passesDir, passId);
+    await mkdir(passDir, { recursive: true });
+    await writeJsonFile(join(passDir, "summary.json"), summary);
   }
 
   async listLifecycleEvents(limit = 50): Promise<Record<string, unknown>[]> {
