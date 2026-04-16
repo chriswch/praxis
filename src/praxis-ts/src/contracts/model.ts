@@ -1,6 +1,44 @@
 export const WORKFLOW_NAMES = ["craft", "forge"] as const;
 export type WorkflowName = (typeof WORKFLOW_NAMES)[number];
 
+export const CONVERGE_PROFILES = ["product-spec-gap", "architecture-gap"] as const;
+export type ConvergeProfile = (typeof CONVERGE_PROFILES)[number];
+
+export const FINDING_SEVERITIES = ["critical", "high", "medium", "low"] as const;
+export type FindingSeverity = (typeof FINDING_SEVERITIES)[number];
+
+export const FINDING_STATUS = [
+  "open",
+  "batched",
+  "in_progress",
+  "fixed",
+  "still_open",
+  "regressed",
+  "waived",
+  "duplicate",
+  "escalated"
+] as const;
+export type FindingStatus = (typeof FINDING_STATUS)[number];
+
+export const CAMPAIGN_STATUS = [
+  "running",
+  "waiting_for_user",
+  "blocked",
+  "completed",
+  "cancelled"
+] as const;
+export type CampaignStatus = (typeof CAMPAIGN_STATUS)[number];
+
+export const CAMPAIGN_STOP_REASON_CODES = [
+  "converged",
+  "needs_operator",
+  "blocked",
+  "stalled",
+  "budget_exhausted",
+  "cancelled"
+] as const;
+export type CampaignStopReasonCode = (typeof CAMPAIGN_STOP_REASON_CODES)[number];
+
 export const ADAPTER_NAMES = ["codex", "claude"] as const;
 export type AdapterName = (typeof ADAPTER_NAMES)[number];
 
@@ -285,4 +323,114 @@ export type LifecycleEvent = {
   stage?: StageName | null;
   action?: string;
   details?: Record<string, unknown>;
+};
+
+export type ObjectiveManifest = {
+  source_path: string;
+  normalized_path: string;
+  profile: ConvergeProfile;
+  scope: string[];
+  created_at: string;
+};
+
+export type CampaignRecord = {
+  version: number;
+  campaign_id: string;
+  workflow: "forge";
+  adapter: AdapterName;
+  objective: ObjectiveManifest;
+  profile: ConvergeProfile;
+  severity_threshold: FindingSeverity;
+  max_passes: number;
+  max_findings_per_pass: number;
+  max_stories_per_pass: number;
+  commit_per_story: boolean;
+  auto_continue: boolean;
+  allow_waive: boolean;
+  status: CampaignStatus;
+  current_pass: number;
+  current_review_id: string | null;
+  current_child_run_id: string | null;
+  stop_reason_code: CampaignStopReasonCode | null;
+  reason: string;
+  timestamps: {
+    created_at: string;
+    updated_at: string;
+  };
+};
+
+export type CampaignFinding = {
+  finding_id: string;
+  fingerprint: string;
+  title: string;
+  severity: FindingSeverity;
+  category: string;
+  summary: string;
+  evidence: string[];
+  objective_refs: string[];
+  affected_paths: string[];
+  recommended_action: string;
+  status: FindingStatus;
+  confidence: number;
+  introduced_in_pass: number;
+  resolved_in_pass: number | null;
+  child_run_ids: string[];
+  story_ids: string[];
+  commit_refs: string[];
+  last_seen_pass: number;
+};
+
+export type CampaignLedgerRecord = {
+  version: number;
+  campaign_id: string;
+  profile: ConvergeProfile;
+  findings: Record<string, CampaignFinding>;
+  finding_order: string[];
+  timestamps: {
+    updated_at: string;
+  };
+};
+
+export type ObjectiveFinding = Omit<CampaignFinding, "finding_id" | "status" | "introduced_in_pass" | "resolved_in_pass" | "child_run_ids" | "story_ids" | "commit_refs" | "last_seen_pass">;
+
+export type ObjectiveAssessmentResult = {
+  version: number;
+  profile: ConvergeProfile;
+  review_id: string;
+  objective_path: string;
+  findings: ObjectiveFinding[];
+  generated_at: string;
+};
+
+export type PassBatchRecord = {
+  version: number;
+  campaign_id: string;
+  pass_id: string;
+  pass_number: number;
+  review_id: string;
+  selected_finding_ids: string[];
+  deferred_finding_ids: string[];
+  stories: Array<{
+    story_id: string;
+    title: string;
+    finding_ids: string[];
+    objective_context: string;
+    non_goals: string[];
+  }>;
+  generated_at: string;
+};
+
+export type PassSummaryRecord = {
+  version: number;
+  campaign_id: string;
+  pass_id: string;
+  pass_number: number;
+  child_run_id: string | null;
+  planned_finding_ids: string[];
+  completed_story_ids: string[];
+  produced_commits: string[];
+  reassessment_review_id: string;
+  unresolved_at_or_above_threshold: number;
+  outcome: "continue" | "converged" | "needs_operator" | "stalled" | "budget_exhausted";
+  generated_at: string;
 };

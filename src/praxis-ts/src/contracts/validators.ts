@@ -1,8 +1,13 @@
 import { posix } from "node:path";
 import {
   ADAPTER_NAMES,
+  CAMPAIGN_STATUS,
+  CAMPAIGN_STOP_REASON_CODES,
+  CONVERGE_PROFILES,
   DISPATCH_WORKER_MODES,
   EXECUTION_MODES,
+  FINDING_SEVERITIES,
+  FINDING_STATUS,
   PERMISSION_PROFILES,
   ROUTE_KINDS,
   RUN_NEXT_ACTIONS,
@@ -15,7 +20,12 @@ import {
   WORKTREE_MODES,
   WORKER_CLASSES,
   WORKFLOW_NAMES,
+  type CampaignLedgerRecord,
+  type CampaignRecord,
   type DispatchRecord,
+  type ObjectiveAssessmentResult,
+  type PassBatchRecord,
+  type PassSummaryRecord,
   type RunRecord,
   type StageResultRecord,
   type StoryLedgerRecord,
@@ -412,4 +422,182 @@ export function validateWorkerSessionRegistration(payload: WorkerSessionRegistra
   if (payload.details !== undefined && payload.details !== null) {
     assertRecord(payload.details, "details");
   }
+}
+
+export function validateCampaignRecord(campaign: CampaignRecord): void {
+  if (campaign.version < 1) {
+    throw new ContractError("campaign.version must be >= 1");
+  }
+  assertPlainString(campaign.campaign_id, "campaign_id");
+  assertEnum(campaign.workflow, ["forge"], "campaign.workflow");
+  assertEnum(campaign.adapter, ADAPTER_NAMES, "campaign.adapter");
+  assertEnum(campaign.profile, CONVERGE_PROFILES, "campaign.profile");
+  assertEnum(campaign.severity_threshold, FINDING_SEVERITIES, "campaign.severity_threshold");
+  assertEnum(campaign.status, CAMPAIGN_STATUS, "campaign.status");
+  if (campaign.stop_reason_code !== null) {
+    assertEnum(campaign.stop_reason_code, CAMPAIGN_STOP_REASON_CODES, "campaign.stop_reason_code");
+  }
+  if (campaign.max_passes < 1) {
+    throw new ContractError("campaign.max_passes must be >= 1");
+  }
+  if (campaign.max_findings_per_pass < 1) {
+    throw new ContractError("campaign.max_findings_per_pass must be >= 1");
+  }
+  if (campaign.max_stories_per_pass < 1) {
+    throw new ContractError("campaign.max_stories_per_pass must be >= 1");
+  }
+  if (campaign.current_pass < 0) {
+    throw new ContractError("campaign.current_pass must be >= 0");
+  }
+  assertBoolean(campaign.commit_per_story, "campaign.commit_per_story");
+  assertBoolean(campaign.auto_continue, "campaign.auto_continue");
+  assertBoolean(campaign.allow_waive, "campaign.allow_waive");
+  assertPlainString(campaign.reason, "campaign.reason");
+  assertRecord(campaign.objective, "campaign.objective");
+  assertPlainString(campaign.objective.source_path, "campaign.objective.source_path");
+  assertRepoRelativePath(campaign.objective.normalized_path, "campaign.objective.normalized_path");
+  assertEnum(campaign.objective.profile, CONVERGE_PROFILES, "campaign.objective.profile");
+  assertStringArray(campaign.objective.scope, "campaign.objective.scope");
+  for (const path of campaign.objective.scope) {
+    assertRepoRelativePath(path, "campaign.objective.scope item");
+  }
+}
+
+export function validateCampaignLedgerRecord(ledger: CampaignLedgerRecord): void {
+  if (ledger.version < 1) {
+    throw new ContractError("campaign ledger version must be >= 1");
+  }
+  assertPlainString(ledger.campaign_id, "campaign ledger campaign_id");
+  assertEnum(ledger.profile, CONVERGE_PROFILES, "campaign ledger profile");
+  assertStringArray(ledger.finding_order, "campaign ledger finding_order");
+  assertRecord(ledger.findings, "campaign ledger findings");
+
+  const seenFindingIds = new Set<string>();
+  for (const findingId of ledger.finding_order) {
+    assertPlainString(findingId, "campaign ledger finding_order item");
+    if (seenFindingIds.has(findingId)) {
+      throw new ContractError(`campaign ledger finding_order contains duplicate finding id ${findingId}`);
+    }
+    seenFindingIds.add(findingId);
+    if (!ledger.findings[findingId]) {
+      throw new ContractError(`campaign ledger missing finding ${findingId}`);
+    }
+  }
+
+  for (const [findingId, finding] of Object.entries(ledger.findings)) {
+    if (finding.finding_id !== findingId) {
+      throw new ContractError(`campaign finding key ${findingId} must match finding_id ${finding.finding_id}`);
+    }
+    assertPlainString(finding.fingerprint, `${findingId}.fingerprint`);
+    assertPlainString(finding.title, `${findingId}.title`);
+    assertEnum(finding.severity, FINDING_SEVERITIES, `${findingId}.severity`);
+    assertPlainString(finding.category, `${findingId}.category`);
+    assertPlainString(finding.summary, `${findingId}.summary`);
+    assertStringArray(finding.evidence, `${findingId}.evidence`);
+    assertStringArray(finding.objective_refs, `${findingId}.objective_refs`);
+    assertStringArray(finding.affected_paths, `${findingId}.affected_paths`);
+    for (const path of finding.affected_paths) {
+      assertRepoRelativePath(path, `${findingId}.affected_paths item`);
+    }
+    assertPlainString(finding.recommended_action, `${findingId}.recommended_action`);
+    assertEnum(finding.status, FINDING_STATUS, `${findingId}.status`);
+    if (typeof finding.confidence !== "number" || Number.isNaN(finding.confidence)) {
+      throw new ContractError(`${findingId}.confidence must be a number`);
+    }
+    if (finding.confidence < 0 || finding.confidence > 1) {
+      throw new ContractError(`${findingId}.confidence must be between 0 and 1`);
+    }
+    if (finding.introduced_in_pass < 1) {
+      throw new ContractError(`${findingId}.introduced_in_pass must be >= 1`);
+    }
+    if (finding.resolved_in_pass !== null && finding.resolved_in_pass < finding.introduced_in_pass) {
+      throw new ContractError(`${findingId}.resolved_in_pass must be >= introduced_in_pass`);
+    }
+    assertStringArray(finding.child_run_ids, `${findingId}.child_run_ids`);
+    assertStringArray(finding.story_ids, `${findingId}.story_ids`);
+    assertStringArray(finding.commit_refs, `${findingId}.commit_refs`);
+    if (finding.last_seen_pass < finding.introduced_in_pass) {
+      throw new ContractError(`${findingId}.last_seen_pass must be >= introduced_in_pass`);
+    }
+  }
+}
+
+export function validateObjectiveAssessmentResult(result: ObjectiveAssessmentResult): void {
+  if (result.version < 1) {
+    throw new ContractError("objective assessment result version must be >= 1");
+  }
+  assertEnum(result.profile, CONVERGE_PROFILES, "objective assessment profile");
+  assertPlainString(result.review_id, "objective assessment review_id");
+  assertRepoRelativePath(result.objective_path, "objective assessment objective_path");
+  if (!Array.isArray(result.findings)) {
+    throw new ContractError("objective assessment findings must be an array");
+  }
+
+  for (const [index, finding] of result.findings.entries()) {
+    assertPlainString(finding.fingerprint, `objective finding ${index}.fingerprint`);
+    assertPlainString(finding.title, `objective finding ${index}.title`);
+    assertEnum(finding.severity, FINDING_SEVERITIES, `objective finding ${index}.severity`);
+    assertPlainString(finding.category, `objective finding ${index}.category`);
+    assertPlainString(finding.summary, `objective finding ${index}.summary`);
+    assertStringArray(finding.evidence, `objective finding ${index}.evidence`);
+    assertStringArray(finding.objective_refs, `objective finding ${index}.objective_refs`);
+    assertStringArray(finding.affected_paths, `objective finding ${index}.affected_paths`);
+    for (const path of finding.affected_paths) {
+      assertRepoRelativePath(path, `objective finding ${index}.affected_paths item`);
+    }
+    assertPlainString(finding.recommended_action, `objective finding ${index}.recommended_action`);
+    if (typeof finding.confidence !== "number" || Number.isNaN(finding.confidence)) {
+      throw new ContractError(`objective finding ${index}.confidence must be a number`);
+    }
+  }
+}
+
+export function validatePassBatchRecord(batch: PassBatchRecord): void {
+  if (batch.version < 1) {
+    throw new ContractError("pass batch version must be >= 1");
+  }
+  assertPlainString(batch.campaign_id, "pass batch campaign_id");
+  assertPlainString(batch.pass_id, "pass batch pass_id");
+  if (batch.pass_number < 1) {
+    throw new ContractError("pass batch pass_number must be >= 1");
+  }
+  assertPlainString(batch.review_id, "pass batch review_id");
+  assertStringArray(batch.selected_finding_ids, "pass batch selected_finding_ids");
+  assertStringArray(batch.deferred_finding_ids, "pass batch deferred_finding_ids");
+  if (!Array.isArray(batch.stories)) {
+    throw new ContractError("pass batch stories must be an array");
+  }
+  for (const [index, story] of batch.stories.entries()) {
+    assertPlainString(story.story_id, `pass batch stories[${index}].story_id`);
+    assertPlainString(story.title, `pass batch stories[${index}].title`);
+    assertStringArray(story.finding_ids, `pass batch stories[${index}].finding_ids`);
+    assertPlainString(story.objective_context, `pass batch stories[${index}].objective_context`);
+    assertStringArray(story.non_goals, `pass batch stories[${index}].non_goals`);
+  }
+}
+
+export function validatePassSummaryRecord(summary: PassSummaryRecord): void {
+  if (summary.version < 1) {
+    throw new ContractError("pass summary version must be >= 1");
+  }
+  assertPlainString(summary.campaign_id, "pass summary campaign_id");
+  assertPlainString(summary.pass_id, "pass summary pass_id");
+  if (summary.pass_number < 1) {
+    throw new ContractError("pass summary pass_number must be >= 1");
+  }
+  if (summary.child_run_id !== null) {
+    assertPlainString(summary.child_run_id, "pass summary child_run_id");
+  }
+  assertStringArray(summary.planned_finding_ids, "pass summary planned_finding_ids");
+  assertStringArray(summary.completed_story_ids, "pass summary completed_story_ids");
+  assertStringArray(summary.produced_commits, "pass summary produced_commits");
+  assertPlainString(summary.reassessment_review_id, "pass summary reassessment_review_id");
+  if (summary.unresolved_at_or_above_threshold < 0) {
+    throw new ContractError("pass summary unresolved_at_or_above_threshold must be >= 0");
+  }
+  assertEnum(
+    summary.outcome,
+    ["continue", "converged", "needs_operator", "stalled", "budget_exhausted"],
+    "pass summary outcome"
+  );
 }
