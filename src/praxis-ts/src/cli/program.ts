@@ -4,6 +4,12 @@ import {
   runApproveCommand,
   runBuildWorkerLaunchCommand,
   runCancelCommand,
+  runConvergeCancelCommand,
+  runConvergeContinueCommand,
+  runConvergeInspectCommand,
+  runConvergeResumeCommand,
+  runConvergeRunCommand,
+  runConvergeStatusCommand,
   runContinueCommand,
   runDoctorCommand,
   runDispatchCommand,
@@ -16,10 +22,14 @@ import {
 } from "./commands/index.js";
 import {
   ADAPTER_NAMES,
+  CONVERGE_PROFILES,
   EXECUTION_MODES,
+  FINDING_SEVERITIES,
   WORKFLOW_NAMES,
   type AdapterName,
+  type ConvergeProfile,
   type ExecutionMode,
+  type FindingSeverity,
   type WorkflowName
 } from "../contracts/model.js";
 
@@ -36,8 +46,31 @@ type RunOptions = GlobalOptions & {
   entrypoint?: string;
 };
 
+type ConvergeRunOptions = GlobalOptions & {
+  workflow: "forge";
+  adapter: AdapterName;
+  objective: string;
+  profile: ConvergeProfile;
+  severityThreshold: FindingSeverity;
+  maxPasses: number;
+  maxFindingsPerPass: number;
+  maxStoriesPerPass: number;
+  scope: string[];
+  commitPerStory: boolean;
+  autoContinue: boolean;
+  allowWaive: boolean;
+};
+
 function toGlobalOptions(cmd: Command): ReturnType<typeof resolveCommandOptions> {
   return resolveCommandOptions(cmd.optsWithGlobals<GlobalOptions>());
+}
+
+function parsePositiveInt(raw: string): number {
+  const value = Number.parseInt(raw, 10);
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+  return value;
 }
 
 function registerLifecycleCommands(program: Command): void {
@@ -136,6 +169,102 @@ function registerLifecycleCommands(program: Command): void {
     });
 }
 
+function registerConvergeCommands(program: Command): void {
+  const converge = program
+    .command("converge")
+    .description("Campaign-level iterative convergence using child forge remediation");
+
+  converge
+    .command("run")
+    .description("Start a converge campaign")
+    .requiredOption("--objective <path>", "Objective document path")
+    .addOption(
+      new Option("--workflow <workflow>", "Child remediation workflow")
+        .choices(["forge"])
+        .default("forge")
+    )
+    .addOption(
+      new Option("--adapter <adapter>", "Adapter name")
+        .choices([...ADAPTER_NAMES])
+        .default("codex")
+    )
+    .addOption(
+      new Option("--profile <profile>", "Assessment profile")
+        .choices([...CONVERGE_PROFILES])
+        .default("product-spec-gap")
+    )
+    .addOption(
+      new Option("--severity-threshold <severity>", "Convergence threshold")
+        .choices([...FINDING_SEVERITIES])
+        .default("medium")
+    )
+    .option("--max-passes <n>", "Maximum convergence passes", "8")
+    .option("--max-findings-per-pass <n>", "Maximum findings per remediation batch", "12")
+    .option("--max-stories-per-pass <n>", "Maximum stories per remediation batch", "12")
+    .option("--scope <paths...>", "Scope path prefixes", [])
+    .option("--commit-per-story", "Require remediation commits per story", false)
+    .option("--auto-continue", "Auto-advance campaign passes", false)
+    .option("--allow-waive", "Allow waiving low-confidence low-severity findings", false)
+    .action(async (opts: ConvergeRunOptions, cmd: Command) => {
+      const global = toGlobalOptions(cmd);
+      process.exitCode = await runConvergeRunCommand(global.repoRoot, global.json, {
+        workflow: "forge",
+        adapter: opts.adapter,
+        objective: opts.objective,
+        profile: opts.profile,
+        severityThreshold: opts.severityThreshold,
+        maxPasses: parsePositiveInt(String(opts.maxPasses)),
+        maxFindingsPerPass: parsePositiveInt(String(opts.maxFindingsPerPass)),
+        maxStoriesPerPass: parsePositiveInt(String(opts.maxStoriesPerPass)),
+        scope: Array.isArray(opts.scope) ? opts.scope : [],
+        commitPerStory: opts.commitPerStory ?? false,
+        autoContinue: opts.autoContinue ?? false,
+        allowWaive: opts.allowWaive ?? false
+      });
+    });
+
+  converge
+    .command("status")
+    .description("Show converge campaign status")
+    .action(async (_, cmd: Command) => {
+      const global = toGlobalOptions(cmd);
+      process.exitCode = await runConvergeStatusCommand(global.repoRoot, global.json);
+    });
+
+  converge
+    .command("inspect")
+    .description("Inspect detailed converge campaign state")
+    .action(async (_, cmd: Command) => {
+      const global = toGlobalOptions(cmd);
+      process.exitCode = await runConvergeInspectCommand(global.repoRoot, global.json);
+    });
+
+  converge
+    .command("continue")
+    .description("Continue a waiting converge campaign")
+    .action(async (_, cmd: Command) => {
+      const global = toGlobalOptions(cmd);
+      process.exitCode = await runConvergeContinueCommand(global.repoRoot, global.json);
+    });
+
+  converge
+    .command("resume")
+    .description("Resume a running converge campaign from durable state")
+    .action(async (_, cmd: Command) => {
+      const global = toGlobalOptions(cmd);
+      process.exitCode = await runConvergeResumeCommand(global.repoRoot, global.json);
+    });
+
+  converge
+    .command("cancel")
+    .description("Cancel a converge campaign")
+    .option("--note <text>", "Cancellation note")
+    .action(async (opts: { note?: string }, cmd: Command) => {
+      const global = toGlobalOptions(cmd);
+      process.exitCode = await runConvergeCancelCommand(global.repoRoot, global.json, opts.note ?? null);
+    });
+}
+
 function registerInternalCommands(program: Command): void {
   program
     .command("dispatch")
@@ -210,6 +339,7 @@ export function buildProgram(): Command {
     .option("--json", "Emit JSON output", false);
 
   registerLifecycleCommands(program);
+  registerConvergeCommands(program);
   registerInternalCommands(program);
 
   return program;

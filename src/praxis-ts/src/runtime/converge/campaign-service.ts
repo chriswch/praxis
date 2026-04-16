@@ -91,6 +91,16 @@ export class ConvergeCampaignService {
 
   async runCampaign(input: ConvergeRunInput): Promise<ConvergeActionOutcome> {
     await this.repo.ensureLayout();
+    if (!Number.isInteger(input.maxPasses) || input.maxPasses < 1) {
+      throw new InvalidInputError("--max-passes must be a positive integer.");
+    }
+    if (!Number.isInteger(input.maxFindingsPerPass) || input.maxFindingsPerPass < 1) {
+      throw new InvalidInputError("--max-findings-per-pass must be a positive integer.");
+    }
+    if (!Number.isInteger(input.maxStoriesPerPass) || input.maxStoriesPerPass < 1) {
+      throw new InvalidInputError("--max-stories-per-pass must be a positive integer.");
+    }
+
     const existing = await this.repo.loadCampaign();
     if (existing && !["completed", "cancelled"].includes(existing.status)) {
       throw new RejectedProgressionError(
