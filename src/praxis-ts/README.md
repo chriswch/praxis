@@ -33,6 +33,12 @@ Public commands:
 - `praxis status`
 - `praxis inspect`
 - `praxis doctor`
+- `praxis converge run`
+- `praxis converge status`
+- `praxis converge inspect`
+- `praxis converge resume`
+- `praxis converge continue`
+- `praxis converge cancel`
 
 Internal commands:
 
@@ -68,6 +74,11 @@ This runtime stores operational state at `<repo-root>/.praxis/`:
 - `dispatches/*.json`: durable worker dispatch payloads.
 - `approvals/*.json`: approval records.
 - `policy/tool-records.jsonl`: tool and policy evidence.
+- `objective.md`: converge objective manifest summary.
+- `campaign.json`: converge campaign runtime state.
+- `campaign-ledger.json`: durable converge findings ledger.
+- `reviews/R-*/`: converge assessment artifacts per pass.
+- `passes/P-*/`: converge remediation batch and pass summaries.
 
 ## Worker Lifecycle (Operator Sequence)
 
