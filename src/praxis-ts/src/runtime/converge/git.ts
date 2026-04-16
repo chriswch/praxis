@@ -38,7 +38,20 @@ export async function listCommitRange(
 export async function hasUncommittedChanges(repoRoot: string): Promise<boolean> {
   try {
     const { stdout } = await execFileAsync("git", ["status", "--porcelain"], { cwd: repoRoot });
-    return stdout.trim().length > 0;
+    const lines = stdout
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .filter(Boolean);
+    for (const line of lines) {
+      const pathFragment = line.length > 3 ? line.slice(3) : "";
+      const renameParts = pathFragment.split(" -> ").map((part) => part.trim());
+      const touchesOnlyPraxisArtifacts =
+        renameParts.length > 0 && renameParts.every((part) => part === ".praxis" || part.startsWith(".praxis/"));
+      if (!touchesOnlyPraxisArtifacts) {
+        return true;
+      }
+    }
+    return false;
   } catch {
     return false;
   }
