@@ -6,13 +6,14 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import {
+  runConvergeContinueCommand,
   runConvergeRunCommand,
   runContinueCommand,
   runDispatchCommand,
   runSubmitStageResultCommand
 } from "../../src/cli/commands/index.js";
 import { EXIT_CODE } from "../../src/cli/exit-codes.js";
-import type { RunRecord, StageName, StageResultRecord } from "../../src/contracts/model.js";
+import type { CampaignRecord, RunRecord, StageName, StageResultRecord } from "../../src/contracts/model.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -248,4 +249,45 @@ test("smoke: commit-per-story is enforced at story boundary before continue", as
   assert.equal(await runContinueCommand(repoRoot, true), EXIT_CODE.OK);
   const resumedRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.equal(resumedRun.constraints?.commit_per_story?.pending_story_id, null);
+});
+
+test("smoke: converge blocks when child run slot ownership no longer matches run state", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "- Must implement delta987 reconciliation sentinel for pass ownership.",
+      "- Must persist epsilon-slot handshake across converge launches."
+    ]
+  });
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "product-spec-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 2,
+      maxStoriesPerPass: 2,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const childRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  childRun.run_id = "run_replaced_by_external_process";
+  await writeFile(
+    join(repoRoot, ".praxis", "run.json"),
+    `${JSON.stringify(childRun, null, 2)}\n`,
+    "utf8"
+  );
+
+  assert.equal(await runConvergeContinueCommand(repoRoot, true), EXIT_CODE.OK);
+
+  const campaign = await readJson<CampaignRecord>(join(repoRoot, ".praxis", "campaign.json"));
+  assert.equal(campaign.status, "blocked");
+  assert.match(campaign.reason, /child-run slot validation failed/i);
 });

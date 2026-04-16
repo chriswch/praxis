@@ -11,6 +11,7 @@ export type PraxisPathSet = {
   remediationMapDataFile: string;
   campaignFile: string;
   campaignLedgerFile: string;
+  childRunSlotFile: string;
   runFile: string;
   storyLedgerFile: string;
   runLedgerTransactionFile: string;
@@ -40,6 +41,7 @@ export function resolvePraxisPaths(repoRoot: string): PraxisPathSet {
     remediationMapDataFile: join(praxisDir, "remediation-map.json"),
     campaignFile: join(praxisDir, "campaign.json"),
     campaignLedgerFile: join(praxisDir, "campaign-ledger.json"),
+    childRunSlotFile: join(praxisDir, "child-run-slot.json"),
     runFile: join(praxisDir, "run.json"),
     storyLedgerFile: join(praxisDir, "story-ledger.json"),
     runLedgerTransactionFile: join(praxisDir, "run-ledger-transaction.json"),

@@ -59,6 +59,7 @@ export type ConvergeInspectProjection = {
     remediation_map_data_file: string;
     campaign_file: string;
     campaign_ledger_file: string;
+    child_run_slot_file: string;
     reviews_dir: string;
     passes_dir: string;
   };

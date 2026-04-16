@@ -44,7 +44,3 @@ export function buildPassId(passNumber: number): string {
 export function buildReviewId(reviewCounter: number): string {
   return `R-${String(reviewCounter).padStart(3, "0")}`;
 }
-
-export function buildChildRunId(passNumber: number): string {
-  return `converge-child-${String(passNumber).padStart(3, "0")}`;
-}

@@ -42,6 +42,9 @@ export const CAMPAIGN_STOP_REASON_CODES = [
 ] as const;
 export type CampaignStopReasonCode = (typeof CAMPAIGN_STOP_REASON_CODES)[number];
 
+export const CHILD_RUN_SLOT_STATUS = ["active", "released"] as const;
+export type ChildRunSlotStatus = (typeof CHILD_RUN_SLOT_STATUS)[number];
+
 export const ADAPTER_NAMES = ["codex", "claude"] as const;
 export type AdapterName = (typeof ADAPTER_NAMES)[number];
 
@@ -402,6 +405,16 @@ export type CampaignRecord = {
     created_at: string;
     updated_at: string;
   };
+};
+
+export type ChildRunSlotRecord = {
+  version: number;
+  campaign_id: string;
+  pass_id: string;
+  child_run_id: string;
+  status: ChildRunSlotStatus;
+  reason: string;
+  updated_at: string;
 };
 
 export type CampaignFinding = {

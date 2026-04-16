@@ -3,6 +3,7 @@ import {
   ADAPTER_NAMES,
   CAMPAIGN_STATUS,
   CAMPAIGN_STOP_REASON_CODES,
+  CHILD_RUN_SLOT_STATUS,
   CONVERGE_STAGE_NAMES,
   CONVERGE_PROFILES,
   DISPATCH_WORKER_MODES,
@@ -24,6 +25,7 @@ import {
   WORKFLOW_NAMES,
   type CampaignLedgerRecord,
   type CampaignRecord,
+  type ChildRunSlotRecord,
   type ConvergeStageResultRecord,
   type DispatchRecord,
   type ObjectiveAssessmentResult,
@@ -558,6 +560,18 @@ export function validateCampaignRecord(campaign: CampaignRecord): void {
   for (const path of campaign.objective.scope) {
     assertRepoRelativePath(path, "campaign.objective.scope item");
   }
+}
+
+export function validateChildRunSlotRecord(slot: ChildRunSlotRecord): void {
+  if (slot.version < 1) {
+    throw new ContractError("child run slot version must be >= 1");
+  }
+  assertPlainString(slot.campaign_id, "child run slot campaign_id");
+  assertPlainString(slot.pass_id, "child run slot pass_id");
+  assertPlainString(slot.child_run_id, "child run slot child_run_id");
+  assertEnum(slot.status, CHILD_RUN_SLOT_STATUS, "child run slot status");
+  assertPlainString(slot.reason, "child run slot reason");
+  assertPlainString(slot.updated_at, "child run slot updated_at");
 }
 
 export function validateCampaignLedgerRecord(ledger: CampaignLedgerRecord): void {

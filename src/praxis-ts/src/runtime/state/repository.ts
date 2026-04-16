@@ -3,6 +3,7 @@ import { unlink, writeFile, mkdir, rm } from "node:fs/promises";
 import type {
   CampaignLedgerRecord,
   CampaignRecord,
+  ChildRunSlotRecord,
   ConvergeStageResultRecord,
   DispatchRecord,
   GapAssessmentResult,
@@ -17,6 +18,7 @@ import type {
 import {
   validateCampaignLedgerRecord,
   validateCampaignRecord,
+  validateChildRunSlotRecord,
   validateConvergeStageResult,
   validateDispatchRecord,
   validateObjectiveAssessmentResult,
@@ -97,6 +99,23 @@ export class PraxisStateRepository {
   async saveCampaignLedger(ledger: CampaignLedgerRecord): Promise<void> {
     validateCampaignLedgerRecord(ledger);
     await writeJsonFile(this.paths.campaignLedgerFile, ledger);
+  }
+
+  async loadChildRunSlot(): Promise<ChildRunSlotRecord | null> {
+    const slot = await readJsonFileIfExists<ChildRunSlotRecord>(this.paths.childRunSlotFile);
+    if (slot) {
+      validateChildRunSlotRecord(slot);
+    }
+    return slot;
+  }
+
+  async saveChildRunSlot(slot: ChildRunSlotRecord): Promise<void> {
+    validateChildRunSlotRecord(slot);
+    await writeJsonFile(this.paths.childRunSlotFile, slot);
+  }
+
+  async clearChildRunSlot(): Promise<void> {
+    await this.safeUnlink(this.paths.childRunSlotFile);
   }
 
   async loadStoryLedger(): Promise<StoryLedgerRecord | null> {

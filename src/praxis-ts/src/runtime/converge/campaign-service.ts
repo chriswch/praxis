@@ -15,6 +15,7 @@ import type { PraxisStateRepository } from "../state/repository.js";
 import { RunController } from "../control/run-controller.js";
 import { initializeStoryLedgerFromSliceMap } from "../control/story-boundary.js";
 import { assessGaps } from "./assessment.js";
+import { ChildRunSlotService } from "./child-run-slot.js";
 import { buildPassId, buildReviewId } from "./identity.js";
 import {
   attachCommitRefsToFindings,
@@ -208,7 +209,11 @@ function buildConvergeClarifyingArtifacts(briefPath: string): string[] {
 }
 
 export class ConvergeCampaignService {
-  constructor(private readonly repo: PraxisStateRepository) {}
+  private readonly childRunSlot: ChildRunSlotService;
+
+  constructor(private readonly repo: PraxisStateRepository) {
+    this.childRunSlot = new ChildRunSlotService(repo);
+  }
 
   async runCampaign(input: ConvergeRunInput): Promise<ConvergeActionOutcome> {
     await this.repo.ensureLayout();
@@ -239,6 +244,7 @@ export class ConvergeCampaignService {
     }
 
     const now = nowIsoUtc();
+    await this.repo.clearChildRunSlot();
     const campaign: CampaignRecord = {
       version: 1,
       campaign_id: `campaign_${Date.now()}`,
@@ -337,6 +343,10 @@ export class ConvergeCampaignService {
 
   async cancelCampaign(note: string | null): Promise<ConvergeActionOutcome> {
     const campaign = await this.requireCampaign();
+    if (campaign.current_child_run_id && campaign.current_pass > 0) {
+      const passId = buildPassId(campaign.current_pass);
+      await this.childRunSlot.release(campaign.campaign_id, passId, "Campaign cancelled.");
+    }
     campaign.status = "cancelled";
     campaign.stop_reason_code = "cancelled";
     campaign.reason = note ? `Campaign cancelled. Note: ${note}` : "Campaign cancelled.";
@@ -395,6 +405,7 @@ export class ConvergeCampaignService {
         remediation_map_data_file: this.repo.paths.remediationMapDataFile,
         campaign_file: this.repo.paths.campaignFile,
         campaign_ledger_file: this.repo.paths.campaignLedgerFile,
+        child_run_slot_file: this.repo.paths.childRunSlotFile,
         reviews_dir: this.repo.paths.reviewsDir,
         passes_dir: this.repo.paths.passesDir
       },
@@ -719,7 +730,27 @@ export class ConvergeCampaignService {
     }
 
     const childRun = await this.repo.loadRun();
-    if (!childRun || childRun.run_id !== campaign.current_child_run_id) {
+    try {
+      await this.childRunSlot.assertOwnedRun(
+        campaign.campaign_id,
+        passId,
+        campaign.current_child_run_id,
+        childRun
+      );
+    } catch (error) {
+      campaign.status = "blocked";
+      campaign.stop_reason_code = "blocked";
+      campaign.reason = `Pass ${passId} child-run slot validation failed: ${stringifyError(error)}`;
+      campaign.timestamps.updated_at = nowIsoUtc();
+      await this.repo.savePassChildRun(passId, {
+        ...(await this.repo.loadPassChildRun(passId) ?? {}),
+        status: "slot_mismatch",
+        updated_at: nowIsoUtc()
+      });
+      return { campaign, ledger, continueToPlanning: false };
+    }
+
+    if (!childRun) {
       campaign.status = "blocked";
       campaign.stop_reason_code = "blocked";
       campaign.reason =
@@ -856,6 +887,7 @@ export class ConvergeCampaignService {
     });
 
     campaign.current_child_run_id = null;
+    await this.childRunSlot.release(campaign.campaign_id, passId, "Child run reconciled.");
 
     if (summaryOutcome === "converged") {
       campaign.status = "completed";
@@ -1122,6 +1154,8 @@ export class ConvergeCampaignService {
     childRunId: string;
     childRunRecord: Record<string, unknown>;
   }> {
+    await this.childRunSlot.assertCanClaim(campaign.campaign_id, passId);
+
     const existingRun = await this.repo.loadRun();
     if (existingRun) {
       if (!isRunTerminal(existingRun.status)) {
@@ -1151,6 +1185,12 @@ export class ConvergeCampaignService {
     );
 
     const launch = await controller.launchReadyStage();
+    await this.childRunSlot.claim(
+      campaign.campaign_id,
+      passId,
+      run.run_id,
+      `Child run ${run.run_id} launched for pass ${passId}.`
+    );
     const launchCommand =
       `praxis run --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge remediation for ${passId} with authoritative scope in ${brief.markdownPath}"`;
     return {
