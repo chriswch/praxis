@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -72,7 +72,7 @@ async function initGitRepo(repoRoot: string): Promise<void> {
   await execFileAsync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "seed"], { cwd: repoRoot });
 }
 
-test("smoke: converge child run receives bounded pass brief as required clarifying input", async () => {
+test("smoke: converge writes target-spec gap artifacts and launches bounded remediation", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: [
@@ -103,6 +103,63 @@ test("smoke: converge child run receives bounded pass brief as required clarifyi
   assert.equal(run.mode, "multi_slice");
   assert.ok(run.constraints?.bounded_scope);
   assert.ok(run.constraints?.clarifying_required_artifacts?.length);
+
+  const targetSpec = await readFile(join(repoRoot, ".praxis", "target-spec.md"), "utf8");
+  assert.match(targetSpec, /^# Target Spec/m);
+
+  const gap = await readJson<{
+    target_spec_path: string;
+    findings: Array<{
+      finding_id: string;
+      kind: string;
+      expected_behavior: string;
+      current_behavior: string;
+      recommended_direction: string;
+      confidence: number;
+    }>;
+  }>(join(repoRoot, ".praxis", "gap.json"));
+  assert.equal(gap.target_spec_path, ".praxis/target-spec.md");
+  assert.ok(gap.findings.length > 0);
+  for (const finding of gap.findings) {
+    assert.match(finding.finding_id, /^G-\d{3}$/);
+    assert.match(finding.kind, /^(missing|partial|wrong)$/);
+    assert.ok(finding.expected_behavior.length > 0);
+    assert.ok(finding.current_behavior.length > 0);
+    assert.ok(finding.recommended_direction.length > 0);
+    assert.equal(typeof finding.confidence, "number");
+  }
+
+  const remediationMap = await readJson<{
+    selected_finding_ids: string[];
+    deferred_finding_ids: string[];
+    slices: Array<{
+      slice_id: string;
+      finding_ids: string[];
+      scope: string[];
+      done_condition: string;
+    }>;
+  }>(join(repoRoot, ".praxis", "remediation-map.json"));
+  assert.ok(remediationMap.selected_finding_ids.length > 0);
+  assert.ok(Array.isArray(remediationMap.deferred_finding_ids));
+  assert.ok(remediationMap.slices.length > 0);
+  for (const slice of remediationMap.slices) {
+    assert.match(slice.slice_id, /^S-\d{3}$/);
+    assert.ok(slice.finding_ids.length > 0);
+    assert.ok(slice.scope.length > 0);
+    assert.ok(slice.done_condition.length > 0);
+  }
+
+  const assessingResult = await readJson<{ stage: string; data: { outcome_code: string } }>(
+    join(repoRoot, ".praxis", "results", "assessing-gaps.json")
+  );
+  assert.equal(assessingResult.stage, "assessing-gaps");
+  assert.match(assessingResult.data.outcome_code, /^(findings_recorded|no_gaps)$/);
+
+  const planningResult = await readJson<{ stage: string; data: { outcome_code: string } }>(
+    join(repoRoot, ".praxis", "results", "planning-remediation.json")
+  );
+  assert.equal(planningResult.stage, "planning-remediation");
+  assert.match(planningResult.data.outcome_code, /^(remediation_map_ready|no_selection)$/);
 
   const briefPath = run.constraints?.clarifying_required_artifacts?.[0];
   assert.ok(briefPath);

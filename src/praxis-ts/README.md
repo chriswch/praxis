@@ -76,10 +76,15 @@ This runtime stores operational state at `<repo-root>/.praxis/`:
 - `approvals/*.json`: approval records.
 - `policy/tool-records.jsonl`: tool and policy evidence.
 - `objective.md`: converge objective manifest summary.
+- `target-spec.md`: authoritative remediation target behavior for the active campaign scope.
+- `gap.md` / `gap.json`: latest assessed repo-to-target gaps (human + machine readable).
+- `remediation-map.md` / `remediation-map.json`: latest bounded remediation plan from selected findings.
 - `campaign.json`: converge campaign runtime state.
 - `campaign-ledger.json`: durable converge findings ledger.
-- `reviews/R-*/`: converge assessment artifacts per pass.
-- `passes/P-*/`: converge remediation batch and pass summaries.
+- `results/assessing-gaps.json`: latest converge gap-assessment stage result.
+- `results/planning-remediation.json`: latest converge remediation-planning stage result.
+- `reviews/R-*/`: converge assessment snapshots per pass.
+- `passes/P-*/`: pass snapshots (batch compatibility artifacts, child-run state, pass summaries).
 
 ## Worker Lifecycle (Operator Sequence)
 
