@@ -428,6 +428,20 @@ export type PassBatchRecord = {
   review_id: string;
   selected_finding_ids: string[];
   deferred_finding_ids: string[];
+  selection: {
+    policy: string[];
+    selected: Array<{
+      finding_id: string;
+      priority_score: number;
+      risk: "high" | "medium" | "low";
+      depends_on_finding_ids: string[];
+      reason: string;
+    }>;
+    deferred: Array<{
+      finding_id: string;
+      reason: string;
+    }>;
+  };
   stories: Array<{
     story_id: string;
     title: string;

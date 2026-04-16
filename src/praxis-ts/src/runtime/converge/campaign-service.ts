@@ -479,7 +479,7 @@ export class ConvergeCampaignService {
     try {
       launchResult = await this.launchChildCraftRun(campaign, passId, batchPlan.batch);
     } catch (error) {
-      campaign.status = "waiting_for_user";
+      campaign.status = "blocked";
       campaign.stop_reason_code = "blocked";
       campaign.reason =
         `Pass ${passId} batch planned but child craft launch failed: ${stringifyError(error)}`;
@@ -565,7 +565,7 @@ export class ConvergeCampaignService {
     const batch = await this.repo.loadPassBatch(passId);
     const summary = await this.repo.loadPassSummary(passId);
     if (!batch || !summary) {
-      campaign.status = "waiting_for_user";
+      campaign.status = "blocked";
       campaign.stop_reason_code = "blocked";
       campaign.reason = `Pass ${passId} is missing batch/summary artifacts required for child reconciliation.`;
       campaign.timestamps.updated_at = nowIsoUtc();
@@ -574,7 +574,7 @@ export class ConvergeCampaignService {
 
     const childRun = await this.repo.loadRun();
     if (!childRun || childRun.run_id !== campaign.current_child_run_id) {
-      campaign.status = "waiting_for_user";
+      campaign.status = "blocked";
       campaign.stop_reason_code = "blocked";
       campaign.reason =
         `Pass ${passId} expects child run ${campaign.current_child_run_id}, but no matching run state exists.`;
@@ -616,7 +616,7 @@ export class ConvergeCampaignService {
     }
 
     if (!isRunTerminal(childRun.status)) {
-      campaign.status = "waiting_for_user";
+      campaign.status = "blocked";
       campaign.stop_reason_code = "blocked";
       campaign.reason =
         `Child run ${childRun.run_id} is in unsupported state ${childRun.status}.`;

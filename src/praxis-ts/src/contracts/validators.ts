@@ -634,6 +634,30 @@ export function validatePassBatchRecord(batch: PassBatchRecord): void {
   assertPlainString(batch.review_id, "pass batch review_id");
   assertStringArray(batch.selected_finding_ids, "pass batch selected_finding_ids");
   assertStringArray(batch.deferred_finding_ids, "pass batch deferred_finding_ids");
+  assertRecord(batch.selection, "pass batch selection");
+  assertStringArray(batch.selection.policy, "pass batch selection.policy");
+  if (!Array.isArray(batch.selection.selected)) {
+    throw new ContractError("pass batch selection.selected must be an array");
+  }
+  for (const [index, selected] of batch.selection.selected.entries()) {
+    assertPlainString(selected.finding_id, `pass batch selection.selected[${index}].finding_id`);
+    if (typeof selected.priority_score !== "number" || Number.isNaN(selected.priority_score)) {
+      throw new ContractError(`pass batch selection.selected[${index}].priority_score must be a number`);
+    }
+    assertEnum(selected.risk, ["high", "medium", "low"], `pass batch selection.selected[${index}].risk`);
+    assertStringArray(
+      selected.depends_on_finding_ids,
+      `pass batch selection.selected[${index}].depends_on_finding_ids`
+    );
+    assertPlainString(selected.reason, `pass batch selection.selected[${index}].reason`);
+  }
+  if (!Array.isArray(batch.selection.deferred)) {
+    throw new ContractError("pass batch selection.deferred must be an array");
+  }
+  for (const [index, deferred] of batch.selection.deferred.entries()) {
+    assertPlainString(deferred.finding_id, `pass batch selection.deferred[${index}].finding_id`);
+    assertPlainString(deferred.reason, `pass batch selection.deferred[${index}].reason`);
+  }
   if (!Array.isArray(batch.stories)) {
     throw new ContractError("pass batch stories must be an array");
   }
