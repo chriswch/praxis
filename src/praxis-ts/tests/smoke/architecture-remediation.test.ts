@@ -645,9 +645,9 @@ test("smoke: transition-aware contracts set verifying artifacts by predecessor p
   assert.deepEqual(verifyFromImprove.inputs.required_artifacts, [".praxis/improvement.md"]);
 });
 
-test("smoke: code-reviewing dispatch prepares an isolated workspace", async () => {
+test("smoke: code-reviewing dispatch stays in the shared target worktree", async () => {
   const repoRoot = await createTempRepo();
-  await writeFile(join(repoRoot, "README.md"), "isolated workspace fixture\n", "utf8");
+  await writeFile(join(repoRoot, "README.md"), "shared workspace fixture\n", "utf8");
   await execFileAsync("git", ["init"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "smoke@example.com"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.name", "Smoke Test"], { cwd: repoRoot });
@@ -656,17 +656,15 @@ test("smoke: code-reviewing dispatch prepares an isolated workspace", async () =
 
   const reviewDispatch = await advanceForgeToCodeReviewing(repoRoot);
   assert.equal(reviewDispatch.stage, "code-reviewing");
-  assert.equal(reviewDispatch.worker.mode, "isolated_worktree");
-  assert.equal(reviewDispatch.worker.worker_class, "worktree_worker");
-  assert.equal(reviewDispatch.execution.worktree_mode, "isolated");
-  assert.equal(reviewDispatch.execution.workspace_origin, "git_worktree");
-  assert.equal(existsSync(reviewDispatch.execution.workspace_root), true);
-
-  const worktreeRecord = await readJson<Record<string, unknown>>(
-    join(repoRoot, ".praxis", "worktrees", `${reviewDispatch.dispatch_id}.json`)
+  assert.equal(reviewDispatch.worker.mode, "fresh_session");
+  assert.equal(reviewDispatch.worker.worker_class, "session_worker");
+  assert.equal(reviewDispatch.execution.worktree_mode, "shared");
+  assert.equal(reviewDispatch.execution.workspace_origin, "shared");
+  assert.equal(reviewDispatch.execution.workspace_root, repoRoot);
+  assert.equal(
+    existsSync(join(repoRoot, ".praxis", "worktrees", `${reviewDispatch.dispatch_id}.json`)),
+    false
   );
-  assert.equal(worktreeRecord.workspace_origin, "git_worktree");
-  assert.equal(worktreeRecord.workspace_root, reviewDispatch.execution.workspace_root);
 });
 
 test("smoke: review-stage results reject granted network access and record denied tool usage", async () => {

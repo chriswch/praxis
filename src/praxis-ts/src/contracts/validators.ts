@@ -244,7 +244,7 @@ export function validateStageResult(result: StageResultRecord): void {
   if (result.execution !== undefined) {
     assertRecord(result.execution, "execution");
     const permissionProfiles = ["planning", "design", "implementation", "review", "verification"] as const;
-    const worktreeModes = ["shared", "isolated"] as const;
+    const worktreeModes = ["shared"] as const;
     assertEnum(result.execution.permission_profile, permissionProfiles, "execution.permission_profile");
     assertEnum(result.execution.worktree_mode, worktreeModes, "execution.worktree_mode");
     assertBoolean(result.execution.fresh_context, "execution.fresh_context");
@@ -296,7 +296,7 @@ export function validateDispatchRecord(dispatch: DispatchRecord): void {
   assertPlainString(dispatch.execution.workspace_root, "dispatch.execution.workspace_root");
   assertEnum(
     dispatch.execution.workspace_origin,
-    ["shared", "git_worktree", "snapshot"],
+    ["shared"],
     "dispatch.execution.workspace_origin"
   );
   assertEnum(dispatch.tool_policy.profile, PERMISSION_PROFILES, "dispatch.tool_policy.profile");

@@ -4,7 +4,6 @@ import { nowIsoUtc } from "../common/time.js";
 import { compileDispatch } from "./dispatch-compiler.js";
 import { ToolTelemetry } from "../tools/index.js";
 import { exists } from "../state/store.js";
-import { prepareIsolatedWorkspace } from "../workers/worktree-manager.js";
 import {
   validateWorkerSessionRegistration
 } from "../../contracts/validators.js";
@@ -32,20 +31,6 @@ export class DispatchService {
 
     const dispatch = compileDispatch({ run, boundaryHandoff: handoffData, repoRoot: this.repo.paths.root });
     await this.ensureRequiredArtifactsExistOrBlock(run, dispatch.inputs.required_artifacts, "dispatch");
-    if (dispatch.execution.worktree_mode === "isolated") {
-      const workspace = await prepareIsolatedWorkspace(this.repo.paths.root, dispatch.dispatch_id);
-      dispatch.execution.workspace_root = workspace.workspace_root;
-      dispatch.execution.workspace_origin = workspace.workspace_origin;
-      await this.repo.saveWorktreeRecord(dispatch.dispatch_id, {
-        version: 1,
-        run_id: run.run_id,
-        dispatch_id: dispatch.dispatch_id,
-        stage: dispatch.stage,
-        workspace_root: workspace.workspace_root,
-        workspace_origin: workspace.workspace_origin,
-        created_at: dispatch.created_at
-      });
-    }
     await this.repo.saveDispatch(dispatch);
     const telemetry = new ToolTelemetry(this.repo);
     await telemetry.recordPolicyDecision({

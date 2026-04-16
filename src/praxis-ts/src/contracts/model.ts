@@ -77,15 +77,13 @@ export type RunNextAction = (typeof RUN_NEXT_ACTIONS)[number];
 
 export const WORKER_CLASSES = [
   "interactive_orchestrator",
-  "session_worker",
-  "worktree_worker"
+  "session_worker"
 ] as const;
 export type WorkerClass = (typeof WORKER_CLASSES)[number];
 
 export const DISPATCH_WORKER_MODES = [
   "fresh_session",
-  "same_stage_resume",
-  "isolated_worktree"
+  "same_stage_resume"
 ] as const;
 export type DispatchWorkerMode = (typeof DISPATCH_WORKER_MODES)[number];
 
@@ -98,7 +96,7 @@ export const PERMISSION_PROFILES = [
 ] as const;
 export type PermissionProfile = (typeof PERMISSION_PROFILES)[number];
 
-export const WORKTREE_MODES = ["shared", "isolated"] as const;
+export const WORKTREE_MODES = ["shared"] as const;
 export type WorktreeMode = (typeof WORKTREE_MODES)[number];
 
 export const TOOL_KINDS = ["filesystem", "shell", "git", "search", "patch", "network"] as const;
@@ -149,7 +147,7 @@ export type StageResultRecord = {
   };
   execution?: {
     permission_profile: "planning" | "design" | "implementation" | "review" | "verification";
-    worktree_mode: "shared" | "isolated";
+    worktree_mode: "shared";
     fresh_context: boolean;
     resumed: boolean;
   };
@@ -273,7 +271,7 @@ export type DispatchRecord = {
     fresh_context: boolean;
     worktree_mode: WorktreeMode;
     workspace_root: string;
-    workspace_origin: "shared" | "git_worktree" | "snapshot";
+    workspace_origin: "shared";
   };
   tool_policy: {
     writable_roots: string[];

@@ -60,7 +60,7 @@ function stageGoal(workflow: WorkflowName, stage: StageName): string {
     case "driving-tdd":
       return "Drive the approved story through implementation and capture the resulting implementation summary.";
     case "code-reviewing":
-      return "Review the implementation in an isolated, bounded pass and produce the review artifact.";
+      return "Review the implementation in a fresh, bounded session against the current shared worktree.";
     case "code-improving":
       return "Apply the review findings and capture the improvement artifact.";
     case "verifying-and-adapting":
@@ -98,7 +98,7 @@ function stageInstructions(stage: StageName): string[] {
     case "code-reviewing":
       return [
         "Review only the bounded implementation scope.",
-        "Prefer isolated execution surfaces when available.",
+        "Use the current target worktree and a fresh Praxis-owned session.",
         "Write the review artifact and stage result."
       ];
     case "code-improving":
