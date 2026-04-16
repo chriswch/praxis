@@ -23,6 +23,16 @@ export type ConvergeActionOutcome = {
   reason: string;
 };
 
+export type ConvergeChildRunProjection = {
+  run_id: string;
+  status: string;
+  completion_state: "pending" | "completed" | "escalated";
+  reason: string | null;
+  next_action: string | null;
+  next_stage: string | null;
+  updated_at: string | null;
+};
+
 export type ConvergeStatusProjection = {
   campaign_id: string;
   status: CampaignRecord["status"];
@@ -34,6 +44,7 @@ export type ConvergeStatusProjection = {
   reason: string;
   current_review_id: string | null;
   current_child_run_id: string | null;
+  child_run: ConvergeChildRunProjection | null;
   unresolved_at_or_above_threshold: number;
 };
 
@@ -54,5 +65,6 @@ export type ConvergeInspectProjection = {
     status: string;
     affected_paths: string[];
   }>;
+  child_run: ConvergeChildRunProjection | null;
   recent_pass_ids: string[];
 };

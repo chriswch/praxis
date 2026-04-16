@@ -9,6 +9,7 @@ export {
 } from "./ledger.js";
 export type {
   ConvergeActionOutcome,
+  ConvergeChildRunProjection,
   ConvergeInspectProjection,
   ConvergeRunInput,
   ConvergeStatusProjection

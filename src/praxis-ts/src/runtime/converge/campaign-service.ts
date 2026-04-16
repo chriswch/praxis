@@ -29,6 +29,7 @@ import { listCommitRange, readHeadCommit } from "./git.js";
 import { isAtOrAboveSeverity } from "./severity.js";
 import type {
   ConvergeActionOutcome,
+  ConvergeChildRunProjection,
   ConvergeInspectProjection,
   ConvergeRunInput,
   ConvergeStatusProjection
@@ -255,6 +256,7 @@ export class ConvergeCampaignService {
   async getStatus(): Promise<ConvergeStatusProjection> {
     const campaign = await this.requireCampaign();
     const ledger = await this.requireCampaignLedger();
+    const childRun = await this.resolveChildRunProjection(campaign);
     return {
       campaign_id: campaign.campaign_id,
       status: campaign.status,
@@ -266,6 +268,7 @@ export class ConvergeCampaignService {
       reason: campaign.reason,
       current_review_id: campaign.current_review_id,
       current_child_run_id: campaign.current_child_run_id,
+      child_run: childRun,
       unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(
         ledger,
         campaign.severity_threshold
@@ -276,6 +279,7 @@ export class ConvergeCampaignService {
   async inspectCampaign(): Promise<ConvergeInspectProjection> {
     const campaign = await this.requireCampaign();
     const ledger = await this.requireCampaignLedger();
+    const childRun = await this.resolveChildRunProjection(campaign);
     const unresolved = listActiveFindings(ledger)
       .filter((finding) => isAtOrAboveSeverity(finding.severity, campaign.severity_threshold))
       .map((finding) => ({
@@ -298,6 +302,7 @@ export class ConvergeCampaignService {
         passes_dir: this.repo.paths.passesDir
       },
       unresolved_findings: unresolved,
+      child_run: childRun,
       recent_pass_ids: passIds
     };
   }
@@ -750,6 +755,47 @@ export class ConvergeCampaignService {
     } catch {
       return [];
     }
+  }
+
+  private async resolveChildRunProjection(campaign: CampaignRecord): Promise<ConvergeChildRunProjection | null> {
+    if (!campaign.current_child_run_id) {
+      return null;
+    }
+
+    const passId = campaign.current_pass > 0 ? buildPassId(campaign.current_pass) : null;
+    const childRecord = passId ? await this.repo.loadPassChildRun(passId) : null;
+    const activeRun = await this.repo.loadRun();
+
+    let status = childRecord ? readOptionalString(childRecord, "status") ?? "unknown" : "unknown";
+    let reason = childRecord ? readOptionalString(childRecord, "reason") : null;
+    let nextAction = childRecord ? readOptionalString(childRecord, "next_action") : null;
+    let nextStage = childRecord ? readOptionalString(childRecord, "next_stage") : null;
+    let updatedAt = childRecord ? readOptionalString(childRecord, "updated_at") : null;
+
+    if (activeRun && activeRun.run_id === campaign.current_child_run_id) {
+      status = activeRun.status;
+      reason = activeRun.routing.reason;
+      nextAction = activeRun.routing.next_action;
+      nextStage = activeRun.routing.next_stage;
+      updatedAt = activeRun.timestamps.updated_at;
+    }
+
+    const completionState: ConvergeChildRunProjection["completion_state"] =
+      status === "completed"
+        ? "completed"
+        : ["failed", "cancelled", "blocked", "launch_failed", "missing"].includes(status)
+          ? "escalated"
+          : "pending";
+
+    return {
+      run_id: campaign.current_child_run_id,
+      status,
+      completion_state: completionState,
+      reason,
+      next_action: nextAction,
+      next_stage: nextStage,
+      updated_at: updatedAt
+    };
   }
 
   private toOutcome(campaign: CampaignRecord): ConvergeActionOutcome {
