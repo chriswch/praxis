@@ -6,11 +6,13 @@ import type {
   CampaignLedgerRecord,
   CampaignRecord,
   FindingStatus,
+  PassBatchRecord,
   PassSummaryRecord
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
+import { RunController } from "../control/run-controller.js";
 import { assessObjective } from "./assessment.js";
-import { buildChildRunId, buildPassId, buildReviewId } from "./identity.js";
+import { buildPassId, buildReviewId } from "./identity.js";
 import {
   attachCommitRefsToFindings,
   countUnresolvedAtOrAboveThreshold,
@@ -341,7 +343,6 @@ export class ConvergeCampaignService {
         campaign.reason = "Campaign reached the configured max pass budget.";
         outcome = "budget_exhausted";
       } else {
-        const beforeHead = await readHeadCommit(this.repo.paths.root);
         const batchPlan = planPassBatch({
           campaignId: campaign.campaign_id,
           passNumber,
@@ -354,54 +355,24 @@ export class ConvergeCampaignService {
         });
         plannedFindingIds = batchPlan.batch.selected_finding_ids;
         completedStoryIds = batchPlan.batch.stories.map((story) => story.story_id);
-        childRunId = buildChildRunId(passNumber);
         markFindingsBatched(merged.ledger, plannedFindingIds);
-        markFindingsInProgress(merged.ledger, plannedFindingIds, childRunId, completedStoryIds);
         await this.repo.savePassBatch(batchPlan.passId, batchPlan.batchMarkdown, batchPlan.batch);
-        await this.repo.savePassChildRun(batchPlan.passId, {
-          version: 1,
-          child_run_id: childRunId,
-          workflow: campaign.workflow,
-          adapter: campaign.adapter,
-          status: campaign.auto_continue ? "simulated_completed" : "pending_operator",
-          launch_command: `praxis run --workflow forge --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge pass ${batchPlan.passId} remediation"`,
-          brief: {
-            pass_id: batchPlan.passId,
-            finding_ids: plannedFindingIds,
-            objective_path: campaign.objective.normalized_path,
-            objective_context: batchPlan.batch.stories.map((story) => ({
-              story_id: story.story_id,
-              title: story.title,
-              finding_ids: story.finding_ids,
-              non_goals: story.non_goals
-            })),
-            scope: campaign.objective.scope,
-            non_goals: [
-              "Do not expand remediation beyond selected finding IDs in this pass.",
-              "Escalate newly discovered out-of-scope high-risk issues to next reassessment."
-            ]
-          },
-          commit_policy: {
-            commit_per_story: campaign.commit_per_story
-          },
-          generated_at: nowIsoUtc()
-        });
-
-        const afterHead = await readHeadCommit(this.repo.paths.root);
-        if (campaign.commit_per_story) {
-          producedCommits = await listCommitRange(this.repo.paths.root, beforeHead, afterHead);
-          attachCommitRefsToFindings(merged.ledger, plannedFindingIds, producedCommits);
-        }
+        const childLaunch = await this.launchChildForgeRun(campaign, batchPlan.passId, batchPlan.batch);
+        childRunId = childLaunch.childRunId;
+        markFindingsInProgress(merged.ledger, plannedFindingIds, childRunId, completedStoryIds);
+        await this.repo.savePassChildRun(batchPlan.passId, childLaunch.childRunRecord);
 
         if (campaign.auto_continue) {
           campaign.status = "running";
           campaign.stop_reason_code = null;
-          campaign.reason = `Pass ${passId} planned remediation. Auto-continue enabled for next reassessment pass.`;
+          campaign.reason =
+            `Pass ${passId} launched child forge run ${childRunId}. Waiting for child completion before reassessment.`;
           outcome = "continue";
         } else {
           campaign.status = "waiting_for_user";
           campaign.stop_reason_code = "needs_operator";
-          campaign.reason = `Pass ${passId} planned child forge remediation (${childRunId}). Run remediation and execute \`praxis converge continue\`.`;
+          campaign.reason =
+            `Pass ${passId} launched child forge remediation (${childRunId}). Complete the child run and execute \`praxis converge continue\`.`;
           outcome = "needs_operator";
         }
       }
@@ -469,6 +440,61 @@ export class ConvergeCampaignService {
       current_pass: campaign.current_pass,
       stop_reason_code: campaign.stop_reason_code,
       reason: campaign.reason
+    };
+  }
+
+  private async launchChildForgeRun(
+    campaign: CampaignRecord,
+    passId: string,
+    batch: PassBatchRecord
+  ): Promise<{
+    childRunId: string;
+    childRunRecord: Record<string, unknown>;
+  }> {
+    const controller = new RunController(this.repo);
+    const run = await controller.initializeRun({
+      workflow: "forge",
+      adapter: campaign.adapter,
+      executionMode: "autopilot",
+      entryTask: `Converge remediation for ${passId}`
+    });
+    const launch = await controller.launchReadyStage();
+    const launchCommand =
+      `praxis run --workflow forge --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge remediation for ${passId}"`;
+    return {
+      childRunId: run.run_id,
+      childRunRecord: {
+        version: 2,
+        child_run_id: run.run_id,
+        workflow: campaign.workflow,
+        adapter: campaign.adapter,
+        status: "running",
+        launch_command: launchCommand,
+        dispatch_id: launch.dispatch_id,
+        worker_id: launch.worker_id,
+        session_id: launch.session_id,
+        locator: launch.locator,
+        brief: {
+          pass_id: passId,
+          finding_ids: batch.selected_finding_ids,
+          objective_path: campaign.objective.normalized_path,
+          objective_context: batch.stories.map((story) => ({
+            story_id: story.story_id,
+            title: story.title,
+            finding_ids: story.finding_ids,
+            non_goals: story.non_goals
+          })),
+          scope: campaign.objective.scope,
+          non_goals: [
+            "Do not expand remediation beyond selected finding IDs in this pass.",
+            "Escalate newly discovered out-of-scope high-risk issues to next reassessment."
+          ]
+        },
+        commit_policy: {
+          commit_per_story: campaign.commit_per_story
+        },
+        generated_at: nowIsoUtc()
+      }
     };
   }
 }
