@@ -12,6 +12,15 @@ import type { DispatchRecord, RunRecord, WorkerSessionRegistration } from "../..
 import type { PraxisStateRepository } from "../state/repository.js";
 import type { RegisterWorkerSessionOutcome, WorkerLaunchPayload } from "./types.js";
 
+type ActiveSessionRecord = {
+  run_id?: unknown;
+  dispatch_id?: unknown;
+  stage?: unknown;
+  adapter?: unknown;
+  session_id?: unknown;
+  resumable?: unknown;
+};
+
 export class DispatchService {
   constructor(private readonly repo: PraxisStateRepository) {}
 
@@ -168,6 +177,7 @@ export class DispatchService {
       dispatch.inputs.required_artifacts,
       "build-worker-launch"
     );
+    const resumeSessionId = await this.resolveResumeSessionIdOrBlock(run, dispatch, "build-worker-launch");
 
     return {
       run_id: run.run_id,
@@ -188,7 +198,7 @@ export class DispatchService {
         adapter: dispatch.worker.adapter,
         mode: dispatch.worker.mode,
         worker_class: dispatch.worker.worker_class,
-        resume_session_id: run.active.resumable ? run.active.session_id : null
+        resume_session_id: resumeSessionId
       },
       execution: dispatch.execution,
       runtime: {
@@ -299,6 +309,87 @@ export class DispatchService {
         missing_artifacts: missingArtifacts
       }
     });
+    throw new BlockedStateError(blockedReason);
+  }
+
+  private async resolveResumeSessionIdOrBlock(
+    run: RunRecord,
+    dispatch: DispatchRecord,
+    action: "build-worker-launch"
+  ): Promise<string | null> {
+    if (!run.active.resumable) {
+      return null;
+    }
+
+    const sessionId = run.active.session_id;
+    if (!sessionId) {
+      return this.blockInvalidResumeSession(
+        run,
+        dispatch,
+        action,
+        "Run is marked resumable but no active session_id is registered."
+      );
+    }
+
+    const sessionRecord = await this.repo.loadSessionRecord(sessionId);
+    if (!sessionRecord) {
+      return this.blockInvalidResumeSession(
+        run,
+        dispatch,
+        action,
+        `No Praxis-owned session record exists for ${sessionId}.`
+      );
+    }
+
+    const activeSession = sessionRecord as ActiveSessionRecord;
+    const matchesActiveDispatch =
+      activeSession.run_id === run.run_id
+      && activeSession.dispatch_id === dispatch.dispatch_id
+      && activeSession.stage === dispatch.stage
+      && activeSession.adapter === dispatch.worker.adapter
+      && activeSession.session_id === sessionId
+      && activeSession.resumable === true;
+
+    if (matchesActiveDispatch) {
+      return sessionId;
+    }
+
+    return this.blockInvalidResumeSession(
+      run,
+      dispatch,
+      action,
+      `Session ${sessionId} is not a Praxis-owned resumable session for dispatch ${dispatch.dispatch_id} (${dispatch.stage}).`
+    );
+  }
+
+  private async blockInvalidResumeSession(
+    run: RunRecord,
+    dispatch: DispatchRecord,
+    action: "build-worker-launch",
+    detail: string
+  ): Promise<never> {
+    const now = nowIsoUtc();
+    const blockedReason = `${detail} Register a fresh Praxis-owned worker session for the active dispatch before retrying ${action}.`;
+
+    run.status = "blocked";
+    run.routing.next_action = "ask_user";
+    run.routing.reason = blockedReason;
+    run.routing.stop_reason_code = "invalid_resumable_session";
+    run.timestamps.updated_at = now;
+    await this.repo.saveRun(run);
+    await this.repo.appendLifecycleEvent({
+      ts: now,
+      type: "invalid_resumable_session",
+      run_id: run.run_id,
+      stage: dispatch.stage,
+      action,
+      details: {
+        dispatch_id: dispatch.dispatch_id,
+        session_id: run.active.session_id,
+        error: detail
+      }
+    });
+
     throw new BlockedStateError(blockedReason);
   }
 }

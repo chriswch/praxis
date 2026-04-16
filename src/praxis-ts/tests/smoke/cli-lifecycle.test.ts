@@ -559,6 +559,59 @@ test("smoke: orchestrated resume re-issues adapter resume against the active ses
   assert.notEqual(run.active.worker_id, "wrk_resume_seed");
 });
 
+test("smoke: orchestrated resume rejects a session not owned by the active dispatch", async () => {
+  const repoRoot = await createTempRepo();
+
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      workflow: "forge",
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "Resume provenance guard"
+    }),
+    0
+  );
+
+  const dispatchId = await prepareDispatch(repoRoot);
+  assert.equal(
+    await runRegisterWorkerSessionCommand(repoRoot, true, {
+      dispatchId,
+      workerId: "wrk_resume_guard",
+      sessionId: "codex_session_resume_guard",
+      startedAt: "2026-04-15T00:00:00.000Z",
+      locator: "codex://resume-guard",
+      resumable: true
+    }),
+    0
+  );
+
+  await writeFile(
+    join(repoRoot, ".praxis", "sessions", "codex_session_resume_guard.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        run_id: "run_other",
+        dispatch_id: "dsp_other",
+        stage: "clarifying-intent",
+        adapter: "codex",
+        worker_id: "wrk_other",
+        session_id: "codex_session_resume_guard",
+        resumable: true
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+
+  assert.equal(await runResumeCommand(repoRoot, true, { orchestrate: true }), EXIT_CODE.BLOCKED);
+
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(run.status, "blocked");
+  assert.equal(run.routing.stop_reason_code, "invalid_resumable_session");
+  assert.match(run.routing.reason, /not a Praxis-owned resumable session/);
+});
+
 test("smoke: ask_user routes to workflow-resolved next stage", async () => {
   const repoRoot = await createTempRepo();
 

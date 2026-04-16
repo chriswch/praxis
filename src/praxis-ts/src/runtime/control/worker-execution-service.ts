@@ -87,9 +87,15 @@ export class WorkerExecutionService {
 
     const adapter = getAdapter(dispatch.worker.adapter);
     const launch = await this.dispatchService.buildWorkerLaunch();
+    const resumeSessionId = launch.worker.resume_session_id;
+    if (!resumeSessionId) {
+      throw new BlockedStateError(
+        `No Praxis-owned resumable session is registered for dispatch ${dispatch.dispatch_id}.`
+      );
+    }
 
     try {
-      const response = await adapter.resume(run.active.session_id, {
+      const response = await adapter.resume(resumeSessionId, {
         dispatch,
         launch,
         repoRoot: this.repo.paths.root
@@ -97,9 +103,9 @@ export class WorkerExecutionService {
       if (!response.session_id) {
         throw new BlockedStateError("Adapter resume did not return a provider session_id.");
       }
-      if (response.session_id !== run.active.session_id) {
+      if (response.session_id !== resumeSessionId) {
         throw new BlockedStateError(
-          `Adapter resume changed provider session_id. Expected ${run.active.session_id}, received ${response.session_id}.`
+          `Adapter resume changed provider session_id. Expected ${resumeSessionId}, received ${response.session_id}.`
         );
       }
       const registration = await this.dispatchService.registerWorkerSession({
