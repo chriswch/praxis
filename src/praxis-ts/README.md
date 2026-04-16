@@ -91,6 +91,8 @@ This runtime stores operational state at `<repo-root>/.praxis/`:
 ## Notes
 
 - v1 supports one owning worker at a time.
+- Every stage runs in the target repo's current worktree. Review stays fresh
+  through a new Praxis-owned session, not a detached review worktree.
 - Workflow progression is routed from stage-result artifacts, not transcripts.
 - Multi-slice carry-forward is explicit through `handoff.json` at story
   boundaries.

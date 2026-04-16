@@ -173,8 +173,8 @@ model never decides the workflow graph.
 - The next allowed action: dispatch, wait, approve, rework, finish, or fail.
 - The expected input artifact set for the active stage.
 - The expected output artifact set for the active stage.
-- The worker shape required by the stage, such as fresh session or isolated
-  review worktree.
+- The worker shape required by the stage, such as a fresh session or same-stage
+  resume in the target worktree.
 
 ### Side Effects
 
@@ -280,6 +280,8 @@ interface it exposes upward.
 ### Side Effects
 
 - Starts background processes or SDK-managed sessions.
+- Starts fresh Praxis-owned provider sessions at stage boundaries and resumes
+  only the session already registered for the active dispatch.
 - Creates provider-specific runtime homes or isolated profiles when needed.
 - Writes session, launch, resume, and cancellation evidence to durable state.
 
@@ -325,7 +327,7 @@ The worker is a stage executor, not the workflow owner.
 - Reads declared inputs only.
 - Writes within allowed workspace boundaries only.
 - Runs tools under the tool-plane policy contract.
-- May edit the main worktree or an isolated worktree, depending on the stage.
+- Edits the target repo's current worktree for every normal workflow stage.
 
 ### Upstream And Downstream
 
@@ -339,7 +341,6 @@ The architecture should support a small, explicit set of worker modes:
 
 - fresh session worker
 - same-stage resumable worker
-- isolated worktree worker
 
 Only one owning worker is active for a run in v1.
 
@@ -410,7 +411,8 @@ what the next valid action is.
 
 - Writes and updates repo-scoped runtime state under `.praxis/`.
 - Preserves operator-visible history.
-- May record cleanup ownership for temp directories or isolated worktrees.
+- May record cleanup ownership for temp directories or legacy runtime surfaces
+  when needed.
 
 ### Upstream And Downstream
 
@@ -480,8 +482,8 @@ The new CLI should stay close to the plane boundaries:
   compiler, validators, recovery, status projection.
 - `src/adapters/`: Codex adapter and Claude adapter built on their TypeScript
   agent SDKs.
-- `src/runtime/workers/`: worker launch envelopes, worker modes, worktree and
-  isolation helpers.
+- `src/runtime/workers/`: worker launch envelopes, worker modes, worker-host
+  helpers, and stage contracts.
 - `src/runtime/tools/`: tool broker, policy enforcement, telemetry hooks.
 - `src/runtime/state/`: durable store, event log, projections, recoverability
   helpers.
