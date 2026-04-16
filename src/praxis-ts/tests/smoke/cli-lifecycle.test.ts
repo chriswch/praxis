@@ -87,15 +87,70 @@ test("smoke: public CLI run auto-launches the first worker", async () => {
   assert.ok(run.active.dispatch_id);
   assert.ok(run.active.worker_id);
   assert.ok(run.active.session_id);
+  assert.match(run.active.session_id, /^fake_codex_session_/);
 
   const sessionRecord = await readJson<{
+    locator?: string;
     provider_details?: {
       command?: {
         binary?: string;
       };
     } | null;
   }>(join(repoRoot, ".praxis", "sessions", `${run.active.session_id}.json`));
-  assert.equal(sessionRecord.provider_details?.command?.binary, "codex");
+  assert.match(String(sessionRecord.locator), /^worker-host:\/\/pid\/\d+$/);
+  assert.ok(typeof sessionRecord.provider_details?.command?.binary === "string");
+});
+
+test("smoke: run fails closed when codex launch never yields a provider session_id", async () => {
+  const repoRoot = await createTempRepo();
+  const tsxCli = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
+  const noSessionCodex = join(process.cwd(), "tests", "fixtures", "fake-codex-no-session.mjs");
+
+  let failure: Error & { code?: number; stdout?: string } | null = null;
+  try {
+    await execFileAsync(process.execPath, [
+      tsxCli,
+      "src/index.ts",
+      "--repo-root",
+      repoRoot,
+      "--json",
+      "run",
+      "--workflow",
+      "forge",
+      "--adapter",
+      "codex",
+      "--execution-mode",
+      "autopilot",
+      "--entry-task",
+      "fail closed without session id"
+    ], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        PRAXIS_CODEX_BIN: noSessionCodex
+      }
+    });
+  } catch (error) {
+    failure = error as Error & { code?: number; stdout?: string };
+  }
+
+  assert.ok(failure);
+  assert.equal(failure.code, EXIT_CODE.FAILED);
+
+  const envelope = JSON.parse((failure.stdout ?? "").trim()) as {
+    ok: boolean;
+    code: number;
+    message: string;
+  };
+  assert.equal(envelope.ok, false);
+  assert.equal(envelope.code, EXIT_CODE.FAILED);
+  assert.match(envelope.message, /Codex worker host failed startup/);
+
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(run.status, "blocked");
+  assert.equal(run.routing.next_action, "ask_user");
+  assert.equal(run.routing.stop_reason_code, "adapter_launch_failed");
+  assert.equal(run.active.session_id, null);
 });
 
 test("smoke: build-worker-launch exposes stage contract, policy, and repo instruction surfaces", async () => {

@@ -8,7 +8,7 @@ export type PraxisCliInvocation = {
 };
 
 export function resolvePraxisCliInvocation(): PraxisCliInvocation {
-  const runtimeRoot = fileURLToPath(new URL("../../..", import.meta.url));
+  const runtimeRoot = fileURLToPath(new URL("../..", import.meta.url));
   const packageRoot = dirname(runtimeRoot);
 
   const sourceEntry = join(runtimeRoot, "index.ts");

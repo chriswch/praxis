@@ -149,7 +149,7 @@ test("smoke: cancel uses locator handle when session_id is unavailable", async (
 
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.equal(run.status, "cancelled");
-  assert.match(run.routing.reason, /Cancelled worker at codex:\/\/locator-only/);
+  assert.match(run.routing.reason, /Cancelled worker via opaque locator codex:\/\/locator-only/);
 });
 
 test("smoke: cancel fails closed when active worker has no cancellable handle", async () => {

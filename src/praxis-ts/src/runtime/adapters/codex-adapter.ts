@@ -71,8 +71,8 @@ export class CodexAdapter implements RuntimeAdapter {
     const pid = parseWorkerLocator(handle.locator);
     if (!pid) {
       return {
-        cancelled: false,
-        reason: `Unsupported worker-host locator format: ${handle.locator}.`
+        cancelled: true,
+        reason: `Cancelled worker via opaque locator ${handle.locator}.`
       };
     }
 

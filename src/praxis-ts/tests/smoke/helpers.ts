@@ -1,7 +1,10 @@
 import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { StageName, StageResultRecord } from "../../src/contracts/model.js";
+
+const fakeCodexPath = resolve(process.cwd(), "tests", "fixtures", "fake-codex-cli.mjs");
+process.env.PRAXIS_CODEX_BIN = process.env.PRAXIS_CODEX_BIN ?? fakeCodexPath;
 
 export async function createTempRepo(): Promise<string> {
   return mkdtemp(join(tmpdir(), "praxis-ts-smoke-"));

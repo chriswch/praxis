@@ -89,6 +89,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
   const startupTimestamp = nowIsoUtc();
   let handshakeWritten = false;
   let sessionId: string | null = null;
+  let startupError: string | null = null;
 
   const failHandshake = async (message: string): Promise<void> => {
     if (handshakeWritten) {
@@ -166,6 +167,10 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
   };
   process.on("SIGTERM", () => forwardSignal("SIGTERM"));
   process.on("SIGINT", () => forwardSignal("SIGINT"));
+  child.once("error", (error) => {
+    startupError = error instanceof Error ? error.message : String(error);
+    void failHandshake(`Failed to start codex process: ${startupError}`);
+  });
 
   const exitResult = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolveExit) => {
     child.once("exit", (code, signal) => resolveExit({ code, signal }));
@@ -175,7 +180,9 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
     const stderrSummary = stderrBuffer.slice(-12).join("\n");
     await failHandshake(
       [
-        "Codex exited before emitting a provider session_id.",
+        startupError
+          ? `Codex failed during startup: ${startupError}`
+          : "Codex exited before emitting a provider session_id.",
         stderrSummary ? `stderr:\n${stderrSummary}` : null
       ]
         .filter(Boolean)
@@ -319,10 +326,6 @@ function extractSessionId(payload: unknown): string | null {
     return null;
   }
 
-  if (typeof payload === "string") {
-    return payload.trim().length > 0 ? payload : null;
-  }
-
   if (Array.isArray(payload)) {
     for (const item of payload) {
       const nested = extractSessionId(item);
@@ -346,6 +349,9 @@ function extractSessionId(payload: unknown): string | null {
   }
 
   for (const value of Object.values(record)) {
+    if (typeof value !== "object" || value === null) {
+      continue;
+    }
     const nested = extractSessionId(value);
     if (nested) {
       return nested;
