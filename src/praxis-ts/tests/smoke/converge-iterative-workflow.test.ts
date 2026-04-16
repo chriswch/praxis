@@ -1,0 +1,169 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+import {
+  runConvergeRunCommand,
+  runContinueCommand,
+  runDispatchCommand,
+  runSubmitStageResultCommand
+} from "../../src/cli/commands/index.js";
+import { EXIT_CODE } from "../../src/cli/exit-codes.js";
+import type { RunRecord, StageName, StageResultRecord } from "../../src/contracts/model.js";
+import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
+
+const execFileAsync = promisify(execFile);
+
+type ConvergeObjectiveOptions = {
+  lines: string[];
+};
+
+async function writeObjective(repoRoot: string, options: ConvergeObjectiveOptions): Promise<string> {
+  await mkdir(join(repoRoot, "docs"), { recursive: true });
+  const objectivePath = join(repoRoot, "docs", "objective.md");
+  await writeFile(
+    objectivePath,
+    ["# Objective", "", ...options.lines].join("\n"),
+    "utf8"
+  );
+  return "docs/objective.md";
+}
+
+async function prepareDispatch(repoRoot: string): Promise<string> {
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  if (run.active.dispatch_id) {
+    return run.active.dispatch_id;
+  }
+  assert.equal(await runDispatchCommand(repoRoot, true), EXIT_CODE.OK);
+  const refreshed = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.ok(refreshed.active.dispatch_id);
+  return refreshed.active.dispatch_id;
+}
+
+async function submitStage(
+  repoRoot: string,
+  stage: StageName,
+  artifactDir: string,
+  outcomeCode: string,
+  routeKind: StageResultRecord["route"]["kind"]
+): Promise<void> {
+  const dispatchId = await prepareDispatch(repoRoot);
+  const activeRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  const overrides: Partial<StageResultRecord> = {
+    dispatch_id: dispatchId
+  };
+  if (activeRun.active.session_id) {
+    overrides.session_id = activeRun.active.session_id;
+  }
+  const stageResultPath = await writeStageResult(repoRoot, stage, artifactDir, outcomeCode, routeKind, {
+    ...overrides
+  });
+  assert.equal(await runSubmitStageResultCommand(repoRoot, true, stageResultPath), EXIT_CODE.OK);
+}
+
+async function initGitRepo(repoRoot: string): Promise<void> {
+  await execFileAsync("git", ["init"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.email", "smoke@example.com"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "Smoke Bot"], { cwd: repoRoot });
+  await execFileAsync("git", ["add", "."], { cwd: repoRoot });
+  await execFileAsync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "seed"], { cwd: repoRoot });
+}
+
+test("smoke: converge child run receives bounded pass brief as required clarifying input", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "- Must enforce bounded remediation scope per pass.",
+      "- Must pass selected findings and non-goals into child craft execution.",
+      "- Must persist converge campaign artifacts under .praxis."
+    ]
+  });
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "product-spec-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 3,
+      maxStoriesPerPass: 3,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(run.mode, "multi_slice");
+  assert.ok(run.constraints?.bounded_scope);
+  assert.ok(run.constraints?.clarifying_required_artifacts?.length);
+
+  const briefPath = run.constraints?.clarifying_required_artifacts?.[0];
+  assert.ok(briefPath);
+  const dispatchId = await prepareDispatch(repoRoot);
+  const dispatch = await readJson<{ inputs: { required_artifacts: string[] } }>(
+    join(repoRoot, ".praxis", "dispatches", `${dispatchId}.json`)
+  );
+  assert.ok(dispatch.inputs.required_artifacts.includes(briefPath!));
+});
+
+test("smoke: commit-per-story is enforced at story boundary before continue", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "- Must implement alpha remediation gate for campaign convergence.",
+      "- Must implement beta remediation gate for campaign convergence.",
+      "- Must implement gamma remediation gate for campaign convergence."
+    ]
+  });
+  await initGitRepo(repoRoot);
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "product-spec-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 3,
+      maxStoriesPerPass: 3,
+      scope: [],
+      commitPerStory: true,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const initialRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  const firstStoryId = initialRun.current.slice_id;
+  assert.ok(firstStoryId);
+  const firstArtifactDir = `.praxis/slices/${firstStoryId}`;
+
+  await submitStage(repoRoot, "clarifying-intent", firstArtifactDir, "story_spec_ready", "proceed");
+  await submitStage(repoRoot, "sketching-design", firstArtifactDir, "sketch_skipped", "proceed");
+  await submitStage(repoRoot, "driving-tdd", firstArtifactDir, "tdd_complete", "proceed");
+  await submitStage(repoRoot, "code-reviewing", firstArtifactDir, "review_skipped", "proceed");
+  await submitStage(repoRoot, "verifying-and-adapting", firstArtifactDir, "next_slice", "next_slice");
+
+  const gatedRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(gatedRun.status, "waiting_for_user");
+  assert.equal(gatedRun.routing.stop_reason_code, "commit_per_story_required");
+  assert.equal(gatedRun.constraints?.commit_per_story?.pending_story_id, firstStoryId);
+
+  assert.equal(await runContinueCommand(repoRoot, true), EXIT_CODE.REJECTED);
+
+  await writeFile(join(repoRoot, `story-${firstStoryId}.txt`), `${firstStoryId}\n`, "utf8");
+  await execFileAsync("git", ["add", `story-${firstStoryId}.txt`], { cwd: repoRoot });
+  await execFileAsync("git", ["-c", "commit.gpgsign=false", "commit", "-m", `commit ${firstStoryId}`], { cwd: repoRoot });
+
+  assert.equal(await runContinueCommand(repoRoot, true), EXIT_CODE.OK);
+  const resumedRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(resumedRun.constraints?.commit_per_story?.pending_story_id, null);
+});
