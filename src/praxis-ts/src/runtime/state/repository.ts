@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { unlink, writeFile, mkdir } from "node:fs/promises";
+import { unlink, writeFile, mkdir, rm } from "node:fs/promises";
 import type {
   CampaignLedgerRecord,
   CampaignRecord,
@@ -210,6 +210,14 @@ export class PraxisStateRepository {
     await writeJsonFile(join(passDir, "batch.json"), batch);
   }
 
+  async loadPassBatch(passId: string): Promise<PassBatchRecord | null> {
+    const batch = await readJsonFileIfExists<PassBatchRecord>(join(this.paths.passesDir, passId, "batch.json"));
+    if (batch) {
+      validatePassBatchRecord(batch);
+    }
+    return batch;
+  }
+
   async savePassSummary(passId: string, summary: PassSummaryRecord): Promise<void> {
     validatePassSummaryRecord(summary);
     const passDir = join(this.paths.passesDir, passId);
@@ -217,10 +225,42 @@ export class PraxisStateRepository {
     await writeJsonFile(join(passDir, "summary.json"), summary);
   }
 
+  async loadPassSummary(passId: string): Promise<PassSummaryRecord | null> {
+    const summary = await readJsonFileIfExists<PassSummaryRecord>(
+      join(this.paths.passesDir, passId, "summary.json")
+    );
+    if (summary) {
+      validatePassSummaryRecord(summary);
+    }
+    return summary;
+  }
+
   async savePassChildRun(passId: string, payload: Record<string, unknown>): Promise<void> {
     const passDir = join(this.paths.passesDir, passId);
     await mkdir(passDir, { recursive: true });
     await writeJsonFile(join(passDir, "child-run.json"), payload);
+  }
+
+  async loadPassChildRun(passId: string): Promise<Record<string, unknown> | null> {
+    return readJsonFileIfExists<Record<string, unknown>>(join(this.paths.passesDir, passId, "child-run.json"));
+  }
+
+  async clearRunControlState(): Promise<void> {
+    await Promise.all([
+      this.safeUnlink(this.paths.runFile),
+      this.safeUnlink(this.paths.storyLedgerFile),
+      this.safeUnlink(this.paths.runLedgerTransactionFile)
+    ]);
+    await Promise.all([
+      rm(this.paths.dispatchesDir, { recursive: true, force: true }),
+      rm(this.paths.sessionsDir, { recursive: true, force: true }),
+      rm(this.paths.worktreesDir, { recursive: true, force: true })
+    ]);
+    await Promise.all([
+      mkdir(this.paths.dispatchesDir, { recursive: true }),
+      mkdir(this.paths.sessionsDir, { recursive: true }),
+      mkdir(this.paths.worktreesDir, { recursive: true })
+    ]);
   }
 
   async listLifecycleEvents(limit = 50): Promise<Record<string, unknown>[]> {
@@ -258,8 +298,12 @@ export class PraxisStateRepository {
   }
 
   private async removeRunLedgerTransactionMarker(): Promise<void> {
+    await this.safeUnlink(this.paths.runLedgerTransactionFile);
+  }
+
+  private async safeUnlink(path: string): Promise<void> {
     try {
-      await unlink(this.paths.runLedgerTransactionFile);
+      await unlink(path);
     } catch {
       // Marker is best-effort cleanup; recovery remains safe when already removed.
     }

@@ -430,10 +430,11 @@ export type PassSummaryRecord = {
   pass_id: string;
   pass_number: number;
   child_run_id: string | null;
+  assessment_review_id: string;
+  reassessment_review_id: string | null;
   planned_finding_ids: string[];
   completed_story_ids: string[];
   produced_commits: string[];
-  reassessment_review_id: string;
   unresolved_at_or_above_threshold: number;
   outcome: "continue" | "converged" | "needs_operator" | "stalled" | "budget_exhausted";
   generated_at: string;

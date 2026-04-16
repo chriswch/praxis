@@ -598,10 +598,13 @@ export function validatePassSummaryRecord(summary: PassSummaryRecord): void {
   if (summary.child_run_id !== null) {
     assertPlainString(summary.child_run_id, "pass summary child_run_id");
   }
+  assertPlainString(summary.assessment_review_id, "pass summary assessment_review_id");
   assertStringArray(summary.planned_finding_ids, "pass summary planned_finding_ids");
   assertStringArray(summary.completed_story_ids, "pass summary completed_story_ids");
   assertStringArray(summary.produced_commits, "pass summary produced_commits");
-  assertPlainString(summary.reassessment_review_id, "pass summary reassessment_review_id");
+  if (summary.reassessment_review_id !== null) {
+    assertPlainString(summary.reassessment_review_id, "pass summary reassessment_review_id");
+  }
   if (summary.unresolved_at_or_above_threshold < 0) {
     throw new ContractError("pass summary unresolved_at_or_above_threshold must be >= 0");
   }

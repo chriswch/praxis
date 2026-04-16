@@ -7,7 +7,9 @@ import type {
   CampaignRecord,
   FindingStatus,
   PassBatchRecord,
-  PassSummaryRecord
+  PassSummaryRecord,
+  RunRecord,
+  StoryLedgerRecord
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import { RunController } from "../control/run-controller.js";
@@ -31,6 +33,8 @@ import type {
   ConvergeRunInput,
   ConvergeStatusProjection
 } from "./types.js";
+
+const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
 function normalizeRepoPath(repoRoot: string, candidatePath: string): string {
   const absolute = isAbsolute(candidatePath)
@@ -86,6 +90,38 @@ function formatObjectiveMarkdown(campaign: CampaignRecord): string {
     `- Scope: ${campaign.objective.scope.length > 0 ? campaign.objective.scope.join(", ") : "(repo root)"}`,
     ""
   ].join("\n");
+}
+
+function parseReviewOrdinal(reviewId: string | null): number {
+  if (!reviewId) {
+    return 0;
+  }
+  const match = /^R-(\d+)$/.exec(reviewId);
+  if (!match) {
+    return 0;
+  }
+  const value = Number.parseInt(match[1], 10);
+  return Number.isNaN(value) ? 0 : value;
+}
+
+function stringifyError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isRunTerminal(status: RunRecord["status"]): boolean {
+  return TERMINAL_RUN_STATUSES.has(status);
+}
+
+function readOptionalString(payload: Record<string, unknown>, key: string): string | null {
+  const value = payload[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function listCompletedStoryIds(ledger: StoryLedgerRecord | null): string[] {
+  if (!ledger) {
+    return [];
+  }
+  return ledger.stories.order.filter((storyId) => ledger.stories.items[storyId]?.status === "completed");
 }
 
 export class ConvergeCampaignService {
@@ -272,112 +308,171 @@ export class ConvergeCampaignService {
     objectiveText: string
   ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord }> {
     while (campaign.status === "running") {
-      const passNumber = campaign.current_pass + 1;
-      const passId = buildPassId(passNumber);
-      const reviewId = buildReviewId(passNumber);
-      const now = nowIsoUtc();
-
-      const { assessment, assessmentMarkdown } = await assessObjective({
-        repoRoot: this.repo.paths.root,
-        profile: campaign.profile,
-        objectivePath: campaign.objective.normalized_path,
-        objectiveText,
-        scope: campaign.objective.scope,
-        reviewId,
-        generatedAt: now
-      });
-
-      await this.repo.saveReviewArtifacts(reviewId, {
-        assessmentMarkdown,
-        findings: assessment,
-        stageResult: {
-          version: 1,
-          stage: "objective-assessing",
-          status: "completed",
-          profile: campaign.profile,
-          review_id: reviewId,
-          route: {
-            kind: "proceed"
-          },
-          data: {
-            outcome_code: assessment.findings.length === 0 ? "no_gaps" : "findings_recorded",
-            findings_count: assessment.findings.length
-          }
+      if (campaign.current_child_run_id) {
+        const progressedChild = await this.handlePendingChildRun(campaign, ledger, objectiveText);
+        campaign = progressedChild.campaign;
+        ledger = progressedChild.ledger;
+        if (!progressedChild.continueToPlanning) {
+          return { campaign, ledger };
         }
-      });
-
-      const merged = mergeAssessmentIntoLedger(ledger, assessment, passNumber, nowIsoUtc());
-      applyWaivePolicy(campaign, merged.ledger);
-
-      campaign.current_pass = passNumber;
-      campaign.current_review_id = reviewId;
-
-      const unresolvedAtThreshold = countUnresolvedAtOrAboveThreshold(merged.ledger, campaign.severity_threshold);
-      const previousUnresolved = campaign.metrics.last_unresolved_at_or_above_threshold;
-      if (previousUnresolved !== null && unresolvedAtThreshold >= previousUnresolved) {
-        campaign.metrics.no_progress_passes += 1;
-      } else {
-        campaign.metrics.no_progress_passes = 0;
+        continue;
       }
-      campaign.metrics.last_unresolved_at_or_above_threshold = unresolvedAtThreshold;
 
-      let outcome: PassSummaryRecord["outcome"];
-      let plannedFindingIds: string[] = [];
-      let completedStoryIds: string[] = [];
-      let childRunId: string | null = null;
-      let producedCommits: string[] = [];
+      if (!campaign.current_review_id) {
+        const assessed = await this.assessAndMerge(
+          campaign,
+          ledger,
+          campaign.current_pass + 1,
+          this.nextReviewId(campaign),
+          objectiveText
+        );
+        campaign = assessed.campaign;
+        ledger = assessed.ledger;
 
-      if (unresolvedAtThreshold === 0) {
-        campaign.status = "completed";
-        campaign.stop_reason_code = "converged";
-        campaign.reason = "No unresolved findings remain at or above the configured threshold.";
-        outcome = "converged";
-      } else if (campaign.metrics.no_progress_passes >= 2) {
-        campaign.status = "completed";
-        campaign.stop_reason_code = "stalled";
-        campaign.reason = "Campaign stalled: repeated passes did not reduce unresolved findings.";
-        outcome = "stalled";
-      } else if (passNumber >= campaign.max_passes) {
+        const decision = this.decidePostAssessmentOutcome(campaign, assessed.unresolvedAtThreshold);
+        if (decision !== "continue") {
+          campaign.status = "completed";
+          campaign.stop_reason_code = decision;
+          campaign.reason = this.stopReasonMessage(decision);
+          campaign.timestamps.updated_at = nowIsoUtc();
+          return { campaign, ledger };
+        }
+      }
+
+      const nextPassNumber = campaign.current_pass + 1;
+      if (nextPassNumber > campaign.max_passes) {
         campaign.status = "completed";
         campaign.stop_reason_code = "budget_exhausted";
         campaign.reason = "Campaign reached the configured max pass budget.";
-        outcome = "budget_exhausted";
-      } else {
-        const batchPlan = planPassBatch({
-          campaignId: campaign.campaign_id,
-          passNumber,
-          reviewId,
-          ledger: merged.ledger,
-          severityThreshold: campaign.severity_threshold,
-          maxFindingsPerPass: campaign.max_findings_per_pass,
-          maxStoriesPerPass: campaign.max_stories_per_pass,
-          generatedAt: nowIsoUtc()
-        });
-        plannedFindingIds = batchPlan.batch.selected_finding_ids;
-        completedStoryIds = batchPlan.batch.stories.map((story) => story.story_id);
-        markFindingsBatched(merged.ledger, plannedFindingIds);
-        await this.repo.savePassBatch(batchPlan.passId, batchPlan.batchMarkdown, batchPlan.batch);
-        const childLaunch = await this.launchChildForgeRun(campaign, batchPlan.passId, batchPlan.batch);
-        childRunId = childLaunch.childRunId;
-        markFindingsInProgress(merged.ledger, plannedFindingIds, childRunId, completedStoryIds);
-        await this.repo.savePassChildRun(batchPlan.passId, childLaunch.childRunRecord);
-
-        if (campaign.auto_continue) {
-          campaign.status = "running";
-          campaign.stop_reason_code = null;
-          campaign.reason =
-            `Pass ${passId} launched child forge run ${childRunId}. Waiting for child completion before reassessment.`;
-          outcome = "continue";
-        } else {
-          campaign.status = "waiting_for_user";
-          campaign.stop_reason_code = "needs_operator";
-          campaign.reason =
-            `Pass ${passId} launched child forge remediation (${childRunId}). Complete the child run and execute \`praxis converge continue\`.`;
-          outcome = "needs_operator";
-        }
+        campaign.timestamps.updated_at = nowIsoUtc();
+        return { campaign, ledger };
       }
 
-      campaign.current_child_run_id = childRunId;
+      const launched = await this.planAndLaunchPass(campaign, ledger, nextPassNumber);
+      campaign = launched.campaign;
+      ledger = launched.ledger;
+      return { campaign, ledger };
+    }
+
+    return { campaign, ledger };
+  }
+
+  private async assessAndMerge(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    passNumber: number,
+    reviewId: string,
+    objectiveText: string
+  ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord; unresolvedAtThreshold: number }> {
+    const generatedAt = nowIsoUtc();
+    const { assessment, assessmentMarkdown } = await assessObjective({
+      repoRoot: this.repo.paths.root,
+      profile: campaign.profile,
+      objectivePath: campaign.objective.normalized_path,
+      objectiveText,
+      scope: campaign.objective.scope,
+      reviewId,
+      generatedAt
+    });
+
+    await this.repo.saveReviewArtifacts(reviewId, {
+      assessmentMarkdown,
+      findings: assessment,
+      stageResult: {
+        version: 1,
+        stage: "objective-assessing",
+        status: "completed",
+        profile: campaign.profile,
+        review_id: reviewId,
+        route: {
+          kind: "proceed"
+        },
+        data: {
+          outcome_code: assessment.findings.length === 0 ? "no_gaps" : "findings_recorded",
+          findings_count: assessment.findings.length
+        }
+      }
+    });
+
+    const merged = mergeAssessmentIntoLedger(ledger, assessment, passNumber, nowIsoUtc());
+    applyWaivePolicy(campaign, merged.ledger);
+
+    const unresolvedAtThreshold = countUnresolvedAtOrAboveThreshold(merged.ledger, campaign.severity_threshold);
+    const previousUnresolved = campaign.metrics.last_unresolved_at_or_above_threshold;
+    if (previousUnresolved !== null && unresolvedAtThreshold >= previousUnresolved) {
+      campaign.metrics.no_progress_passes += 1;
+    } else {
+      campaign.metrics.no_progress_passes = 0;
+    }
+    campaign.metrics.last_unresolved_at_or_above_threshold = unresolvedAtThreshold;
+    campaign.current_review_id = reviewId;
+    campaign.timestamps.updated_at = nowIsoUtc();
+
+    return {
+      campaign,
+      ledger: merged.ledger,
+      unresolvedAtThreshold
+    };
+  }
+
+  private decidePostAssessmentOutcome(
+    campaign: CampaignRecord,
+    unresolvedAtThreshold: number
+  ): "continue" | "converged" | "stalled" {
+    if (unresolvedAtThreshold === 0) {
+      return "converged";
+    }
+    if (campaign.metrics.no_progress_passes >= 2) {
+      return "stalled";
+    }
+    return "continue";
+  }
+
+  private stopReasonMessage(reason: Exclude<PassSummaryRecord["outcome"], "continue" | "needs_operator">): string {
+    if (reason === "converged") {
+      return "No unresolved findings remain at or above the configured threshold.";
+    }
+    if (reason === "stalled") {
+      return "Campaign stalled: repeated passes did not reduce unresolved findings.";
+    }
+    return "Campaign reached the configured max pass budget.";
+  }
+
+  private async planAndLaunchPass(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    passNumber: number
+  ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord }> {
+    if (!campaign.current_review_id) {
+      throw new BlockedStateError("Cannot plan remediation without an assessment review id.");
+    }
+
+    const passId = buildPassId(passNumber);
+    const batchPlan = planPassBatch({
+      campaignId: campaign.campaign_id,
+      passNumber,
+      reviewId: campaign.current_review_id,
+      ledger,
+      severityThreshold: campaign.severity_threshold,
+      maxFindingsPerPass: campaign.max_findings_per_pass,
+      maxStoriesPerPass: campaign.max_stories_per_pass,
+      generatedAt: nowIsoUtc()
+    });
+
+    markFindingsBatched(ledger, batchPlan.batch.selected_finding_ids);
+    await this.repo.savePassBatch(batchPlan.passId, batchPlan.batchMarkdown, batchPlan.batch);
+
+    let launchResult: {
+      childRunId: string;
+      childRunRecord: Record<string, unknown>;
+    };
+    try {
+      launchResult = await this.launchChildForgeRun(campaign, passId, batchPlan.batch);
+    } catch (error) {
+      campaign.status = "waiting_for_user";
+      campaign.stop_reason_code = "blocked";
+      campaign.reason =
+        `Pass ${passId} batch planned but child forge launch failed: ${stringifyError(error)}`;
       campaign.timestamps.updated_at = nowIsoUtc();
 
       const summary: PassSummaryRecord = {
@@ -385,23 +480,247 @@ export class ConvergeCampaignService {
         campaign_id: campaign.campaign_id,
         pass_id: passId,
         pass_number: passNumber,
-        child_run_id: childRunId,
-        planned_finding_ids: plannedFindingIds,
-        completed_story_ids: completedStoryIds,
-        produced_commits: producedCommits,
-        reassessment_review_id: reviewId,
-        unresolved_at_or_above_threshold: unresolvedAtThreshold,
-        outcome,
+        child_run_id: null,
+        assessment_review_id: campaign.current_review_id,
+        reassessment_review_id: null,
+        planned_finding_ids: batchPlan.batch.selected_finding_ids,
+        completed_story_ids: [],
+        produced_commits: [],
+        unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(ledger, campaign.severity_threshold),
+        outcome: "needs_operator",
         generated_at: nowIsoUtc()
       };
       await this.repo.savePassSummary(passId, summary);
-
-      if (campaign.status !== "running") {
-        return { campaign, ledger: merged.ledger };
-      }
+      await this.repo.savePassChildRun(passId, {
+        version: 2,
+        child_run_id: null,
+        workflow: campaign.workflow,
+        adapter: campaign.adapter,
+        status: "launch_failed",
+        launch_error: stringifyError(error),
+        generated_at: nowIsoUtc()
+      });
+      return { campaign, ledger };
     }
 
+    const plannedStoryIds = batchPlan.batch.stories.map((story) => story.story_id);
+    markFindingsInProgress(ledger, batchPlan.batch.selected_finding_ids, launchResult.childRunId, plannedStoryIds);
+    await this.repo.savePassChildRun(passId, launchResult.childRunRecord);
+
+    const summary: PassSummaryRecord = {
+      version: 1,
+      campaign_id: campaign.campaign_id,
+      pass_id: passId,
+      pass_number: passNumber,
+      child_run_id: launchResult.childRunId,
+      assessment_review_id: campaign.current_review_id,
+      reassessment_review_id: null,
+      planned_finding_ids: batchPlan.batch.selected_finding_ids,
+      completed_story_ids: [],
+      produced_commits: [],
+      unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(ledger, campaign.severity_threshold),
+      outcome: campaign.auto_continue ? "continue" : "needs_operator",
+      generated_at: nowIsoUtc()
+    };
+    await this.repo.savePassSummary(passId, summary);
+
+    campaign.current_pass = passNumber;
+    campaign.current_child_run_id = launchResult.childRunId;
+    if (campaign.auto_continue) {
+      campaign.status = "running";
+      campaign.stop_reason_code = null;
+      campaign.reason =
+        `Pass ${passId} launched child forge run ${launchResult.childRunId}. Waiting for child completion before reassessment.`;
+    } else {
+      campaign.status = "waiting_for_user";
+      campaign.stop_reason_code = "needs_operator";
+      campaign.reason =
+        `Pass ${passId} launched child forge remediation (${launchResult.childRunId}). Complete the child run and execute \`praxis converge continue\`.`;
+    }
+    campaign.timestamps.updated_at = nowIsoUtc();
+
     return { campaign, ledger };
+  }
+
+  private async handlePendingChildRun(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    objectiveText: string
+  ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord; continueToPlanning: boolean }> {
+    if (campaign.current_pass < 1 || !campaign.current_child_run_id) {
+      throw new BlockedStateError("Campaign has no active pass to reconcile.");
+    }
+
+    const passId = buildPassId(campaign.current_pass);
+    const batch = await this.repo.loadPassBatch(passId);
+    const summary = await this.repo.loadPassSummary(passId);
+    if (!batch || !summary) {
+      campaign.status = "waiting_for_user";
+      campaign.stop_reason_code = "blocked";
+      campaign.reason = `Pass ${passId} is missing batch/summary artifacts required for child reconciliation.`;
+      campaign.timestamps.updated_at = nowIsoUtc();
+      return { campaign, ledger, continueToPlanning: false };
+    }
+
+    const childRun = await this.repo.loadRun();
+    if (!childRun || childRun.run_id !== campaign.current_child_run_id) {
+      campaign.status = "waiting_for_user";
+      campaign.stop_reason_code = "blocked";
+      campaign.reason =
+        `Pass ${passId} expects child run ${campaign.current_child_run_id}, but no matching run state exists.`;
+      campaign.timestamps.updated_at = nowIsoUtc();
+      await this.repo.savePassChildRun(passId, {
+        ...(await this.repo.loadPassChildRun(passId) ?? {}),
+        status: "missing",
+        updated_at: nowIsoUtc()
+      });
+      return { campaign, ledger, continueToPlanning: false };
+    }
+
+    await this.repo.savePassChildRun(passId, {
+      ...(await this.repo.loadPassChildRun(passId) ?? {}),
+      status: childRun.status,
+      child_run_id: childRun.run_id,
+      reason: childRun.routing.reason,
+      next_action: childRun.routing.next_action,
+      next_stage: childRun.routing.next_stage,
+      updated_at: nowIsoUtc()
+    });
+
+    if (childRun.status === "running" || childRun.status === "cancelling") {
+      campaign.status = campaign.auto_continue ? "running" : "waiting_for_user";
+      campaign.stop_reason_code = campaign.auto_continue ? null : "needs_operator";
+      campaign.reason =
+        `Pass ${passId} is waiting for child run ${childRun.run_id} to finish (current status: ${childRun.status}).`;
+      campaign.timestamps.updated_at = nowIsoUtc();
+      return { campaign, ledger, continueToPlanning: false };
+    }
+
+    if (childRun.status === "waiting_for_user" || childRun.status === "blocked") {
+      campaign.status = "waiting_for_user";
+      campaign.stop_reason_code = "needs_operator";
+      campaign.reason =
+        `Child run ${childRun.run_id} needs operator action before converge can reassess (${childRun.routing.reason}).`;
+      campaign.timestamps.updated_at = nowIsoUtc();
+      return { campaign, ledger, continueToPlanning: false };
+    }
+
+    if (!isRunTerminal(childRun.status)) {
+      campaign.status = "waiting_for_user";
+      campaign.stop_reason_code = "blocked";
+      campaign.reason =
+        `Child run ${childRun.run_id} is in unsupported state ${childRun.status}.`;
+      campaign.timestamps.updated_at = nowIsoUtc();
+      return { campaign, ledger, continueToPlanning: false };
+    }
+
+    if (childRun.status !== "completed") {
+      campaign.status = "waiting_for_user";
+      campaign.stop_reason_code = "needs_operator";
+      campaign.reason =
+        `Child run ${childRun.run_id} ended as ${childRun.status}; converge requires operator intervention before reassessment.`;
+      campaign.timestamps.updated_at = nowIsoUtc();
+      await this.repo.savePassSummary(passId, {
+        ...summary,
+        outcome: "needs_operator",
+        generated_at: nowIsoUtc()
+      });
+      return { campaign, ledger, continueToPlanning: false };
+    }
+
+    const completion = await this.collectChildCompletion(passId, childRun, batch);
+    if (campaign.commit_per_story && completion.producedCommits.length > 0) {
+      attachCommitRefsToFindings(ledger, batch.selected_finding_ids, completion.producedCommits);
+    }
+
+    const reassessment = await this.assessAndMerge(
+      campaign,
+      ledger,
+      campaign.current_pass + 1,
+      this.nextReviewId(campaign),
+      objectiveText
+    );
+    campaign = reassessment.campaign;
+    ledger = reassessment.ledger;
+
+    const postAssessmentDecision = this.decidePostAssessmentOutcome(campaign, reassessment.unresolvedAtThreshold);
+    const budgetExhausted =
+      postAssessmentDecision === "continue" && (campaign.current_pass + 1 > campaign.max_passes);
+    const summaryOutcome = budgetExhausted ? "budget_exhausted" : postAssessmentDecision;
+
+    const updatedSummary: PassSummaryRecord = {
+      ...summary,
+      completed_story_ids: completion.completedStoryIds,
+      produced_commits: completion.producedCommits,
+      reassessment_review_id: campaign.current_review_id,
+      unresolved_at_or_above_threshold: reassessment.unresolvedAtThreshold,
+      outcome: summaryOutcome,
+      generated_at: nowIsoUtc()
+    };
+    await this.repo.savePassSummary(passId, updatedSummary);
+    await this.repo.savePassChildRun(passId, {
+      ...(await this.repo.loadPassChildRun(passId) ?? {}),
+      status: "completed",
+      completed_at: nowIsoUtc(),
+      produced_commits: completion.producedCommits,
+      completed_story_ids: completion.completedStoryIds,
+      reassessment_review_id: campaign.current_review_id,
+      unresolved_at_or_above_threshold: reassessment.unresolvedAtThreshold
+    });
+
+    campaign.current_child_run_id = null;
+
+    if (summaryOutcome === "converged") {
+      campaign.status = "completed";
+      campaign.stop_reason_code = "converged";
+      campaign.reason = this.stopReasonMessage("converged");
+      campaign.timestamps.updated_at = nowIsoUtc();
+      return { campaign, ledger, continueToPlanning: false };
+    }
+    if (summaryOutcome === "stalled") {
+      campaign.status = "completed";
+      campaign.stop_reason_code = "stalled";
+      campaign.reason = this.stopReasonMessage("stalled");
+      campaign.timestamps.updated_at = nowIsoUtc();
+      return { campaign, ledger, continueToPlanning: false };
+    }
+    if (summaryOutcome === "budget_exhausted") {
+      campaign.status = "completed";
+      campaign.stop_reason_code = "budget_exhausted";
+      campaign.reason = this.stopReasonMessage("budget_exhausted");
+      campaign.timestamps.updated_at = nowIsoUtc();
+      return { campaign, ledger, continueToPlanning: false };
+    }
+
+    campaign.status = "running";
+    campaign.stop_reason_code = null;
+    campaign.reason =
+      `Pass ${passId} child remediation completed and reassessment is recorded as ${campaign.current_review_id}.`;
+    campaign.timestamps.updated_at = nowIsoUtc();
+    return { campaign, ledger, continueToPlanning: true };
+  }
+
+  private async collectChildCompletion(
+    passId: string,
+    childRun: RunRecord,
+    batch: PassBatchRecord
+  ): Promise<{ completedStoryIds: string[]; producedCommits: string[] }> {
+    const childRecord = await this.repo.loadPassChildRun(passId) ?? {};
+    const beforeHead = readOptionalString(childRecord, "before_head");
+    const afterHead = await readHeadCommit(this.repo.paths.root);
+    const producedCommits = await listCommitRange(this.repo.paths.root, beforeHead, afterHead);
+
+    const storyLedger = await this.repo.loadStoryLedger();
+    const completedStoryIds = listCompletedStoryIds(storyLedger);
+
+    return {
+      completedStoryIds,
+      producedCommits
+    };
+  }
+
+  private nextReviewId(campaign: CampaignRecord): string {
+    return buildReviewId(parseReviewOrdinal(campaign.current_review_id) + 1);
   }
 
   private async requireCampaign(): Promise<CampaignRecord> {
@@ -451,6 +770,18 @@ export class ConvergeCampaignService {
     childRunId: string;
     childRunRecord: Record<string, unknown>;
   }> {
+    const existingRun = await this.repo.loadRun();
+    if (existingRun) {
+      if (!isRunTerminal(existingRun.status)) {
+        throw new BlockedStateError(
+          `Cannot launch child forge run while run ${existingRun.run_id} is ${existingRun.status}.`
+        );
+      }
+      await this.repo.clearRunControlState();
+    }
+
+    const beforeHead = await readHeadCommit(this.repo.paths.root);
+
     const controller = new RunController(this.repo);
     const run = await controller.initializeRun({
       workflow: "forge",
@@ -469,6 +800,7 @@ export class ConvergeCampaignService {
         workflow: campaign.workflow,
         adapter: campaign.adapter,
         status: "running",
+        before_head: beforeHead,
         launch_command: launchCommand,
         dispatch_id: launch.dispatch_id,
         worker_id: launch.worker_id,
