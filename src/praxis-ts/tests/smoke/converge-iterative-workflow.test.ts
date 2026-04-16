@@ -16,6 +16,13 @@ import type { RunRecord, StageName, StageResultRecord } from "../../src/contract
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
+const REQUIRED_CONVERGE_HANDOFF_ARTIFACTS = [
+  ".praxis/target-spec.md",
+  ".praxis/gap.md",
+  ".praxis/gap.json",
+  ".praxis/remediation-map.md",
+  ".praxis/remediation-map.json"
+];
 
 type ConvergeObjectiveOptions = {
   lines: string[];
@@ -106,6 +113,17 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
 
   const targetSpec = await readFile(join(repoRoot, ".praxis", "target-spec.md"), "utf8");
   assert.match(targetSpec, /^# Target Spec/m);
+  assert.match(targetSpec, /^## Goal$/m);
+  assert.match(targetSpec, /^## Scope$/m);
+  assert.match(targetSpec, /^## Non-Goals$/m);
+  assert.match(targetSpec, /^## Constraints$/m);
+  assert.match(targetSpec, /^## Acceptance Criteria$/m);
+
+  const clarifyingResult = await readJson<{ stage: string; data: { outcome_code: string } }>(
+    join(repoRoot, ".praxis", "results", "clarifying-intent.json")
+  );
+  assert.equal(clarifyingResult.stage, "clarifying-intent");
+  assert.equal(clarifyingResult.data.outcome_code, "target_spec_ready");
 
   const gap = await readJson<{
     target_spec_path: string;
@@ -161,13 +179,20 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   assert.equal(planningResult.stage, "planning-remediation");
   assert.match(planningResult.data.outcome_code, /^(remediation_map_ready|no_selection)$/);
 
-  const briefPath = run.constraints?.clarifying_required_artifacts?.[0];
+  const requiredArtifacts = run.constraints?.clarifying_required_artifacts ?? [];
+  const briefPath = requiredArtifacts[0];
   assert.ok(briefPath);
+  for (const artifact of REQUIRED_CONVERGE_HANDOFF_ARTIFACTS) {
+    assert.ok(requiredArtifacts.includes(artifact), `missing required artifact ${artifact}`);
+  }
   const dispatchId = await prepareDispatch(repoRoot);
   const dispatch = await readJson<{ inputs: { required_artifacts: string[] } }>(
     join(repoRoot, ".praxis", "dispatches", `${dispatchId}.json`)
   );
   assert.ok(dispatch.inputs.required_artifacts.includes(briefPath!));
+  for (const artifact of REQUIRED_CONVERGE_HANDOFF_ARTIFACTS) {
+    assert.ok(dispatch.inputs.required_artifacts.includes(artifact), `dispatch missing ${artifact}`);
+  }
 });
 
 test("smoke: commit-per-story is enforced at story boundary before continue", async () => {
