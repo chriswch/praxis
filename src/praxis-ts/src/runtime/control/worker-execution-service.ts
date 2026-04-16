@@ -41,6 +41,9 @@ export class WorkerExecutionService {
         launch,
         repoRoot: this.repo.paths.root
       });
+      if (dispatch.worker.adapter === "codex" && !response.session_id) {
+        throw new BlockedStateError("Codex launch failed to return a real provider session_id.");
+      }
       const registration = await this.dispatchService.registerWorkerSession({
         dispatch_id: dispatch.dispatch_id,
         worker_id: response.worker_id,
@@ -91,6 +94,14 @@ export class WorkerExecutionService {
         launch,
         repoRoot: this.repo.paths.root
       });
+      if (!response.session_id) {
+        throw new BlockedStateError("Adapter resume did not return a provider session_id.");
+      }
+      if (response.session_id !== run.active.session_id) {
+        throw new BlockedStateError(
+          `Adapter resume changed provider session_id. Expected ${run.active.session_id}, received ${response.session_id}.`
+        );
+      }
       const registration = await this.dispatchService.registerWorkerSession({
         dispatch_id: dispatch.dispatch_id,
         worker_id: response.worker_id,

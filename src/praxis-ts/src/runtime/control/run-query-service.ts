@@ -25,7 +25,11 @@ export class RunQueryService {
 
     const ledger = await this.repo.loadStoryLedger();
     const activeDispatch = run.active.dispatch_id ? await this.repo.loadDispatch(run.active.dispatch_id) : null;
-    const activeSession = run.active.session_id ? await this.repo.loadSessionRecord(run.active.session_id) : null;
+    const activeSession = run.active.session_id
+      ? await this.repo.loadSessionRecord(run.active.session_id)
+      : run.active.worker_id
+        ? await this.repo.loadSessionRecord(`worker_${run.active.worker_id}`)
+        : null;
     const activeWorktree = run.active.dispatch_id ? await this.repo.loadWorktreeRecord(run.active.dispatch_id) : null;
     const [recentEvents, recentStageHistory, recentPolicyRecords] = await Promise.all([
       this.repo.listLifecycleEvents(40),

@@ -107,16 +107,8 @@ export class DispatchService {
     }
 
     const resumable = input.resumable && input.session_id !== null;
-    const sessionRecordId = input.session_id ?? `worker_${input.worker_id}`;
     const now = nowIsoUtc();
-
-    run.active.worker_id = input.worker_id;
-    run.active.session_id = input.session_id;
-    run.active.resumable = resumable;
-    run.timestamps.updated_at = now;
-    run.routing.reason = `Worker session registered for ${dispatch.stage} (${input.worker_id}).`;
-
-    await this.repo.saveSessionRecord(sessionRecordId, {
+    const sessionRecordPayload = {
       version: 1,
       run_id: run.run_id,
       dispatch_id: dispatch.dispatch_id,
@@ -131,7 +123,18 @@ export class DispatchService {
       locator: input.locator,
       recorded_at: now,
       provider_details: input.details ?? null
-    });
+    };
+
+    run.active.worker_id = input.worker_id;
+    run.active.session_id = input.session_id;
+    run.active.resumable = resumable;
+    run.timestamps.updated_at = now;
+    run.routing.reason = `Worker session registered for ${dispatch.stage} (${input.worker_id}).`;
+
+    await this.repo.saveSessionRecord(`worker_${input.worker_id}`, sessionRecordPayload);
+    if (input.session_id) {
+      await this.repo.saveSessionRecord(input.session_id, sessionRecordPayload);
+    }
     await this.repo.saveRun(run);
     await this.repo.appendLifecycleEvent({
       ts: now,

@@ -78,6 +78,14 @@ export class CodexAdapter implements RuntimeAdapter {
 
     try {
       process.kill(pid, "SIGTERM");
+      const exited = await waitForWorkerExit(pid, 1500);
+      if (!exited) {
+        process.kill(pid, "SIGKILL");
+        return {
+          cancelled: true,
+          reason: `Force-stopped worker host at ${handle.locator}.`
+        };
+      }
       return {
         cancelled: true,
         reason: `Cancelled worker host at ${handle.locator}.`
@@ -254,4 +262,24 @@ function parseWorkerLocator(locator: string): number | null {
   }
   const pid = Number.parseInt(match[1], 10);
   return Number.isFinite(pid) && pid > 0 ? pid : null;
+}
+
+async function waitForWorkerExit(pid: number, timeoutMs: number): Promise<boolean> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (!isProcessAlive(pid)) {
+      return true;
+    }
+    await sleep(50);
+  }
+  return !isProcessAlive(pid);
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }

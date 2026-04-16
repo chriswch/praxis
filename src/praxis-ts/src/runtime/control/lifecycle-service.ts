@@ -164,11 +164,13 @@ export class RunLifecycleService {
     const sessionId = run.active.session_id;
     let locator: string | null = null;
 
-    if (sessionId) {
+    if (run.active.worker_id) {
+      const workerRecord = await this.repo.loadSessionRecord(`worker_${run.active.worker_id}`);
+      locator = this.readLocatorFromSessionRecord(workerRecord);
+    }
+
+    if (!locator && sessionId) {
       const sessionRecord = await this.repo.loadSessionRecord(sessionId);
-      locator = this.readLocatorFromSessionRecord(sessionRecord);
-    } else if (run.active.worker_id) {
-      const sessionRecord = await this.repo.loadSessionRecord(`worker_${run.active.worker_id}`);
       locator = this.readLocatorFromSessionRecord(sessionRecord);
     }
 
