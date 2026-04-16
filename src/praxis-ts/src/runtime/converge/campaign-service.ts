@@ -358,6 +358,34 @@ export class ConvergeCampaignService {
         markFindingsBatched(merged.ledger, plannedFindingIds);
         markFindingsInProgress(merged.ledger, plannedFindingIds, childRunId, completedStoryIds);
         await this.repo.savePassBatch(batchPlan.passId, batchPlan.batchMarkdown, batchPlan.batch);
+        await this.repo.savePassChildRun(batchPlan.passId, {
+          version: 1,
+          child_run_id: childRunId,
+          workflow: campaign.workflow,
+          adapter: campaign.adapter,
+          status: campaign.auto_continue ? "simulated_completed" : "pending_operator",
+          launch_command: `praxis run --workflow forge --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge pass ${batchPlan.passId} remediation"`,
+          brief: {
+            pass_id: batchPlan.passId,
+            finding_ids: plannedFindingIds,
+            objective_path: campaign.objective.normalized_path,
+            objective_context: batchPlan.batch.stories.map((story) => ({
+              story_id: story.story_id,
+              title: story.title,
+              finding_ids: story.finding_ids,
+              non_goals: story.non_goals
+            })),
+            scope: campaign.objective.scope,
+            non_goals: [
+              "Do not expand remediation beyond selected finding IDs in this pass.",
+              "Escalate newly discovered out-of-scope high-risk issues to next reassessment."
+            ]
+          },
+          commit_policy: {
+            commit_per_story: campaign.commit_per_story
+          },
+          generated_at: nowIsoUtc()
+        });
 
         const afterHead = await readHeadCommit(this.repo.paths.root);
         if (campaign.commit_per_story) {

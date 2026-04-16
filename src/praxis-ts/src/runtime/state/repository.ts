@@ -217,6 +217,12 @@ export class PraxisStateRepository {
     await writeJsonFile(join(passDir, "summary.json"), summary);
   }
 
+  async savePassChildRun(passId: string, payload: Record<string, unknown>): Promise<void> {
+    const passDir = join(this.paths.passesDir, passId);
+    await mkdir(passDir, { recursive: true });
+    await writeJsonFile(join(passDir, "child-run.json"), payload);
+  }
+
   async listLifecycleEvents(limit = 50): Promise<Record<string, unknown>[]> {
     const events = await readJsonLines<Record<string, unknown>>(this.paths.eventsFile);
     return events.slice(-limit);

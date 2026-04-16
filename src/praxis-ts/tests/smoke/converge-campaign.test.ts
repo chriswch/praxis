@@ -68,6 +68,7 @@ test("smoke: converge run produces waiting campaign with durable pass and review
   assert.equal(existsSync(join(repoRoot, ".praxis", "objective.md")), true);
   assert.equal(existsSync(join(repoRoot, ".praxis", "reviews", "R-001", "findings.json")), true);
   assert.equal(existsSync(join(repoRoot, ".praxis", "passes", "P-001", "batch.json")), true);
+  assert.equal(existsSync(join(repoRoot, ".praxis", "passes", "P-001", "child-run.json")), true);
   assert.equal(existsSync(join(repoRoot, ".praxis", "passes", "P-001", "summary.json")), true);
 });
 
