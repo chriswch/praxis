@@ -5,16 +5,18 @@ import type {
   GapAssessmentResult
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
-import { assessGaps } from "./assessment.js";
 import { formatTargetSpecMarkdown, type TargetSpecDraft } from "./campaign-support.js";
 import { ClarificationStore } from "./clarification-store.js";
+import { LexicalGapAssessor, type GapAssessor } from "./gap-assessor.js";
 import { buildConvergeStageResult } from "./stage-runtime.js";
 
 export class ConvergePreRemediationService {
   private readonly clarificationStore: ClarificationStore;
+  private readonly gapAssessor: GapAssessor;
 
-  constructor(private readonly repo: PraxisStateRepository) {
+  constructor(private readonly repo: PraxisStateRepository, gapAssessor: GapAssessor = new LexicalGapAssessor()) {
     this.clarificationStore = new ClarificationStore(repo);
+    this.gapAssessor = gapAssessor;
   }
 
   async runClarifyingIntent(
@@ -61,7 +63,7 @@ export class ConvergePreRemediationService {
     findingsCount: number;
   }> {
     const generatedAt = nowIsoUtc();
-    const { gap, gapMarkdown } = await assessGaps({
+    const { gap, gapMarkdown } = await this.gapAssessor.assess({
       repoRoot: this.repo.paths.root,
       profile: campaign.profile,
       targetSpecPath: ".praxis/target-spec.md",

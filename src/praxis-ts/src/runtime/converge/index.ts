@@ -2,6 +2,8 @@ export { ConvergeCampaignService } from "./campaign-service.js";
 export { ConvergePreRemediationService } from "./pre-remediation-service.js";
 export { ChildRunSlotService } from "./child-run-slot.js";
 export { ClarificationStore } from "./clarification-store.js";
+export { LexicalGapAssessor } from "./gap-assessor.js";
+export type { GapAssessor, GapAssessorInput, GapAssessorOutput } from "./gap-assessor.js";
 export { assessGaps, assessObjective, DEFAULT_ASSESSMENT_SCOPE } from "./assessment.js";
 export { planRemediation, planPassBatch } from "./planner.js";
 export {

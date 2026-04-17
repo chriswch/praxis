@@ -35,18 +35,23 @@ import {
   stringifyError
 } from "./campaign-support.js";
 import { ConvergePassService } from "./pass-service.js";
+import type { GapAssessor } from "./gap-assessor.js";
 import { getConvergeStageContract } from "./stage-runtime.js";
 import { ConvergePreRemediationService } from "./pre-remediation-service.js";
+
+export type ConvergeCampaignServiceOptions = {
+  gapAssessor?: GapAssessor;
+};
 
 export class ConvergeCampaignService {
   private readonly childRunSlot: ChildRunSlotService;
   private readonly passService: ConvergePassService;
   private readonly preRemediation: ConvergePreRemediationService;
 
-  constructor(private readonly repo: PraxisStateRepository) {
+  constructor(private readonly repo: PraxisStateRepository, options: ConvergeCampaignServiceOptions = {}) {
     this.childRunSlot = new ChildRunSlotService(repo);
     this.passService = new ConvergePassService(repo, this.childRunSlot);
-    this.preRemediation = new ConvergePreRemediationService(repo);
+    this.preRemediation = new ConvergePreRemediationService(repo, options.gapAssessor);
   }
 
   async runCampaign(input: ConvergeRunInput): Promise<ConvergeActionOutcome> {
