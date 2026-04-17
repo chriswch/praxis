@@ -26,6 +26,10 @@ export class ClaudeAdapter implements RuntimeAdapter {
     };
   }
 
+  // NOTE: launch/resume return a preview only — no Claude process is spawned here. The
+  // returned session_id is synthesized on the spot so callers can persist a handle, but
+  // nothing is actually running on the other end. Promote to a real process host before
+  // depending on the session for anything beyond identity bookkeeping.
   async launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
     const instructionSurfaces = selectInstructionSurfaces(request.launch.context_manifest.instruction_surfaces, "claude");
     const commandPreview = buildClaudeCommandPreview(request);
