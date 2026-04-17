@@ -209,6 +209,12 @@ void test("smoke: stage-result acceptance stays successful when post-commit audi
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.equal(run.current.stage, "driving-tdd");
   assert.equal(run.status, "running");
+  assert.equal(
+    run.audit_status,
+    "degraded",
+    "expected audit_status=degraded to be durable in the single commit",
+  );
+  assert.ok(run.audit_warnings && run.audit_warnings.length > 0);
 
   const warningLog = await readFile(join(repoRoot, ".praxis", "audit-warnings.jsonl"), "utf8");
   assert.match(warningLog, /stage_history_append_failed/);

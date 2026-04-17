@@ -189,11 +189,9 @@ export class StageResultService {
   ): Promise<SubmitStageResultOutcome> {
     const { run, accepted, routingDecision, ledger, ledgerNeedsCommit } = phase;
 
-    if (ledgerNeedsCommit && ledger) {
-      await this.repo.saveRunAndStoryLedger(run, ledger);
-    } else {
-      await this.repo.saveRun(run);
-    }
+    // Run audit-log appends first so we know whether this acceptance is clean or
+    // degraded before we commit the run. Each append is best-effort; failures collect
+    // into auditWarnings and fold into a single run.json write below.
     const auditWarnings: string[] = [];
     await this.tryAuditWrite("stage_history_append_failed", auditWarnings, async () =>
       this.repo.appendStageResultRecord(accepted.result),
@@ -218,7 +216,6 @@ export class StageResultService {
         }),
       );
     }
-
     await this.tryAuditWrite("lifecycle_event_append_failed", auditWarnings, async () =>
       this.repo.appendLifecycleEvent({
         ts: run.timestamps.updated_at,
@@ -236,17 +233,38 @@ export class StageResultService {
       }),
     );
 
+    // Fold audit_status + audit_warnings into the run before the single commit.
+    // Clears any stale degraded marker carried over from an earlier stage when the
+    // current acceptance has no fresh warnings.
     if (auditWarnings.length > 0) {
-      await this.recordAuditDegradedState(run, accepted.result.stage, auditWarnings);
-    } else if (
-      run.audit_status !== undefined ||
-      (run.audit_warnings && run.audit_warnings.length > 0)
-    ) {
-      // Clear a stale degraded marker carried over from an earlier stage once the
-      // current acceptance committed cleanly — the run is no longer partially audited.
+      run.audit_status = "degraded";
+      run.audit_warnings = auditWarnings;
+    } else {
       delete run.audit_status;
       delete run.audit_warnings;
+    }
+
+    if (ledgerNeedsCommit && ledger) {
+      await this.repo.saveRunAndStoryLedger(run, ledger);
+    } else {
       await this.repo.saveRun(run);
+    }
+
+    // Best-effort out-of-band durability for the warning detail. The authoritative
+    // audit_status lives on run.json; the jsonl is a secondary human log.
+    if (auditWarnings.length > 0) {
+      try {
+        await this.repo.appendAuditWarning({
+          ts: nowIsoUtc(),
+          run_id: run.run_id,
+          stage: accepted.result.stage,
+          action: "submit-stage-result",
+          warning_count: auditWarnings.length,
+          warnings: auditWarnings,
+        });
+      } catch {
+        // Warnings are already durable in run.json; the secondary log is advisory only.
+      }
     }
 
     return {
@@ -271,33 +289,6 @@ export class StageResultService {
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       warnings.push(`${code}: ${detail}`);
-    }
-  }
-
-  private async recordAuditDegradedState(
-    run: RunRecord,
-    stage: string,
-    warnings: string[],
-  ): Promise<void> {
-    run.audit_status = "degraded";
-    run.audit_warnings = warnings;
-    try {
-      await this.repo.saveRun(run);
-    } catch {
-      // Run already committed with the routing change. If the second save fails, the
-      // appendAuditWarning call below still records the warnings out-of-band.
-    }
-    try {
-      await this.repo.appendAuditWarning({
-        ts: nowIsoUtc(),
-        run_id: run.run_id,
-        stage,
-        action: "submit-stage-result",
-        warning_count: warnings.length,
-        warnings,
-      });
-    } catch {
-      // Best effort marker: the stage result is still accepted even when warning persistence fails.
     }
   }
 }
