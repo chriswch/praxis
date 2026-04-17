@@ -27,8 +27,26 @@ type ObjectiveRequirement = {
 
 type RepoDocument = {
   path: string;
-  content: string;
+  text: string;
+  lower: string;
   source: "code" | "docs" | "config";
+};
+
+type RequirementSignals = {
+  keywords: string[];
+  literals: string[];
+  forbiddenTerms: string[];
+  strict: boolean;
+  foundational: boolean;
+};
+
+type DocumentMatch = {
+  path: string;
+  source: RepoDocument["source"];
+  matchedKeywords: string[];
+  matchedLiterals: string[];
+  score: number;
+  snippets: string[];
 };
 
 const STOPWORDS = new Set([
@@ -95,10 +113,12 @@ function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: stri
     if (!listItem) {
       continue;
     }
+
     const statement = listItem[1].trim();
     if (statement.length < 12) {
       continue;
     }
+
     const refAnchor = slugify(section) || `line-${index + 1}`;
     requirements.push({
       section,
@@ -117,6 +137,7 @@ function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: stri
     if (trimmed.length < 20) {
       continue;
     }
+
     fallbackCount += 1;
     requirements.push({
       section: "Objective",
@@ -128,22 +149,25 @@ function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: stri
       break;
     }
   }
+
   return requirements;
 }
 
-function extractKeywords(text: string): string[] {
-  const fromCodeBlocks = [...text.matchAll(/`([^`]+)`/g)]
-    .map((match) => match[1].trim().toLowerCase())
-    .flatMap((value) => value.split(/\s+/))
-    .filter(Boolean);
-  const plainWords = text
+function splitTerms(input: string): string[] {
+  return input
     .toLowerCase()
     .replace(/[`"'():.,]/g, " ")
     .split(/\s+/)
+    .map((part) => part.trim())
     .filter(Boolean);
+}
 
-  const ranked = [...fromCodeBlocks, ...plainWords]
-    .map((token) => token.trim())
+function extractKeywords(text: string): string[] {
+  const codeTerms = [...text.matchAll(/`([^`]+)`/g)]
+    .map((match) => splitTerms(match[1]))
+    .flat();
+  const plainWords = splitTerms(text);
+  const ranked = [...codeTerms, ...plainWords]
     .filter((token) => token.length >= 3 || token.startsWith("--") || token.includes("/"))
     .filter((token) => !STOPWORDS.has(token));
 
@@ -155,11 +179,37 @@ function extractKeywords(text: string): string[] {
     }
     seen.add(token);
     deduped.push(token);
-    if (deduped.length >= 14) {
+    if (deduped.length >= 16) {
       break;
     }
   }
   return deduped;
+}
+
+function extractLiterals(text: string): string[] {
+  const literals = [...text.matchAll(/`([^`]+)`/g)]
+    .map((match) => match[1].trim().toLowerCase())
+    .filter((value) => value.length >= 3)
+    .slice(0, 8);
+  return Array.from(new Set(literals));
+}
+
+function extractForbiddenTerms(text: string): string[] {
+  const lower = text.toLowerCase();
+  const candidates: string[] = [];
+  const pattern = /(?:without|remove|drop|deprecate|legacy|no longer|must not|should not|do not)\s+`?([a-z0-9._/-]{3,})`?/g;
+  for (const match of lower.matchAll(pattern)) {
+    const term = match[1]?.trim();
+    if (term && term.length >= 3) {
+      candidates.push(term);
+    }
+  }
+  if (/(?:remove|deprecate|legacy|no longer)/.test(lower)) {
+    for (const literal of extractLiterals(text)) {
+      candidates.push(literal);
+    }
+  }
+  return Array.from(new Set(candidates));
 }
 
 function classifyCategory(requirement: string): string {
@@ -170,10 +220,10 @@ function classifyCategory(requirement: string): string {
   if (lower.includes("assessment") || lower.includes("target") || lower.includes("profile")) {
     return "gap-assessment";
   }
-  if (lower.includes("ledger") || lower.includes("artifact") || lower.includes("durable")) {
+  if (lower.includes("ledger") || lower.includes("artifact") || lower.includes("durable") || lower.includes("history")) {
     return "durable-state";
   }
-  if (lower.includes("batch") || lower.includes("finding") || lower.includes("story")) {
+  if (lower.includes("batch") || lower.includes("finding") || lower.includes("story") || lower.includes("slice")) {
     return "batch-planning";
   }
   if (lower.includes("child") || lower.includes("scope") || lower.includes("craft")) {
@@ -209,27 +259,54 @@ function defaultAffectedPathsForCategory(category: string): string[] {
   }
 }
 
-function inferSeverity(
-  profile: ConvergeProfile,
-  requirement: string,
-  coverage: number
-): GapFinding["severity"] {
+function buildSignals(requirement: string): RequirementSignals {
   const lower = requirement.toLowerCase();
-  const strict = lower.includes("must") || lower.includes("required") || lower.includes("authoritative");
+  const strict = /\b(must|required|authoritative|shall)\b/.test(lower);
   const foundational =
     lower.includes("assessment")
     || lower.includes("stop")
     || lower.includes("child")
     || lower.includes("command")
-    || lower.includes("durable");
+    || lower.includes("durable")
+    || lower.includes("routing")
+    || lower.includes("contract")
+    || lower.includes("history");
+  return {
+    keywords: extractKeywords(requirement),
+    literals: extractLiterals(requirement),
+    forbiddenTerms: extractForbiddenTerms(requirement),
+    strict,
+    foundational
+  };
+}
 
-  if (strict && foundational && coverage < 0.55) {
-    return "critical";
-  }
-  if ((strict && coverage < 0.72) || (profile === "architecture-gap" && foundational && coverage < 0.75)) {
+function inferSeverity(
+  profile: ConvergeProfile,
+  signals: RequirementSignals,
+  kind: GapFinding["kind"],
+  codeCoverage: number
+): GapFinding["severity"] {
+  if (kind === "wrong") {
+    if (signals.strict || signals.foundational) {
+      return "critical";
+    }
     return "high";
   }
-  if (coverage < 0.85) {
+
+  if (kind === "missing") {
+    if (signals.strict && signals.foundational) {
+      return "critical";
+    }
+    if (signals.strict || (profile === "architecture-gap" && signals.foundational)) {
+      return "high";
+    }
+    return "medium";
+  }
+
+  if (signals.strict && codeCoverage < 0.55) {
+    return "high";
+  }
+  if (codeCoverage < 0.75 || (profile === "architecture-gap" && signals.foundational)) {
     return "medium";
   }
   return "low";
@@ -241,6 +318,7 @@ async function listRepoDocuments(repoRoot: string, scope: string[]): Promise<Rep
     const normalized = toRepoPath(item);
     return normalized === ".plan" || normalized.startsWith(".plan/");
   });
+
   const stack = scope.length > 0
     ? scope.map((item) => join(repoRoot, item))
     : [join(repoRoot, "src"), join(repoRoot, "README.md"), join(repoRoot, "product-spec.md")];
@@ -284,7 +362,7 @@ async function listRepoDocuments(repoRoot: string, scope: string[]): Promise<Rep
     }
 
     try {
-      const content = await readFile(candidate, "utf8");
+      const text = await readFile(candidate, "utf8");
       const relativePath = toRepoPath(candidate.replace(`${repoRoot}/`, ""));
       const source: RepoDocument["source"] = CODE_EXTENSIONS.has(extension)
         ? "code"
@@ -293,38 +371,183 @@ async function listRepoDocuments(repoRoot: string, scope: string[]): Promise<Rep
           : "config";
       documents.push({
         path: relativePath,
-        content: content.toLowerCase(),
+        text,
+        lower: text.toLowerCase(),
         source
       });
     } catch {
       // Best effort indexing: unreadable files are ignored.
     }
   }
+
   return documents;
+}
+
+function collectSnippets(document: RepoDocument, tokens: string[]): string[] {
+  if (document.source !== "code" || tokens.length === 0) {
+    return [];
+  }
+
+  const lines = document.text.split(/\r?\n/);
+  const scored = lines
+    .map((line, index) => {
+      const lower = line.toLowerCase();
+      const score = tokens.reduce((count, token) => (lower.includes(token) ? count + 1 : count), 0);
+      return {
+        line: index + 1,
+        text: line.trim(),
+        score
+      };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return left.line - right.line;
+    })
+    .slice(0, 2);
+
+  return scored.map((entry) => {
+    const snippet = entry.text.length > 120 ? `${entry.text.slice(0, 117)}...` : entry.text;
+    return `${document.path}:${entry.line} ${snippet}`;
+  });
+}
+
+function matchDocument(document: RepoDocument, signals: RequirementSignals): DocumentMatch | null {
+  const matchedKeywords = signals.keywords.filter((token) => document.lower.includes(token));
+  const matchedLiterals = signals.literals.filter((literal) => document.lower.includes(literal));
+  if (matchedKeywords.length === 0 && matchedLiterals.length === 0) {
+    return null;
+  }
+
+  const keywordScore = signals.keywords.length > 0
+    ? matchedKeywords.length / signals.keywords.length
+    : 0;
+  const literalScore = signals.literals.length > 0
+    ? matchedLiterals.length / signals.literals.length
+    : 0;
+  const sourceBonus = document.source === "code" ? 0.1 : 0;
+  const score = Math.min(1, (keywordScore * 0.7) + (literalScore * 0.3) + sourceBonus);
+
+  return {
+    path: document.path,
+    source: document.source,
+    matchedKeywords,
+    matchedLiterals,
+    score,
+    snippets: collectSnippets(document, [...matchedKeywords, ...matchedLiterals])
+  };
+}
+
+function detectContradiction(signals: RequirementSignals, codeMatches: DocumentMatch[]): { hasConflict: boolean; terms: string[] } {
+  if (signals.forbiddenTerms.length === 0) {
+    return { hasConflict: false, terms: [] };
+  }
+
+  const matchedForbidden = signals.forbiddenTerms.filter((term) =>
+    codeMatches.some((match) =>
+      [...match.matchedKeywords, ...match.matchedLiterals].includes(term)
+      || match.snippets.some((snippet) => snippet.toLowerCase().includes(term))
+    )
+  );
+
+  if (matchedForbidden.length === 0) {
+    return { hasConflict: false, terms: [] };
+  }
+
+  return {
+    hasConflict: true,
+    terms: Array.from(new Set(matchedForbidden))
+  };
+}
+
+function inferConfidence(kind: GapFinding["kind"], contradiction: boolean, codeCoverage: number, nonCodeCoverage: number): number {
+  if (contradiction) {
+    return 0.88;
+  }
+
+  if (kind === "missing") {
+    const base = 0.66 + (nonCodeCoverage * 0.2);
+    return Math.max(0.5, Math.min(0.9, Number.parseFloat(base.toFixed(2))));
+  }
+
+  const base = 0.58 + (Math.max(codeCoverage, nonCodeCoverage) * 0.28);
+  return Math.max(0.45, Math.min(0.9, Number.parseFloat(base.toFixed(2))));
+}
+
+function summarizeCurrentBehavior(
+  requirement: ObjectiveRequirement,
+  codeCoverage: number,
+  nonCodeCoverage: number,
+  matchedCodeTerms: string[],
+  matchedNonCodeTerms: string[],
+  uncoveredTerms: string[],
+  contradiction: { hasConflict: boolean; terms: string[] },
+  codeMatches: DocumentMatch[]
+): string {
+  if (contradiction.hasConflict) {
+    const paths = codeMatches.slice(0, 2).map((match) => match.path).join(", ");
+    return `Observed in-code behavior still references forbidden legacy terms (${contradiction.terms.join(", ")}) in ${paths || "in-scope code surfaces"}.`;
+  }
+
+  if (matchedCodeTerms.length === 0) {
+    return [
+      `No in-scope implementation evidence was found for requirement line ${requirement.line}.`,
+      `Non-code sources matched ${matchedNonCodeTerms.length} term(s) (${Math.round(nonCodeCoverage * 100)}% coverage), which is insufficient for closure.`
+    ].join(" ");
+  }
+
+  const topPaths = codeMatches.slice(0, 3).map((match) => match.path);
+  const uncovered = uncoveredTerms.length > 0
+    ? `Uncovered requirement terms remain: ${uncoveredTerms.slice(0, 6).join(", ")}.`
+    : "All extracted requirement terms are represented in code evidence.";
+
+  return [
+    `Observed implementation evidence in ${topPaths.join(", ")} with ${Math.round(codeCoverage * 100)}% code-term coverage.`,
+    `Matched code terms: ${matchedCodeTerms.slice(0, 8).join(", ")}.`,
+    uncovered
+  ].join(" ");
 }
 
 function summarizeEvidence(
   requirement: ObjectiveRequirement,
-  weightedCoverage: number,
-  codeMatchedTokens: string[],
-  nonCodeMatchedTokens: string[],
-  keywords: string[],
-  topMatches: Array<{ path: string; score: number; source: RepoDocument["source"] }>
+  codeCoverage: number,
+  nonCodeCoverage: number,
+  matchedCodeTerms: string[],
+  matchedNonCodeTerms: string[],
+  codeMatches: DocumentMatch[],
+  nonCodeMatches: DocumentMatch[]
 ): string[] {
-  const lines = [
+  const lines: string[] = [
     `Objective requirement (line ${requirement.line}): ${requirement.text}`,
-    `Weighted keyword coverage: ${Math.round(weightedCoverage * 100)}% (${codeMatchedTokens.length} code hit(s), ${nonCodeMatchedTokens.length} non-code hit(s)).`
+    `Coverage summary: code=${Math.round(codeCoverage * 100)}%, non-code=${Math.round(nonCodeCoverage * 100)}%.`,
+    `Matched terms in code: ${matchedCodeTerms.length > 0 ? matchedCodeTerms.slice(0, 10).join(", ") : "(none)"}.`
   ];
-  if (codeMatchedTokens.length === 0 && nonCodeMatchedTokens.length > 0) {
-    lines.push("Code-surface evidence was not found; non-code matches do not close this requirement.");
+
+  if (matchedCodeTerms.length === 0) {
+    lines.push("Code-surface evidence was not found; non-code sources are insufficient for closure.");
   }
-  if (topMatches.length > 0) {
-    lines.push(
-      `Nearest implementation signals: ${topMatches.map((match) => `${match.path} [${match.source}] (${match.score})`).join(", ")}.`
-    );
-  } else {
-    lines.push("Nearest implementation signals: none.");
+
+  const snippets = codeMatches
+    .slice(0, 2)
+    .flatMap((match) => match.snippets)
+    .slice(0, 4);
+  if (snippets.length > 0) {
+    lines.push(`Observed code snippets: ${snippets.join(" | ")}`);
   }
+
+  if (matchedNonCodeTerms.length > 0) {
+    const sources = nonCodeMatches
+      .filter((match) => !match.path.startsWith(".plan/"))
+      .slice(0, 2)
+      .map((match) => match.path)
+      .join(", ");
+    if (sources.length > 0) {
+      lines.push(`Non-code signals observed in: ${sources}.`);
+    }
+  }
+
   return lines;
 }
 
@@ -335,26 +558,26 @@ function recommendedAction(profile: ConvergeProfile, requirement: ObjectiveRequi
   return `Implement or tighten product behavior for objective requirement: ${requirement.text}`;
 }
 
-function confidenceFromCoverage(coverage: number): number {
-  const confidence = 0.55 + ((1 - coverage) * 0.4);
-  return Math.max(0.45, Math.min(0.99, Number.parseFloat(confidence.toFixed(2))));
-}
-
 function shouldEmitFinding(
   profile: ConvergeProfile,
-  coverage: number,
-  requirement: string,
-  hasCodeSurfaceEvidence: boolean
+  strict: boolean,
+  codeCoverage: number,
+  hasCodeEvidence: boolean,
+  contradiction: boolean
 ): boolean {
-  if (!hasCodeSurfaceEvidence) {
+  if (contradiction) {
     return true;
   }
-  const strict = /must|required|authoritative|stop|bounded|durable/i.test(requirement);
-  const threshold = profile === "architecture-gap" ? 0.72 : 0.78;
-  if (strict) {
-    return coverage < 0.9;
+  if (!hasCodeEvidence) {
+    return true;
   }
-  return coverage < threshold;
+
+  const threshold = strict
+    ? 0.9
+    : profile === "architecture-gap"
+      ? 0.8
+      : 0.75;
+  return codeCoverage < threshold;
 }
 
 export async function assessGaps(input: AssessmentInput): Promise<{
@@ -367,42 +590,18 @@ export async function assessGaps(input: AssessmentInput): Promise<{
 
   let ordinal = 0;
   for (const requirement of requirements) {
-    const keywords = extractKeywords(requirement.text);
-    if (keywords.length === 0) {
+    const signals = buildSignals(requirement.text);
+    const allTerms = Array.from(new Set([...signals.keywords, ...signals.literals]));
+    if (allTerms.length === 0) {
       continue;
     }
 
-    const codeMatchedTokens = keywords.filter((token) =>
-      documents.some((document) => document.source === "code" && document.content.includes(token))
-    );
-    const nonCodeMatchedTokens = keywords.filter((token) =>
-      !codeMatchedTokens.includes(token)
-      && documents.some((document) => document.source !== "code" && document.content.includes(token))
-    );
-    const weightedCoverageNumerator = codeMatchedTokens.length + (nonCodeMatchedTokens.length * 0.35);
-    const weightedCoverage = weightedCoverageNumerator / keywords.length;
-    const effectiveCoverage = codeMatchedTokens.length > 0
-      ? weightedCoverage
-      : Math.min(weightedCoverage, 0.54);
-
-    if (!shouldEmitFinding(input.profile, effectiveCoverage, requirement.text, codeMatchedTokens.length > 0)) {
-      continue;
-    }
-
-    const topMatches = documents
-      .map((document) => ({
-        path: document.path,
-        source: document.source,
-        score: keywords.reduce(
-          (count, token) => (document.content.includes(token) ? count + 1 : count),
-          0
-        )
-      }))
-      .filter((match) => match.score > 0)
+    const matches = documents
+      .map((document) => matchDocument(document, signals))
+      .filter((candidate): candidate is DocumentMatch => candidate !== null)
       .sort((left, right) => {
-        const scoreOrder = right.score - left.score;
-        if (scoreOrder !== 0) {
-          return scoreOrder;
+        if (right.score !== left.score) {
+          return right.score - left.score;
         }
         const sourceRank = (source: RepoDocument["source"]): number => {
           if (source === "code") {
@@ -414,20 +613,50 @@ export async function assessGaps(input: AssessmentInput): Promise<{
           return 2;
         };
         return sourceRank(left.source) - sourceRank(right.source);
-      })
-      .slice(0, 3);
+      });
+
+    const codeMatches = matches.filter((match) => match.source === "code");
+    const nonCodeMatches = matches
+      .filter((match) => match.source !== "code")
+      .filter((match) => !match.path.startsWith(".plan/"));
+
+    const matchedCodeTerms = Array.from(
+      new Set(codeMatches.flatMap((match) => [...match.matchedKeywords, ...match.matchedLiterals]))
+    );
+    const matchedNonCodeTerms = Array.from(
+      new Set(nonCodeMatches.flatMap((match) => [...match.matchedKeywords, ...match.matchedLiterals]))
+    ).filter((term) => !matchedCodeTerms.includes(term));
+
+    const codeCoverage = matchedCodeTerms.length / allTerms.length;
+    const nonCodeCoverage = matchedNonCodeTerms.length / allTerms.length;
+    const hasCodeEvidence = matchedCodeTerms.length > 0;
+    const contradiction = detectContradiction(signals, codeMatches);
+
+    if (!shouldEmitFinding(input.profile, signals.strict, codeCoverage, hasCodeEvidence, contradiction.hasConflict)) {
+      continue;
+    }
+
+    const kind: GapFinding["kind"] = contradiction.hasConflict
+      ? "wrong"
+      : hasCodeEvidence
+        ? codeCoverage < 0.3
+          ? "missing"
+          : "partial"
+        : "missing";
 
     const category = classifyCategory(requirement.text);
-    const implementationMatches = topMatches.filter((match) => match.source === "code");
-    const affectedPaths = implementationMatches.length > 0
-      ? implementationMatches.map((match) => match.path)
+    const severity = inferSeverity(input.profile, signals, kind, codeCoverage);
+    const confidence = inferConfidence(kind, contradiction.hasConflict, codeCoverage, nonCodeCoverage);
+
+    const affectedPaths = codeMatches.length > 0
+      ? Array.from(new Set(codeMatches.slice(0, 3).map((match) => match.path)))
       : defaultAffectedPathsForCategory(category);
-    const severity = inferSeverity(input.profile, requirement.text, effectiveCoverage);
-    ordinal += 1;
-    const kind = effectiveCoverage <= 0.2 ? "missing" : effectiveCoverage <= 0.55 ? "partial" : "wrong";
+
+    const uncoveredTerms = allTerms.filter((term) => !matchedCodeTerms.includes(term));
     const recommended = recommendedAction(input.profile, requirement);
 
-    const objectiveFinding: GapFinding = {
+    ordinal += 1;
+    const finding: GapFinding = {
       finding_id: `G-${String(ordinal).padStart(3, "0")}`,
       fingerprint: "",
       title: `${requirement.section}: objective gap`,
@@ -436,25 +665,34 @@ export async function assessGaps(input: AssessmentInput): Promise<{
       category,
       summary: `Requirement is not fully implemented: ${requirement.text}`,
       expected_behavior: requirement.text,
-      current_behavior: codeMatchedTokens.length > 0
-        ? `Repository evidence covers ${codeMatchedTokens.length} code-surface and ${nonCodeMatchedTokens.length} non-code keyword hits out of ${keywords.length}.`
-        : `Repository evidence only matched non-code sources (${nonCodeMatchedTokens.length}/${keywords.length} keywords), which is insufficient for closure.`,
+      current_behavior: summarizeCurrentBehavior(
+        requirement,
+        codeCoverage,
+        nonCodeCoverage,
+        matchedCodeTerms,
+        matchedNonCodeTerms,
+        uncoveredTerms,
+        contradiction,
+        codeMatches
+      ),
       evidence: summarizeEvidence(
         requirement,
-        effectiveCoverage,
-        codeMatchedTokens,
-        nonCodeMatchedTokens,
-        keywords,
-        topMatches
+        codeCoverage,
+        nonCodeCoverage,
+        matchedCodeTerms,
+        matchedNonCodeTerms,
+        codeMatches,
+        nonCodeMatches
       ),
       objective_refs: [requirement.objectiveRef],
       affected_paths: affectedPaths,
       recommended_direction: recommended,
       recommended_action: recommended,
-      confidence: confidenceFromCoverage(effectiveCoverage)
+      confidence
     };
-    objectiveFinding.fingerprint = buildFindingFingerprint(input.profile, objectiveFinding);
-    findings.push(objectiveFinding);
+
+    finding.fingerprint = buildFindingFingerprint(input.profile, finding);
+    findings.push(finding);
   }
 
   findings.sort((left, right) => {
@@ -494,6 +732,7 @@ export async function assessGaps(input: AssessmentInput): Promise<{
     findings.length === 0 ? "## Findings" : "## Ordered Findings",
     ""
   ];
+
   for (const finding of findings) {
     markdownLines.push(`### ${finding.finding_id} ${finding.title}`);
     markdownLines.push(`- Kind: ${finding.kind}`);
