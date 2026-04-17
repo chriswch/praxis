@@ -279,25 +279,15 @@ export class PraxisStateRepository {
     return batch;
   }
 
-  async saveRemediationMap(markdown: string, remediationMap: RemediationMapRecord): Promise<void> {
+  async saveRemediationMap(
+    markdown: string,
+    remediationMap: RemediationMapRecord,
+    stageResult: ConvergeStageResultRecord & { stage: "planning-remediation" }
+  ): Promise<void> {
     validateRemediationMapRecord(remediationMap);
+    validateConvergeStageResult(stageResult);
     const resultsDir = join(this.paths.praxisDir, "results");
     await mkdir(resultsDir, { recursive: true });
-    const stageResult: ConvergeStageResultRecord = {
-      version: 1,
-      stage: "planning-remediation",
-      status: "completed",
-      route: {
-        kind: "proceed"
-      },
-      data: {
-        outcome_code: remediationMap.slices.length === 0 ? "no_selection" : "remediation_map_ready",
-        selected_findings_count: remediationMap.selected_finding_ids.length,
-        deferred_findings_count: remediationMap.deferred_finding_ids.length,
-        slices_count: remediationMap.slices.length
-      }
-    };
-    validateConvergeStageResult(stageResult);
     await writeFile(this.paths.remediationMapFile, `${markdown.trimEnd()}\n`, "utf8");
     await writeJsonFile(this.paths.remediationMapDataFile, remediationMap);
     await writeJsonFile(join(resultsDir, "planning-remediation.json"), stageResult);

@@ -16,6 +16,7 @@ import { planRemediation } from "./planner.js";
 import { ChildRunSlotService } from "./child-run-slot.js";
 import { buildConvergeClarifyingArtifacts, isRunTerminal, listCompletedStoryIds, readOptionalString, stringifyError } from "./campaign-support.js";
 import { buildPassId } from "./identity.js";
+import { buildConvergeStageResult } from "./stage-runtime.js";
 
 const MIN_FINDING_CONFIDENCE_FOR_REMEDIATION = 0.65;
 
@@ -57,9 +58,24 @@ export class ConvergePassService {
       minimumConfidence: MIN_FINDING_CONFIDENCE_FOR_REMEDIATION,
       generatedAt: nowIsoUtc()
     });
+    const planningStageResult = buildConvergeStageResult({
+      stage: "planning-remediation",
+      outcomeCode: batchPlan.remediationMap.slices.length === 0
+        ? "no_selection"
+        : "remediation_map_ready",
+      data: {
+        selected_findings_count: batchPlan.remediationMap.selected_finding_ids.length,
+        deferred_findings_count: batchPlan.remediationMap.deferred_finding_ids.length,
+        slices_count: batchPlan.remediationMap.slices.length
+      }
+    });
 
     markFindingsBatched(ledger, batchPlan.remediationMap.selected_finding_ids);
-    await this.repo.saveRemediationMap(batchPlan.remediationMarkdown, batchPlan.remediationMap);
+    await this.repo.saveRemediationMap(
+      batchPlan.remediationMarkdown,
+      batchPlan.remediationMap,
+      planningStageResult
+    );
     await this.repo.savePassBatch(batchPlan.passId, batchPlan.remediationMarkdown, {
       ...batchPlan.remediationMap,
       stories: batchPlan.remediationMap.slices.map((slice) => ({
@@ -77,7 +93,7 @@ export class ConvergePassService {
       campaign.stop_reason_code = "needs_operator";
       campaign.reason = confidenceGatedCount > 0
         ? `Pass ${passId} selected no findings because ${confidenceGatedCount} finding(s) did not meet the confidence gate (${batchPlan.confidenceGate.toFixed(2)}). Review .praxis/gap.md and continue after objective clarification.`
-        : `Pass ${passId} selected no findings under the current severity and story limits. Review .praxis/gap.md and continue when ready.`;
+        : `Pass ${passId} selected no findings under the current severity and story limits. ${String(planningStageResult.data.routing_reason ?? "Review .praxis/gap.md and continue when ready.")}`;
       campaign.timestamps.updated_at = nowIsoUtc();
 
       await this.repo.savePassSummary(passId, {

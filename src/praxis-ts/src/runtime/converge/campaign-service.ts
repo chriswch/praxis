@@ -5,6 +5,7 @@ import { nowIsoUtc } from "../common/time.js";
 import type {
   CampaignLedgerRecord,
   CampaignRecord,
+  ConvergeStageResultRecord,
   PassSummaryRecord
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
@@ -36,6 +37,7 @@ import {
   stringifyError
 } from "./campaign-support.js";
 import { ConvergePassService } from "./pass-service.js";
+import { buildConvergeStageResult, getConvergeStageContract } from "./stage-runtime.js";
 
 export class ConvergeCampaignService {
   private readonly childRunSlot: ChildRunSlotService;
@@ -118,18 +120,11 @@ export class ConvergeCampaignService {
     await this.repo.saveObjectiveMarkdown(formatObjectiveMarkdown(campaign));
     await this.repo.saveTargetSpecArtifacts({
       targetSpecMarkdown: formatTargetSpecMarkdown(campaign, objectiveText),
-      stageResult: {
-        version: 1,
+      stageResult: buildConvergeStageResult({
         stage: "clarifying-intent",
-        status: "completed",
         profile: campaign.profile,
-        route: {
-          kind: "proceed"
-        },
-        data: {
-          outcome_code: "target_spec_ready"
-        }
-      }
+        outcomeCode: "target_spec_ready"
+      })
     });
     const targetSpecText = await readFile(this.repo.paths.targetSpecFile, "utf8");
 
@@ -227,6 +222,11 @@ export class ConvergeCampaignService {
     return {
       campaign,
       target_spec_path: ".praxis/target-spec.md",
+      pre_remediation_contracts: {
+        "clarifying-intent": getConvergeStageContract("clarifying-intent"),
+        "assessing-gaps": getConvergeStageContract("assessing-gaps"),
+        "planning-remediation": getConvergeStageContract("planning-remediation")
+      },
       artifacts: {
         objective_file: this.repo.paths.objectiveFile,
         target_spec_file: this.repo.paths.targetSpecFile,
@@ -273,6 +273,14 @@ export class ConvergeCampaignService {
         campaign = assessed.campaign;
         ledger = assessed.ledger;
 
+        if (assessed.stageResult.route.kind === "done") {
+          campaign.status = "completed";
+          campaign.stop_reason_code = "converged";
+          campaign.reason = this.stopReasonMessage("converged");
+          campaign.timestamps.updated_at = nowIsoUtc();
+          return { campaign, ledger };
+        }
+
         const decision = this.decidePostAssessmentOutcome(campaign, assessed.unresolvedAtThreshold);
         if (decision !== "continue") {
           campaign.status = "completed";
@@ -307,7 +315,12 @@ export class ConvergeCampaignService {
     passNumber: number,
     reviewId: string,
     targetSpecText: string
-  ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord; unresolvedAtThreshold: number }> {
+  ): Promise<{
+    campaign: CampaignRecord;
+    ledger: CampaignLedgerRecord;
+    stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
+    unresolvedAtThreshold: number;
+  }> {
     const generatedAt = nowIsoUtc();
     const { gap, gapMarkdown } = await assessGaps({
       repoRoot: this.repo.paths.root,
@@ -319,24 +332,16 @@ export class ConvergeCampaignService {
       generatedAt
     });
 
-    await this.repo.saveGapArtifacts({
-      gapMarkdown,
-      gap,
-      stageResult: {
-        version: 1,
-        stage: "assessing-gaps",
-        status: "completed",
-        profile: campaign.profile,
-        review_id: reviewId,
-        route: {
-          kind: "proceed"
-        },
-        data: {
-          outcome_code: gap.findings.length === 0 ? "no_gaps" : "findings_recorded",
-          findings_count: gap.findings.length
-        }
+    const stageResult = buildConvergeStageResult({
+      stage: "assessing-gaps",
+      profile: campaign.profile,
+      reviewId,
+      outcomeCode: gap.findings.length === 0 ? "no_gaps" : "findings_recorded",
+      data: {
+        findings_count: gap.findings.length
       }
     });
+    await this.repo.saveGapArtifacts({ gapMarkdown, gap, stageResult });
 
     const merged = mergeAssessmentIntoLedger(ledger, gap, passNumber, nowIsoUtc());
     applyWaivePolicy(campaign, merged.ledger);
@@ -355,6 +360,7 @@ export class ConvergeCampaignService {
     return {
       campaign,
       ledger: merged.ledger,
+      stageResult,
       unresolvedAtThreshold
     };
   }

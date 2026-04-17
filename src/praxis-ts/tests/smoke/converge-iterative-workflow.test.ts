@@ -205,6 +205,80 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   }
 });
 
+test("smoke: converge pre-remediation stage results expose routing metadata", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "- Must keep pre-remediation stages explicit and contract-driven.",
+      "- Must emit stable stage routing metadata for clarifying, assessing, and planning."
+    ]
+  });
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "architecture-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 2,
+      maxStoriesPerPass: 2,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const clarifyingResult = await readJson<{
+    stage: string;
+    data: {
+      outcome_code: string;
+      next_stage: string | null;
+      routing_reason: string;
+    };
+  }>(join(repoRoot, ".praxis", "results", "clarifying-intent.json"));
+  assert.equal(clarifyingResult.stage, "clarifying-intent");
+  assert.equal(clarifyingResult.data.outcome_code, "target_spec_ready");
+  assert.equal(clarifyingResult.data.next_stage, "assessing-gaps");
+  assert.match(clarifyingResult.data.routing_reason, /target specification/i);
+
+  const assessingResult = await readJson<{
+    stage: string;
+    data: {
+      outcome_code: string;
+      next_stage: string | null;
+      routing_reason: string;
+    };
+  }>(join(repoRoot, ".praxis", "results", "assessing-gaps.json"));
+  assert.equal(assessingResult.stage, "assessing-gaps");
+  assert.match(assessingResult.data.outcome_code, /^(findings_recorded|no_gaps)$/);
+  if (assessingResult.data.outcome_code === "findings_recorded") {
+    assert.equal(assessingResult.data.next_stage, "planning-remediation");
+  } else {
+    assert.equal(assessingResult.data.next_stage, null);
+  }
+  assert.match(assessingResult.data.routing_reason, /(findings|no unresolved findings)/i);
+
+  const planningResult = await readJson<{
+    stage: string;
+    data: {
+      outcome_code: string;
+      next_stage: string | null;
+      routing_reason: string;
+    };
+  }>(join(repoRoot, ".praxis", "results", "planning-remediation.json"));
+  assert.equal(planningResult.stage, "planning-remediation");
+  assert.match(planningResult.data.outcome_code, /^(remediation_map_ready|no_selection)$/);
+  if (planningResult.data.outcome_code === "no_selection") {
+    assert.equal(planningResult.data.next_stage, "planning-remediation");
+  } else {
+    assert.equal(planningResult.data.next_stage, null);
+  }
+  assert.match(planningResult.data.routing_reason, /(remediation map|selected)/i);
+});
+
 test("smoke: gap assessment does not treat .plan-only matches as implementation closure", async () => {
   const repoRoot = await createTempRepo();
   const token = "architecture-shadow-closure-token-8842";
