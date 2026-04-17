@@ -40,6 +40,15 @@ async function writeObjective(repoRoot: string, options: ConvergeObjectiveOption
   return "docs/objective.md";
 }
 
+async function writePlanningDoc(repoRoot: string, lines: string[]): Promise<void> {
+  await mkdir(join(repoRoot, ".plan"), { recursive: true });
+  await writeFile(
+    join(repoRoot, ".plan", "shadow-evidence.md"),
+    ["# Planning Notes", "", ...lines].join("\n"),
+    "utf8"
+  );
+}
+
 async function prepareDispatch(repoRoot: string): Promise<string> {
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   if (run.active.dispatch_id) {
@@ -194,6 +203,60 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   for (const artifact of REQUIRED_CONVERGE_HANDOFF_ARTIFACTS) {
     assert.ok(dispatch.inputs.required_artifacts.includes(artifact), `dispatch missing ${artifact}`);
   }
+});
+
+test("smoke: gap assessment does not treat .plan-only matches as implementation closure", async () => {
+  const repoRoot = await createTempRepo();
+  const token = "architecture-shadow-closure-token-8842";
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      `- Must enforce ${token} in runtime implementation before remediation can pass.`
+    ]
+  });
+  await writePlanningDoc(repoRoot, [
+    `- Candidate implementation note: ${token}`,
+    "- This note is planning-only and should not count as code evidence."
+  ]);
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "architecture-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 3,
+      maxStoriesPerPass: 3,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const gap = await readJson<{
+    findings: Array<{
+      expected_behavior: string;
+      current_behavior: string;
+      evidence: string[];
+      affected_paths: string[];
+    }>;
+  }>(join(repoRoot, ".praxis", "gap.json"));
+
+  const tokenFinding = gap.findings.find((finding) => finding.expected_behavior.includes(token));
+  assert.ok(tokenFinding, "expected a finding for the tokenized objective requirement");
+  assert.match(
+    tokenFinding!.current_behavior,
+    /non-code sources|insufficient for closure/i
+  );
+  for (const evidenceLine of tokenFinding!.evidence) {
+    assert.doesNotMatch(evidenceLine, /\.plan/i);
+  }
+  assert.ok(
+    tokenFinding!.affected_paths.some((path) => path.startsWith("src/")),
+    "affected paths should fall back to implementation surfaces"
+  );
 });
 
 test("smoke: commit-per-story is enforced at story boundary before continue", async () => {
