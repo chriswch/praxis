@@ -16,8 +16,10 @@ import { EXIT_CODE } from "../../src/cli/exit-codes.js";
 import type { CampaignRecord, RunRecord, StageName, StageResultRecord } from "../../src/contracts/model.js";
 import { validateConvergeStageResult } from "../../src/contracts/validators.js";
 import {
+  WORKFLOW_GRAPH,
   getConvergeWorkflowStageContract,
-  resolveConvergeWorkflowTransition
+  resolveConvergeWorkflowTransition,
+  resolveWorkflowOutcome
 } from "../../src/workflows/index.js";
 import { planRemediation } from "../../src/runtime/converge/planner.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
@@ -299,10 +301,20 @@ test("smoke: shared workflow contracts define converge pre-remediation stages", 
   const clarifying = getConvergeWorkflowStageContract("clarifying-intent");
   assert.equal(clarifying.required_inputs[0], ".praxis/objective.md");
   assert.ok(clarifying.outputs.includes(".praxis/target-spec.md"));
+  assert.ok(clarifying.outputs.includes(".praxis/clarification.json"));
 
   const assessingTransition = resolveConvergeWorkflowTransition("assessing-gaps", "findings_recorded");
   assert.equal(assessingTransition.routeKind, "proceed");
   assert.equal(assessingTransition.nextStage, "planning-remediation");
+
+  const sharedTransition = resolveWorkflowOutcome(
+    "converge-pre-remediation",
+    "assessing-gaps",
+    "findings_recorded"
+  );
+  assert.equal(sharedTransition.routeKind, "proceed");
+  assert.equal(sharedTransition.nextStage, "planning-remediation");
+  assert.ok(WORKFLOW_GRAPH["converge-pre-remediation"].stages["planning-remediation"]);
 });
 
 test("smoke: legacy objective-assessing stage id is rejected by converge stage validator", () => {

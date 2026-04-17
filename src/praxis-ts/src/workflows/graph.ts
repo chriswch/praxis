@@ -76,33 +76,66 @@ export const WORKFLOW_GRAPH: Record<WorkflowName, WorkflowDefinition> = {
         }
       }
     }
+  },
+  "converge-pre-remediation": {
+    name: "converge-pre-remediation",
+    stages: {
+      "clarifying-intent": {
+        stage: "clarifying-intent",
+        outcomes: {
+          target_spec_ready: transition("proceed", "assessing-gaps"),
+          clarification_needed: transition("ask_user", "clarifying-intent")
+        }
+      },
+      "assessing-gaps": {
+        stage: "assessing-gaps",
+        outcomes: {
+          findings_recorded: transition("proceed", "planning-remediation"),
+          no_gaps: transition("done", null)
+        }
+      },
+      "planning-remediation": {
+        stage: "planning-remediation",
+        outcomes: {
+          remediation_map_ready: transition("proceed", null),
+          no_selection: transition("ask_user", "planning-remediation")
+        }
+      }
+    }
   }
 };
 
-export function resolveWorkflowTransition(
+export function resolveWorkflowOutcome(
   workflow: WorkflowName,
-  stageResult: StageResultRecord
+  stage: StageName,
+  outcomeCode: string
 ): WorkflowTransition {
   const workflowDefinition = WORKFLOW_GRAPH[workflow];
-  const stageDefinition = workflowDefinition.stages[stageResult.stage];
+  const stageDefinition = workflowDefinition.stages[stage];
 
   if (!stageDefinition) {
-    throw new Error(`Stage ${stageResult.stage} is not part of workflow ${workflow}.`);
+    throw new Error(`Stage ${stage} is not part of workflow ${workflow}.`);
   }
 
-  const outcomeCode = stageResult.data.outcome_code;
   const resolved = stageDefinition.outcomes[outcomeCode];
   if (!resolved) {
     throw new Error(
-      `Outcome ${outcomeCode} is not mapped in workflow ${workflow} stage ${stageResult.stage}.`
+      `Outcome ${outcomeCode} is not mapped in workflow ${workflow} stage ${stage}.`
     );
   }
 
   return resolved;
 }
 
+export function resolveWorkflowTransition(
+  workflow: WorkflowName,
+  stageResult: StageResultRecord
+): WorkflowTransition {
+  return resolveWorkflowOutcome(workflow, stageResult.stage, stageResult.data.outcome_code);
+}
+
 export function expectedInputArtifacts(
-  run: Pick<RunRecord, "current" | "mode" | "constraints">
+  run: Pick<RunRecord, "workflow" | "current" | "mode" | "constraints">
 ): string[] {
   const stage = run.current.stage;
 
@@ -113,12 +146,13 @@ export function expectedInputArtifacts(
   return expectedInputArtifactsForStage(
     stage,
     run.current.artifact_dir,
-    run.constraints?.clarifying_required_artifacts ?? []
+    run.constraints?.clarifying_required_artifacts ?? [],
+    run.workflow
   );
 }
 
 export function expectedInputArtifactsForTransition(
-  run: Pick<RunRecord, "current" | "routing" | "constraints">,
+  run: Pick<RunRecord, "workflow" | "current" | "routing" | "constraints">,
   transition: {
     from_stage: StageName | null;
     from_outcome_code: string | null;
@@ -134,6 +168,7 @@ export function expectedInputArtifactsForTransition(
     stage,
     run.current.artifact_dir,
     transition,
-    run.constraints?.clarifying_required_artifacts ?? []
+    run.constraints?.clarifying_required_artifacts ?? [],
+    run.workflow
   );
 }

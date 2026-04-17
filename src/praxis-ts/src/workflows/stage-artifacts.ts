@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { StageName } from "../contracts/model.js";
+import type { StageName, WorkflowName } from "../contracts/model.js";
 
 type TransitionContext = {
   from_stage: StageName | null;
@@ -17,8 +17,21 @@ function resultPath(artifactDir: string, stage: StageName): string {
 export function expectedInputArtifactsForStage(
   stage: StageName,
   artifactDir: string,
-  clarifyingRequiredArtifacts: string[]
+  clarifyingRequiredArtifacts: string[],
+  workflow: WorkflowName = "craft"
 ): string[] {
+  if (workflow === "converge-pre-remediation") {
+    if (stage === "clarifying-intent") {
+      return [".praxis/objective.md"];
+    }
+    if (stage === "assessing-gaps") {
+      return [".praxis/target-spec.md", ".praxis/clarification.json"];
+    }
+    if (stage === "planning-remediation") {
+      return [".praxis/gap.json"];
+    }
+  }
+
   if (stage === "clarifying-intent") {
     return clarifyingRequiredArtifacts;
   }
@@ -38,8 +51,21 @@ export function expectedInputArtifactsForTransition(
   stage: StageName,
   artifactDir: string,
   transition: TransitionContext,
-  clarifyingRequiredArtifacts: string[]
+  clarifyingRequiredArtifacts: string[],
+  workflow: WorkflowName = "craft"
 ): string[] {
+  if (workflow === "converge-pre-remediation") {
+    if (stage === "clarifying-intent") {
+      return [".praxis/objective.md"];
+    }
+    if (stage === "assessing-gaps") {
+      return [".praxis/target-spec.md", ".praxis/clarification.json"];
+    }
+    if (stage === "planning-remediation") {
+      return [".praxis/gap.json"];
+    }
+  }
+
   if (stage === "clarifying-intent") {
     return clarifyingRequiredArtifacts;
   }
@@ -71,10 +97,42 @@ export function expectedInputArtifactsForTransition(
   return [];
 }
 
-export function expectedContractOutputArtifacts(stage: StageName, artifactDir: string): string[] {
+export function expectedContractOutputArtifacts(
+  stage: StageName,
+  artifactDir: string,
+  workflow: WorkflowName = "craft"
+): string[] {
+  if (workflow === "converge-pre-remediation") {
+    switch (stage) {
+      case "clarifying-intent":
+        return [
+          ".praxis/target-spec.md",
+          ".praxis/clarification.json",
+          resultPath(".praxis", stage)
+        ];
+      case "assessing-gaps":
+        return [
+          ".praxis/gap.md",
+          ".praxis/gap.json",
+          resultPath(".praxis", stage)
+        ];
+      case "planning-remediation":
+        return [
+          ".praxis/remediation-map.md",
+          ".praxis/remediation-map.json",
+          resultPath(".praxis", stage)
+        ];
+      default:
+        return [];
+    }
+  }
+
   switch (stage) {
     case "clarifying-intent":
       return [toPosix(join(artifactDir, "spec.md")), resultPath(artifactDir, stage)];
+    case "assessing-gaps":
+    case "planning-remediation":
+      return [];
     case "slicing-stories":
       return [".praxis/slice-map.json", ".praxis/slice-map.md", resultPath(".praxis", stage)];
     case "sketching-design":
@@ -90,10 +148,30 @@ export function expectedContractOutputArtifacts(stage: StageName, artifactDir: s
   }
 }
 
-export function primaryContractOutputArtifact(stage: StageName, artifactDir: string): string | null {
+export function primaryContractOutputArtifact(
+  stage: StageName,
+  artifactDir: string,
+  workflow: WorkflowName = "craft"
+): string | null {
+  if (workflow === "converge-pre-remediation") {
+    switch (stage) {
+      case "clarifying-intent":
+        return ".praxis/target-spec.md";
+      case "assessing-gaps":
+        return ".praxis/gap.md";
+      case "planning-remediation":
+        return ".praxis/remediation-map.md";
+      default:
+        return null;
+    }
+  }
+
   switch (stage) {
     case "clarifying-intent":
       return toPosix(join(artifactDir, "spec.md"));
+    case "assessing-gaps":
+    case "planning-remediation":
+      return null;
     case "slicing-stories":
       return ".praxis/slice-map.md";
     case "sketching-design":
@@ -109,7 +187,25 @@ export function primaryContractOutputArtifact(stage: StageName, artifactDir: str
   }
 }
 
-export function expectedOutcomeArtifacts(stage: StageName, artifactDir: string, outcomeCode: string): string[] {
+export function expectedOutcomeArtifacts(
+  stage: StageName,
+  artifactDir: string,
+  outcomeCode: string,
+  workflow: WorkflowName = "craft"
+): string[] {
+  if (workflow === "converge-pre-remediation") {
+    switch (stage) {
+      case "clarifying-intent":
+        return [".praxis/target-spec.md", ".praxis/clarification.json"];
+      case "assessing-gaps":
+        return [".praxis/gap.md", ".praxis/gap.json"];
+      case "planning-remediation":
+        return [".praxis/remediation-map.md", ".praxis/remediation-map.json"];
+      default:
+        return [];
+    }
+  }
+
   switch (stage) {
     case "clarifying-intent":
       if (outcomeCode === "feature_brief_ready") {
@@ -118,6 +214,9 @@ export function expectedOutcomeArtifacts(stage: StageName, artifactDir: string, 
       if (outcomeCode === "story_spec_ready" || outcomeCode === "bug_fix_ready") {
         return [toPosix(join(artifactDir, "spec.md"))];
       }
+      return [];
+    case "assessing-gaps":
+    case "planning-remediation":
       return [];
     case "slicing-stories":
       return [".praxis/slice-map.md", ".praxis/slice-map.json"];

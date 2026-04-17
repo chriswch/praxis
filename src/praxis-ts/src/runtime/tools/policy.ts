@@ -10,6 +10,8 @@ export type ToolPolicy = {
 function stageToProfile(stage: StageName): ToolPolicy["profile"] {
   switch (stage) {
     case "clarifying-intent":
+    case "assessing-gaps":
+    case "planning-remediation":
     case "slicing-stories":
       return "planning";
     case "sketching-design":

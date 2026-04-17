@@ -9,7 +9,6 @@ import type {
   PassSummaryRecord
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
-import { assessGaps } from "./assessment.js";
 import { ChildRunSlotService } from "./child-run-slot.js";
 import { buildPassId, buildReviewId } from "./identity.js";
 import {
@@ -29,7 +28,6 @@ import type {
 import {
   applyWaivePolicy,
   formatObjectiveMarkdown,
-  formatTargetSpecMarkdown,
   isRunTerminal,
   normalizeRepoPath,
   parseReviewOrdinal,
@@ -37,15 +35,18 @@ import {
   stringifyError
 } from "./campaign-support.js";
 import { ConvergePassService } from "./pass-service.js";
-import { buildConvergeStageResult, getConvergeStageContract } from "./stage-runtime.js";
+import { getConvergeStageContract } from "./stage-runtime.js";
+import { ConvergePreRemediationService } from "./pre-remediation-service.js";
 
 export class ConvergeCampaignService {
   private readonly childRunSlot: ChildRunSlotService;
   private readonly passService: ConvergePassService;
+  private readonly preRemediation: ConvergePreRemediationService;
 
   constructor(private readonly repo: PraxisStateRepository) {
     this.childRunSlot = new ChildRunSlotService(repo);
     this.passService = new ConvergePassService(repo, this.childRunSlot);
+    this.preRemediation = new ConvergePreRemediationService(repo);
   }
 
   async runCampaign(input: ConvergeRunInput): Promise<ConvergeActionOutcome> {
@@ -349,27 +350,11 @@ export class ConvergeCampaignService {
     stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
     unresolvedAtThreshold: number;
   }> {
-    const generatedAt = nowIsoUtc();
-    const { gap, gapMarkdown } = await assessGaps({
-      repoRoot: this.repo.paths.root,
-      profile: campaign.profile,
-      targetSpecPath: ".praxis/target-spec.md",
+    const { gap, stageResult } = await this.preRemediation.runAssessingGaps(
+      campaign,
       targetSpecText,
-      scope: campaign.objective.scope,
-      reviewId,
-      generatedAt
-    });
-
-    const stageResult = buildConvergeStageResult({
-      stage: "assessing-gaps",
-      profile: campaign.profile,
-      reviewId,
-      outcomeCode: gap.findings.length === 0 ? "no_gaps" : "findings_recorded",
-      data: {
-        findings_count: gap.findings.length
-      }
-    });
-    await this.repo.saveGapArtifacts({ gapMarkdown, gap, stageResult });
+      reviewId
+    );
 
     const merged = mergeAssessmentIntoLedger(ledger, gap, passNumber, nowIsoUtc());
     applyWaivePolicy(campaign, merged.ledger);
@@ -679,27 +664,12 @@ export class ConvergeCampaignService {
   }> {
     const objectiveText = objectiveTextOverride
       ?? await readFile(join(this.repo.paths.root, campaign.objective.normalized_path), "utf8");
-    const draft = formatTargetSpecMarkdown(campaign, objectiveText);
-    const outcomeCode = draft.needsClarification ? "clarification_needed" : "target_spec_ready";
-    await this.repo.saveTargetSpecArtifacts({
-      targetSpecMarkdown: draft.markdown,
-      clarificationRecord: draft.clarificationRecord,
-      stageResult: buildConvergeStageResult({
-        stage: "clarifying-intent",
-        profile: campaign.profile,
-        outcomeCode,
-        data: {
-          clarification_issues: draft.clarificationIssues,
-          acceptance_criteria_count: draft.acceptanceCriteriaCount,
-          clarification_approval_status: draft.clarificationRecord.approval.status
-        }
-      })
-    });
+    const clarifying = await this.preRemediation.runClarifyingIntent(campaign, objectiveText);
 
     return {
-      targetSpecText: draft.markdown,
-      needsClarification: draft.needsClarification,
-      clarificationIssues: draft.clarificationIssues
+      targetSpecText: clarifying.targetSpecText,
+      needsClarification: clarifying.draft.needsClarification,
+      clarificationIssues: clarifying.draft.clarificationIssues
     };
   }
 

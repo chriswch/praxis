@@ -1,4 +1,4 @@
-export const WORKFLOW_NAMES = ["craft"] as const;
+export const WORKFLOW_NAMES = ["craft", "converge-pre-remediation"] as const;
 export type WorkflowName = (typeof WORKFLOW_NAMES)[number];
 
 export const CONVERGE_PROFILES = ["product-spec-gap", "architecture-gap"] as const;
@@ -113,6 +113,8 @@ export type ToolUseStatus = (typeof TOOL_USE_STATUS)[number];
 
 export const STAGE_NAMES = [
   "clarifying-intent",
+  "assessing-gaps",
+  "planning-remediation",
   "slicing-stories",
   "sketching-design",
   "driving-tdd",

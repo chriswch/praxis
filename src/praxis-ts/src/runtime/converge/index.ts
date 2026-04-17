@@ -1,4 +1,5 @@
 export { ConvergeCampaignService } from "./campaign-service.js";
+export { ConvergePreRemediationService } from "./pre-remediation-service.js";
 export { ChildRunSlotService } from "./child-run-slot.js";
 export { assessGaps, assessObjective } from "./assessment.js";
 export { planRemediation, planPassBatch } from "./planner.js";

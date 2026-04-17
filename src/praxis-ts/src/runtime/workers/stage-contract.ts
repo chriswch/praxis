@@ -7,9 +7,25 @@ import {
 type StageContract = DispatchRecord["contract"];
 
 function stageGoal(workflow: WorkflowName, stage: StageName): string {
+  if (workflow === "converge-pre-remediation") {
+    switch (stage) {
+      case "clarifying-intent":
+        return "Clarify and persist an operator-ready target spec for objective-driven remediation.";
+      case "assessing-gaps":
+        return "Assess implementation gaps against the active target spec and persist durable findings.";
+      case "planning-remediation":
+        return "Select bounded remediation slices from assessed findings and persist a remediation map.";
+      default:
+        return `Execute ${stage} for workflow ${workflow}.`;
+    }
+  }
+
   switch (stage) {
     case "clarifying-intent":
       return `Clarify the current ${workflow} story boundary and produce the authoritative next artifact.`;
+    case "assessing-gaps":
+    case "planning-remediation":
+      return `Execute ${stage} for workflow ${workflow}.`;
     case "slicing-stories":
       return "Split the feature brief into a durable slice map and activate the first slice.";
     case "sketching-design":
@@ -32,6 +48,18 @@ function stageInstructions(stage: StageName): string[] {
         "Use only dispatch-approved artifacts and any active boundary handoff.",
         "Decide whether the work is a brief, a story spec, or user clarification.",
         "Write the human-readable artifact and the machine-readable stage result."
+      ];
+    case "assessing-gaps":
+      return [
+        "Assess implementation behavior against the active target spec.",
+        "Persist both Markdown and JSON gap artifacts.",
+        "Write a converge stage result with deterministic routing metadata."
+      ];
+    case "planning-remediation":
+      return [
+        "Plan from the latest gap assessment artifacts only.",
+        "Persist selected and deferred findings with bounded remediation slices.",
+        "Write a converge stage result with deterministic routing metadata."
       ];
     case "slicing-stories":
       return [
@@ -80,7 +108,7 @@ export function buildStageContract(
   return {
     stage_goal: stageGoal(workflow, stage),
     stage_instructions: stageInstructions(stage),
-    expected_output_artifacts: expectedContractOutputArtifacts(stage, artifactDir),
-    primary_output: primaryContractOutputArtifact(stage, artifactDir)
+    expected_output_artifacts: expectedContractOutputArtifacts(stage, artifactDir, workflow),
+    primary_output: primaryContractOutputArtifact(stage, artifactDir, workflow)
   };
 }
