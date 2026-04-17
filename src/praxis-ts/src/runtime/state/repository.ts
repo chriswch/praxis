@@ -263,6 +263,14 @@ export class PraxisStateRepository {
     await writeJsonFile(join(resultsDir, "assessing-gaps.json"), payload.stageResult);
   }
 
+  async loadGapAssessment(): Promise<GapAssessmentResult | null> {
+    const gap = await readJsonFileIfExists<GapAssessmentResult>(this.paths.gapDataFile);
+    if (gap) {
+      validateObjectiveAssessmentResult(gap);
+    }
+    return gap;
+  }
+
   async savePassBatch(passId: string, batchMarkdown: string, batch: PassBatchRecord): Promise<void> {
     validatePassBatchRecord(batch);
     const passDir = join(this.paths.passesDir, passId);

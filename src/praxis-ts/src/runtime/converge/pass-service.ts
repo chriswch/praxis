@@ -45,12 +45,17 @@ export class ConvergePassService {
     if (!campaign.current_review_id) {
       throw new BlockedStateError("Cannot plan remediation without an assessment review id.");
     }
+    const latestAssessment = await this.repo.loadGapAssessment();
+    if (!latestAssessment) {
+      throw new BlockedStateError("Cannot plan remediation without .praxis/gap.json from assessing-gaps.");
+    }
 
     const passId = buildPassId(passNumber);
     const batchPlan = planRemediation({
       campaignId: campaign.campaign_id,
       passNumber,
       reviewId: campaign.current_review_id,
+      latestAssessment,
       ledger,
       severityThreshold: campaign.severity_threshold,
       maxFindingsPerPass: campaign.max_findings_per_pass,

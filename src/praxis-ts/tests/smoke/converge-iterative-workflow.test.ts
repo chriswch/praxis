@@ -326,6 +326,50 @@ test("smoke: converge pauses at clarifying-intent when objective is too vague", 
   assert.ok(clarifyingResult.data.clarification_issues.length > 0);
 });
 
+test("smoke: planning-remediation groups related findings when story budget is tight", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "- Must enforce converge remediation contract coverage for bounded passes.",
+      "- Must enforce converge remediation contract durability for bounded passes.",
+      "- Must enforce converge remediation contract routing for bounded passes.",
+      "- Must enforce converge remediation contract handoff for bounded passes."
+    ]
+  });
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "architecture-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 4,
+      maxStoriesPerPass: 2,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const remediationMap = await readJson<{
+    selected_finding_ids: string[];
+    slices: Array<{
+      slice_id: string;
+      finding_ids: string[];
+    }>;
+  }>(join(repoRoot, ".praxis", "remediation-map.json"));
+
+  assert.ok(remediationMap.selected_finding_ids.length > 0);
+  assert.ok(remediationMap.slices.length <= 2);
+  assert.ok(
+    remediationMap.slices.some((slice) => slice.finding_ids.length > 1),
+    "expected at least one grouped remediation slice"
+  );
+});
+
 test("smoke: gap assessment does not treat .plan-only matches as implementation closure", async () => {
   const repoRoot = await createTempRepo();
   const token = "architecture-shadow-closure-token-8842";
