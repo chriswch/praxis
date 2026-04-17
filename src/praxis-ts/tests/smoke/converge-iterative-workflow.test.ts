@@ -623,7 +623,15 @@ test("smoke: gap assessment does not treat .plan-only matches as implementation 
   assert.ok(tokenFinding, "expected a finding for the tokenized objective requirement");
   assert.match(
     tokenFinding!.current_behavior,
-    /non-code sources|insufficient for closure/i
+    /executable behavior evidence|insufficient for closure/i
+  );
+  assert.ok(
+    tokenFinding!.evidence.some((line) => /Coverage summary: behavior=/i.test(line)),
+    "expected behavior coverage summary in evidence"
+  );
+  assert.ok(
+    tokenFinding!.evidence.some((line) => /Executable behavior probes were not found/i.test(line)),
+    "expected explicit behavior-probe closure warning"
   );
   for (const evidenceLine of tokenFinding!.evidence) {
     assert.doesNotMatch(evidenceLine, /\.plan/i);
