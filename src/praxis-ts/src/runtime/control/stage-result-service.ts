@@ -239,7 +239,13 @@ export class StageResultService {
     );
 
     if (auditWarnings.length > 0) {
-      await this.recordAuditDegradedState(run.run_id, accepted.result.stage, auditWarnings);
+      await this.recordAuditDegradedState(run, accepted.result.stage, auditWarnings);
+    } else if (run.audit_status !== undefined || (run.audit_warnings && run.audit_warnings.length > 0)) {
+      // Clear a stale degraded marker carried over from an earlier stage once the
+      // current acceptance committed cleanly — the run is no longer partially audited.
+      delete run.audit_status;
+      delete run.audit_warnings;
+      await this.repo.saveRun(run);
     }
 
     return {
@@ -268,14 +274,22 @@ export class StageResultService {
   }
 
   private async recordAuditDegradedState(
-    runId: string,
+    run: RunRecord,
     stage: string,
     warnings: string[]
   ): Promise<void> {
+    run.audit_status = "degraded";
+    run.audit_warnings = warnings;
+    try {
+      await this.repo.saveRun(run);
+    } catch {
+      // Run already committed with the routing change. If the second save fails, the
+      // appendAuditWarning call below still records the warnings out-of-band.
+    }
     try {
       await this.repo.appendAuditWarning({
         ts: nowIsoUtc(),
-        run_id: runId,
+        run_id: run.run_id,
         stage,
         action: "submit-stage-result",
         warning_count: warnings.length,

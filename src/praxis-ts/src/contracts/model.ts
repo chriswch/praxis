@@ -287,6 +287,12 @@ export type RunRecord = {
     created_at: string;
     updated_at: string;
   };
+  // Set to "degraded" when stage-result acceptance committed the run but one or more
+  // audit writes (stage history, telemetry, lifecycle events) failed. "clean" or absent
+  // means all audit trails committed successfully. The detailed warnings are recorded
+  // separately via appendAuditWarning.
+  audit_status?: "clean" | "degraded";
+  audit_warnings?: string[];
 };
 
 export type DispatchRecord = {

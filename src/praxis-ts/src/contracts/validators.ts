@@ -223,6 +223,13 @@ export function validateRunRecord(run: RunRecord): void {
       }
     }
   }
+
+  if (run.audit_status !== undefined) {
+    assertEnum(run.audit_status, ["clean", "degraded"], "audit_status");
+  }
+  if (run.audit_warnings !== undefined) {
+    assertStringArray(run.audit_warnings, "audit_warnings");
+  }
 }
 
 export function validateStageResult(result: StageResultRecord): void {
