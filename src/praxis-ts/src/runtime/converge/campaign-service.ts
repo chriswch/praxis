@@ -153,23 +153,33 @@ export class ConvergeCampaignService {
     await this.repo.saveObjectiveMarkdown(formatObjectiveMarkdown(campaign));
     const targetSpec = await this.refreshTargetSpecFromObjective(campaign, objectiveText);
     if (targetSpec.needsClarification) {
-      campaign.status = "waiting_for_user";
-      campaign.stop_reason_code = "needs_operator";
-      campaign.reason = `Clarifying-intent requires objective refinement before assessment: ${targetSpec.clarificationIssues.join(" ")}`;
-      campaign.timestamps.updated_at = nowIsoUtc();
-      await this.repo.saveCampaign(campaign);
-      await this.repo.saveCampaignLedger(ledger);
-      return this.toOutcome(campaign);
+      return this.markWaitingForClarification(
+        campaign,
+        ledger,
+        targetSpec.clarificationIssues,
+        "Clarifying-intent requires objective refinement before assessment: ",
+      );
     }
 
-    const progressed = await this.progressCampaign(campaign, ledger, targetSpec.targetSpecText);
-    await this.repo.saveCampaign(progressed.campaign);
-    await this.repo.saveCampaignLedger(progressed.ledger);
-
-    return this.toOutcome(progressed.campaign);
+    return this.progressAndPersist(campaign, ledger, targetSpec.targetSpecText);
   }
 
   async continueCampaign(): Promise<ConvergeActionOutcome> {
+    return this.advanceExistingCampaign({
+      continuationReason: "Campaign continued by operator.",
+    });
+  }
+
+  async resumeCampaign(): Promise<ConvergeActionOutcome> {
+    return this.advanceExistingCampaign({ continuationReason: null });
+  }
+
+  // continueCampaign and resumeCampaign share everything except whether they flip the
+  // campaign status to "running" with an operator-supplied reason. Keeping the shared path
+  // here prevents the two entrypoints from drifting as the refresh/progression flow evolves.
+  private async advanceExistingCampaign(options: {
+    continuationReason: string | null;
+  }): Promise<ConvergeActionOutcome> {
     const campaign = await this.requireCampaign();
     if (campaign.status === "cancelled" || campaign.status === "completed") {
       throw new RejectedProgressionError(`Campaign is already terminal (${campaign.status}).`);
@@ -181,50 +191,49 @@ export class ConvergeCampaignService {
       const targetSpec = await this.refreshTargetSpecFromObjective(campaign);
       targetSpecText = targetSpec.targetSpecText;
       if (targetSpec.needsClarification) {
-        campaign.status = "waiting_for_user";
-        campaign.stop_reason_code = "needs_operator";
-        campaign.reason = `Clarifying-intent still needs objective refinement: ${targetSpec.clarificationIssues.join(" ")}`;
-        campaign.timestamps.updated_at = nowIsoUtc();
-        await this.repo.saveCampaign(campaign);
-        await this.repo.saveCampaignLedger(ledger);
-        return this.toOutcome(campaign);
+        return this.markWaitingForClarification(
+          campaign,
+          ledger,
+          targetSpec.clarificationIssues,
+          "Clarifying-intent still needs objective refinement: ",
+        );
       }
     }
-    campaign.status = "running";
-    campaign.stop_reason_code = null;
-    campaign.reason = "Campaign continued by operator.";
-    campaign.timestamps.updated_at = nowIsoUtc();
 
+    if (options.continuationReason !== null) {
+      campaign.status = "running";
+      campaign.stop_reason_code = null;
+      campaign.reason = options.continuationReason;
+      campaign.timestamps.updated_at = nowIsoUtc();
+    }
+
+    return this.progressAndPersist(campaign, ledger, targetSpecText);
+  }
+
+  private async progressAndPersist(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    targetSpecText: string,
+  ): Promise<ConvergeActionOutcome> {
     const progressed = await this.progressCampaign(campaign, ledger, targetSpecText);
     await this.repo.saveCampaign(progressed.campaign);
     await this.repo.saveCampaignLedger(progressed.ledger);
     return this.toOutcome(progressed.campaign);
   }
 
-  async resumeCampaign(): Promise<ConvergeActionOutcome> {
-    const campaign = await this.requireCampaign();
-    if (campaign.status === "cancelled" || campaign.status === "completed") {
-      throw new RejectedProgressionError(`Campaign is already terminal (${campaign.status}).`);
-    }
-    const ledger = await this.requireCampaignLedger();
-    let targetSpecText = await readFile(this.repo.paths.targetSpecFile, "utf8");
-    if (!campaign.current_review_id) {
-      const targetSpec = await this.refreshTargetSpecFromObjective(campaign);
-      targetSpecText = targetSpec.targetSpecText;
-      if (targetSpec.needsClarification) {
-        campaign.status = "waiting_for_user";
-        campaign.stop_reason_code = "needs_operator";
-        campaign.reason = `Clarifying-intent still needs objective refinement: ${targetSpec.clarificationIssues.join(" ")}`;
-        campaign.timestamps.updated_at = nowIsoUtc();
-        await this.repo.saveCampaign(campaign);
-        await this.repo.saveCampaignLedger(ledger);
-        return this.toOutcome(campaign);
-      }
-    }
-    const progressed = await this.progressCampaign(campaign, ledger, targetSpecText);
-    await this.repo.saveCampaign(progressed.campaign);
-    await this.repo.saveCampaignLedger(progressed.ledger);
-    return this.toOutcome(progressed.campaign);
+  private async markWaitingForClarification(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    issues: string[],
+    reasonPrefix: string,
+  ): Promise<ConvergeActionOutcome> {
+    campaign.status = "waiting_for_user";
+    campaign.stop_reason_code = "needs_operator";
+    campaign.reason = `${reasonPrefix}${issues.join(" ")}`;
+    campaign.timestamps.updated_at = nowIsoUtc();
+    await this.repo.saveCampaign(campaign);
+    await this.repo.saveCampaignLedger(ledger);
+    return this.toOutcome(campaign);
   }
 
   async cancelCampaign(note: string | null): Promise<ConvergeActionOutcome> {
