@@ -118,17 +118,18 @@ export class ConvergeCampaignService {
     await this.repo.saveCampaign(campaign);
     await this.repo.saveCampaignLedger(ledger);
     await this.repo.saveObjectiveMarkdown(formatObjectiveMarkdown(campaign));
-    await this.repo.saveTargetSpecArtifacts({
-      targetSpecMarkdown: formatTargetSpecMarkdown(campaign, objectiveText),
-      stageResult: buildConvergeStageResult({
-        stage: "clarifying-intent",
-        profile: campaign.profile,
-        outcomeCode: "target_spec_ready"
-      })
-    });
-    const targetSpecText = await readFile(this.repo.paths.targetSpecFile, "utf8");
+    const targetSpec = await this.refreshTargetSpecFromObjective(campaign, objectiveText);
+    if (targetSpec.needsClarification) {
+      campaign.status = "waiting_for_user";
+      campaign.stop_reason_code = "needs_operator";
+      campaign.reason = `Clarifying-intent requires objective refinement before assessment: ${targetSpec.clarificationIssues.join(" ")}`;
+      campaign.timestamps.updated_at = nowIsoUtc();
+      await this.repo.saveCampaign(campaign);
+      await this.repo.saveCampaignLedger(ledger);
+      return this.toOutcome(campaign);
+    }
 
-    const progressed = await this.progressCampaign(campaign, ledger, targetSpecText);
+    const progressed = await this.progressCampaign(campaign, ledger, targetSpec.targetSpecText);
     await this.repo.saveCampaign(progressed.campaign);
     await this.repo.saveCampaignLedger(progressed.ledger);
 
@@ -142,13 +143,26 @@ export class ConvergeCampaignService {
     }
 
     const ledger = await this.requireCampaignLedger();
-    const objectiveText = await readFile(this.repo.paths.targetSpecFile, "utf8");
+    let targetSpecText = await readFile(this.repo.paths.targetSpecFile, "utf8");
+    if (!campaign.current_review_id) {
+      const targetSpec = await this.refreshTargetSpecFromObjective(campaign);
+      targetSpecText = targetSpec.targetSpecText;
+      if (targetSpec.needsClarification) {
+        campaign.status = "waiting_for_user";
+        campaign.stop_reason_code = "needs_operator";
+        campaign.reason = `Clarifying-intent still needs objective refinement: ${targetSpec.clarificationIssues.join(" ")}`;
+        campaign.timestamps.updated_at = nowIsoUtc();
+        await this.repo.saveCampaign(campaign);
+        await this.repo.saveCampaignLedger(ledger);
+        return this.toOutcome(campaign);
+      }
+    }
     campaign.status = "running";
     campaign.stop_reason_code = null;
     campaign.reason = "Campaign continued by operator.";
     campaign.timestamps.updated_at = nowIsoUtc();
 
-    const progressed = await this.progressCampaign(campaign, ledger, objectiveText);
+    const progressed = await this.progressCampaign(campaign, ledger, targetSpecText);
     await this.repo.saveCampaign(progressed.campaign);
     await this.repo.saveCampaignLedger(progressed.ledger);
     return this.toOutcome(progressed.campaign);
@@ -160,8 +174,21 @@ export class ConvergeCampaignService {
       throw new RejectedProgressionError(`Campaign is already terminal (${campaign.status}).`);
     }
     const ledger = await this.requireCampaignLedger();
-    const objectiveText = await readFile(this.repo.paths.targetSpecFile, "utf8");
-    const progressed = await this.progressCampaign(campaign, ledger, objectiveText);
+    let targetSpecText = await readFile(this.repo.paths.targetSpecFile, "utf8");
+    if (!campaign.current_review_id) {
+      const targetSpec = await this.refreshTargetSpecFromObjective(campaign);
+      targetSpecText = targetSpec.targetSpecText;
+      if (targetSpec.needsClarification) {
+        campaign.status = "waiting_for_user";
+        campaign.stop_reason_code = "needs_operator";
+        campaign.reason = `Clarifying-intent still needs objective refinement: ${targetSpec.clarificationIssues.join(" ")}`;
+        campaign.timestamps.updated_at = nowIsoUtc();
+        await this.repo.saveCampaign(campaign);
+        await this.repo.saveCampaignLedger(ledger);
+        return this.toOutcome(campaign);
+      }
+    }
+    const progressed = await this.progressCampaign(campaign, ledger, targetSpecText);
     await this.repo.saveCampaign(progressed.campaign);
     await this.repo.saveCampaignLedger(progressed.ledger);
     return this.toOutcome(progressed.campaign);
@@ -638,6 +665,38 @@ export class ConvergeCampaignService {
       current_pass: campaign.current_pass,
       stop_reason_code: campaign.stop_reason_code,
       reason: campaign.reason
+    };
+  }
+
+  private async refreshTargetSpecFromObjective(
+    campaign: CampaignRecord,
+    objectiveTextOverride?: string
+  ): Promise<{
+    targetSpecText: string;
+    needsClarification: boolean;
+    clarificationIssues: string[];
+  }> {
+    const objectiveText = objectiveTextOverride
+      ?? await readFile(join(this.repo.paths.root, campaign.objective.normalized_path), "utf8");
+    const draft = formatTargetSpecMarkdown(campaign, objectiveText);
+    const outcomeCode = draft.needsClarification ? "clarification_needed" : "target_spec_ready";
+    await this.repo.saveTargetSpecArtifacts({
+      targetSpecMarkdown: draft.markdown,
+      stageResult: buildConvergeStageResult({
+        stage: "clarifying-intent",
+        profile: campaign.profile,
+        outcomeCode,
+        data: {
+          clarification_issues: draft.clarificationIssues,
+          acceptance_criteria_count: draft.acceptanceCriteriaCount
+        }
+      })
+    });
+
+    return {
+      targetSpecText: draft.markdown,
+      needsClarification: draft.needsClarification,
+      clarificationIssues: draft.clarificationIssues
     };
   }
 

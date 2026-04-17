@@ -60,57 +60,162 @@ export function formatObjectiveMarkdown(campaign: CampaignRecord): string {
   ].join("\n");
 }
 
-export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText: string): string {
+export type TargetSpecDraft = {
+  markdown: string;
+  needsClarification: boolean;
+  clarificationIssues: string[];
+  acceptanceCriteriaCount: number;
+};
+
+function isListItem(line: string): boolean {
+  return /^(?:[-*]|\d+\.)\s+/.test(line);
+}
+
+function normalizeListItem(line: string): string {
+  return line.replace(/^(?:[-*]|\d+\.)\s+/, "").trim();
+}
+
+function collectSections(objectiveLines: string[]): Map<string, string[]> {
+  const sections = new Map<string, string[]>();
+  let current = "objective";
+
+  for (const line of objectiveLines) {
+    const heading = /^#{1,6}\s+(.+)$/.exec(line);
+    if (heading) {
+      current = heading[1].trim().toLowerCase();
+      if (!sections.has(current)) {
+        sections.set(current, []);
+      }
+      continue;
+    }
+    if (!sections.has(current)) {
+      sections.set(current, []);
+    }
+    sections.get(current)!.push(line);
+  }
+
+  return sections;
+}
+
+function pickSectionItems(sections: Map<string, string[]>, matcher: RegExp): string[] {
+  const selected: string[] = [];
+  for (const [heading, lines] of sections.entries()) {
+    if (!matcher.test(heading)) {
+      continue;
+    }
+    for (const line of lines) {
+      if (line.trim().length === 0) {
+        continue;
+      }
+      selected.push(isListItem(line) ? normalizeListItem(line) : line.trim());
+    }
+  }
+  return selected;
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
+}
+
+export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText: string): TargetSpecDraft {
   const trimmed = objectiveText.trim();
   const objectiveLines = trimmed
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+
+  const sections = collectSections(objectiveLines);
   const listItems = objectiveLines
     .map((line) => /^(?:[-*]|\d+\.)\s+(.+)$/.exec(line)?.[1]?.trim())
     .filter((line): line is string => Boolean(line && line.length > 0));
-  const headings = objectiveLines
-    .map((line) => /^#{1,6}\s+(.+)$/.exec(line)?.[1]?.trim())
-    .filter((line): line is string => Boolean(line && line.length > 0));
-  const candidateGoal = headings.find((heading) => !/^objective$/i.test(heading))
-    ?? listItems[0]
-    ?? objectiveLines.find((line) => !/^#{1,6}\s+/.test(line))
-    ?? "Close the identified remediation scope against an explicit target.";
-  const acceptanceCriteria = listItems.length > 0
-    ? listItems
+  const goalCandidates = unique([
+    ...pickSectionItems(sections, /goal|objective|summary|outcome/),
+    ...listItems.slice(0, 1),
+    ...objectiveLines
+      .filter((line) => !line.startsWith("#"))
+      .filter((line) => !isListItem(line))
+      .slice(0, 1)
+  ]);
+  const goal = goalCandidates[0] ?? "";
+
+  const explicitScope = unique([
+    ...campaign.objective.scope,
+    ...pickSectionItems(sections, /scope|boundary|in scope/)
+  ]);
+  const inferredScopeFromPaths = objectiveLines
+    .flatMap((line) => [...line.matchAll(/(?:^|\s)(src\/[A-Za-z0-9_./-]+)/g)])
+    .map((match) => match[1]);
+  const scopeItems = explicitScope.length > 0
+    ? explicitScope
+    : unique(inferredScopeFromPaths).length > 0
+      ? unique(inferredScopeFromPaths)
+      : ["(repo root)"];
+
+  const nonGoals = unique([
+    ...pickSectionItems(sections, /non-?goals?|out of scope/),
+    ...listItems.filter((item) => /\b(do not|don't|out of scope|exclude|defer)\b/i.test(item))
+  ]);
+  const scopedNonGoals = nonGoals.length > 0
+    ? nonGoals
+    : [`Limit remediation to the declared scope (${scopeItems.join(", ")}).`];
+
+  const constraints = unique([
+    ...pickSectionItems(sections, /constraint|guardrail|policy/),
+    ...listItems.filter((item) => /\b(must|required|bounded|preserve|commit)\b/i.test(item))
+  ]);
+  const scopedConstraints = constraints.length > 0
+    ? constraints
     : [
-        "Target behavior is specific enough for repo-level gap assessment.",
-        "Scope and non-goals are explicit enough to reject out-of-scope noise.",
-        "Success criteria are testable for bounded remediation slices."
+        "Keep remediation bounded to selected findings for each pass.",
+        "Preserve fresh-session execution boundaries for child stories."
       ];
 
-  return [
+  const acceptanceCriteria = unique([
+    ...pickSectionItems(sections, /acceptance|success|criteria|definition of done/),
+    ...listItems.filter((item) => /\b(must|should|verify|ensure|confirm)\b/i.test(item))
+  ]);
+
+  const clarificationIssues: string[] = [];
+  if (goal.length < 20) {
+    clarificationIssues.push("Objective goal is too short or ambiguous for reliable comparison.");
+  }
+  if (acceptanceCriteria.length < 1) {
+    clarificationIssues.push("At least one acceptance criterion is required for dependable gap assessment.");
+  }
+  if (listItems.length < 1 && objectiveLines.length < 3) {
+    clarificationIssues.push("Objective source is too sparse; add concrete requirements before assessment.");
+  }
+  const needsClarification = clarificationIssues.length > 0;
+
+  const markdown = [
     "# Target Spec",
     "",
     "## Goal",
     "",
-    candidateGoal,
+    goal.length > 0 ? goal : "(missing: provide a concrete objective goal)",
     "",
     "## Scope",
     "",
-    ...(campaign.objective.scope.length > 0
-      ? campaign.objective.scope.map((path) => `- ${path}`)
-      : ["- (repo root)"]),
+    ...scopeItems.map((path) => `- ${path}`),
     "",
     "## Non-Goals",
     "",
-    "- Do not expand beyond the current converge campaign scope.",
-    "- Do not merge unrelated findings into a single broad remediation task.",
+    ...scopedNonGoals.map((item) => `- ${item}`),
     "",
     "## Constraints",
     "",
-    "- Keep remediation bounded to selected findings for each pass.",
-    "- Preserve fresh-session execution boundaries for child stories.",
-    "- Keep stage contracts stable for future skill-swappable stage workers.",
+    ...scopedConstraints.map((item) => `- ${item}`),
     "",
     "## Acceptance Criteria",
     "",
-    ...acceptanceCriteria.map((criterion) => `- ${criterion}`),
+    ...(acceptanceCriteria.length > 0
+      ? acceptanceCriteria.map((criterion) => `- ${criterion}`)
+      : ["- (missing: add acceptance criteria to the objective source)"]),
+    "",
+    "## Clarification Status",
+    "",
+    `- Needs clarification: ${needsClarification ? "yes" : "no"}`,
+    ...clarificationIssues.map((issue) => `- ${issue}`),
     "",
     "## References",
     "",
@@ -123,6 +228,13 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     trimmed.length > 0 ? trimmed : "(empty objective source)",
     ""
   ].join("\n");
+
+  return {
+    markdown,
+    needsClarification,
+    clarificationIssues,
+    acceptanceCriteriaCount: acceptanceCriteria.length
+  };
 }
 
 export function parseReviewOrdinal(reviewId: string | null): number {

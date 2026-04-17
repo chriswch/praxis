@@ -279,6 +279,53 @@ test("smoke: converge pre-remediation stage results expose routing metadata", as
   assert.match(planningResult.data.routing_reason, /(remediation map|selected)/i);
 });
 
+test("smoke: converge pauses at clarifying-intent when objective is too vague", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "Ship it."
+    ]
+  });
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "product-spec-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 2,
+      maxStoriesPerPass: 2,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const campaign = await readJson<CampaignRecord>(join(repoRoot, ".praxis", "campaign.json"));
+  assert.equal(campaign.status, "waiting_for_user");
+  assert.equal(campaign.stop_reason_code, "needs_operator");
+  assert.equal(campaign.current_pass, 0);
+  assert.match(campaign.reason, /clarifying-intent requires objective refinement/i);
+
+  const clarifyingResult = await readJson<{
+    stage: string;
+    route: { kind: string };
+    data: {
+      outcome_code: string;
+      next_stage: string | null;
+      clarification_issues: string[];
+    };
+  }>(join(repoRoot, ".praxis", "results", "clarifying-intent.json"));
+  assert.equal(clarifyingResult.stage, "clarifying-intent");
+  assert.equal(clarifyingResult.route.kind, "ask_user");
+  assert.equal(clarifyingResult.data.outcome_code, "clarification_needed");
+  assert.equal(clarifyingResult.data.next_stage, "clarifying-intent");
+  assert.ok(clarifyingResult.data.clarification_issues.length > 0);
+});
+
 test("smoke: gap assessment does not treat .plan-only matches as implementation closure", async () => {
   const repoRoot = await createTempRepo();
   const token = "architecture-shadow-closure-token-8842";
