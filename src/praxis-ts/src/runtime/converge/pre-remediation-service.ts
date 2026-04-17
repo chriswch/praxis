@@ -7,10 +7,15 @@ import type {
 import type { PraxisStateRepository } from "../state/repository.js";
 import { assessGaps } from "./assessment.js";
 import { formatTargetSpecMarkdown, type TargetSpecDraft } from "./campaign-support.js";
+import { ClarificationStore } from "./clarification-store.js";
 import { buildConvergeStageResult } from "./stage-runtime.js";
 
 export class ConvergePreRemediationService {
-  constructor(private readonly repo: PraxisStateRepository) {}
+  private readonly clarificationStore: ClarificationStore;
+
+  constructor(private readonly repo: PraxisStateRepository) {
+    this.clarificationStore = new ClarificationStore(repo);
+  }
 
   async runClarifyingIntent(
     campaign: CampaignRecord,
@@ -33,7 +38,7 @@ export class ConvergePreRemediationService {
       }
     });
 
-    await this.repo.saveTargetSpecArtifacts({
+    await this.clarificationStore.persistTargetSpec({
       targetSpecMarkdown: draft.markdown,
       clarificationRecord: draft.clarificationRecord,
       stageResult
