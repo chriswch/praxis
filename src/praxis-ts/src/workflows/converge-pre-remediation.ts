@@ -1,14 +1,12 @@
-import type { ConvergeStageName, RouteKind } from "../contracts/model.js";
+import { isConvergeStageName, type ConvergeStageName, type RouteKind } from "../contracts/model.js";
 import { resolveWorkflowOutcome } from "./graph.js";
 import {
   expectedContractOutputArtifacts,
   expectedInputArtifactsForStage
 } from "./stage-artifacts.js";
 
-export type ConvergeRuntimeStage = ConvergeStageName;
-
 type ConvergeStageContract = {
-  stage: ConvergeRuntimeStage;
+  stage: ConvergeStageName;
   goal: string;
   required_inputs: string[];
   outputs: string[];
@@ -17,20 +15,20 @@ type ConvergeStageContract = {
 
 type ConvergeStageTransition = {
   routeKind: RouteKind;
-  nextStage: ConvergeRuntimeStage | null;
+  nextStage: ConvergeStageName | null;
   reason: string;
 };
 
 const CONVERGE_WORKFLOW = "converge-pre-remediation" as const;
 const CONVERGE_ARTIFACT_DIR = ".praxis";
 
-const CONVERGE_STAGE_GOALS: Record<ConvergeRuntimeStage, string> = {
+const CONVERGE_STAGE_GOALS: Record<ConvergeStageName, string> = {
   "clarifying-intent": "Clarify and persist an authoritative target spec for objective-driven remediation.",
   "assessing-gaps": "Assess implementation gaps against the active target spec and persist durable findings.",
   "planning-remediation": "Select bounded remediation slices from assessed findings and persist a remediation map."
 };
 
-const CONVERGE_STAGE_DONE_WHEN: Record<ConvergeRuntimeStage, string[]> = {
+const CONVERGE_STAGE_DONE_WHEN: Record<ConvergeStageName, string[]> = {
   "clarifying-intent": [
     "Target spec captures goal, scope, non-goals, constraints, and acceptance criteria.",
     "Clarification decisions and approval status are persisted as durable artifacts."
@@ -45,7 +43,7 @@ const CONVERGE_STAGE_DONE_WHEN: Record<ConvergeRuntimeStage, string[]> = {
   ]
 };
 
-const CONVERGE_ROUTING_REASONS: Record<ConvergeRuntimeStage, Record<string, string>> = {
+const CONVERGE_ROUTING_REASONS: Record<ConvergeStageName, Record<string, string>> = {
   "clarifying-intent": {
     target_spec_ready: "Target specification is ready for gap assessment.",
     clarification_needed: "Objective clarification is required before assessment."
@@ -60,7 +58,7 @@ const CONVERGE_ROUTING_REASONS: Record<ConvergeRuntimeStage, Record<string, stri
   }
 };
 
-export function getConvergeWorkflowStageContract(stage: ConvergeRuntimeStage): ConvergeStageContract {
+export function getConvergeWorkflowStageContract(stage: ConvergeStageName): ConvergeStageContract {
   return {
     stage,
     goal: CONVERGE_STAGE_GOALS[stage],
@@ -76,7 +74,7 @@ export function getConvergeWorkflowStageContract(stage: ConvergeRuntimeStage): C
 }
 
 export function resolveConvergeWorkflowTransition(
-  stage: ConvergeRuntimeStage,
+  stage: ConvergeStageName,
   outcomeCode: string
 ): ConvergeStageTransition {
   const transition = resolveWorkflowOutcome(CONVERGE_WORKFLOW, stage, outcomeCode);
@@ -85,9 +83,15 @@ export function resolveConvergeWorkflowTransition(
     throw new Error(`Outcome ${outcomeCode} is not mapped for converge stage ${stage}.`);
   }
 
+  if (!isConvergeStageName(transition.nextStage)) {
+    throw new Error(
+      `Converge workflow produced an out-of-scope next stage ${transition.nextStage} from ${stage}/${outcomeCode}.`
+    );
+  }
+
   return {
     routeKind: transition.routeKind,
-    nextStage: transition.nextStage as ConvergeRuntimeStage | null,
+    nextStage: transition.nextStage,
     reason
   };
 }

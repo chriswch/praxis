@@ -9,4 +9,4 @@ export {
   getConvergeWorkflowStageContract,
   resolveConvergeWorkflowTransition
 } from "./converge-pre-remediation.js";
-export type { ConvergeRuntimeStage } from "./converge-pre-remediation.js";
+export type { ConvergeStageName } from "../contracts/model.js";

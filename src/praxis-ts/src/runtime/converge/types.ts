@@ -1,5 +1,11 @@
-import type { AdapterName, CampaignRecord, CampaignStopReasonCode, FindingSeverity, ConvergeProfile } from "../../contracts/model.js";
-import type { ConvergeRuntimeStage } from "./stage-runtime.js";
+import type {
+  AdapterName,
+  CampaignRecord,
+  CampaignStopReasonCode,
+  ConvergeProfile,
+  ConvergeStageName,
+  FindingSeverity
+} from "../../contracts/model.js";
 
 export type ConvergeRunInput = {
   adapter: AdapterName;
@@ -51,7 +57,7 @@ export type ConvergeStatusProjection = {
 export type ConvergeInspectProjection = {
   campaign: CampaignRecord;
   target_spec_path: string;
-  pre_remediation_contracts: Record<ConvergeRuntimeStage, {
+  pre_remediation_contracts: Record<ConvergeStageName, {
     goal: string;
     required_inputs: string[];
     outputs: string[];

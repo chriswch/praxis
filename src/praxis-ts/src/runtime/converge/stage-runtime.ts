@@ -1,28 +1,26 @@
 import type {
   ConvergeProfile,
+  ConvergeStageName,
   ConvergeStageResultRecord,
   StageResultStatus
 } from "../../contracts/model.js";
 import {
   getConvergeWorkflowStageContract,
-  resolveConvergeWorkflowTransition,
-  type ConvergeRuntimeStage
+  resolveConvergeWorkflowTransition
 } from "../../workflows/index.js";
-
-export type { ConvergeRuntimeStage };
 
 type ConvergeStageContract = ReturnType<typeof getConvergeWorkflowStageContract>;
 type StageTransition = ReturnType<typeof resolveConvergeWorkflowTransition>;
 
-export function getConvergeStageContract(stage: ConvergeRuntimeStage): ConvergeStageContract {
+export function getConvergeStageContract(stage: ConvergeStageName): ConvergeStageContract {
   return getConvergeWorkflowStageContract(stage);
 }
 
-export function resolveConvergeStageTransition(stage: ConvergeRuntimeStage, outcomeCode: string): StageTransition {
+export function resolveConvergeStageTransition(stage: ConvergeStageName, outcomeCode: string): StageTransition {
   return resolveConvergeWorkflowTransition(stage, outcomeCode);
 }
 
-type BuildConvergeStageResultInput<TStage extends ConvergeRuntimeStage> = {
+type BuildConvergeStageResultInput<TStage extends ConvergeStageName> = {
   stage: TStage;
   status?: StageResultStatus;
   profile?: ConvergeProfile;
@@ -31,7 +29,7 @@ type BuildConvergeStageResultInput<TStage extends ConvergeRuntimeStage> = {
   data?: Record<string, unknown>;
 };
 
-export function buildConvergeStageResult<TStage extends ConvergeRuntimeStage>(
+export function buildConvergeStageResult<TStage extends ConvergeStageName>(
   input: BuildConvergeStageResultInput<TStage>
 ): ConvergeStageResultRecord & { stage: TStage } {
   const transition = resolveConvergeStageTransition(input.stage, input.outcomeCode);

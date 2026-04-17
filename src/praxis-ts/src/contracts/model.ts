@@ -128,8 +128,15 @@ export const CONVERGE_STAGE_NAMES = [
   "clarifying-intent",
   "assessing-gaps",
   "planning-remediation"
-] as const;
+] as const satisfies readonly StageName[];
 export type ConvergeStageName = (typeof CONVERGE_STAGE_NAMES)[number];
+
+export function isConvergeStageName(stage: StageName | null): stage is ConvergeStageName | null {
+  if (stage === null) {
+    return true;
+  }
+  return (CONVERGE_STAGE_NAMES as readonly StageName[]).includes(stage);
+}
 
 export type StageRoute = {
   kind: RouteKind;
