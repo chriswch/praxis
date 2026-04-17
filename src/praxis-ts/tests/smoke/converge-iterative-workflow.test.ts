@@ -14,6 +14,10 @@ import {
 } from "../../src/cli/commands/index.js";
 import { EXIT_CODE } from "../../src/cli/exit-codes.js";
 import type { CampaignRecord, RunRecord, StageName, StageResultRecord } from "../../src/contracts/model.js";
+import {
+  getConvergeWorkflowStageContract,
+  resolveConvergeWorkflowTransition
+} from "../../src/workflows/index.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -286,6 +290,16 @@ test("smoke: converge pre-remediation stage results expose routing metadata", as
     assert.equal(planningResult.data.next_stage, null);
   }
   assert.match(planningResult.data.routing_reason, /(remediation map|selected)/i);
+});
+
+test("smoke: shared workflow contracts define converge pre-remediation stages", () => {
+  const clarifying = getConvergeWorkflowStageContract("clarifying-intent");
+  assert.equal(clarifying.required_inputs[0], ".praxis/objective.md");
+  assert.ok(clarifying.outputs.includes(".praxis/target-spec.md"));
+
+  const assessingTransition = resolveConvergeWorkflowTransition("assessing-gaps", "findings_recorded");
+  assert.equal(assessingTransition.routeKind, "proceed");
+  assert.equal(assessingTransition.nextStage, "planning-remediation");
 });
 
 test("smoke: assessing-gaps only evaluates normative target-spec sections", async () => {
