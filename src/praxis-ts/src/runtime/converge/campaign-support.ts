@@ -150,6 +150,11 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     : unique(inferredScopeFromPaths).length > 0
       ? unique(inferredScopeFromPaths)
       : ["(repo root)"];
+  const scopeSource = explicitScope.length > 0
+    ? "objective_declared"
+    : unique(inferredScopeFromPaths).length > 0
+      ? "inferred_from_paths"
+      : "fallback_default";
 
   const nonGoals = unique([
     ...pickSectionItems(sections, /non-?goals?|out of scope/),
@@ -158,6 +163,7 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
   const scopedNonGoals = nonGoals.length > 0
     ? nonGoals
     : [`Limit remediation to the declared scope (${scopeItems.join(", ")}).`];
+  const nonGoalsSource = nonGoals.length > 0 ? "objective_declared" : "fallback_default";
 
   const constraints = unique([
     ...pickSectionItems(sections, /constraint|guardrail|policy/),
@@ -169,6 +175,7 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
         "Keep remediation bounded to selected findings for each pass.",
         "Preserve fresh-session execution boundaries for child stories."
       ];
+  const constraintsSource = constraints.length > 0 ? "objective_declared" : "fallback_default";
 
   const explicitAcceptanceCriteria = unique([
     ...pickSectionItems(sections, /acceptance|success|criteria|definition of done/),
@@ -177,6 +184,7 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
   const acceptanceCriteria = explicitAcceptanceCriteria.length > 0
     ? explicitAcceptanceCriteria
     : listItems;
+  const acceptanceSource = explicitAcceptanceCriteria.length > 0 ? "objective_declared" : "fallback_from_list_items";
 
   const clarificationIssues: string[] = [];
   if (goal.length < 20) {
@@ -215,6 +223,15 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
       ? acceptanceCriteria.map((criterion) => `- ${criterion}`)
       : ["- (missing: add acceptance criteria to the objective source)"]),
     "",
+    "## Clarified Target Decisions",
+    "",
+    "- The following sections are the authoritative remediation target for assessment and planning.",
+    `- Goal source: ${goal.length > 0 ? "objective_or_summary" : "missing"}`,
+    `- Scope source: ${scopeSource}`,
+    `- Non-goals source: ${nonGoalsSource}`,
+    `- Constraints source: ${constraintsSource}`,
+    `- Acceptance criteria source: ${acceptanceSource}`,
+    "",
     "## Clarification Status",
     "",
     `- Needs clarification: ${needsClarification ? "yes" : "no"}`,
@@ -226,7 +243,7 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     `- Source objective: ${campaign.objective.normalized_path}`,
     `- Profile: ${campaign.profile}`,
     "",
-    "## Imported Objective Content",
+    "## Imported Objective Source (read-only context)",
     "",
     trimmed.length > 0 ? trimmed : "(empty objective source)",
     ""

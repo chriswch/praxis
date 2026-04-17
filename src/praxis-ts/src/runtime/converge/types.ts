@@ -68,6 +68,7 @@ export type ConvergeInspectProjection = {
     campaign_ledger_file: string;
     child_run_slot_file: string;
     reviews_dir: string;
+    clarifications_dir: string;
     passes_dir: string;
   };
   unresolved_findings: Array<{

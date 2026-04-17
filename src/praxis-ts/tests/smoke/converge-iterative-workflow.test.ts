@@ -380,6 +380,54 @@ test("smoke: converge pauses at clarifying-intent when objective is too vague", 
   assert.ok(clarifyingResult.data.clarification_issues.length > 0);
 });
 
+test("smoke: clarifying-intent persists durable attempt history across retries", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "Ship it."
+    ]
+  });
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "product-spec-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 2,
+      maxStoriesPerPass: 2,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const firstAttemptDir = join(repoRoot, ".praxis", "clarifications", "C-001");
+  assert.equal(await exists(join(firstAttemptDir, "target-spec.md")), true);
+  const firstAttempt = await readJson<{ outcome_code: string }>(join(firstAttemptDir, "attempt.json"));
+  assert.equal(firstAttempt.outcome_code, "clarification_needed");
+
+  await writeFile(
+    join(repoRoot, objective),
+    [
+      "# Objective",
+      "",
+      "- Must persist converge clarification history as durable artifacts.",
+      "- Must preserve latest target spec pointer while keeping historical clarification attempts."
+    ].join("\n"),
+    "utf8"
+  );
+
+  assert.equal(await runConvergeContinueCommand(repoRoot, true), EXIT_CODE.OK);
+  const secondAttemptDir = join(repoRoot, ".praxis", "clarifications", "C-002");
+  assert.equal(await exists(join(secondAttemptDir, "target-spec.md")), true);
+  const secondAttempt = await readJson<{ outcome_code: string }>(join(secondAttemptDir, "attempt.json"));
+  assert.equal(secondAttempt.outcome_code, "target_spec_ready");
+});
+
 test("smoke: planning-remediation groups related findings when story budget is tight", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {

@@ -265,6 +265,7 @@ export class ConvergeCampaignService {
         campaign_ledger_file: this.repo.paths.campaignLedgerFile,
         child_run_slot_file: this.repo.paths.childRunSlotFile,
         reviews_dir: this.repo.paths.reviewsDir,
+        clarifications_dir: this.repo.paths.clarificationsDir,
         passes_dir: this.repo.paths.passesDir
       },
       unresolved_findings: unresolved,

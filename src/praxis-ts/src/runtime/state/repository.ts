@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { unlink, writeFile, mkdir, rm } from "node:fs/promises";
+import { unlink, writeFile, mkdir, rm, readdir } from "node:fs/promises";
 import type {
   CampaignLedgerRecord,
   CampaignRecord,
@@ -53,6 +53,7 @@ export class PraxisStateRepository {
     await ensureDir(this.paths.praxisDir);
     await ensureDir(this.paths.passesDir);
     await ensureDir(this.paths.reviewsDir);
+    await ensureDir(this.paths.clarificationsDir);
     await ensureDir(this.paths.tracesDir);
     await ensureDir(this.paths.dispatchesDir);
     await ensureDir(this.paths.sessionsDir);
@@ -226,6 +227,20 @@ export class PraxisStateRepository {
     validateConvergeStageResult(payload.stageResult);
     await writeFile(this.paths.targetSpecFile, `${payload.targetSpecMarkdown.trimEnd()}\n`, "utf8");
     await writeJsonFile(join(resultsDir, "clarifying-intent.json"), payload.stageResult);
+
+    const attemptId = await this.nextClarificationAttemptId();
+    const attemptDir = join(this.paths.clarificationsDir, attemptId);
+    const attemptResultsDir = join(attemptDir, "results");
+    await mkdir(attemptResultsDir, { recursive: true });
+    await writeFile(join(attemptDir, "target-spec.md"), `${payload.targetSpecMarkdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(join(attemptResultsDir, "clarifying-intent.json"), payload.stageResult);
+    await writeJsonFile(join(attemptDir, "attempt.json"), {
+      version: 1,
+      attempt_id: attemptId,
+      stage: "clarifying-intent",
+      outcome_code: payload.stageResult.data.outcome_code,
+      route_kind: payload.stageResult.route.kind
+    });
   }
 
   async saveReviewArtifacts(
@@ -406,5 +421,24 @@ export class PraxisStateRepository {
     } catch {
       // Marker is best-effort cleanup; recovery remains safe when already removed.
     }
+  }
+
+  private async nextClarificationAttemptId(): Promise<string> {
+    let maxOrdinal = 0;
+    const entries = await readdir(this.paths.clarificationsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const match = /^C-(\d+)$/.exec(entry.name);
+      if (!match) {
+        continue;
+      }
+      const ordinal = Number.parseInt(match[1], 10);
+      if (!Number.isNaN(ordinal) && ordinal > maxOrdinal) {
+        maxOrdinal = ordinal;
+      }
+    }
+    return `C-${String(maxOrdinal + 1).padStart(3, "0")}`;
   }
 }

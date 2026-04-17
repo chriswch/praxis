@@ -20,6 +20,7 @@ export type PraxisPathSet = {
   auditWarningsFile: string;
   passesDir: string;
   reviewsDir: string;
+  clarificationsDir: string;
   tracesDir: string;
   dispatchesDir: string;
   sessionsDir: string;
@@ -51,6 +52,7 @@ export function resolvePraxisPaths(repoRoot: string): PraxisPathSet {
     auditWarningsFile: join(praxisDir, "audit-warnings.jsonl"),
     passesDir: join(praxisDir, "passes"),
     reviewsDir: join(praxisDir, "reviews"),
+    clarificationsDir: join(praxisDir, "clarifications"),
     tracesDir: join(praxisDir, "traces"),
     dispatchesDir: join(praxisDir, "dispatches"),
     sessionsDir: join(praxisDir, "sessions"),
