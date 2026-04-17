@@ -131,6 +131,9 @@ export class RunLifecycleService {
       }
       const adapter = getAdapter(run.runtime.adapter);
       const cancellation = await adapter.cancel(cancellationHandle);
+      // Invariant: we only rewrite run state once the adapter confirms the worker is
+      // gone. A `cancelled: false` result throws above, so by this point the worker has
+      // terminated and it is safe to move the run to the `cancelled` state below.
       if (!cancellation.cancelled) {
         throw new BlockedStateError(cancellation.reason);
       }
