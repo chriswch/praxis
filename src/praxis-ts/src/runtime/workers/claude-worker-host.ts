@@ -11,13 +11,14 @@ import { RunController } from "../control/index.js";
 import type { WorkerLaunchPayload } from "../control/types.js";
 import {
   buildWorkerLocator,
+  parsePositiveInt,
   type WorkerHostHandshake,
   type WorkerHostMode,
 } from "./worker-host-protocol.js";
 
 export type { WorkerHostMode } from "./worker-host-protocol.js";
 
-export interface RunCodexWorkerHostInput {
+export interface RunClaudeWorkerHostInput {
   repoRoot: string;
   dispatchId: string;
   workerId: string;
@@ -26,40 +27,32 @@ export interface RunCodexWorkerHostInput {
   expectedSessionId: string | null;
 }
 
-interface SpawnedCodexCommand {
+interface SpawnedClaudeCommand {
   binary: string;
   args: string[];
   cwd: string;
+  sessionId: string;
 }
 
-const SESSION_ID_KEYS = [
-  "session_id",
-  "sessionId",
-  "thread_id",
-  "threadId",
-  "conversation_id",
-  "conversationId",
-] as const;
-
-export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promise<void> {
+export async function runClaudeWorkerHost(input: RunClaudeWorkerHostInput): Promise<void> {
   const repo = new PraxisStateRepository(input.repoRoot);
   const controller = new RunController(repo);
   const launch = await controller.buildWorkerLaunch();
   if (launch.dispatch_id !== input.dispatchId) {
     throw new Error(
-      `run-codex-worker dispatch mismatch. Expected ${input.dispatchId}, found ${launch.dispatch_id}.`,
+      `run-claude-worker dispatch mismatch. Expected ${input.dispatchId}, found ${launch.dispatch_id}.`,
     );
   }
-  if (launch.worker.adapter !== "codex") {
+  if (launch.worker.adapter !== "claude") {
     throw new Error(
-      `run-codex-worker only supports codex adapter (found ${launch.worker.adapter}).`,
+      `run-claude-worker only supports claude adapter (found ${launch.worker.adapter}).`,
     );
   }
 
   const handshakeAbsolutePath = resolve(input.repoRoot, input.handshakePath);
   await mkdir(dirname(handshakeAbsolutePath), { recursive: true });
 
-  const spawned = buildCodexCommand(input.mode, launch, input.expectedSessionId);
+  const spawned = buildClaudeCommand(input.mode, launch, input.expectedSessionId);
   const child = spawn(spawned.binary, spawned.args, {
     cwd: spawned.cwd,
     env: process.env,
@@ -69,48 +62,39 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
   const startupTimestamp = nowIsoUtc();
   const state: {
     handshakeWritten: boolean;
-    sessionId: string | null;
     startupError: string | null;
-  } = { handshakeWritten: false, sessionId: null, startupError: null };
+  } = { handshakeWritten: false, startupError: null };
 
   const failHandshake = async (message: string): Promise<void> => {
     if (state.handshakeWritten) {
       return;
     }
-    await writeWorkerHandshake(handshakeAbsolutePath, {
+    await writeJsonFile(handshakeAbsolutePath, {
       version: 1,
       status: "error",
       dispatch_id: input.dispatchId,
       worker_id: input.workerId,
       error: message,
       emitted_at: nowIsoUtc(),
-    });
+    } satisfies WorkerHostHandshake);
     state.handshakeWritten = true;
   };
 
-  const tryEmitReadyHandshake = async (candidateSessionId: string): Promise<void> => {
+  // Claude's session_id is host-assigned via --session-id/--resume, so we can
+  // emit the ready handshake once we know the child is alive. A short grace
+  // window after spawn lets us catch early non-zero exits (e.g. `--resume`
+  // against an unknown session) so the adapter sees an error handshake
+  // instead of a ready handshake for a dead process.
+  const emitReadyHandshake = async (): Promise<void> => {
     if (state.handshakeWritten) {
       return;
     }
-    if (
-      input.mode === "resume" &&
-      input.expectedSessionId &&
-      candidateSessionId !== input.expectedSessionId
-    ) {
-      await failHandshake(
-        `Codex resumed a different session_id. Expected ${input.expectedSessionId}, received ${candidateSessionId}.`,
-      );
-      child.kill("SIGTERM");
-      return;
-    }
-
-    state.sessionId = candidateSessionId;
-    await writeWorkerHandshake(handshakeAbsolutePath, {
+    await writeJsonFile(handshakeAbsolutePath, {
       version: 1,
       status: "ready",
       dispatch_id: input.dispatchId,
       worker_id: input.workerId,
-      session_id: candidateSessionId,
+      session_id: spawned.sessionId,
       started_at: startupTimestamp,
       locator: buildWorkerLocator(process.pid),
       provider_details: {
@@ -121,21 +105,9 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
         },
         mode: input.mode,
       },
-    });
+    } satisfies WorkerHostHandshake);
     state.handshakeWritten = true;
   };
-
-  const stdoutReader = createInterface({ input: child.stdout });
-  stdoutReader.on("line", (line) => {
-    const parsed = tryParseJson(line);
-    if (!parsed) {
-      return;
-    }
-    const emittedSession = extractSessionId(parsed);
-    if (emittedSession) {
-      void tryEmitReadyHandshake(emittedSession);
-    }
-  });
 
   const stderrBuffer: string[] = [];
   const stderrReader = createInterface({ input: child.stderr });
@@ -144,6 +116,10 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       stderrBuffer.shift();
     }
     stderrBuffer.push(line);
+  });
+  // stdout is drained but not consumed — claude's plain-text output is informational.
+  child.stdout.on("data", () => {
+    // no-op
   });
 
   const forwardSignal = (signal: NodeJS.Signals): void => {
@@ -157,12 +133,8 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
   process.on("SIGINT", () => {
     forwardSignal("SIGINT");
   });
-  child.once("error", (error) => {
-    state.startupError = error instanceof Error ? error.message : String(error);
-    void failHandshake(`Failed to start codex process: ${state.startupError}`);
-  });
 
-  const exitResult = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+  const exitPromise = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
     (resolveExit) => {
       child.once("exit", (code, signal) => {
         resolveExit({ code, signal });
@@ -170,13 +142,36 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
     },
   );
 
-  if (!state.handshakeWritten) {
+  const spawnErrorPromise = new Promise<string | null>((resolveSpawn) => {
+    child.once("error", (error) => {
+      resolveSpawn(error instanceof Error ? error.message : String(error));
+    });
+    child.once("spawn", () => {
+      resolveSpawn(null);
+    });
+  });
+
+  const spawnError = await spawnErrorPromise;
+  if (spawnError) {
+    state.startupError = spawnError;
+    await failHandshake(`Failed to start claude process: ${spawnError}`);
+    return;
+  }
+
+  // Grace window: if the child exits non-zero within this window, emit an
+  // error handshake so the adapter sees a resume/launch failure rather than
+  // a ready handshake for a dead session.
+  const graceWindowMs = parsePositiveInt(process.env.PRAXIS_CLAUDE_STARTUP_GRACE_MS, 750);
+  const earlyExit = await raceEarlyExit(exitPromise, graceWindowMs);
+
+  if (earlyExit && earlyExit.code !== 0) {
     const stderrSummary = stderrBuffer.slice(-12).join("\n");
+    const exitLabel = earlyExit.signal
+      ? `signal ${earlyExit.signal}`
+      : `exit code ${String(earlyExit.code)}`;
     await failHandshake(
       [
-        state.startupError
-          ? `Codex failed during startup: ${state.startupError}`
-          : "Codex exited before emitting a provider session_id.",
+        `Claude ${input.mode} exited with ${exitLabel} within startup grace window.`,
         stderrSummary ? `stderr:\n${stderrSummary}` : null,
       ]
         .filter(Boolean)
@@ -185,13 +180,17 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
     return;
   }
 
+  await emitReadyHandshake();
+
+  const exitResult = earlyExit ?? (await exitPromise);
+
   if (exitResult.code !== 0) {
     await writeWorkerTrace(input.repoRoot, input.workerId, {
       version: 1,
       type: "runtime_failed",
       dispatch_id: input.dispatchId,
       worker_id: input.workerId,
-      session_id: state.sessionId,
+      session_id: spawned.sessionId,
       mode: input.mode,
       exit_code: exitResult.code,
       exit_signal: exitResult.signal,
@@ -208,7 +207,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       type: "missing_stage_result",
       dispatch_id: input.dispatchId,
       worker_id: input.workerId,
-      session_id: state.sessionId,
+      session_id: spawned.sessionId,
       stage_result_path: launch.stage_result_path,
       recorded_at: nowIsoUtc(),
     });
@@ -223,7 +222,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       type: "submit_stage_result_failed",
       dispatch_id: input.dispatchId,
       worker_id: input.workerId,
-      session_id: state.sessionId,
+      session_id: spawned.sessionId,
       stage_result_path: launch.stage_result_path,
       recorded_at: nowIsoUtc(),
       error: error instanceof Error ? error.message : String(error),
@@ -231,61 +230,53 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
   }
 }
 
-function buildCodexCommand(
+function buildClaudeCommand(
   mode: WorkerHostMode,
   launch: WorkerLaunchPayload,
   expectedSessionId: string | null,
-): SpawnedCodexCommand {
-  const binaryOverride = process.env.PRAXIS_CODEX_BIN?.trim();
-  const binary = binaryOverride && binaryOverride.length > 0 ? binaryOverride : "codex";
-  const stageResultAbsolutePath = resolve(
-    launch.execution.workspace_root,
-    launch.stage_result_path,
-  );
+): SpawnedClaudeCommand {
+  const binaryOverride = process.env.PRAXIS_CLAUDE_BIN?.trim();
+  const binary = binaryOverride && binaryOverride.length > 0 ? binaryOverride : "claude";
+  const workspaceRoot = launch.execution.workspace_root;
   const prompt = buildStagePrompt(launch);
-  const sandboxOverride = process.env.PRAXIS_CODEX_SANDBOX?.trim();
-  const sandboxMode =
-    sandboxOverride && sandboxOverride.length > 0 ? sandboxOverride : "workspace-write";
 
   if (mode === "resume") {
     const resumeSessionId = expectedSessionId ?? launch.worker.resume_session_id;
     if (!resumeSessionId) {
-      throw new Error("Codex resume requested without a provider session_id.");
+      throw new Error("Claude resume requested without a provider session_id.");
     }
     return {
       binary,
       args: [
-        "resume",
+        "-p",
+        "--resume",
         resumeSessionId,
-        "-C",
-        launch.execution.workspace_root,
-        "-a",
-        "never",
-        "--json",
-        "-o",
-        stageResultAbsolutePath,
+        "--permission-mode",
+        "acceptEdits",
+        "--add-dir",
+        workspaceRoot,
         prompt,
       ],
-      cwd: launch.execution.workspace_root,
+      cwd: workspaceRoot,
+      sessionId: resumeSessionId,
     };
   }
 
+  const sessionId = randomUUID();
   return {
     binary,
     args: [
-      "exec",
-      "-C",
-      launch.execution.workspace_root,
-      "-a",
-      "never",
-      "-s",
-      sandboxMode,
-      "--json",
-      "-o",
-      stageResultAbsolutePath,
+      "-p",
+      "--session-id",
+      sessionId,
+      "--permission-mode",
+      "acceptEdits",
+      "--add-dir",
+      workspaceRoot,
       prompt,
     ],
-    cwd: launch.execution.workspace_root,
+    cwd: workspaceRoot,
+    sessionId,
   };
 }
 
@@ -301,68 +292,11 @@ function buildStagePrompt(launch: WorkerLaunchPayload): string {
     `Run: ${launch.run_id}`,
     `Worker mode: ${launch.worker.mode}`,
     `Trace: ${randomUUID()}`,
+    "",
+    "Write the stage result JSON to the path under `Stage result:` using the",
+    "Write tool, conforming to the stage-result contract. Exit when the file",
+    "is on disk.",
   ].join("\n");
-}
-
-function tryParseJson(line: string): Record<string, unknown> | null {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(trimmed) as unknown;
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return null;
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function extractSessionId(payload: unknown): string | null {
-  if (payload === null || payload === undefined) {
-    return null;
-  }
-
-  if (Array.isArray(payload)) {
-    for (const item of payload) {
-      const nested = extractSessionId(item);
-      if (nested) {
-        return nested;
-      }
-    }
-    return null;
-  }
-
-  if (typeof payload !== "object") {
-    return null;
-  }
-
-  const record = payload as Record<string, unknown>;
-  for (const key of SESSION_ID_KEYS) {
-    const candidate = record[key];
-    if (typeof candidate === "string" && candidate.trim().length > 0) {
-      return candidate.trim();
-    }
-  }
-
-  for (const value of Object.values(record)) {
-    if (typeof value !== "object" || value === null) {
-      continue;
-    }
-    const nested = extractSessionId(value);
-    if (nested) {
-      return nested;
-    }
-  }
-
-  return null;
-}
-
-async function writeWorkerHandshake(path: string, payload: WorkerHostHandshake): Promise<void> {
-  await writeJsonFile(path, payload);
 }
 
 async function writeWorkerTrace(
@@ -373,4 +307,23 @@ async function writeWorkerTrace(
   const tracePath = resolve(repoRoot, ".praxis", "traces", `${workerId}.json`);
   await mkdir(dirname(tracePath), { recursive: true });
   await writeJsonFile(tracePath, payload);
+}
+
+async function raceEarlyExit(
+  exitPromise: Promise<{ code: number | null; signal: NodeJS.Signals | null }>,
+  graceWindowMs: number,
+): Promise<{ code: number | null; signal: NodeJS.Signals | null } | null> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<null>((resolveTimeout) => {
+    timer = setTimeout(() => {
+      resolveTimeout(null);
+    }, graceWindowMs);
+  });
+  try {
+    return await Promise.race([exitPromise, timeoutPromise]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }

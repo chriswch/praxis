@@ -1,41 +1,171 @@
-import { InvalidInputError } from "../../contracts/errors.js";
+import { mkdir, rm } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { dirname, resolve } from "node:path";
+import { spawn } from "node:child_process";
+import { probeCommand } from "./command-probe.js";
+import { selectInstructionSurfaces } from "../workers/context-manifest.js";
 import type {
+  AdapterCancellationHandle,
   AdapterHealth,
+  AdapterLaunchRequest,
   AdapterLaunchResponse,
   RuntimeAdapter,
 } from "./types.js";
+import { resolvePraxisCliInvocation } from "../workers/praxis-cli-invocation.js";
+import {
+  parseWorkerLocator,
+  waitForHandshake,
+  waitForWorkerExit,
+  type WorkerHostMode,
+} from "../workers/worker-host-protocol.js";
 
-export const CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON =
-  "Claude adapter is not implemented. Use --adapter codex until a real Claude worker host lands.";
-
-// The Claude adapter is intentionally a hard fail-close stub. A previous preview returned
-// synthetic session IDs from launch/resume and success from cancel, which let runs be
-// silently launched against a non-existent worker or falsely marked cancelled. Every
-// reachable method now rejects so no control flow can proceed against Claude. Replace this
-// module wholesale when a real process host is added.
 export class ClaudeAdapter implements RuntimeAdapter {
   readonly name = "claude" as const;
 
-  health(): Promise<AdapterHealth> {
-    return Promise.resolve({
+  async health(): Promise<AdapterHealth> {
+    const binaryOverride = process.env.PRAXIS_CLAUDE_BIN?.trim();
+    const binary = binaryOverride && binaryOverride.length > 0 ? binaryOverride : "claude";
+    const probe = await probeCommand(binary);
+
+    return {
       adapter: this.name,
-      healthy: false,
-      supports_resume: false,
-      reason: CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON,
-      binary: null,
-      version: null,
+      healthy: probe.healthy,
+      supports_resume: true,
+      reason: probe.reason,
+      binary: probe.binary,
+      version: probe.version,
+    };
+  }
+
+  async launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
+    return this.startWorkerHost("launch", request, null);
+  }
+
+  async resume(sessionId: string, request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
+    return this.startWorkerHost("resume", request, sessionId);
+  }
+
+  async cancel(handle: AdapterCancellationHandle): Promise<{ cancelled: boolean; reason: string }> {
+    if (!handle.locator) {
+      return {
+        cancelled: false,
+        reason:
+          "No worker-host locator provided. session_id is provider-owned and cannot stop the worker process.",
+      };
+    }
+
+    const pid = parseWorkerLocator(handle.locator);
+    if (!pid) {
+      return {
+        cancelled: true,
+        reason: `Cancelled worker via opaque locator ${handle.locator}.`,
+      };
+    }
+
+    try {
+      process.kill(pid, "SIGTERM");
+      const exited = await waitForWorkerExit(pid, 1500);
+      if (!exited) {
+        process.kill(pid, "SIGKILL");
+        return {
+          cancelled: true,
+          reason: `Force-stopped worker host at ${handle.locator}.`,
+        };
+      }
+      return {
+        cancelled: true,
+        reason: `Cancelled worker host at ${handle.locator}.`,
+      };
+    } catch (error) {
+      return {
+        cancelled: false,
+        reason:
+          error instanceof Error
+            ? `Failed to cancel worker host ${handle.locator}: ${error.message}`
+            : `Failed to cancel worker host ${handle.locator}.`,
+      };
+    }
+  }
+
+  private async startWorkerHost(
+    mode: WorkerHostMode,
+    request: AdapterLaunchRequest,
+    resumeSessionId: string | null,
+  ): Promise<AdapterLaunchResponse> {
+    const workerIdPrefix = mode === "resume" ? "wrk_claude_resume" : "wrk_claude";
+    const workerId = `${workerIdPrefix}_${request.dispatch.stage}_${randomUUID()}`;
+    const handshakeRelativePath = `.praxis/traces/worker-handshake-${workerId}.json`;
+    const handshakeAbsolutePath = resolve(request.repoRoot, handshakeRelativePath);
+    await mkdir(dirname(handshakeAbsolutePath), { recursive: true });
+
+    const invocation = resolvePraxisCliInvocation();
+    const args = [
+      ...invocation.args,
+      "--repo-root",
+      request.repoRoot,
+      "--json",
+      "run-claude-worker",
+      "--dispatch-id",
+      request.dispatch.dispatch_id,
+      "--worker-id",
+      workerId,
+      "--handshake-path",
+      handshakeRelativePath,
+      "--mode",
+      mode,
+    ];
+    if (resumeSessionId) {
+      args.push("--expected-session-id", resumeSessionId);
+    }
+
+    const child = spawn(invocation.command, args, {
+      cwd: request.repoRoot,
+      env: process.env,
+      detached: true,
+      stdio: "ignore",
     });
-  }
+    child.unref();
 
-  launch(): Promise<AdapterLaunchResponse> {
-    return Promise.reject(new InvalidInputError(CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON));
-  }
+    const handshake = await waitForHandshake(handshakeAbsolutePath, "claude");
+    await rm(handshakeAbsolutePath, { force: true });
 
-  resume(): Promise<AdapterLaunchResponse> {
-    return Promise.reject(new InvalidInputError(CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON));
-  }
+    if (handshake.status !== "ready") {
+      throw new Error(`Claude worker host failed startup: ${handshake.error}`);
+    }
+    if (handshake.dispatch_id !== request.dispatch.dispatch_id) {
+      throw new Error(
+        `Claude worker host handshake dispatch mismatch. Expected ${request.dispatch.dispatch_id}, received ${handshake.dispatch_id}.`,
+      );
+    }
+    if (handshake.worker_id !== workerId) {
+      throw new Error(
+        `Claude worker host handshake worker mismatch. Expected ${workerId}, received ${handshake.worker_id}.`,
+      );
+    }
+    if (!handshake.session_id) {
+      throw new Error("Claude worker host handshake omitted session_id.");
+    }
+    if (resumeSessionId && handshake.session_id !== resumeSessionId) {
+      throw new Error(
+        `Claude worker host resumed a different provider session. Expected ${resumeSessionId}, received ${handshake.session_id}.`,
+      );
+    }
 
-  cancel(): Promise<{ cancelled: boolean; reason: string }> {
-    return Promise.resolve({ cancelled: false, reason: CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON });
+    const instructionSurfaces = selectInstructionSurfaces(
+      request.launch.context_manifest.instruction_surfaces,
+      "claude",
+    );
+    return {
+      worker_id: handshake.worker_id,
+      session_id: handshake.session_id,
+      started_at: handshake.started_at,
+      locator: handshake.locator,
+      details: {
+        command: handshake.provider_details.command,
+        mode: handshake.provider_details.mode,
+        instruction_surfaces: instructionSurfaces.map((surface) => surface.path),
+        handshake_path: handshakeRelativePath,
+      },
+    };
   }
 }

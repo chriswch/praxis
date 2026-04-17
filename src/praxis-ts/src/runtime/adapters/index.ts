@@ -1,6 +1,5 @@
 import type { AdapterName } from "../../contracts/model.js";
-import { InvalidInputError } from "../../contracts/errors.js";
-import { ClaudeAdapter, CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON } from "./claude-adapter.js";
+import { ClaudeAdapter } from "./claude-adapter.js";
 import { CodexAdapter } from "./codex-adapter.js";
 import type { RuntimeAdapter } from "./types.js";
 
@@ -10,9 +9,6 @@ const registry: Record<AdapterName, RuntimeAdapter> = {
 };
 
 export function getAdapter(adapter: AdapterName): RuntimeAdapter {
-  if (adapter === "claude") {
-    throw new InvalidInputError(CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON);
-  }
   return registry[adapter];
 }
 
