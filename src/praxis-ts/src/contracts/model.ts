@@ -487,7 +487,7 @@ export type RemediationSliceRecord = {
   done_condition: string;
 };
 
-export type RemediationMapRecord = {
+export type RemediationSelectionFields = {
   version: number;
   campaign_id: string;
   pass_id: string;
@@ -509,40 +509,23 @@ export type RemediationMapRecord = {
       reason: string;
     }>;
   };
-  slices: RemediationSliceRecord[];
   generated_at: string;
 };
 
-export type PassBatchRecord = {
-  version: number;
-  campaign_id: string;
-  pass_id: string;
-  pass_number: number;
-  review_id: string;
-  selected_finding_ids: string[];
-  deferred_finding_ids: string[];
-  selection: {
-    policy: string[];
-    selected: Array<{
-      finding_id: string;
-      priority_score: number;
-      risk: "high" | "medium" | "low";
-      depends_on_finding_ids: string[];
-      reason: string;
-    }>;
-    deferred: Array<{
-      finding_id: string;
-      reason: string;
-    }>;
-  };
-  stories: Array<{
-    story_id: string;
-    title: string;
-    finding_ids: string[];
-    objective_context: string;
-    non_goals: string[];
-  }>;
-  generated_at: string;
+export type RemediationMapRecord = RemediationSelectionFields & {
+  slices: RemediationSliceRecord[];
+};
+
+export type PassBatchStory = {
+  story_id: string;
+  title: string;
+  finding_ids: string[];
+  objective_context: string;
+  non_goals: string[];
+};
+
+export type PassBatchRecord = RemediationSelectionFields & {
+  stories: PassBatchStory[];
 };
 
 export type PassSummaryRecord = {

@@ -33,6 +33,7 @@ import {
   type PassBatchRecord,
   type PassSummaryRecord,
   type RemediationMapRecord,
+  type RemediationSelectionFields,
   type RunRecord,
   type StageResultRecord,
   type StoryLedgerRecord,
@@ -678,44 +679,46 @@ export function validateObjectiveAssessmentResult(result: ObjectiveAssessmentRes
   validateGapAssessmentResult(result);
 }
 
-export function validateRemediationMapRecord(remediationMap: RemediationMapRecord): void {
-  if (remediationMap.version < 1) {
-    throw new ContractError("remediation map version must be >= 1");
+function validateRemediationSelectionFields(fields: RemediationSelectionFields, label: string): void {
+  if (fields.version < 1) {
+    throw new ContractError(`${label} version must be >= 1`);
   }
-  assertPlainString(remediationMap.campaign_id, "remediation map campaign_id");
-  assertPlainString(remediationMap.pass_id, "remediation map pass_id");
-  if (remediationMap.pass_number < 1) {
-    throw new ContractError("remediation map pass_number must be >= 1");
+  assertPlainString(fields.campaign_id, `${label} campaign_id`);
+  assertPlainString(fields.pass_id, `${label} pass_id`);
+  if (fields.pass_number < 1) {
+    throw new ContractError(`${label} pass_number must be >= 1`);
   }
-  assertPlainString(remediationMap.review_id, "remediation map review_id");
-  assertStringArray(remediationMap.selected_finding_ids, "remediation map selected_finding_ids");
-  assertStringArray(remediationMap.deferred_finding_ids, "remediation map deferred_finding_ids");
-  assertRecord(remediationMap.selection, "remediation map selection");
-  assertStringArray(remediationMap.selection.policy, "remediation map selection.policy");
-  if (!Array.isArray(remediationMap.selection.selected)) {
-    throw new ContractError("remediation map selection.selected must be an array");
+  assertPlainString(fields.review_id, `${label} review_id`);
+  assertStringArray(fields.selected_finding_ids, `${label} selected_finding_ids`);
+  assertStringArray(fields.deferred_finding_ids, `${label} deferred_finding_ids`);
+  assertRecord(fields.selection, `${label} selection`);
+  assertStringArray(fields.selection.policy, `${label} selection.policy`);
+  if (!Array.isArray(fields.selection.selected)) {
+    throw new ContractError(`${label} selection.selected must be an array`);
   }
-  for (const [index, selected] of remediationMap.selection.selected.entries()) {
-    assertPlainString(selected.finding_id, `remediation map selection.selected[${index}].finding_id`);
+  for (const [index, selected] of fields.selection.selected.entries()) {
+    assertPlainString(selected.finding_id, `${label} selection.selected[${index}].finding_id`);
     if (typeof selected.priority_score !== "number" || Number.isNaN(selected.priority_score)) {
-      throw new ContractError(
-        `remediation map selection.selected[${index}].priority_score must be a number`
-      );
+      throw new ContractError(`${label} selection.selected[${index}].priority_score must be a number`);
     }
-    assertEnum(selected.risk, ["high", "medium", "low"], `remediation map selection.selected[${index}].risk`);
+    assertEnum(selected.risk, ["high", "medium", "low"], `${label} selection.selected[${index}].risk`);
     assertStringArray(
       selected.depends_on_finding_ids,
-      `remediation map selection.selected[${index}].depends_on_finding_ids`
+      `${label} selection.selected[${index}].depends_on_finding_ids`
     );
-    assertPlainString(selected.reason, `remediation map selection.selected[${index}].reason`);
+    assertPlainString(selected.reason, `${label} selection.selected[${index}].reason`);
   }
-  if (!Array.isArray(remediationMap.selection.deferred)) {
-    throw new ContractError("remediation map selection.deferred must be an array");
+  if (!Array.isArray(fields.selection.deferred)) {
+    throw new ContractError(`${label} selection.deferred must be an array`);
   }
-  for (const [index, deferred] of remediationMap.selection.deferred.entries()) {
-    assertPlainString(deferred.finding_id, `remediation map selection.deferred[${index}].finding_id`);
-    assertPlainString(deferred.reason, `remediation map selection.deferred[${index}].reason`);
+  for (const [index, deferred] of fields.selection.deferred.entries()) {
+    assertPlainString(deferred.finding_id, `${label} selection.deferred[${index}].finding_id`);
+    assertPlainString(deferred.reason, `${label} selection.deferred[${index}].reason`);
   }
+}
+
+export function validateRemediationMapRecord(remediationMap: RemediationMapRecord): void {
+  validateRemediationSelectionFields(remediationMap, "remediation map");
   if (!Array.isArray(remediationMap.slices)) {
     throw new ContractError("remediation map slices must be an array");
   }
@@ -735,41 +738,7 @@ export function validateRemediationMapRecord(remediationMap: RemediationMapRecor
 }
 
 export function validatePassBatchRecord(batch: PassBatchRecord): void {
-  if (batch.version < 1) {
-    throw new ContractError("pass batch version must be >= 1");
-  }
-  assertPlainString(batch.campaign_id, "pass batch campaign_id");
-  assertPlainString(batch.pass_id, "pass batch pass_id");
-  if (batch.pass_number < 1) {
-    throw new ContractError("pass batch pass_number must be >= 1");
-  }
-  assertPlainString(batch.review_id, "pass batch review_id");
-  assertStringArray(batch.selected_finding_ids, "pass batch selected_finding_ids");
-  assertStringArray(batch.deferred_finding_ids, "pass batch deferred_finding_ids");
-  assertRecord(batch.selection, "pass batch selection");
-  assertStringArray(batch.selection.policy, "pass batch selection.policy");
-  if (!Array.isArray(batch.selection.selected)) {
-    throw new ContractError("pass batch selection.selected must be an array");
-  }
-  for (const [index, selected] of batch.selection.selected.entries()) {
-    assertPlainString(selected.finding_id, `pass batch selection.selected[${index}].finding_id`);
-    if (typeof selected.priority_score !== "number" || Number.isNaN(selected.priority_score)) {
-      throw new ContractError(`pass batch selection.selected[${index}].priority_score must be a number`);
-    }
-    assertEnum(selected.risk, ["high", "medium", "low"], `pass batch selection.selected[${index}].risk`);
-    assertStringArray(
-      selected.depends_on_finding_ids,
-      `pass batch selection.selected[${index}].depends_on_finding_ids`
-    );
-    assertPlainString(selected.reason, `pass batch selection.selected[${index}].reason`);
-  }
-  if (!Array.isArray(batch.selection.deferred)) {
-    throw new ContractError("pass batch selection.deferred must be an array");
-  }
-  for (const [index, deferred] of batch.selection.deferred.entries()) {
-    assertPlainString(deferred.finding_id, `pass batch selection.deferred[${index}].finding_id`);
-    assertPlainString(deferred.reason, `pass batch selection.deferred[${index}].reason`);
-  }
+  validateRemediationSelectionFields(batch, "pass batch");
   if (!Array.isArray(batch.stories)) {
     throw new ContractError("pass batch stories must be an array");
   }
