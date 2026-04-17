@@ -1,29 +1,26 @@
 import { BlockedStateError } from "../../contracts/errors.js";
 import { exists } from "../state/store.js";
 import { projectStatus, type StatusProjection } from "./status-projector.js";
+import type { RunRecord, StoryLedgerRecord } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import type { InspectProjection } from "./types.js";
+
+interface LoadedProjection {
+  run: RunRecord;
+  ledger: StoryLedgerRecord | null;
+  status: StatusProjection;
+}
 
 export class RunQueryService {
   constructor(private readonly repo: PraxisStateRepository) {}
 
   async getStatus(): Promise<StatusProjection> {
-    const run = await this.repo.loadRun();
-    if (!run) {
-      throw new BlockedStateError("No active run found at .praxis/run.json.");
-    }
-
-    const ledger = await this.repo.loadStoryLedger();
-    return projectStatus(run, ledger);
+    const { status } = await this.loadAndProject();
+    return status;
   }
 
   async inspectRun(): Promise<InspectProjection> {
-    const run = await this.repo.loadRun();
-    if (!run) {
-      throw new BlockedStateError("No active run found at .praxis/run.json.");
-    }
-
-    const ledger = await this.repo.loadStoryLedger();
+    const { run, ledger, status } = await this.loadAndProject();
     const activeDispatch = run.active.dispatch_id
       ? await this.repo.loadDispatch(run.active.dispatch_id)
       : null;
@@ -68,7 +65,7 @@ export class RunQueryService {
       : null;
 
     return {
-      status: projectStatus(run, ledger),
+      status,
       run,
       ledger_present: ledger !== null,
       active_dispatch: activeDispatch,
@@ -89,5 +86,14 @@ export class RunQueryService {
         policy_dir: this.repo.paths.policyDir,
       },
     };
+  }
+
+  private async loadAndProject(): Promise<LoadedProjection> {
+    const run = await this.repo.loadRun();
+    if (!run) {
+      throw new BlockedStateError("No active run found at .praxis/run.json.");
+    }
+    const ledger = await this.repo.loadStoryLedger();
+    return { run, ledger, status: projectStatus(run, ledger) };
   }
 }
