@@ -8,7 +8,7 @@ import type {
 import { buildPassId } from "./identity.js";
 import { compareSeverity, isAtOrAboveSeverity } from "./severity.js";
 
-type PlannerInput = {
+interface PlannerInput {
   campaignId: string;
   passNumber: number;
   reviewId: string;
@@ -17,17 +17,17 @@ type PlannerInput = {
   maxFindingsPerPass: number;
   maxStoriesPerPass: number;
   generatedAt: string;
-};
+}
 
 type RiskLevel = "high" | "medium" | "low";
 
-type RankedCandidate = {
+interface RankedCandidate {
   finding: GapFinding;
   risk: RiskLevel;
   dependsOnFindingIds: string[];
   priorityScore: number;
   selectionReason: string;
-};
+}
 
 const SEVERITY_SCORE: Record<FindingSeverity, number> = {
   critical: 400,
@@ -189,7 +189,7 @@ function groupedSliceTitle(candidates: RankedCandidate[]): string {
     compareSeverity(left.finding.severity, right.finding.severity),
   )[0];
   const category = candidates[0].finding.category.replace(/-/g, " ");
-  return `${mostSevere.finding.severity.toUpperCase()}: ${category} remediation bundle (${candidates.length} findings)`;
+  return `${mostSevere.finding.severity.toUpperCase()}: ${category} remediation bundle (${String(candidates.length)} findings)`;
 }
 
 function groupedSliceObjective(candidates: RankedCandidate[]): string {
@@ -327,9 +327,9 @@ export function planRemediation(input: PlannerInput): {
     `- Pass: ${passId}`,
     `- Review: ${input.reviewId}`,
     `- Severity threshold: ${input.severityThreshold}`,
-    `- Candidate source: .praxis/gap.json (${input.latestAssessment.findings.length} finding(s))`,
-    `- Selected findings: ${remediationMap.selected_finding_ids.length}`,
-    `- Deferred findings: ${remediationMap.deferred_finding_ids.length}`,
+    `- Candidate source: .praxis/gap.json (${String(input.latestAssessment.findings.length)} finding(s))`,
+    `- Selected findings: ${String(remediationMap.selected_finding_ids.length)}`,
+    `- Deferred findings: ${String(remediationMap.deferred_finding_ids.length)}`,
     "",
     "## Selection Policy",
     "",

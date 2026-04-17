@@ -45,7 +45,7 @@ export class ConvergePreRemediationService {
 
     await this.clarificationStore.persistTargetSpec({
       targetSpecMarkdown: draft.markdown,
-      clarificationRecord: draft.clarificationRecord,
+      clarificationRecord: draft.clarificationRecord as unknown as Record<string, unknown>,
       stageResult,
     });
 

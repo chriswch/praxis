@@ -7,7 +7,7 @@ import {
 } from "../workers/context-manifest.js";
 import { EXIT_CODE } from "../../cli/exit-codes.js";
 
-export type DoctorReport = {
+export interface DoctorReport {
   repo_root: string;
   runtime: {
     node: string;
@@ -16,7 +16,7 @@ export type DoctorReport = {
     repo_is_git: boolean;
     instruction_surfaces: ReturnType<typeof buildInstructionSurfaceManifest>;
   };
-  adapters: Array<{
+  adapters: {
     adapter: string;
     healthy: boolean;
     supports_resume: boolean;
@@ -24,7 +24,7 @@ export type DoctorReport = {
     binary: string | null;
     version: string | null;
     instruction_surfaces_found: string[];
-  }>;
+  }[];
   recoverability: {
     has_run_manifest: boolean;
     has_event_log: boolean;
@@ -38,7 +38,7 @@ export type DoctorReport = {
     exit_code: number;
     reasons: string[];
   };
-};
+}
 
 export async function buildDoctorReport(repoRoot: string): Promise<DoctorReport> {
   const paths = resolvePraxisPaths(repoRoot);

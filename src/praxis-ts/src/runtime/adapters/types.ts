@@ -1,33 +1,33 @@
 import type { AdapterName, DispatchRecord } from "../../contracts/model.js";
 import type { WorkerLaunchPayload } from "../control/types.js";
 
-export type AdapterHealth = {
+export interface AdapterHealth {
   adapter: AdapterName;
   healthy: boolean;
   supports_resume: boolean;
   reason: string;
   binary: string | null;
   version: string | null;
-};
+}
 
-export type AdapterLaunchRequest = {
+export interface AdapterLaunchRequest {
   dispatch: DispatchRecord;
   launch: WorkerLaunchPayload;
   repoRoot: string;
-};
+}
 
-export type AdapterLaunchResponse = {
+export interface AdapterLaunchResponse {
   worker_id: string;
   session_id: string | null;
   started_at: string;
   locator: string | null;
   details?: Record<string, unknown>;
-};
+}
 
-export type AdapterCancellationHandle = {
+export interface AdapterCancellationHandle {
   session_id: string | null;
   locator: string | null;
-};
+}
 
 export interface RuntimeAdapter {
   readonly name: AdapterName;

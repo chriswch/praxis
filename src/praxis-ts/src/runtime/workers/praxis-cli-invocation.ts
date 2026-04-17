@@ -2,10 +2,10 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type PraxisCliInvocation = {
+export interface PraxisCliInvocation {
   command: string;
   args: string[];
-};
+}
 
 export function resolvePraxisCliInvocation(): PraxisCliInvocation {
   const runtimeRoot = fileURLToPath(new URL("../..", import.meta.url));

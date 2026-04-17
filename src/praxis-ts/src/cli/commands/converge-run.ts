@@ -4,7 +4,7 @@ import { ConvergeCampaignService } from "../../runtime/converge/index.js";
 import { runCommandWithEnvelope } from "./shared.js";
 import type { AdapterName, ConvergeProfile, FindingSeverity } from "../../contracts/model.js";
 
-export type ConvergeRunCommandArgs = {
+export interface ConvergeRunCommandArgs {
   adapter: AdapterName;
   objective: string;
   profile: ConvergeProfile;
@@ -16,7 +16,7 @@ export type ConvergeRunCommandArgs = {
   commitPerStory: boolean;
   autoContinue: boolean;
   allowWaive: boolean;
-};
+}
 
 export async function runConvergeRunCommand(
   repoRoot: string,

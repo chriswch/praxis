@@ -14,14 +14,14 @@ import type {
 import type { PraxisStateRepository } from "../state/repository.js";
 import type { RegisterWorkerSessionOutcome, WorkerLaunchPayload } from "./types.js";
 
-type ActiveSessionRecord = {
+interface ActiveSessionRecord {
   run_id?: unknown;
   dispatch_id?: unknown;
   stage?: unknown;
   adapter?: unknown;
   session_id?: unknown;
   resumable?: unknown;
-};
+}
 
 export class DispatchService {
   constructor(private readonly repo: PraxisStateRepository) {}
@@ -246,7 +246,7 @@ export class DispatchService {
 
     if (run.routing.next_stage !== run.current.stage) {
       throw new RejectedProgressionError(
-        `Cannot ${action} while next_stage (${run.routing.next_stage}) differs from current stage (${run.current.stage}).`,
+        `Cannot ${action} while next_stage (${String(run.routing.next_stage)}) differs from current stage (${run.current.stage}).`,
       );
     }
   }

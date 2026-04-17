@@ -4,7 +4,7 @@ import type { ConvergeProfile, GapAssessmentResult, GapFinding } from "../../con
 import { buildFindingFingerprint } from "./identity.js";
 import { compareSeverity } from "./severity.js";
 
-type AssessmentInput = {
+interface AssessmentInput {
   repoRoot: string;
   profile: ConvergeProfile;
   targetSpecPath: string;
@@ -12,23 +12,23 @@ type AssessmentInput = {
   scope: string[];
   reviewId: string;
   generatedAt: string;
-};
+}
 
-type ObjectiveRequirement = {
+interface ObjectiveRequirement {
   section: string;
   text: string;
   objectiveRef: string;
   line: number;
-};
+}
 
-type RepoDocument = {
+interface RepoDocument {
   path: string;
   text: string;
   lower: string;
   source: "code" | "docs" | "config";
-};
+}
 
-type RequirementSignals = {
+interface RequirementSignals {
   keywords: string[];
   literals: string[];
   forbiddenTerms: string[];
@@ -37,18 +37,18 @@ type RequirementSignals = {
   behaviorPhrases: string[];
   strict: boolean;
   foundational: boolean;
-};
+}
 
-type DocumentMatch = {
+interface DocumentMatch {
   path: string;
   source: RepoDocument["source"];
   matchedKeywords: string[];
   matchedLiterals: string[];
   score: number;
   snippets: string[];
-};
+}
 
-type BehaviorProbe = {
+interface BehaviorProbe {
   path: string;
   line: number;
   statement: string;
@@ -57,7 +57,7 @@ type BehaviorProbe = {
   matchedPhrases: string[];
   contradictionMarkers: string[];
   score: number;
-};
+}
 
 const STOPWORDS = new Set([
   "a",
@@ -117,7 +117,7 @@ const ACTION_VERB_ROOTS = [
   "activate",
 ];
 
-const CONTRADICTION_MARKERS: Array<{ label: string; pattern: RegExp }> = [
+const CONTRADICTION_MARKERS: { label: string; pattern: RegExp }[] = [
   { label: "todo", pattern: /\btodo\b/ },
   { label: "not_implemented", pattern: /not implemented/ },
   { label: "placeholder", pattern: /\bplaceholder\b/ },
@@ -230,7 +230,7 @@ function parseObjectiveRequirements(
       continue;
     }
 
-    const refAnchor = slugify(section) || `line-${index + 1}`;
+    const refAnchor = slugify(section) || `line-${String(index + 1)}`;
     requirements.push({
       section,
       text: statement,
@@ -270,7 +270,7 @@ function parseObjectiveRequirements(
     if (statement.length < 12) {
       continue;
     }
-    const refAnchor = slugify(section) || `line-${index + 1}`;
+    const refAnchor = slugify(section) || `line-${String(index + 1)}`;
     requirements.push({
       section,
       text: statement,
@@ -293,7 +293,7 @@ function parseObjectiveRequirements(
     requirements.push({
       section: "Objective",
       text: trimmed,
-      objectiveRef: `${targetSpecPath}#line-${index + 1}`,
+      objectiveRef: `${targetSpecPath}#line-${String(index + 1)}`,
       line: index + 1,
     });
     if (fallbackCount >= 12) {
@@ -353,7 +353,7 @@ function extractForbiddenTerms(text: string): string[] {
   const pattern =
     /(?:without|remove|drop|deprecate|legacy|no longer|must not|should not|do not)\s+`?([a-z0-9._/-]{3,})`?/g;
   for (const match of lower.matchAll(pattern)) {
-    const term = match[1]?.trim();
+    const term = match[1].trim();
     if (term && term.length >= 3) {
       candidates.push(term);
     }
@@ -622,7 +622,7 @@ function collectSnippets(document: RepoDocument, tokens: string[]): string[] {
 
   return scored.map((entry) => {
     const snippet = entry.text.length > 120 ? `${entry.text.slice(0, 117)}...` : entry.text;
-    return `${document.path}:${entry.line} ${snippet}`;
+    return `${document.path}:${String(entry.line)} ${snippet}`;
   });
 }
 
@@ -815,12 +815,11 @@ function summarizeCurrentBehavior(
   matchedNonCodeTerms: string[],
   uncoveredBehaviorTerms: string[],
   contradiction: { hasConflict: boolean; terms: string[] },
-  codeMatches: DocumentMatch[],
 ): string {
   if (contradiction.hasConflict) {
     const snippets = behaviorProbes
       .slice(0, 2)
-      .map((probe) => `${probe.path}:${probe.line} ${probe.statement}`);
+      .map((probe) => `${probe.path}:${String(probe.line)} ${probe.statement}`);
     return [
       `Observed behavior still conflicts with required semantics (${contradiction.terms.join(", ")}).`,
       snippets.length > 0
@@ -831,15 +830,15 @@ function summarizeCurrentBehavior(
 
   if (behaviorProbes.length === 0) {
     return [
-      `No in-scope executable behavior evidence was found for requirement line ${requirement.line}.`,
-      `Non-code sources matched ${matchedNonCodeTerms.length} term(s) (${Math.round(nonCodeCoverage * 100)}% coverage), which is insufficient for closure.`,
+      `No in-scope executable behavior evidence was found for requirement line ${String(requirement.line)}.`,
+      `Non-code sources matched ${String(matchedNonCodeTerms.length)} term(s) (${String(Math.round(nonCodeCoverage * 100))}% coverage), which is insufficient for closure.`,
     ].join(" ");
   }
 
   const topPaths = Array.from(new Set(behaviorProbes.slice(0, 3).map((probe) => probe.path)));
   const snippets = behaviorProbes
     .slice(0, 3)
-    .map((probe) => `${probe.path}:${probe.line} ${probe.statement}`);
+    .map((probe) => `${probe.path}:${String(probe.line)} ${probe.statement}`);
   const uncovered =
     uncoveredBehaviorTerms.length > 0
       ? `Observed behavior remains partial; missing behavior signals for ${uncoveredBehaviorTerms.slice(0, 6).join(", ")}.`
@@ -866,8 +865,8 @@ function summarizeEvidence(
   nonCodeMatches: DocumentMatch[],
 ): string[] {
   const lines: string[] = [
-    `Objective requirement (line ${requirement.line}): ${requirement.text}`,
-    `Coverage summary: behavior=${Math.round(codeCoverage * 100)}%, non-code=${Math.round(nonCodeCoverage * 100)}%.`,
+    `Objective requirement (line ${String(requirement.line)}): ${requirement.text}`,
+    `Coverage summary: behavior=${String(Math.round(codeCoverage * 100))}%, non-code=${String(Math.round(nonCodeCoverage * 100))}%.`,
     `Observed behavior actions: ${matchedBehaviorActions.length > 0 ? matchedBehaviorActions.slice(0, 10).join(", ") : "(none)"}.`,
     `Observed behavior entities: ${matchedBehaviorEntities.length > 0 ? matchedBehaviorEntities.slice(0, 10).join(", ") : "(none)"}.`,
   ];
@@ -880,7 +879,7 @@ function summarizeEvidence(
 
   const probes = behaviorProbes
     .slice(0, 2)
-    .map((probe) => `${probe.path}:${probe.line} ${probe.statement}`)
+    .map((probe) => `${probe.path}:${String(probe.line)} ${probe.statement}`)
     .slice(0, 4);
   if (probes.length > 0) {
     lines.push(`Observed behavior probes: ${probes.join(" | ")}`);
@@ -1086,7 +1085,6 @@ export async function assessGaps(input: AssessmentInput): Promise<{
         matchedNonCodeTerms,
         uncoveredBehaviorTerms,
         contradiction,
-        codeMatches,
       ),
       evidence: summarizeEvidence(
         requirement,
@@ -1135,14 +1133,14 @@ export async function assessGaps(input: AssessmentInput): Promise<{
     `- Target spec: ${input.targetSpecPath}`,
     `- Profile: ${input.profile}`,
     `- Scope: ${input.scope.length > 0 ? input.scope.join(", ") : "(repo root)"}`,
-    `- Requirements analyzed: ${requirements.length}`,
-    `- Findings: ${findings.length}`,
+    `- Requirements analyzed: ${String(requirements.length)}`,
+    `- Findings: ${String(findings.length)}`,
     "",
     "## Overall Conclusion",
     "",
     findings.length === 0
       ? "No material in-scope gaps were identified for this pass."
-      : `${findings.length} in-scope gap(s) were identified relative to the target spec.`,
+      : `${String(findings.length)} in-scope gap(s) were identified relative to the target spec.`,
     "",
     findings.length === 0 ? "## Findings" : "## Ordered Findings",
     "",
@@ -1152,7 +1150,7 @@ export async function assessGaps(input: AssessmentInput): Promise<{
     markdownLines.push(`### ${finding.finding_id} ${finding.title}`);
     markdownLines.push(`- Kind: ${finding.kind}`);
     markdownLines.push(`- Severity: ${finding.severity}`);
-    markdownLines.push(`- Confidence: ${finding.confidence}`);
+    markdownLines.push(`- Confidence: ${String(finding.confidence)}`);
     markdownLines.push(`- Category: ${finding.category}`);
     markdownLines.push(`- Expected behavior: ${finding.expected_behavior}`);
     markdownLines.push(`- Current behavior: ${finding.current_behavior}`);

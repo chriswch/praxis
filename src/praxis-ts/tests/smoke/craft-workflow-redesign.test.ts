@@ -76,7 +76,7 @@ async function prepareConvergeObjective(repoRoot: string): Promise<string> {
   return "docs/objective.md";
 }
 
-test("smoke: run initialization checkpoint policy gates manual and auto-runs autopilot", async () => {
+void test("smoke: run initialization checkpoint policy gates manual and auto-runs autopilot", async () => {
   const manualRepo = await createTempRepo();
   assert.equal(
     await runRunCommand(
@@ -120,7 +120,7 @@ test("smoke: run initialization checkpoint policy gates manual and auto-runs aut
   assert.ok(autopilotRun.active.worker_id);
 });
 
-test("smoke: boundary activation reuses the shared checkpoint policy", async () => {
+void test("smoke: boundary activation reuses the shared checkpoint policy", async () => {
   const repoRoot = await createTempRepo();
   assert.equal(
     await runRunCommand(repoRoot, true, {
@@ -178,7 +178,7 @@ test("smoke: boundary activation reuses the shared checkpoint policy", async () 
   assert.equal(runAfterBoundary.status, "waiting_for_user");
 });
 
-test("smoke: stage-result acceptance stays successful when post-commit audit append degrades", async () => {
+void test("smoke: stage-result acceptance stays successful when post-commit audit append degrades", async () => {
   const repoRoot = await createTempRepo();
   assert.equal(
     await runRunCommand(repoRoot, true, {
@@ -215,7 +215,7 @@ test("smoke: stage-result acceptance stays successful when post-commit audit app
   assert.match(warningLog, /submit-stage-result/);
 });
 
-test("smoke: persisted forge run and campaign state is rejected with actionable errors", async () => {
+void test("smoke: persisted forge run and campaign state is rejected with actionable errors", async () => {
   const repoRoot = await createTempRepo();
   assert.equal(
     await runRunCommand(repoRoot, true, {
@@ -287,7 +287,7 @@ test("smoke: persisted forge run and campaign state is rejected with actionable 
   assert.match(campaignStatusFailure.stdout ?? "", /fresh campaign/i);
 });
 
-test("smoke: public CLI no longer accepts workflow selection and converge runs child craft runs", async () => {
+void test("smoke: public CLI no longer accepts workflow selection and converge runs child craft runs", async () => {
   const repoRoot = await createTempRepo();
   const tsxCli = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
 

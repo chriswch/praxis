@@ -6,14 +6,14 @@ import { nowIsoUtc } from "../common/time.js";
 import { BlockedStateError, InvalidInputError } from "../../contracts/errors.js";
 import { decideStageEntryCheckpoint, describeStageEntryCheckpoint } from "./checkpoint-policy.js";
 
-type SliceMapStory = {
+interface SliceMapStory {
   id: string;
   title?: string;
-};
+}
 
-type SliceMapDocument = {
+interface SliceMapDocument {
   slices: SliceMapStory[];
-};
+}
 
 export async function initializeStoryLedgerFromSliceMap(
   repoRoot: string,
@@ -23,7 +23,7 @@ export async function initializeStoryLedgerFromSliceMap(
   const sliceMapPath = join(repoRoot, ".praxis", "slice-map.json");
   const sliceMap = await readJsonFile<SliceMapDocument>(sliceMapPath);
 
-  if (!sliceMap.slices || sliceMap.slices.length === 0) {
+  if (sliceMap.slices.length === 0) {
     throw new InvalidInputError("Slice map does not contain any slices.");
   }
 

@@ -7,7 +7,7 @@ import type {
   FindingSeverity,
 } from "../../contracts/model.js";
 
-export type ConvergeRunInput = {
+export interface ConvergeRunInput {
   adapter: AdapterName;
   objective: string;
   profile: ConvergeProfile;
@@ -19,17 +19,17 @@ export type ConvergeRunInput = {
   commitPerStory: boolean;
   autoContinue: boolean;
   allowWaive: boolean;
-};
+}
 
-export type ConvergeActionOutcome = {
+export interface ConvergeActionOutcome {
   campaign_id: string;
   status: CampaignRecord["status"];
   current_pass: number;
   stop_reason_code: CampaignStopReasonCode | null;
   reason: string;
-};
+}
 
-export type ConvergeChildRunProjection = {
+export interface ConvergeChildRunProjection {
   run_id: string;
   status: string;
   completion_state: "pending" | "completed" | "escalated";
@@ -37,9 +37,9 @@ export type ConvergeChildRunProjection = {
   next_action: string | null;
   next_stage: string | null;
   updated_at: string | null;
-};
+}
 
-export type ConvergeStatusProjection = {
+export interface ConvergeStatusProjection {
   campaign_id: string;
   status: CampaignRecord["status"];
   profile: CampaignRecord["profile"];
@@ -52,9 +52,9 @@ export type ConvergeStatusProjection = {
   current_child_run_id: string | null;
   child_run: ConvergeChildRunProjection | null;
   unresolved_at_or_above_threshold: number;
-};
+}
 
-export type ConvergeInspectProjection = {
+export interface ConvergeInspectProjection {
   campaign: CampaignRecord;
   target_spec_path: string;
   pre_remediation_contracts: Record<
@@ -80,13 +80,13 @@ export type ConvergeInspectProjection = {
     clarifications_dir: string;
     passes_dir: string;
   };
-  unresolved_findings: Array<{
+  unresolved_findings: {
     finding_id: string;
     title: string;
     severity: FindingSeverity;
     status: string;
     affected_paths: string[];
-  }>;
+  }[];
   child_run: ConvergeChildRunProjection | null;
   recent_pass_ids: string[];
-};
+}

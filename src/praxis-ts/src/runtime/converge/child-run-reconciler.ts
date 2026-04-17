@@ -15,9 +15,9 @@ import { buildPassId } from "./identity.js";
 import { isRunTerminal, requiredCommitsForCompletion, stringifyError } from "./campaign-support.js";
 import { CampaignStopPolicy } from "./stop-policy.js";
 
-export type ChildRunReconcileResult = {
+export interface ChildRunReconcileResult {
   continueToPlanning: boolean;
-};
+}
 
 type AssessCallback = (
   campaign: CampaignRecord,
@@ -29,10 +29,10 @@ type AssessCallback = (
   unresolvedAtThreshold: number;
 }>;
 
-type PassArtifacts = {
+interface PassArtifacts {
   batch: PassBatchRecord;
   summary: PassSummaryRecord;
-};
+}
 
 // Per-child-run-status state machine for converge reconciliation. Separates "which
 // step came next after the child run moved" from the rest of the campaign orchestration
@@ -152,12 +152,19 @@ export class ChildRunReconciler {
     campaign: CampaignRecord,
     passId: string,
   ): Promise<{ ok: true } | { ok: false; error: unknown }> {
+    const currentChildRunId = campaign.current_child_run_id;
+    if (!currentChildRunId) {
+      return {
+        ok: false,
+        error: new Error(`Campaign ${campaign.campaign_id} has no active child_run_id.`),
+      };
+    }
     const childRun = await this.repo.loadRun();
     try {
       await this.childRunSlot.assertOwnedRun(
         campaign.campaign_id,
         passId,
-        campaign.current_child_run_id!,
+        currentChildRunId,
         childRun,
       );
       return { ok: true };
@@ -216,7 +223,7 @@ export class ChildRunReconciler {
         campaign.stop_reason_code = "needs_operator";
         campaign.reason = completion.worktreeDirty
           ? `Child run ${childRun.run_id} completed, but commit-per-story is enabled and the worktree still has uncommitted changes. Commit each completed story and run \`praxis converge continue\`.`
-          : `Child run ${childRun.run_id} completed ${completion.completedStoryIds.length} stor${completion.completedStoryIds.length === 1 ? "y" : "ies"} but produced ${completion.producedCommits.length} commit(s). Commit-per-story is enabled, so each completed story must have a corresponding commit before reassessment.`;
+          : `Child run ${childRun.run_id} completed ${String(completion.completedStoryIds.length)} stor${completion.completedStoryIds.length === 1 ? "y" : "ies"} but produced ${String(completion.producedCommits.length)} commit(s). Commit-per-story is enabled, so each completed story must have a corresponding commit before reassessment.`;
         campaign.timestamps.updated_at = nowIsoUtc();
         await this.repo.savePassSummary(passId, {
           ...artifacts.summary,
@@ -283,7 +290,7 @@ export class ChildRunReconciler {
 
     campaign.status = "running";
     campaign.stop_reason_code = null;
-    campaign.reason = `Pass ${passId} child remediation completed and reassessment is recorded as ${campaign.current_review_id}.`;
+    campaign.reason = `Pass ${passId} child remediation completed and reassessment is recorded as ${campaign.current_review_id ?? "(none)"}.`;
     campaign.timestamps.updated_at = nowIsoUtc();
     return { campaign, ledger, continueToPlanning: true };
   }

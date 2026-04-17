@@ -4,16 +4,16 @@ import { RunController } from "../../runtime/control/index.js";
 import { runCommandWithEnvelope } from "./shared.js";
 import type { AdapterName, ExecutionMode } from "../../contracts/model.js";
 
-export type RunCommandArgs = {
+export interface RunCommandArgs {
   adapter: AdapterName;
   executionMode: ExecutionMode;
   entryTask: string;
   entrypoint?: string;
-};
+}
 
-export type RunCommandOptions = {
+export interface RunCommandOptions {
   orchestrate?: boolean;
-};
+}
 
 export async function runRunCommand(
   repoRoot: string,
@@ -37,8 +37,8 @@ export async function runRunCommand(
       ok: true,
       code: EXIT_CODE.OK,
       message: launched
-        ? `Initialized ${run.workflow} run ${run.run_id} and launched ${launched.stage}.`
-        : `Initialized ${run.workflow} run ${run.run_id}. Next stage: ${run.current.stage}.`,
+        ? `Initialized ${run.workflow} run ${run.run_id} and launched ${String(launched.stage)}.`
+        : `Initialized ${run.workflow} run ${run.run_id}. Next stage: ${String(run.current.stage)}.`,
       data: {
         run_id: run.run_id,
         workflow: run.workflow,

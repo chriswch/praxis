@@ -7,7 +7,7 @@ const args = process.argv.slice(2);
 const resumeCommand = args[0] === "resume";
 const resumeSessionId = resumeCommand ? args[1] : null;
 const outputPath = readFlagValue(args, "-o");
-const sessionId = resumeSessionId ?? `fake_codex_session_${Date.now()}`;
+const sessionId = resumeSessionId ?? `fake_codex_session_${String(Date.now())}`;
 
 process.stdout.write(
   `${JSON.stringify({

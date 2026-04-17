@@ -7,9 +7,9 @@ import type { PraxisStateRepository } from "../state/repository.js";
 import type { LifecycleActionOutcome } from "./types.js";
 import type { AdapterCancellationHandle } from "../adapters/types.js";
 
-type SessionRecord = {
+interface SessionRecord {
   locator?: unknown;
-};
+}
 
 export class RunLifecycleService {
   constructor(private readonly repo: PraxisStateRepository) {}
@@ -57,7 +57,7 @@ export class RunLifecycleService {
       );
     }
 
-    const approvalId = `approval_${Date.now()}`;
+    const approvalId = `approval_${String(Date.now())}`;
     this.activateStage(run, `Approval ${approvalId} accepted for stage ${run.current.stage}.`);
 
     await this.repo.saveApprovalRecord(approvalId, {

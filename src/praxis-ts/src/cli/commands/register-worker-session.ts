@@ -3,14 +3,14 @@ import { PraxisStateRepository } from "../../runtime/state/index.js";
 import { RunController } from "../../runtime/control/index.js";
 import { runCommandWithEnvelope } from "./shared.js";
 
-export type RegisterWorkerSessionOptions = {
+export interface RegisterWorkerSessionOptions {
   dispatchId: string;
   workerId: string;
   sessionId: string | null;
   startedAt: string;
   locator: string | null;
   resumable: boolean;
-};
+}
 
 export async function runRegisterWorkerSessionCommand(
   repoRoot: string,

@@ -5,19 +5,19 @@ import {
   expectedInputArtifactsForStage,
 } from "./stage-artifacts.js";
 
-type ConvergeStageContract = {
+interface ConvergeStageContract {
   stage: ConvergeStageName;
   goal: string;
   required_inputs: string[];
   outputs: string[];
   done_when: string[];
-};
+}
 
-type ConvergeStageTransition = {
+interface ConvergeStageTransition {
   routeKind: RouteKind;
   nextStage: ConvergeStageName | null;
   reason: string;
-};
+}
 
 const CONVERGE_WORKFLOW = "converge-pre-remediation" as const;
 const CONVERGE_ARTIFACT_DIR = ".praxis";

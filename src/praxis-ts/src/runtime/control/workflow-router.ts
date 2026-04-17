@@ -2,14 +2,14 @@ import type { RunRecord, StageName } from "../../contracts/model.js";
 import type { StageResultAcceptance } from "./stage-result-validator.js";
 import { decideStageEntryCheckpoint, describeStageEntryCheckpoint } from "./checkpoint-policy.js";
 
-export type RoutingDecision = {
+export interface RoutingDecision {
   next_action: RunRecord["routing"]["next_action"];
   next_stage: RunRecord["routing"]["next_stage"];
   status: RunRecord["status"];
   reason: string;
   stop_reason_code: string | null;
   current_stage: RunRecord["current"]["stage"];
-};
+}
 
 function pauseForConfirmation(
   stage: StageName,

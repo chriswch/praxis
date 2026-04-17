@@ -8,7 +8,7 @@ export class ChildRunSlotService {
 
   async assertCanClaim(campaignId: string, passId: string): Promise<void> {
     const slot = await this.repo.loadChildRunSlot();
-    if (!slot || slot.status !== "active") {
+    if (slot?.status !== "active") {
       return;
     }
     throw new BlockedStateError(
@@ -35,7 +35,7 @@ export class ChildRunSlotService {
 
   async release(campaignId: string, passId: string, reason: string): Promise<void> {
     const slot = await this.repo.loadChildRunSlot();
-    if (!slot || slot.status !== "active") {
+    if (slot?.status !== "active") {
       return;
     }
     if (slot.campaign_id !== campaignId || slot.pass_id !== passId) {
@@ -56,7 +56,7 @@ export class ChildRunSlotService {
     currentRun: RunRecord | null,
   ): Promise<void> {
     const slot = await this.repo.loadChildRunSlot();
-    if (!slot || slot.status !== "active") {
+    if (slot?.status !== "active") {
       throw new BlockedStateError(`Missing active child run slot for ${campaignId}/${passId}.`);
     }
     if (slot.campaign_id !== campaignId || slot.pass_id !== passId) {

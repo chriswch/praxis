@@ -11,13 +11,13 @@ import type {
 import { resolveWorkflowTransition } from "../../workflows/index.js";
 import { InvalidInputError, RejectedProgressionError } from "../../contracts/errors.js";
 
-export type StageResultAcceptance = {
+export interface StageResultAcceptance {
   result: StageResultRecord;
   transition: {
     route_kind: string;
     next_stage: StageName | null;
   };
-};
+}
 
 export async function loadAndValidateStageResult(
   repoRoot: string,
@@ -118,7 +118,7 @@ export async function loadAndValidateStageResult(
 
   if (run.current.stage !== result.stage) {
     throw new RejectedProgressionError(
-      `Stage result out of order. Current stage is ${run.current.stage}, received ${result.stage}.`,
+      `Stage result out of order. Current stage is ${String(run.current.stage)}, received ${result.stage}.`,
     );
   }
 

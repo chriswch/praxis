@@ -178,10 +178,10 @@ export function countUnresolvedAtOrAboveThreshold(
 
 export function markFindingsBatched(ledger: CampaignLedgerRecord, findingIds: string[]): void {
   for (const findingId of findingIds) {
-    const finding = ledger.findings[findingId];
-    if (!finding) {
+    if (!(findingId in ledger.findings)) {
       continue;
     }
+    const finding = ledger.findings[findingId];
     if (
       finding.status === "open" ||
       finding.status === "still_open" ||
@@ -199,10 +199,10 @@ export function markFindingsInProgress(
   storyIds: string[],
 ): void {
   for (const findingId of findingIds) {
-    const finding = ledger.findings[findingId];
-    if (!finding) {
+    if (!(findingId in ledger.findings)) {
       continue;
     }
+    const finding = ledger.findings[findingId];
     finding.status = "in_progress";
     if (!finding.child_run_ids.includes(childRunId)) {
       finding.child_run_ids.push(childRunId);
@@ -221,10 +221,10 @@ export function attachCommitRefsToFindings(
   commitRefs: string[],
 ): void {
   for (const findingId of findingIds) {
-    const finding = ledger.findings[findingId];
-    if (!finding) {
+    if (!(findingId in ledger.findings)) {
       continue;
     }
+    const finding = ledger.findings[findingId];
     for (const commitRef of commitRefs) {
       if (!finding.commit_refs.includes(commitRef)) {
         finding.commit_refs.push(commitRef);

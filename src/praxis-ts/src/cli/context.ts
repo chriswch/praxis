@@ -1,9 +1,9 @@
 import { resolve } from "node:path";
 
-export type CommandOptions = {
+export interface CommandOptions {
   repoRoot: string;
   json: boolean;
-};
+}
 
 export function resolveCommandOptions(opts: Partial<CommandOptions>): CommandOptions {
   return {

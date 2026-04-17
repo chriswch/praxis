@@ -12,14 +12,14 @@ import type { WorkerLaunchPayload } from "../control/types.js";
 
 export type WorkerHostMode = "launch" | "resume";
 
-export type RunCodexWorkerHostInput = {
+export interface RunCodexWorkerHostInput {
   repoRoot: string;
   dispatchId: string;
   workerId: string;
   handshakePath: string;
   mode: WorkerHostMode;
   expectedSessionId: string | null;
-};
+}
 
 type WorkerHostHandshake =
   | {
@@ -48,11 +48,11 @@ type WorkerHostHandshake =
       emitted_at: string;
     };
 
-type SpawnedCodexCommand = {
+interface SpawnedCodexCommand {
   binary: string;
   args: string[];
   cwd: string;
-};
+}
 
 const SESSION_ID_KEYS = [
   "session_id",
@@ -89,12 +89,14 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
   });
 
   const startupTimestamp = nowIsoUtc();
-  let handshakeWritten = false;
-  let sessionId: string | null = null;
-  let startupError: string | null = null;
+  const state: {
+    handshakeWritten: boolean;
+    sessionId: string | null;
+    startupError: string | null;
+  } = { handshakeWritten: false, sessionId: null, startupError: null };
 
   const failHandshake = async (message: string): Promise<void> => {
-    if (handshakeWritten) {
+    if (state.handshakeWritten) {
       return;
     }
     await writeWorkerHandshake(handshakeAbsolutePath, {
@@ -105,11 +107,11 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       error: message,
       emitted_at: nowIsoUtc(),
     });
-    handshakeWritten = true;
+    state.handshakeWritten = true;
   };
 
   const tryEmitReadyHandshake = async (candidateSessionId: string): Promise<void> => {
-    if (handshakeWritten) {
+    if (state.handshakeWritten) {
       return;
     }
     if (
@@ -124,7 +126,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       return;
     }
 
-    sessionId = candidateSessionId;
+    state.sessionId = candidateSessionId;
     await writeWorkerHandshake(handshakeAbsolutePath, {
       version: 1,
       status: "ready",
@@ -142,7 +144,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
         mode: input.mode,
       },
     });
-    handshakeWritten = true;
+    state.handshakeWritten = true;
   };
 
   const stdoutReader = createInterface({ input: child.stdout });
@@ -171,25 +173,31 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       child.kill(signal);
     }
   };
-  process.on("SIGTERM", () => forwardSignal("SIGTERM"));
-  process.on("SIGINT", () => forwardSignal("SIGINT"));
+  process.on("SIGTERM", () => {
+    forwardSignal("SIGTERM");
+  });
+  process.on("SIGINT", () => {
+    forwardSignal("SIGINT");
+  });
   child.once("error", (error) => {
-    startupError = error instanceof Error ? error.message : String(error);
-    void failHandshake(`Failed to start codex process: ${startupError}`);
+    state.startupError = error instanceof Error ? error.message : String(error);
+    void failHandshake(`Failed to start codex process: ${state.startupError}`);
   });
 
   const exitResult = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
     (resolveExit) => {
-      child.once("exit", (code, signal) => resolveExit({ code, signal }));
+      child.once("exit", (code, signal) => {
+        resolveExit({ code, signal });
+      });
     },
   );
 
-  if (!handshakeWritten) {
+  if (!state.handshakeWritten) {
     const stderrSummary = stderrBuffer.slice(-12).join("\n");
     await failHandshake(
       [
-        startupError
-          ? `Codex failed during startup: ${startupError}`
+        state.startupError
+          ? `Codex failed during startup: ${state.startupError}`
           : "Codex exited before emitting a provider session_id.",
         stderrSummary ? `stderr:\n${stderrSummary}` : null,
       ]
@@ -205,7 +213,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       type: "runtime_failed",
       dispatch_id: input.dispatchId,
       worker_id: input.workerId,
-      session_id: sessionId,
+      session_id: state.sessionId,
       mode: input.mode,
       exit_code: exitResult.code,
       exit_signal: exitResult.signal,
@@ -222,7 +230,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       type: "missing_stage_result",
       dispatch_id: input.dispatchId,
       worker_id: input.workerId,
-      session_id: sessionId,
+      session_id: state.sessionId,
       stage_result_path: launch.stage_result_path,
       recorded_at: nowIsoUtc(),
     });
@@ -237,7 +245,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       type: "submit_stage_result_failed",
       dispatch_id: input.dispatchId,
       worker_id: input.workerId,
-      session_id: sessionId,
+      session_id: state.sessionId,
       stage_result_path: launch.stage_result_path,
       recorded_at: nowIsoUtc(),
       error: error instanceof Error ? error.message : String(error),
@@ -250,13 +258,16 @@ function buildCodexCommand(
   launch: WorkerLaunchPayload,
   expectedSessionId: string | null,
 ): SpawnedCodexCommand {
-  const binary = process.env.PRAXIS_CODEX_BIN?.trim() || "codex";
+  const binaryOverride = process.env.PRAXIS_CODEX_BIN?.trim();
+  const binary = binaryOverride && binaryOverride.length > 0 ? binaryOverride : "codex";
   const stageResultAbsolutePath = resolve(
     launch.execution.workspace_root,
     launch.stage_result_path,
   );
   const prompt = buildStagePrompt(launch);
-  const sandboxMode = process.env.PRAXIS_CODEX_SANDBOX?.trim() || "workspace-write";
+  const sandboxOverride = process.env.PRAXIS_CODEX_SANDBOX?.trim();
+  const sandboxMode =
+    sandboxOverride && sandboxOverride.length > 0 ? sandboxOverride : "workspace-write";
 
   if (mode === "resume") {
     const resumeSessionId = expectedSessionId ?? launch.worker.resume_session_id;
@@ -373,7 +384,7 @@ function extractSessionId(payload: unknown): string | null {
 }
 
 function buildWorkerLocator(pid: number): string {
-  return `worker-host://pid/${pid}`;
+  return `worker-host://pid/${String(pid)}`;
 }
 
 async function writeWorkerHandshake(path: string, payload: WorkerHostHandshake): Promise<void> {

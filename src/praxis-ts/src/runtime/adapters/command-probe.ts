@@ -3,12 +3,12 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export type CommandProbeResult = {
+export interface CommandProbeResult {
   binary: string | null;
   version: string | null;
   healthy: boolean;
   reason: string;
-};
+}
 
 export async function probeCommand(
   binary: string,

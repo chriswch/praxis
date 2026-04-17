@@ -10,20 +10,20 @@ type CheckpointResolutionSource =
 
 type StageEntryContext = "run_initialization" | "stage_transition" | "story_boundary";
 
-type StageEntryCheckpointInput = {
+interface StageEntryCheckpointInput {
   execution_mode: ExecutionMode;
   stage: StageName;
   needs_user_input?: boolean;
   needs_confirmation?: boolean;
   stage_overrides?: Partial<Record<StageName, StageCheckpointOverride>>;
-};
+}
 
-export type StageEntryCheckpointDecision = {
+export interface StageEntryCheckpointDecision {
   next_action: RunRecord["routing"]["next_action"];
   status: RunRecord["status"];
   stop_reason_code: string | null;
   source: CheckpointResolutionSource;
-};
+}
 
 const EMPTY_STAGE_OVERRIDES: Partial<Record<StageName, StageCheckpointOverride>> = {};
 

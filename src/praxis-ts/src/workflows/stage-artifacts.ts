@@ -1,10 +1,10 @@
 import { join } from "node:path";
 import type { StageName, WorkflowName } from "../contracts/model.js";
 
-type TransitionContext = {
+interface TransitionContext {
   from_stage: StageName | null;
   from_outcome_code: string | null;
-};
+}
 
 function toPosix(path: string): string {
   return path.replace(/\\/g, "/");

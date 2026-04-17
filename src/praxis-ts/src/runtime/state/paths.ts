@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-export type PraxisPathSet = {
+export interface PraxisPathSet {
   root: string;
   praxisDir: string;
   objectiveFile: string;
@@ -28,7 +28,7 @@ export type PraxisPathSet = {
   worktreesDir: string;
   approvalsDir: string;
   policyDir: string;
-};
+}
 
 export function resolvePraxisPaths(repoRoot: string): PraxisPathSet {
   const praxisDir = join(repoRoot, ".praxis");

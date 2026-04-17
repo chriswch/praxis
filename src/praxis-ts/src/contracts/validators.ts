@@ -138,7 +138,7 @@ function assertStringArray(value: unknown, label: string): asserts value is stri
 
   for (const [index, item] of value.entries()) {
     if (typeof item !== "string") {
-      throw new ContractError(`${label}[${index}] must be a string`);
+      throw new ContractError(`${label}[${String(index)}] must be a string`);
     }
   }
 }
@@ -377,15 +377,15 @@ export function validateStageResult(result: StageResultRecord): void {
       throw new ContractError("tool_uses must be an array");
     }
     for (const [index, toolUse] of result.tool_uses.entries()) {
-      assertRecord(toolUse, `tool_uses[${index}]`);
-      assertPlainString(toolUse.tool, `tool_uses[${index}].tool`);
-      assertEnum(toolUse.kind, TOOL_KINDS, `tool_uses[${index}].kind`);
-      assertEnum(toolUse.status, TOOL_USE_STATUS, `tool_uses[${index}].status`);
+      assertRecord(toolUse, `tool_uses[${String(index)}]`);
+      assertPlainString(toolUse.tool, `tool_uses[${String(index)}].tool`);
+      assertEnum(toolUse.kind, TOOL_KINDS, `tool_uses[${String(index)}].kind`);
+      assertEnum(toolUse.status, TOOL_USE_STATUS, `tool_uses[${String(index)}].status`);
       if (toolUse.target_path !== undefined && toolUse.target_path !== null) {
-        assertRepoRelativePath(toolUse.target_path, `tool_uses[${index}].target_path`);
+        assertRepoRelativePath(toolUse.target_path, `tool_uses[${String(index)}].target_path`);
       }
       if (toolUse.reason !== undefined && toolUse.reason !== null) {
-        assertPlainString(toolUse.reason, `tool_uses[${index}].reason`);
+        assertPlainString(toolUse.reason, `tool_uses[${String(index)}].reason`);
       }
     }
   }
@@ -472,32 +472,32 @@ export function validateDispatchRecord(dispatch: DispatchRecord): void {
     "dispatch.context_manifest.boundary_handoff_path",
   );
   for (const [index, surface] of dispatch.context_manifest.instruction_surfaces.entries()) {
-    assertRecord(surface, `dispatch.context_manifest.instruction_surfaces[${index}]`);
+    assertRecord(surface, `dispatch.context_manifest.instruction_surfaces[${String(index)}]`);
     assertRepoRelativePath(
       surface.path,
-      `dispatch.context_manifest.instruction_surfaces[${index}].path`,
+      `dispatch.context_manifest.instruction_surfaces[${String(index)}].path`,
     );
     assertEnum(
       surface.kind,
       ["file", "directory"],
-      `dispatch.context_manifest.instruction_surfaces[${index}].kind`,
+      `dispatch.context_manifest.instruction_surfaces[${String(index)}].kind`,
     );
     assertEnum(
       surface.provider,
       ["shared", "codex", "claude"],
-      `dispatch.context_manifest.instruction_surfaces[${index}].provider`,
+      `dispatch.context_manifest.instruction_surfaces[${String(index)}].provider`,
     );
     assertBoolean(
       surface.authoritative,
-      `dispatch.context_manifest.instruction_surfaces[${index}].authoritative`,
+      `dispatch.context_manifest.instruction_surfaces[${String(index)}].authoritative`,
     );
     assertBoolean(
       surface.exists,
-      `dispatch.context_manifest.instruction_surfaces[${index}].exists`,
+      `dispatch.context_manifest.instruction_surfaces[${String(index)}].exists`,
     );
     assertPlainString(
       surface.description,
-      `dispatch.context_manifest.instruction_surfaces[${index}].description`,
+      `dispatch.context_manifest.instruction_surfaces[${String(index)}].description`,
     );
   }
 
@@ -525,7 +525,7 @@ export function validateStoryLedgerRecord(ledger: StoryLedgerRecord): void {
       throw new ContractError(`stories.order contains duplicate story id ${storyId}`);
     }
     seenOrderIds.add(storyId);
-    if (!items[storyId]) {
+    if (!(storyId in items)) {
       throw new ContractError(`stories.items missing entry for ${storyId}`);
     }
   }
@@ -537,7 +537,7 @@ export function validateStoryLedgerRecord(ledger: StoryLedgerRecord): void {
     }
     assertPraxisPath(story.artifact_dir, `stories.items.${storyId}.artifact_dir`);
     assertEnum(story.status, statuses, `stories.items.${storyId}.status`);
-    if (story.carry_forward_from !== null && !items[story.carry_forward_from]) {
+    if (story.carry_forward_from !== null && !(story.carry_forward_from in items)) {
       throw new ContractError(
         `stories.items.${storyId}.carry_forward_from references missing story ${story.carry_forward_from}`,
       );
@@ -545,10 +545,10 @@ export function validateStoryLedgerRecord(ledger: StoryLedgerRecord): void {
     assertPraxisPath(story.handoff_path, `stories.items.${storyId}.handoff_path`);
   }
 
-  if (active !== null && !items[active]) {
+  if (active !== null && !(active in items)) {
     throw new ContractError(`stories.active references missing story ${active}`);
   }
-  if (last_completed !== null && !items[last_completed]) {
+  if (last_completed !== null && !(last_completed in items)) {
     throw new ContractError(`stories.last_completed references missing story ${last_completed}`);
   }
 }
@@ -663,7 +663,7 @@ export function validateCampaignLedgerRecord(ledger: CampaignLedgerRecord): void
       );
     }
     seenFindingIds.add(findingId);
-    if (!ledger.findings[findingId]) {
+    if (!(findingId in ledger.findings)) {
       throw new ContractError(`campaign ledger missing finding ${findingId}`);
     }
   }
@@ -727,25 +727,31 @@ export function validateGapAssessmentResult(result: GapAssessmentResult): void {
   }
 
   for (const [index, finding] of result.findings.entries()) {
-    assertPlainString(finding.finding_id, `gap finding ${index}.finding_id`);
-    assertPlainString(finding.fingerprint, `gap finding ${index}.fingerprint`);
-    assertPlainString(finding.title, `gap finding ${index}.title`);
-    assertEnum(finding.kind, FINDING_KINDS, `gap finding ${index}.kind`);
-    assertEnum(finding.severity, FINDING_SEVERITIES, `gap finding ${index}.severity`);
-    assertPlainString(finding.category, `gap finding ${index}.category`);
-    assertPlainString(finding.summary, `gap finding ${index}.summary`);
-    assertPlainString(finding.expected_behavior, `gap finding ${index}.expected_behavior`);
-    assertPlainString(finding.current_behavior, `gap finding ${index}.current_behavior`);
-    assertStringArray(finding.evidence, `gap finding ${index}.evidence`);
-    assertStringArray(finding.objective_refs, `gap finding ${index}.objective_refs`);
-    assertStringArray(finding.affected_paths, `gap finding ${index}.affected_paths`);
+    assertPlainString(finding.finding_id, `gap finding ${String(index)}.finding_id`);
+    assertPlainString(finding.fingerprint, `gap finding ${String(index)}.fingerprint`);
+    assertPlainString(finding.title, `gap finding ${String(index)}.title`);
+    assertEnum(finding.kind, FINDING_KINDS, `gap finding ${String(index)}.kind`);
+    assertEnum(finding.severity, FINDING_SEVERITIES, `gap finding ${String(index)}.severity`);
+    assertPlainString(finding.category, `gap finding ${String(index)}.category`);
+    assertPlainString(finding.summary, `gap finding ${String(index)}.summary`);
+    assertPlainString(finding.expected_behavior, `gap finding ${String(index)}.expected_behavior`);
+    assertPlainString(finding.current_behavior, `gap finding ${String(index)}.current_behavior`);
+    assertStringArray(finding.evidence, `gap finding ${String(index)}.evidence`);
+    assertStringArray(finding.objective_refs, `gap finding ${String(index)}.objective_refs`);
+    assertStringArray(finding.affected_paths, `gap finding ${String(index)}.affected_paths`);
     for (const path of finding.affected_paths) {
-      assertRepoRelativePath(path, `gap finding ${index}.affected_paths item`);
+      assertRepoRelativePath(path, `gap finding ${String(index)}.affected_paths item`);
     }
-    assertPlainString(finding.recommended_direction, `gap finding ${index}.recommended_direction`);
-    assertPlainString(finding.recommended_action, `gap finding ${index}.recommended_action`);
+    assertPlainString(
+      finding.recommended_direction,
+      `gap finding ${String(index)}.recommended_direction`,
+    );
+    assertPlainString(
+      finding.recommended_action,
+      `gap finding ${String(index)}.recommended_action`,
+    );
     if (typeof finding.confidence !== "number" || Number.isNaN(finding.confidence)) {
-      throw new ContractError(`gap finding ${index}.confidence must be a number`);
+      throw new ContractError(`gap finding ${String(index)}.confidence must be a number`);
     }
   }
 }
@@ -776,29 +782,35 @@ function validateRemediationSelectionFields(
     throw new ContractError(`${label} selection.selected must be an array`);
   }
   for (const [index, selected] of fields.selection.selected.entries()) {
-    assertPlainString(selected.finding_id, `${label} selection.selected[${index}].finding_id`);
+    assertPlainString(
+      selected.finding_id,
+      `${label} selection.selected[${String(index)}].finding_id`,
+    );
     if (typeof selected.priority_score !== "number" || Number.isNaN(selected.priority_score)) {
       throw new ContractError(
-        `${label} selection.selected[${index}].priority_score must be a number`,
+        `${label} selection.selected[${String(index)}].priority_score must be a number`,
       );
     }
     assertEnum(
       selected.risk,
       ["high", "medium", "low"],
-      `${label} selection.selected[${index}].risk`,
+      `${label} selection.selected[${String(index)}].risk`,
     );
     assertStringArray(
       selected.depends_on_finding_ids,
-      `${label} selection.selected[${index}].depends_on_finding_ids`,
+      `${label} selection.selected[${String(index)}].depends_on_finding_ids`,
     );
-    assertPlainString(selected.reason, `${label} selection.selected[${index}].reason`);
+    assertPlainString(selected.reason, `${label} selection.selected[${String(index)}].reason`);
   }
   if (!Array.isArray(fields.selection.deferred)) {
     throw new ContractError(`${label} selection.deferred must be an array`);
   }
   for (const [index, deferred] of fields.selection.deferred.entries()) {
-    assertPlainString(deferred.finding_id, `${label} selection.deferred[${index}].finding_id`);
-    assertPlainString(deferred.reason, `${label} selection.deferred[${index}].reason`);
+    assertPlainString(
+      deferred.finding_id,
+      `${label} selection.deferred[${String(index)}].finding_id`,
+    );
+    assertPlainString(deferred.reason, `${label} selection.deferred[${String(index)}].reason`);
   }
 }
 
@@ -808,17 +820,20 @@ export function validateRemediationMapRecord(remediationMap: RemediationMapRecor
     throw new ContractError("remediation map slices must be an array");
   }
   for (const [index, slice] of remediationMap.slices.entries()) {
-    assertPlainString(slice.slice_id, `remediation map slices[${index}].slice_id`);
-    assertPlainString(slice.title, `remediation map slices[${index}].title`);
-    assertStringArray(slice.finding_ids, `remediation map slices[${index}].finding_ids`);
-    assertPlainString(slice.objective, `remediation map slices[${index}].objective`);
-    assertStringArray(slice.scope, `remediation map slices[${index}].scope`);
+    assertPlainString(slice.slice_id, `remediation map slices[${String(index)}].slice_id`);
+    assertPlainString(slice.title, `remediation map slices[${String(index)}].title`);
+    assertStringArray(slice.finding_ids, `remediation map slices[${String(index)}].finding_ids`);
+    assertPlainString(slice.objective, `remediation map slices[${String(index)}].objective`);
+    assertStringArray(slice.scope, `remediation map slices[${String(index)}].scope`);
     for (const path of slice.scope) {
-      assertRepoRelativePath(path, `remediation map slices[${index}].scope item`);
+      assertRepoRelativePath(path, `remediation map slices[${String(index)}].scope item`);
     }
-    assertStringArray(slice.non_goals, `remediation map slices[${index}].non_goals`);
-    assertStringArray(slice.dependencies, `remediation map slices[${index}].dependencies`);
-    assertPlainString(slice.done_condition, `remediation map slices[${index}].done_condition`);
+    assertStringArray(slice.non_goals, `remediation map slices[${String(index)}].non_goals`);
+    assertStringArray(slice.dependencies, `remediation map slices[${String(index)}].dependencies`);
+    assertPlainString(
+      slice.done_condition,
+      `remediation map slices[${String(index)}].done_condition`,
+    );
   }
 }
 
@@ -828,11 +843,14 @@ export function validatePassBatchRecord(batch: PassBatchRecord): void {
     throw new ContractError("pass batch stories must be an array");
   }
   for (const [index, story] of batch.stories.entries()) {
-    assertPlainString(story.story_id, `pass batch stories[${index}].story_id`);
-    assertPlainString(story.title, `pass batch stories[${index}].title`);
-    assertStringArray(story.finding_ids, `pass batch stories[${index}].finding_ids`);
-    assertPlainString(story.objective_context, `pass batch stories[${index}].objective_context`);
-    assertStringArray(story.non_goals, `pass batch stories[${index}].non_goals`);
+    assertPlainString(story.story_id, `pass batch stories[${String(index)}].story_id`);
+    assertPlainString(story.title, `pass batch stories[${String(index)}].title`);
+    assertStringArray(story.finding_ids, `pass batch stories[${String(index)}].finding_ids`);
+    assertPlainString(
+      story.objective_context,
+      `pass batch stories[${String(index)}].objective_context`,
+    );
+    assertStringArray(story.non_goals, `pass batch stories[${String(index)}].non_goals`);
   }
 }
 

@@ -139,14 +139,14 @@ export function isConvergeStageName(stage: StageName | null): stage is ConvergeS
   return (CONVERGE_STAGE_NAMES as readonly StageName[]).includes(stage);
 }
 
-export type StageRoute = {
+export interface StageRoute {
   kind: RouteKind;
   next_stage: StageName | null;
   next_slice_id: string | null;
   reason?: string | null;
-};
+}
 
-export type StageResultRecord = {
+export interface StageResultRecord {
   version: number;
   run_id: string | null;
   dispatch_id: string;
@@ -179,19 +179,19 @@ export type StageResultRecord = {
     tests_run: boolean;
     diff_reviewed: boolean;
   };
-  tool_uses?: Array<{
+  tool_uses?: {
     tool: string;
     kind: ToolKind;
     status: ToolUseStatus;
     target_path?: string | null;
     reason?: string | null;
-  }>;
+  }[];
   handoff?: Record<string, unknown> | null;
   needs_user_input: boolean;
   needs_confirmation: boolean;
-};
+}
 
-export type ConvergeStageResultRecord = {
+export interface ConvergeStageResultRecord {
   version: number;
   stage: ConvergeStageName;
   status: StageResultStatus;
@@ -204,33 +204,33 @@ export type ConvergeStageResultRecord = {
     outcome_code: string;
     [key: string]: unknown;
   };
-};
+}
 
-export type WorkflowTransition = {
+export interface WorkflowTransition {
   routeKind: RouteKind;
   nextStage: StageName | null;
-};
+}
 
-export type WorkflowStageDefinition = {
+export interface WorkflowStageDefinition {
   stage: StageName;
   outcomes: Record<string, WorkflowTransition>;
-};
+}
 
-export type WorkflowDefinition = {
+export interface WorkflowDefinition {
   name: WorkflowName;
   stages: Record<StageName, WorkflowStageDefinition | undefined>;
-};
+}
 
-export type RepoInstructionSurface = {
+export interface RepoInstructionSurface {
   path: string;
   kind: "file" | "directory";
   provider: "shared" | "codex" | "claude";
   authoritative: boolean;
   exists: boolean;
   description: string;
-};
+}
 
-export type RunRecord = {
+export interface RunRecord {
   version: number;
   run_id: string;
   workflow: WorkflowName;
@@ -294,9 +294,9 @@ export type RunRecord = {
   // separately via appendAuditWarning.
   audit_status?: "clean" | "degraded";
   audit_warnings?: string[];
-};
+}
 
-export type DispatchRecord = {
+export interface DispatchRecord {
   version: number;
   dispatch_id: string;
   run_id: string;
@@ -339,9 +339,9 @@ export type DispatchRecord = {
     network: "enabled" | "restricted";
     profile: PermissionProfile;
   };
-};
+}
 
-export type WorkerSessionRegistration = {
+export interface WorkerSessionRegistration {
   dispatch_id: string;
   worker_id: string;
   session_id: string | null;
@@ -349,9 +349,9 @@ export type WorkerSessionRegistration = {
   locator: string | null;
   resumable: boolean;
   details?: Record<string, unknown> | null;
-};
+}
 
-export type StoryLedgerRecord = {
+export interface StoryLedgerRecord {
   version: number;
   run_id: string;
   workflow: WorkflowName;
@@ -372,26 +372,26 @@ export type StoryLedgerRecord = {
       }
     >;
   };
-};
+}
 
-export type LifecycleEvent = {
+export interface LifecycleEvent {
   ts: string;
   type: string;
   run_id: string;
   stage?: StageName | null;
   action?: string;
   details?: Record<string, unknown>;
-};
+}
 
-export type ObjectiveManifest = {
+export interface ObjectiveManifest {
   source_path: string;
   normalized_path: string;
   profile: ConvergeProfile;
   scope: string[];
   created_at: string;
-};
+}
 
-export type CampaignRecord = {
+export interface CampaignRecord {
   version: number;
   campaign_id: string;
   workflow: "craft";
@@ -419,9 +419,9 @@ export type CampaignRecord = {
     created_at: string;
     updated_at: string;
   };
-};
+}
 
-export type ChildRunSlotRecord = {
+export interface ChildRunSlotRecord {
   version: number;
   campaign_id: string;
   pass_id: string;
@@ -429,9 +429,9 @@ export type ChildRunSlotRecord = {
   status: ChildRunSlotStatus;
   reason: string;
   updated_at: string;
-};
+}
 
-export type CampaignFinding = {
+export interface CampaignFinding {
   finding_id: string;
   fingerprint: string;
   title: string;
@@ -454,9 +454,9 @@ export type CampaignFinding = {
   story_ids: string[];
   commit_refs: string[];
   last_seen_pass: number;
-};
+}
 
-export type CampaignLedgerRecord = {
+export interface CampaignLedgerRecord {
   version: number;
   campaign_id: string;
   profile: ConvergeProfile;
@@ -465,7 +465,7 @@ export type CampaignLedgerRecord = {
   timestamps: {
     updated_at: string;
   };
-};
+}
 
 export type GapFinding = {
   finding_id: string;
@@ -482,18 +482,18 @@ export type GapFinding = {
 >;
 export type ObjectiveFinding = GapFinding;
 
-export type GapAssessmentResult = {
+export interface GapAssessmentResult {
   version: number;
   profile: ConvergeProfile;
   review_id: string;
   target_spec_path: string;
   findings: GapFinding[];
   generated_at: string;
-};
+}
 
 export type ObjectiveAssessmentResult = GapAssessmentResult;
 
-export type RemediationSliceRecord = {
+export interface RemediationSliceRecord {
   slice_id: string;
   finding_ids: string[];
   title: string;
@@ -502,9 +502,9 @@ export type RemediationSliceRecord = {
   non_goals: string[];
   dependencies: string[];
   done_condition: string;
-};
+}
 
-export type RemediationSelectionFields = {
+export interface RemediationSelectionFields {
   version: number;
   campaign_id: string;
   pass_id: string;
@@ -514,38 +514,38 @@ export type RemediationSelectionFields = {
   deferred_finding_ids: string[];
   selection: {
     policy: string[];
-    selected: Array<{
+    selected: {
       finding_id: string;
       priority_score: number;
       risk: "high" | "medium" | "low";
       depends_on_finding_ids: string[];
       reason: string;
-    }>;
-    deferred: Array<{
+    }[];
+    deferred: {
       finding_id: string;
       reason: string;
-    }>;
+    }[];
   };
   generated_at: string;
-};
+}
 
 export type RemediationMapRecord = RemediationSelectionFields & {
   slices: RemediationSliceRecord[];
 };
 
-export type PassBatchStory = {
+export interface PassBatchStory {
   story_id: string;
   title: string;
   finding_ids: string[];
   objective_context: string;
   non_goals: string[];
-};
+}
 
 export type PassBatchRecord = RemediationSelectionFields & {
   stories: PassBatchStory[];
 };
 
-export type PassSummaryRecord = {
+export interface PassSummaryRecord {
   version: number;
   campaign_id: string;
   pass_id: string;
@@ -559,4 +559,4 @@ export type PassSummaryRecord = {
   unresolved_at_or_above_threshold: number;
   outcome: "continue" | "converged" | "needs_operator" | "stalled" | "budget_exhausted";
   generated_at: string;
-};
+}

@@ -35,62 +35,62 @@ export class ClaudeAdapter implements RuntimeAdapter {
   // returned session_id is synthesized on the spot so callers can persist a handle, but
   // nothing is actually running on the other end. Promote to a real process host before
   // depending on the session for anything beyond identity bookkeeping.
-  async launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
+  launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
     const instructionSurfaces = selectInstructionSurfaces(
       request.launch.context_manifest.instruction_surfaces,
       "claude",
     );
     const commandPreview = buildClaudeCommandPreview(request);
-    return {
+    return Promise.resolve({
       worker_id: `wrk_claude_${request.dispatch.stage}_${randomUUID()}`,
       session_id: `claude_session_${randomUUID()}`,
       started_at: nowIsoUtc(),
-      locator: `claude-cli://${request.dispatch.dispatch_id}?entrypoint=${encodeURIComponent(request.launch.runtime.entrypoint)}&instructions=${instructionSurfaces.length}`,
+      locator: `claude-cli://${request.dispatch.dispatch_id}?entrypoint=${encodeURIComponent(request.launch.runtime.entrypoint)}&instructions=${String(instructionSurfaces.length)}`,
       details: {
         command: commandPreview,
         instruction_surfaces: instructionSurfaces.map((surface) => surface.path),
       },
-    };
+    });
   }
 
-  async resume(sessionId: string, request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
+  resume(sessionId: string, request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
     const instructionSurfaces = selectInstructionSurfaces(
       request.launch.context_manifest.instruction_surfaces,
       "claude",
     );
     const commandPreview = buildClaudeCommandPreview(request, sessionId);
-    return {
+    return Promise.resolve({
       worker_id: `wrk_claude_resume_${request.dispatch.stage}_${randomUUID()}`,
       session_id: sessionId,
       started_at: nowIsoUtc(),
-      locator: `claude-cli://${request.dispatch.dispatch_id}?resume=true&instructions=${instructionSurfaces.length}`,
+      locator: `claude-cli://${request.dispatch.dispatch_id}?resume=true&instructions=${String(instructionSurfaces.length)}`,
       details: {
         command: commandPreview,
         instruction_surfaces: instructionSurfaces.map((surface) => surface.path),
       },
-    };
+    });
   }
 
-  async cancel(handle: {
+  cancel(handle: {
     session_id: string | null;
     locator: string | null;
   }): Promise<{ cancelled: boolean; reason: string }> {
     if (handle.session_id) {
-      return {
+      return Promise.resolve({
         cancelled: true,
         reason: `Cancelled session ${handle.session_id}.`,
-      };
+      });
     }
     if (handle.locator) {
-      return {
+      return Promise.resolve({
         cancelled: true,
         reason: `Cancelled worker at ${handle.locator}.`,
-      };
+      });
     }
-    return {
+    return Promise.resolve({
       cancelled: false,
       reason: "No cancellation handle provided.",
-    };
+    });
   }
 }
 

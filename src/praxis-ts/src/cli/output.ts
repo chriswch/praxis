@@ -1,9 +1,9 @@
-export type CommandEnvelope<T> = {
+export interface CommandEnvelope<T> {
   ok: boolean;
   code: number;
   message: string;
   data?: T;
-};
+}
 
 export function printEnvelope<T>(envelope: CommandEnvelope<T>, json: boolean): void {
   if (json) {

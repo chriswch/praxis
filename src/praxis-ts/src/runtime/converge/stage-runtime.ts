@@ -23,14 +23,14 @@ export function resolveConvergeStageTransition(
   return resolveConvergeWorkflowTransition(stage, outcomeCode);
 }
 
-type BuildConvergeStageResultInput<TStage extends ConvergeStageName> = {
+interface BuildConvergeStageResultInput<TStage extends ConvergeStageName> {
   stage: TStage;
   status?: StageResultStatus;
   profile?: ConvergeProfile;
   reviewId?: string;
   outcomeCode: string;
   data?: Record<string, unknown>;
-};
+}
 
 export function buildConvergeStageResult<TStage extends ConvergeStageName>(
   input: BuildConvergeStageResultInput<TStage>,

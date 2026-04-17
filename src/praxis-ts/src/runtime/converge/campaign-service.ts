@@ -40,9 +40,9 @@ import { getConvergeStageContract } from "./stage-runtime.js";
 import { ConvergePreRemediationService } from "./pre-remediation-service.js";
 import { CampaignStopPolicy } from "./stop-policy.js";
 
-export type ConvergeCampaignServiceOptions = {
+export interface ConvergeCampaignServiceOptions {
   gapAssessor?: GapAssessor;
-};
+}
 
 export class ConvergeCampaignService {
   private readonly childRunSlot: ChildRunSlotService;
@@ -113,7 +113,7 @@ export class ConvergeCampaignService {
     await this.repo.clearChildRunSlot();
     const campaign: CampaignRecord = {
       version: 1,
-      campaign_id: `campaign_${Date.now()}`,
+      campaign_id: `campaign_${String(Date.now())}`,
       workflow: "craft",
       adapter: input.adapter,
       objective: {

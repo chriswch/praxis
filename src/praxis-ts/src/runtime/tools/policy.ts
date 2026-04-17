@@ -1,11 +1,11 @@
 import type { StageName } from "../../contracts/model.js";
 
-export type ToolPolicy = {
+export interface ToolPolicy {
   writable_roots: string[];
   blocked_paths: string[];
   network: "enabled" | "restricted";
   profile: "planning" | "design" | "implementation" | "review" | "verification";
-};
+}
 
 function stageToProfile(stage: StageName): ToolPolicy["profile"] {
   switch (stage) {

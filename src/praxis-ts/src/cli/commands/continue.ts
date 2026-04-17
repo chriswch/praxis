@@ -3,9 +3,9 @@ import { PraxisStateRepository } from "../../runtime/state/index.js";
 import { RunController } from "../../runtime/control/index.js";
 import { runCommandWithEnvelope } from "./shared.js";
 
-export type ContinueCommandOptions = {
+export interface ContinueCommandOptions {
   orchestrate?: boolean;
-};
+}
 
 export async function runContinueCommand(
   repoRoot: string,
@@ -21,8 +21,8 @@ export async function runContinueCommand(
       ok: true,
       code: EXIT_CODE.OK,
       message: launched
-        ? `Run ${outcome.run_id} continued and launched ${launched.stage}.`
-        : `Run ${outcome.run_id} continued at ${outcome.next_stage}.`,
+        ? `Run ${outcome.run_id} continued and launched ${String(launched.stage)}.`
+        : `Run ${outcome.run_id} continued at ${String(outcome.next_stage)}.`,
       data: {
         ...outcome,
         launched,

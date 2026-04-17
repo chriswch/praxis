@@ -31,25 +31,25 @@ import {
 import { buildPassId } from "./identity.js";
 import { buildConvergeStageResult } from "./stage-runtime.js";
 
-type ChildLaunchResult = {
+interface ChildLaunchResult {
   childRunId: string;
   childRunRecord: Record<string, unknown>;
-};
+}
 
-type ChildCompletion = {
+interface ChildCompletion {
   completedStoryIds: string[];
   producedCommits: string[];
   worktreeDirty: boolean;
-};
+}
 
-type PassPlan = {
+interface PassPlan {
   passId: string;
   passNumber: number;
   remediationMap: RemediationMapRecord;
   remediationMarkdown: string;
   planningStageResult: ReturnType<typeof buildConvergeStageResult>;
   selectedLedgerFindingIds: string[];
-};
+}
 
 type ChildLaunchOutcome = { ok: true; value: ChildLaunchResult } | { ok: false; error: unknown };
 
@@ -168,7 +168,6 @@ export class ConvergePassService {
     plan: PassPlan,
     latestAssessment: GapAssessmentResult,
   ): Promise<void> {
-    const reviewId = campaign.current_review_id!;
     const severityByFindingId = new Map(
       latestAssessment.findings.map((finding) => [finding.finding_id, finding.severity]),
     );
@@ -178,10 +177,15 @@ export class ConvergePassService {
     });
     campaign.status = "waiting_for_user";
     campaign.stop_reason_code = "needs_operator";
+    const routingReason = plan.planningStageResult.data.routing_reason;
+    const routingReasonText =
+      typeof routingReason === "string" && routingReason.length > 0
+        ? routingReason
+        : "Review .praxis/gap.md and continue when ready.";
     campaign.reason =
       highOrCriticalDeferred.length > 0
-        ? `Pass ${plan.passId} selected no findings under current severity and story limits; ${highOrCriticalDeferred.length} high-severity finding(s) were deferred by planning budget policy. Review .praxis/remediation-map.md and continue after policy adjustment.`
-        : `Pass ${plan.passId} selected no findings under the current severity and story limits. ${String(plan.planningStageResult.data.routing_reason ?? "Review .praxis/gap.md and continue when ready.")}`;
+        ? `Pass ${plan.passId} selected no findings under current severity and story limits; ${String(highOrCriticalDeferred.length)} high-severity finding(s) were deferred by planning budget policy. Review .praxis/remediation-map.md and continue after policy adjustment.`
+        : `Pass ${plan.passId} selected no findings under the current severity and story limits. ${routingReasonText}`;
     campaign.timestamps.updated_at = nowIsoUtc();
 
     await this.persistPassSummary(campaign, ledger, plan, {
@@ -283,13 +287,18 @@ export class ConvergePassService {
       outcome: PassSummaryRecord["outcome"];
     },
   ): Promise<void> {
+    if (!campaign.current_review_id) {
+      throw new Error(
+        `Campaign ${campaign.campaign_id} has no current_review_id when persisting pass summary ${plan.passId}.`,
+      );
+    }
     const summary: PassSummaryRecord = {
       version: 1,
       campaign_id: campaign.campaign_id,
       pass_id: plan.passId,
       pass_number: plan.passNumber,
       child_run_id: fields.childRunId,
-      assessment_review_id: campaign.current_review_id!,
+      assessment_review_id: campaign.current_review_id,
       reassessment_review_id: null,
       planned_finding_ids: fields.plannedFindingIds,
       completed_story_ids: [],
@@ -327,7 +336,7 @@ export class ConvergePassService {
     let nextStage = childRecord ? readOptionalString(childRecord, "next_stage") : null;
     let updatedAt = childRecord ? readOptionalString(childRecord, "updated_at") : null;
 
-    if (activeRun && activeRun.run_id === campaign.current_child_run_id) {
+    if (activeRun?.run_id === campaign.current_child_run_id) {
       status = activeRun.status;
       reason = activeRun.routing.reason;
       nextAction = activeRun.routing.next_action;

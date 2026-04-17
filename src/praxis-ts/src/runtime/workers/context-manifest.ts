@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { RepoInstructionSurface } from "../../contracts/model.js";
 
-const SURFACE_BLUEPRINTS: Array<Omit<RepoInstructionSurface, "exists">> = [
+const SURFACE_BLUEPRINTS: Omit<RepoInstructionSurface, "exists">[] = [
   {
     path: "AGENTS.md",
     kind: "file",

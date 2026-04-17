@@ -1,7 +1,7 @@
 import type { ConvergeProfile, GapAssessmentResult } from "../../contracts/model.js";
 import { assessGaps } from "./assessment.js";
 
-export type GapAssessorInput = {
+export interface GapAssessorInput {
   repoRoot: string;
   profile: ConvergeProfile;
   targetSpecPath: string;
@@ -9,12 +9,12 @@ export type GapAssessorInput = {
   scope: string[];
   reviewId: string;
   generatedAt: string;
-};
+}
 
-export type GapAssessorOutput = {
+export interface GapAssessorOutput {
   gap: GapAssessmentResult;
   gapMarkdown: string;
-};
+}
 
 // Strategy interface for converge gap assessment. Pre-remediation code depends on this
 // abstraction so a lexical/heuristic assessor can be swapped for a behavior- or

@@ -39,9 +39,9 @@ const REQUIRED_CONVERGE_HANDOFF_ARTIFACTS = [
   ".praxis/remediation-map.json",
 ];
 
-type ConvergeObjectiveOptions = {
+interface ConvergeObjectiveOptions {
   lines: string[];
-};
+}
 
 async function writeObjective(
   repoRoot: string,
@@ -120,7 +120,7 @@ async function initGitRepo(repoRoot: string): Promise<void> {
   });
 }
 
-test("smoke: converge writes target-spec gap artifacts and launches bounded remediation", async () => {
+void test("smoke: converge writes target-spec gap artifacts and launches bounded remediation", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: [
@@ -150,7 +150,7 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.equal(run.mode, "multi_slice");
   assert.ok(run.constraints?.bounded_scope);
-  assert.ok(run.constraints?.clarifying_required_artifacts?.length);
+  assert.ok(run.constraints.clarifying_required_artifacts?.length);
 
   const targetSpec = await readFile(join(repoRoot, ".praxis", "target-spec.md"), "utf8");
   assert.match(targetSpec, /^# Target Spec/m);
@@ -168,14 +168,14 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
 
   const gap = await readJson<{
     target_spec_path: string;
-    findings: Array<{
+    findings: {
       finding_id: string;
       kind: string;
       expected_behavior: string;
       current_behavior: string;
       recommended_direction: string;
       confidence: number;
-    }>;
+    }[];
   }>(join(repoRoot, ".praxis", "gap.json"));
   assert.equal(gap.target_spec_path, ".praxis/target-spec.md");
   assert.ok(gap.findings.length > 0);
@@ -191,12 +191,12 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   const remediationMap = await readJson<{
     selected_finding_ids: string[];
     deferred_finding_ids: string[];
-    slices: Array<{
+    slices: {
       slice_id: string;
       finding_ids: string[];
       scope: string[];
       done_condition: string;
-    }>;
+    }[];
   }>(join(repoRoot, ".praxis", "remediation-map.json"));
   assert.ok(remediationMap.selected_finding_ids.length > 0);
   assert.ok(Array.isArray(remediationMap.deferred_finding_ids));
@@ -220,7 +220,7 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   assert.equal(planningResult.stage, "planning-remediation");
   assert.match(planningResult.data.outcome_code, /^(remediation_map_ready|no_selection)$/);
 
-  const requiredArtifacts = run.constraints?.clarifying_required_artifacts ?? [];
+  const requiredArtifacts = run.constraints.clarifying_required_artifacts ?? [];
   const briefPath = requiredArtifacts[0];
   assert.ok(briefPath);
   for (const artifact of REQUIRED_CONVERGE_HANDOFF_ARTIFACTS) {
@@ -230,7 +230,7 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   const dispatch = await readJson<{ inputs: { required_artifacts: string[] } }>(
     join(repoRoot, ".praxis", "dispatches", `${dispatchId}.json`),
   );
-  assert.ok(dispatch.inputs.required_artifacts.includes(briefPath!));
+  assert.ok(dispatch.inputs.required_artifacts.includes(briefPath));
   for (const artifact of REQUIRED_CONVERGE_HANDOFF_ARTIFACTS) {
     assert.ok(
       dispatch.inputs.required_artifacts.includes(artifact),
@@ -239,7 +239,7 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   }
 });
 
-test("smoke: converge pre-remediation stage results expose routing metadata", async () => {
+void test("smoke: converge pre-remediation stage results expose routing metadata", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: [
@@ -313,7 +313,7 @@ test("smoke: converge pre-remediation stage results expose routing metadata", as
   assert.match(planningResult.data.routing_reason, /(remediation map|selected)/i);
 });
 
-test("smoke: shared workflow contracts define converge pre-remediation stages", () => {
+void test("smoke: shared workflow contracts define converge pre-remediation stages", () => {
   const clarifying = getConvergeWorkflowStageContract("clarifying-intent");
   assert.equal(clarifying.required_inputs[0], ".praxis/objective.md");
   assert.ok(clarifying.outputs.includes(".praxis/target-spec.md"));
@@ -336,21 +336,19 @@ test("smoke: shared workflow contracts define converge pre-remediation stages", 
   assert.ok(WORKFLOW_GRAPH["converge-pre-remediation"].stages["planning-remediation"]);
 });
 
-test("smoke: legacy objective-assessing stage id is rejected by converge stage validator", () => {
-  assert.throws(
-    () =>
-      validateConvergeStageResult({
-        version: 1,
-        stage: "objective-assessing" as never,
-        status: "completed",
-        route: { kind: "done" },
-        data: { outcome_code: "no_gaps" },
-      }),
-    /invalid converge stage result stage/i,
-  );
+void test("smoke: legacy objective-assessing stage id is rejected by converge stage validator", () => {
+  assert.throws(() => {
+    validateConvergeStageResult({
+      version: 1,
+      stage: "objective-assessing" as never,
+      status: "completed",
+      route: { kind: "done" },
+      data: { outcome_code: "no_gaps" },
+    });
+  }, /invalid converge stage result stage/i);
 });
 
-test("smoke: assessing-gaps only evaluates normative target-spec sections", async () => {
+void test("smoke: assessing-gaps only evaluates normative target-spec sections", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: ["- Must enforce durable remediation snapshots for every converge review pass."],
@@ -374,10 +372,10 @@ test("smoke: assessing-gaps only evaluates normative target-spec sections", asyn
   );
 
   const gap = await readJson<{
-    findings: Array<{
+    findings: {
       objective_refs: string[];
       expected_behavior: string;
-    }>;
+    }[];
   }>(join(repoRoot, ".praxis", "gap.json"));
   assert.ok(gap.findings.length > 0);
   for (const finding of gap.findings) {
@@ -396,7 +394,7 @@ test("smoke: assessing-gaps only evaluates normative target-spec sections", asyn
   }
 });
 
-test("smoke: converge pauses at clarifying-intent when objective is too vague", async () => {
+void test("smoke: converge pauses at clarifying-intent when objective is too vague", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: ["Ship it."],
@@ -441,7 +439,7 @@ test("smoke: converge pauses at clarifying-intent when objective is too vague", 
   assert.ok(clarifyingResult.data.clarification_issues.length > 0);
 });
 
-test("smoke: clarifying-intent requires explicit normative acceptance criteria", async () => {
+void test("smoke: clarifying-intent requires explicit normative acceptance criteria", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: [
@@ -480,7 +478,7 @@ test("smoke: clarifying-intent requires explicit normative acceptance criteria",
   assert.ok(clarification.approval.reasons.length > 0);
 });
 
-test("smoke: clarifying-intent persists durable attempt history across retries", async () => {
+void test("smoke: clarifying-intent persists durable attempt history across retries", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: ["Ship it."],
@@ -534,7 +532,7 @@ test("smoke: clarifying-intent persists durable attempt history across retries",
   assert.ok(secondAttempt.changed_decisions.length > 0);
 });
 
-test("smoke: planning-remediation is assessment-driven without confidence hard gate", () => {
+void test("smoke: planning-remediation is assessment-driven without confidence hard gate", () => {
   const planned = planRemediation({
     campaignId: "campaign_test",
     passNumber: 1,
@@ -578,7 +576,7 @@ test("smoke: planning-remediation is assessment-driven without confidence hard g
   );
 });
 
-test("smoke: planning-remediation groups related findings when story budget is tight", async () => {
+void test("smoke: planning-remediation groups related findings when story budget is tight", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: [
@@ -608,10 +606,10 @@ test("smoke: planning-remediation groups related findings when story budget is t
 
   const remediationMap = await readJson<{
     selected_finding_ids: string[];
-    slices: Array<{
+    slices: {
       slice_id: string;
       finding_ids: string[];
-    }>;
+    }[];
   }>(join(repoRoot, ".praxis", "remediation-map.json"));
 
   assert.ok(remediationMap.selected_finding_ids.length > 0);
@@ -622,7 +620,7 @@ test("smoke: planning-remediation groups related findings when story budget is t
   );
 });
 
-test("smoke: converge persists review snapshots with current stage naming", async () => {
+void test("smoke: converge persists review snapshots with current stage naming", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: [
@@ -660,7 +658,7 @@ test("smoke: converge persists review snapshots with current stage naming", asyn
   assert.equal(await exists(join(reviewDir, "results", "objective-assessing.json")), false);
 });
 
-test("smoke: gap assessment does not treat .plan-only matches as implementation closure", async () => {
+void test("smoke: gap assessment does not treat .plan-only matches as implementation closure", async () => {
   const repoRoot = await createTempRepo();
   const token = "architecture-shadow-closure-token-8842";
   const objective = await writeObjective(repoRoot, {
@@ -689,38 +687,38 @@ test("smoke: gap assessment does not treat .plan-only matches as implementation 
   );
 
   const gap = await readJson<{
-    findings: Array<{
+    findings: {
       expected_behavior: string;
       current_behavior: string;
       evidence: string[];
       affected_paths: string[];
-    }>;
+    }[];
   }>(join(repoRoot, ".praxis", "gap.json"));
 
   const tokenFinding = gap.findings.find((finding) => finding.expected_behavior.includes(token));
   assert.ok(tokenFinding, "expected a finding for the tokenized objective requirement");
   assert.match(
-    tokenFinding!.current_behavior,
+    tokenFinding.current_behavior,
     /executable behavior evidence|insufficient for closure/i,
   );
   assert.ok(
-    tokenFinding!.evidence.some((line) => /Coverage summary: behavior=/i.test(line)),
+    tokenFinding.evidence.some((line) => /Coverage summary: behavior=/i.test(line)),
     "expected behavior coverage summary in evidence",
   );
   assert.ok(
-    tokenFinding!.evidence.some((line) => /Executable behavior probes were not found/i.test(line)),
+    tokenFinding.evidence.some((line) => /Executable behavior probes were not found/i.test(line)),
     "expected explicit behavior-probe closure warning",
   );
-  for (const evidenceLine of tokenFinding!.evidence) {
+  for (const evidenceLine of tokenFinding.evidence) {
     assert.doesNotMatch(evidenceLine, /\.plan/i);
   }
   assert.ok(
-    tokenFinding!.affected_paths.some((path) => path.startsWith("src/")),
+    tokenFinding.affected_paths.some((path) => path.startsWith("src/")),
     "affected paths should fall back to implementation surfaces",
   );
 });
 
-test("smoke: commit-per-story is enforced at story boundary before continue", async () => {
+void test("smoke: commit-per-story is enforced at story boundary before continue", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: [
@@ -785,7 +783,7 @@ test("smoke: commit-per-story is enforced at story boundary before continue", as
   assert.equal(resumedRun.constraints?.commit_per_story?.pending_story_id, null);
 });
 
-test("smoke: converge blocks when child run slot ownership no longer matches run state", async () => {
+void test("smoke: converge blocks when child run slot ownership no longer matches run state", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
     lines: [

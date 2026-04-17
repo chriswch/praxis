@@ -3,9 +3,9 @@ import { PraxisStateRepository } from "../../runtime/state/index.js";
 import { RunController } from "../../runtime/control/index.js";
 import { runCommandWithEnvelope } from "./shared.js";
 
-export type ResumeCommandOptions = {
+export interface ResumeCommandOptions {
   orchestrate?: boolean;
-};
+}
 
 export async function runResumeCommand(
   repoRoot: string,
@@ -21,8 +21,8 @@ export async function runResumeCommand(
       ok: true,
       code: EXIT_CODE.OK,
       message: resumed
-        ? `Run ${outcome.run_id} resumed worker ${resumed.worker_id} for ${resumed.stage}.`
-        : `Run ${outcome.run_id} resumed at ${outcome.next_stage}.`,
+        ? `Run ${outcome.run_id} resumed worker ${resumed.worker_id} for ${String(resumed.stage)}.`
+        : `Run ${outcome.run_id} resumed at ${String(outcome.next_stage)}.`,
       data: {
         ...outcome,
         resumed,

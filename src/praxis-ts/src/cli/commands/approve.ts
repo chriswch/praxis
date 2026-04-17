@@ -3,9 +3,9 @@ import { PraxisStateRepository } from "../../runtime/state/index.js";
 import { RunController } from "../../runtime/control/index.js";
 import { runCommandWithEnvelope } from "./shared.js";
 
-export type ApproveCommandOptions = {
+export interface ApproveCommandOptions {
   orchestrate?: boolean;
-};
+}
 
 export async function runApproveCommand(
   repoRoot: string,
@@ -22,8 +22,8 @@ export async function runApproveCommand(
       ok: true,
       code: EXIT_CODE.OK,
       message: launched
-        ? `Run ${outcome.run_id} approved and launched ${launched.stage}.`
-        : `Run ${outcome.run_id} approved for ${outcome.next_stage}.`,
+        ? `Run ${outcome.run_id} approved and launched ${String(launched.stage)}.`
+        : `Run ${outcome.run_id} approved for ${String(outcome.next_stage)}.`,
       data: {
         ...outcome,
         launched,

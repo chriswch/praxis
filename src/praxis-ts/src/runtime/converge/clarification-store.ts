@@ -10,11 +10,11 @@ export type ClarificationAttemptSnapshot = Record<string, unknown> & {
   changed_decisions_from_previous: string[];
 };
 
-type TargetSpecPayload = {
+interface TargetSpecPayload {
   targetSpecMarkdown: string;
   clarificationRecord: Record<string, unknown>;
   stageResult: ConvergeStageResultRecord & { stage: "clarifying-intent" };
-};
+}
 
 export class ClarificationStore {
   constructor(private readonly repo: PraxisStateRepository) {}

@@ -17,20 +17,20 @@ import type { RunRecord } from "../../contracts/model.js";
 type AcceptedStageResult = Awaited<ReturnType<typeof loadAndValidateStageResult>>;
 type LoadedLedger = Awaited<ReturnType<PraxisStateRepository["loadStoryLedger"]>>;
 
-type StageResultIngestPhase = {
+interface StageResultIngestPhase {
   run: RunRecord;
   accepted: AcceptedStageResult;
   ledger: LoadedLedger;
   ledgerNeedsCommit: boolean;
-};
+}
 
-type StageResultRoutingPhase = {
+interface StageResultRoutingPhase {
   run: RunRecord;
   accepted: AcceptedStageResult;
   ledger: LoadedLedger;
   ledgerNeedsCommit: boolean;
   routingDecision: ReturnType<typeof decideNextRouting>;
-};
+}
 
 export class StageResultService {
   constructor(private readonly repo: PraxisStateRepository) {}

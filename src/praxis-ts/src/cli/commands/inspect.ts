@@ -12,7 +12,7 @@ export async function runInspectCommand(repoRoot: string, json: boolean): Promis
     return {
       ok: true,
       code: EXIT_CODE.OK,
-      message: `Inspecting run ${details.run.run_id}. Current stage: ${details.run.current.stage}.`,
+      message: `Inspecting run ${details.run.run_id}. Current stage: ${String(details.run.current.stage)}.`,
       data: details,
     };
   });

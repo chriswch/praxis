@@ -55,9 +55,9 @@ export function formatObjectiveMarkdown(campaign: CampaignRecord): string {
     `- Objective path: ${campaign.objective.normalized_path}`,
     `- Profile: ${campaign.profile}`,
     `- Severity threshold: ${campaign.severity_threshold}`,
-    `- Max passes: ${campaign.max_passes}`,
-    `- Max findings per pass: ${campaign.max_findings_per_pass}`,
-    `- Max stories per pass: ${campaign.max_stories_per_pass}`,
+    `- Max passes: ${String(campaign.max_passes)}`,
+    `- Max findings per pass: ${String(campaign.max_findings_per_pass)}`,
+    `- Max stories per pass: ${String(campaign.max_stories_per_pass)}`,
     `- Commit per story: ${campaign.commit_per_story ? "enabled" : "disabled"}`,
     `- Auto continue: ${campaign.auto_continue ? "enabled" : "disabled"}`,
     `- Allow waive: ${campaign.allow_waive ? "enabled" : "disabled"}`,
@@ -66,15 +66,15 @@ export function formatObjectiveMarkdown(campaign: CampaignRecord): string {
   ].join("\n");
 }
 
-export type TargetSpecDraft = {
+export interface TargetSpecDraft {
   markdown: string;
   needsClarification: boolean;
   clarificationIssues: string[];
   acceptanceCriteriaCount: number;
   clarificationRecord: ClarificationDecisionRecord;
-};
+}
 
-export type ClarificationDecisionRecord = {
+export interface ClarificationDecisionRecord {
   version: 1;
   campaign_id: string;
   source_objective_path: string;
@@ -104,7 +104,7 @@ export type ClarificationDecisionRecord = {
     status: "approved" | "needs_operator";
     reasons: string[];
   };
-};
+}
 
 function isListItem(line: string): boolean {
   return /^(?:[-*]|\d+\.)\s+/.test(line);
@@ -127,10 +127,12 @@ function collectSections(objectiveLines: string[]): Map<string, string[]> {
       }
       continue;
     }
-    if (!sections.has(current)) {
-      sections.set(current, []);
+    let bucket = sections.get(current);
+    if (!bucket) {
+      bucket = [];
+      sections.set(current, bucket);
     }
-    sections.get(current)!.push(line);
+    bucket.push(line);
   }
 
   return sections;
@@ -384,7 +386,7 @@ export function listCompletedStoryIds(ledger: StoryLedgerRecord | null): string[
     return [];
   }
   return ledger.stories.order.filter(
-    (storyId) => ledger.stories.items[storyId]?.status === "completed",
+    (storyId) => ledger.stories.items[storyId].status === "completed",
   );
 }
 

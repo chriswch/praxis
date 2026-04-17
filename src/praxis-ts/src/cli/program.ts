@@ -32,10 +32,10 @@ import {
   type FindingSeverity,
 } from "../contracts/model.js";
 
-type GlobalOptions = {
+interface GlobalOptions {
   repoRoot?: string;
   json?: boolean;
-};
+}
 
 type RunOptions = GlobalOptions & {
   adapter: AdapterName;
@@ -208,9 +208,9 @@ function registerConvergeCommands(program: Command): void {
         maxFindingsPerPass: parsePositiveInt(String(opts.maxFindingsPerPass)),
         maxStoriesPerPass: parsePositiveInt(String(opts.maxStoriesPerPass)),
         scope: Array.isArray(opts.scope) ? opts.scope : [],
-        commitPerStory: opts.commitPerStory ?? false,
-        autoContinue: opts.autoContinue ?? false,
-        allowWaive: opts.allowWaive ?? false,
+        commitPerStory: opts.commitPerStory,
+        autoContinue: opts.autoContinue,
+        allowWaive: opts.allowWaive,
       });
     });
 

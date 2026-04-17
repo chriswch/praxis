@@ -8,14 +8,14 @@ import type {
 } from "../../contracts/model.js";
 import type { StatusProjection } from "./status-projector.js";
 
-export type RunCreateInput = {
+export interface RunCreateInput {
   adapter: AdapterName;
   executionMode: ExecutionMode;
   entryTask: string;
   entrypoint?: string;
-};
+}
 
-export type InspectProjection = {
+export interface InspectProjection {
   status: StatusProjection;
   run: RunRecord;
   ledger_present: boolean;
@@ -23,8 +23,8 @@ export type InspectProjection = {
   active_session: Record<string, unknown> | null;
   active_worktree: Record<string, unknown> | null;
   artifact_inspection: {
-    required_inputs: Array<{ path: string; exists: boolean }>;
-    expected_outputs: Array<{ path: string; exists: boolean }>;
+    required_inputs: { path: string; exists: boolean }[];
+    expected_outputs: { path: string; exists: boolean }[];
     stage_result: { path: string; exists: boolean } | null;
     boundary_handoff: { path: string; exists: boolean } | null;
   } | null;
@@ -41,9 +41,9 @@ export type InspectProjection = {
     worktrees_dir: string;
     policy_dir: string;
   };
-};
+}
 
-export type WorkerLaunchPayload = {
+export interface WorkerLaunchPayload {
   run_id: string;
   dispatch_id: string;
   workflow: string;
@@ -69,9 +69,9 @@ export type WorkerLaunchPayload = {
     entrypoint: string;
     fresh_context_per_story: boolean;
   };
-};
+}
 
-export type LaunchStageOutcome = {
+export interface LaunchStageOutcome {
   run_id: string;
   dispatch_id: string;
   stage: StageName | null;
@@ -81,9 +81,9 @@ export type LaunchStageOutcome = {
   resumable: boolean;
   mode: "launch" | "resume";
   reason: string;
-};
+}
 
-export type SubmitStageResultOutcome = {
+export interface SubmitStageResultOutcome {
   stage: string;
   outcome_code: string;
   route_kind: string;
@@ -92,17 +92,17 @@ export type SubmitStageResultOutcome = {
   run_status: string;
   reason: string;
   audit_warnings?: string[];
-};
+}
 
-export type LifecycleActionOutcome = {
+export interface LifecycleActionOutcome {
   run_id: string;
   status: string;
   next_action: string;
   next_stage: StageName | null;
   reason: string;
-};
+}
 
-export type RegisterWorkerSessionOutcome = {
+export interface RegisterWorkerSessionOutcome {
   run_id: string;
   dispatch_id: string;
   worker_id: string;
@@ -110,6 +110,6 @@ export type RegisterWorkerSessionOutcome = {
   resumable: boolean;
   stage: StageName | null;
   reason: string;
-};
+}
 
 export type RegisterWorkerSessionInput = WorkerSessionRegistration;

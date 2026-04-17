@@ -171,8 +171,11 @@ export class PraxisStateRepository {
     await appendJsonLine(this.paths.auditWarningsFile, payload);
   }
 
-  async appendStageResultRecord(payload: Record<string, unknown>): Promise<void> {
-    await appendJsonLine(this.paths.stageHistoryFile, payload);
+  async appendStageResultRecord(payload: StageResultRecord): Promise<void> {
+    await appendJsonLine(
+      this.paths.stageHistoryFile,
+      payload as unknown as Record<string, unknown>,
+    );
   }
 
   async validateAndAppendStageResult(payload: StageResultRecord): Promise<void> {

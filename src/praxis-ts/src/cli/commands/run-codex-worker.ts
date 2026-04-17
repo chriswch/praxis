@@ -5,13 +5,13 @@ import {
   type WorkerHostMode,
 } from "../../runtime/workers/codex-worker-host.js";
 
-export type RunCodexWorkerCommandArgs = {
+export interface RunCodexWorkerCommandArgs {
   dispatchId: string;
   workerId: string;
   handshakePath: string;
   mode: WorkerHostMode;
   expectedSessionId?: string;
-};
+}
 
 export async function runRunCodexWorkerCommand(
   repoRoot: string,

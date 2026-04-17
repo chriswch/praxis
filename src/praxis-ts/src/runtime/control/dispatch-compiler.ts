@@ -7,11 +7,11 @@ import { buildToolPolicy } from "../tools/index.js";
 import { buildInstructionSurfaceManifest } from "../workers/context-manifest.js";
 import { buildStageContract } from "../workers/stage-contract.js";
 
-export type DispatchCompileInput = {
+export interface DispatchCompileInput {
   run: RunRecord;
   boundaryHandoff: Record<string, unknown> | null;
   repoRoot: string;
-};
+}
 
 export function compileDispatch(input: DispatchCompileInput): DispatchRecord {
   const { run, boundaryHandoff, repoRoot } = input;

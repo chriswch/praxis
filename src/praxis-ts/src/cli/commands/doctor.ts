@@ -7,8 +7,8 @@ export async function runDoctorCommand(repoRoot: string, json: boolean): Promise
     const report = await buildDoctorReport(repoRoot);
     const healthyAdapters = report.adapters.filter((adapter) => adapter.healthy).length;
     const message = report.summary.healthy
-      ? `Doctor completed. ${healthyAdapters}/${report.adapters.length} adapters healthy.`
-      : `Doctor found health failures. ${healthyAdapters}/${report.adapters.length} adapters healthy.`;
+      ? `Doctor completed. ${String(healthyAdapters)}/${String(report.adapters.length)} adapters healthy.`
+      : `Doctor found health failures. ${String(healthyAdapters)}/${String(report.adapters.length)} adapters healthy.`;
 
     return {
       ok: report.summary.healthy,

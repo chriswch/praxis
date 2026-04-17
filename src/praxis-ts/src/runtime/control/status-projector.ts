@@ -1,6 +1,6 @@
 import type { RunRecord, StoryLedgerRecord } from "../../contracts/model.js";
 
-export type StatusProjection = {
+export interface StatusProjection {
   run_id: string;
   workflow: string;
   status: string;
@@ -25,7 +25,7 @@ export type StatusProjection = {
     last_completed: string | null;
   };
   updated_at: string;
-};
+}
 
 export function projectStatus(run: RunRecord, ledger: StoryLedgerRecord | null): StatusProjection {
   return {

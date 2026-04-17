@@ -120,12 +120,11 @@ export function resolveWorkflowOutcome(
     throw new Error(`Stage ${stage} is not part of workflow ${workflow}.`);
   }
 
-  const resolved = stageDefinition.outcomes[outcomeCode];
-  if (!resolved) {
+  if (!(outcomeCode in stageDefinition.outcomes)) {
     throw new Error(`Outcome ${outcomeCode} is not mapped in workflow ${workflow} stage ${stage}.`);
   }
 
-  return resolved;
+  return stageDefinition.outcomes[outcomeCode];
 }
 
 export function resolveWorkflowTransition(
