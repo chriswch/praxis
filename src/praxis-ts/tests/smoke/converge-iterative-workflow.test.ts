@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -47,6 +47,15 @@ async function writePlanningDoc(repoRoot: string, lines: string[]): Promise<void
     ["# Planning Notes", "", ...lines].join("\n"),
     "utf8"
   );
+}
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function prepareDispatch(repoRoot: string): Promise<string> {
@@ -368,6 +377,44 @@ test("smoke: planning-remediation groups related findings when story budget is t
     remediationMap.slices.some((slice) => slice.finding_ids.length > 1),
     "expected at least one grouped remediation slice"
   );
+});
+
+test("smoke: converge persists review snapshots with current stage naming", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "- Must persist converge review history for each assessment pass.",
+      "- Must keep latest gap and remediation map pointers in .praxis root."
+    ]
+  });
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "architecture-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 2,
+      maxStoriesPerPass: 2,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const gap = await readJson<{ review_id: string }>(join(repoRoot, ".praxis", "gap.json"));
+  const reviewDir = join(repoRoot, ".praxis", "reviews", gap.review_id);
+
+  assert.equal(await exists(join(reviewDir, "gap.md")), true);
+  assert.equal(await exists(join(reviewDir, "gap.json")), true);
+  assert.equal(await exists(join(reviewDir, "remediation-map.md")), true);
+  assert.equal(await exists(join(reviewDir, "remediation-map.json")), true);
+  assert.equal(await exists(join(reviewDir, "results", "assessing-gaps.json")), true);
+  assert.equal(await exists(join(reviewDir, "results", "planning-remediation.json")), true);
+  assert.equal(await exists(join(reviewDir, "results", "objective-assessing.json")), false);
 });
 
 test("smoke: gap assessment does not treat .plan-only matches as implementation closure", async () => {

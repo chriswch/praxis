@@ -236,14 +236,16 @@ export class PraxisStateRepository {
       stageResult: ConvergeStageResultRecord & { stage: "objective-assessing" };
     }
   ): Promise<void> {
-    const reviewDir = join(this.paths.reviewsDir, reviewId);
-    const resultsDir = join(reviewDir, "results");
+    // Legacy compatibility path only. Active converge runs persist review snapshots
+    // through saveGapArtifacts/saveRemediationMap under reviews/<review_id>/.
+    const legacyDir = join(this.paths.reviewsDir, reviewId, "legacy-objective-assessing");
+    const resultsDir = join(legacyDir, "results");
     await mkdir(resultsDir, { recursive: true });
 
     validateObjectiveAssessmentResult(payload.findings);
     validateConvergeStageResult(payload.stageResult);
-    await writeFile(join(reviewDir, "assessment.md"), `${payload.assessmentMarkdown.trimEnd()}\n`, "utf8");
-    await writeJsonFile(join(reviewDir, "findings.json"), payload.findings);
+    await writeFile(join(legacyDir, "assessment.md"), `${payload.assessmentMarkdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(join(legacyDir, "findings.json"), payload.findings);
     await writeJsonFile(join(resultsDir, "objective-assessing.json"), payload.stageResult);
   }
 
@@ -261,6 +263,13 @@ export class PraxisStateRepository {
     await writeFile(this.paths.gapFile, `${payload.gapMarkdown.trimEnd()}\n`, "utf8");
     await writeJsonFile(this.paths.gapDataFile, payload.gap);
     await writeJsonFile(join(resultsDir, "assessing-gaps.json"), payload.stageResult);
+
+    const reviewDir = join(this.paths.reviewsDir, payload.gap.review_id);
+    const reviewResultsDir = join(reviewDir, "results");
+    await mkdir(reviewResultsDir, { recursive: true });
+    await writeFile(join(reviewDir, "gap.md"), `${payload.gapMarkdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(join(reviewDir, "gap.json"), payload.gap);
+    await writeJsonFile(join(reviewResultsDir, "assessing-gaps.json"), payload.stageResult);
   }
 
   async loadGapAssessment(): Promise<GapAssessmentResult | null> {
@@ -299,6 +308,13 @@ export class PraxisStateRepository {
     await writeFile(this.paths.remediationMapFile, `${markdown.trimEnd()}\n`, "utf8");
     await writeJsonFile(this.paths.remediationMapDataFile, remediationMap);
     await writeJsonFile(join(resultsDir, "planning-remediation.json"), stageResult);
+
+    const reviewDir = join(this.paths.reviewsDir, remediationMap.review_id);
+    const reviewResultsDir = join(reviewDir, "results");
+    await mkdir(reviewResultsDir, { recursive: true });
+    await writeFile(join(reviewDir, "remediation-map.md"), `${markdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(join(reviewDir, "remediation-map.json"), remediationMap);
+    await writeJsonFile(join(reviewResultsDir, "planning-remediation.json"), stageResult);
   }
 
   async savePassSummary(passId: string, summary: PassSummaryRecord): Promise<void> {
