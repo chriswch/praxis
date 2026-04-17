@@ -133,6 +133,12 @@ const CONTRADICTION_MARKERS: Array<{ label: string; pattern: RegExp }> = [
 const EXCLUDED_DIRS = new Set([".git", ".praxis", "node_modules", "dist", "build", ".next", "coverage"]);
 const ALLOWED_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".md", ".yml", ".yaml"]);
 const CODE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
+
+export const DEFAULT_ASSESSMENT_SCOPE: readonly string[] = [
+  "src",
+  "README.md",
+  "product-spec.md"
+] as const;
 const NORMATIVE_SECTION_PATTERNS = [
   /\bacceptance\b/,
   /\bcriteria\b/,
@@ -486,7 +492,7 @@ async function listRepoDocuments(repoRoot: string, scope: string[]): Promise<Rep
 
   const stack = scope.length > 0
     ? scope.map((item) => join(repoRoot, item))
-    : [join(repoRoot, "src"), join(repoRoot, "README.md"), join(repoRoot, "product-spec.md")];
+    : DEFAULT_ASSESSMENT_SCOPE.map((item) => join(repoRoot, item));
 
   const visited = new Set<string>();
   while (stack.length > 0) {
