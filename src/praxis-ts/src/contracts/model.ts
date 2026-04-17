@@ -218,7 +218,7 @@ export interface WorkflowStageDefinition {
 
 export interface WorkflowDefinition {
   name: WorkflowName;
-  stages: Record<StageName, WorkflowStageDefinition | undefined>;
+  stages: Partial<Record<StageName, WorkflowStageDefinition>>;
 }
 
 export interface RepoInstructionSurface {

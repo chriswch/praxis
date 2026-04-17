@@ -5,6 +5,7 @@ import { nowIsoUtc } from "../common/time.js";
 import type {
   CampaignRecord,
   CampaignLedgerRecord,
+  ConvergeStageResultRecord,
   GapAssessmentResult,
   PassSummaryRecord,
   RemediationMapRecord,
@@ -47,7 +48,7 @@ interface PassPlan {
   passNumber: number;
   remediationMap: RemediationMapRecord;
   remediationMarkdown: string;
-  planningStageResult: ReturnType<typeof buildConvergeStageResult>;
+  planningStageResult: ConvergeStageResultRecord & { stage: "planning-remediation" };
   selectedLedgerFindingIds: string[];
 }
 
