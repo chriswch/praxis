@@ -125,9 +125,7 @@ export type StageName = (typeof STAGE_NAMES)[number];
 export const CONVERGE_STAGE_NAMES = [
   "clarifying-intent",
   "assessing-gaps",
-  "planning-remediation",
-  // Legacy stage identifier kept for backward-compatible review artifacts.
-  "objective-assessing"
+  "planning-remediation"
 ] as const;
 export type ConvergeStageName = (typeof CONVERGE_STAGE_NAMES)[number];
 
@@ -467,7 +465,6 @@ export type GapAssessmentResult = {
   generated_at: string;
 };
 
-// Backward-compatible alias while runtime migration from objective-assessment naming is in progress.
 export type ObjectiveAssessmentResult = GapAssessmentResult;
 
 export type RemediationSliceRecord = {

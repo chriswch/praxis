@@ -21,7 +21,7 @@ import {
   validateChildRunSlotRecord,
   validateConvergeStageResult,
   validateDispatchRecord,
-  validateObjectiveAssessmentResult,
+  validateGapAssessmentResult,
   validatePassBatchRecord,
   validatePassSummaryRecord,
   validateRemediationMapRecord,
@@ -243,27 +243,6 @@ export class PraxisStateRepository {
     });
   }
 
-  async saveReviewArtifacts(
-    reviewId: string,
-    payload: {
-      assessmentMarkdown: string;
-      findings: GapAssessmentResult;
-      stageResult: ConvergeStageResultRecord & { stage: "objective-assessing" };
-    }
-  ): Promise<void> {
-    // Legacy compatibility path only. Active converge runs persist review snapshots
-    // through saveGapArtifacts/saveRemediationMap under reviews/<review_id>/.
-    const legacyDir = join(this.paths.reviewsDir, reviewId, "legacy-objective-assessing");
-    const resultsDir = join(legacyDir, "results");
-    await mkdir(resultsDir, { recursive: true });
-
-    validateObjectiveAssessmentResult(payload.findings);
-    validateConvergeStageResult(payload.stageResult);
-    await writeFile(join(legacyDir, "assessment.md"), `${payload.assessmentMarkdown.trimEnd()}\n`, "utf8");
-    await writeJsonFile(join(legacyDir, "findings.json"), payload.findings);
-    await writeJsonFile(join(resultsDir, "objective-assessing.json"), payload.stageResult);
-  }
-
   async saveGapArtifacts(
     payload: {
       gapMarkdown: string;
@@ -271,7 +250,7 @@ export class PraxisStateRepository {
       stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
     }
   ): Promise<void> {
-    validateObjectiveAssessmentResult(payload.gap);
+    validateGapAssessmentResult(payload.gap);
     validateConvergeStageResult(payload.stageResult);
     const resultsDir = join(this.paths.praxisDir, "results");
     await mkdir(resultsDir, { recursive: true });
@@ -290,7 +269,7 @@ export class PraxisStateRepository {
   async loadGapAssessment(): Promise<GapAssessmentResult | null> {
     const gap = await readJsonFileIfExists<GapAssessmentResult>(this.paths.gapDataFile);
     if (gap) {
-      validateObjectiveAssessmentResult(gap);
+      validateGapAssessmentResult(gap);
     }
     return gap;
   }

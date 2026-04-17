@@ -3,7 +3,7 @@ import type {
   CampaignLedgerRecord,
   FindingSeverity,
   FindingStatus,
-  ObjectiveAssessmentResult
+  GapAssessmentResult
 } from "../../contracts/model.js";
 import { nextFindingId } from "./identity.js";
 import { compareSeverity, isAtOrAboveSeverity } from "./severity.js";
@@ -46,7 +46,7 @@ export function createEmptyCampaignLedger(
 
 export function mergeAssessmentIntoLedger(
   ledger: CampaignLedgerRecord,
-  assessment: ObjectiveAssessmentResult,
+  assessment: GapAssessmentResult,
   passNumber: number,
   updatedAt: string
 ): {

@@ -1,6 +1,6 @@
 import type { ConvergeStageName, RouteKind } from "../contracts/model.js";
 
-export type ConvergeRuntimeStage = Exclude<ConvergeStageName, "objective-assessing">;
+export type ConvergeRuntimeStage = ConvergeStageName;
 
 type ConvergeStageContract = {
   stage: ConvergeRuntimeStage;
@@ -103,4 +103,3 @@ export function resolveConvergeWorkflowTransition(
   }
   return transition;
 }
-

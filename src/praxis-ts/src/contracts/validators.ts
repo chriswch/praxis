@@ -28,6 +28,7 @@ import {
   type ChildRunSlotRecord,
   type ConvergeStageResultRecord,
   type DispatchRecord,
+  type GapAssessmentResult,
   type ObjectiveAssessmentResult,
   type PassBatchRecord,
   type PassSummaryRecord,
@@ -637,39 +638,44 @@ export function validateCampaignLedgerRecord(ledger: CampaignLedgerRecord): void
   }
 }
 
-export function validateObjectiveAssessmentResult(result: ObjectiveAssessmentResult): void {
+export function validateGapAssessmentResult(result: GapAssessmentResult): void {
   if (result.version < 1) {
-    throw new ContractError("objective assessment result version must be >= 1");
+    throw new ContractError("gap assessment result version must be >= 1");
   }
-  assertEnum(result.profile, CONVERGE_PROFILES, "objective assessment profile");
-  assertPlainString(result.review_id, "objective assessment review_id");
-  assertRepoRelativePath(result.target_spec_path, "objective assessment target_spec_path");
+  assertEnum(result.profile, CONVERGE_PROFILES, "gap assessment profile");
+  assertPlainString(result.review_id, "gap assessment review_id");
+  assertRepoRelativePath(result.target_spec_path, "gap assessment target_spec_path");
   if (!Array.isArray(result.findings)) {
-    throw new ContractError("objective assessment findings must be an array");
+    throw new ContractError("gap assessment findings must be an array");
   }
 
   for (const [index, finding] of result.findings.entries()) {
-    assertPlainString(finding.finding_id, `objective finding ${index}.finding_id`);
-    assertPlainString(finding.fingerprint, `objective finding ${index}.fingerprint`);
-    assertPlainString(finding.title, `objective finding ${index}.title`);
-    assertEnum(finding.kind, FINDING_KINDS, `objective finding ${index}.kind`);
-    assertEnum(finding.severity, FINDING_SEVERITIES, `objective finding ${index}.severity`);
-    assertPlainString(finding.category, `objective finding ${index}.category`);
-    assertPlainString(finding.summary, `objective finding ${index}.summary`);
-    assertPlainString(finding.expected_behavior, `objective finding ${index}.expected_behavior`);
-    assertPlainString(finding.current_behavior, `objective finding ${index}.current_behavior`);
-    assertStringArray(finding.evidence, `objective finding ${index}.evidence`);
-    assertStringArray(finding.objective_refs, `objective finding ${index}.objective_refs`);
-    assertStringArray(finding.affected_paths, `objective finding ${index}.affected_paths`);
+    assertPlainString(finding.finding_id, `gap finding ${index}.finding_id`);
+    assertPlainString(finding.fingerprint, `gap finding ${index}.fingerprint`);
+    assertPlainString(finding.title, `gap finding ${index}.title`);
+    assertEnum(finding.kind, FINDING_KINDS, `gap finding ${index}.kind`);
+    assertEnum(finding.severity, FINDING_SEVERITIES, `gap finding ${index}.severity`);
+    assertPlainString(finding.category, `gap finding ${index}.category`);
+    assertPlainString(finding.summary, `gap finding ${index}.summary`);
+    assertPlainString(finding.expected_behavior, `gap finding ${index}.expected_behavior`);
+    assertPlainString(finding.current_behavior, `gap finding ${index}.current_behavior`);
+    assertStringArray(finding.evidence, `gap finding ${index}.evidence`);
+    assertStringArray(finding.objective_refs, `gap finding ${index}.objective_refs`);
+    assertStringArray(finding.affected_paths, `gap finding ${index}.affected_paths`);
     for (const path of finding.affected_paths) {
-      assertRepoRelativePath(path, `objective finding ${index}.affected_paths item`);
+      assertRepoRelativePath(path, `gap finding ${index}.affected_paths item`);
     }
-    assertPlainString(finding.recommended_direction, `objective finding ${index}.recommended_direction`);
-    assertPlainString(finding.recommended_action, `objective finding ${index}.recommended_action`);
+    assertPlainString(finding.recommended_direction, `gap finding ${index}.recommended_direction`);
+    assertPlainString(finding.recommended_action, `gap finding ${index}.recommended_action`);
     if (typeof finding.confidence !== "number" || Number.isNaN(finding.confidence)) {
-      throw new ContractError(`objective finding ${index}.confidence must be a number`);
+      throw new ContractError(`gap finding ${index}.confidence must be a number`);
     }
   }
+}
+
+// Deprecated compatibility alias; prefer validateGapAssessmentResult.
+export function validateObjectiveAssessmentResult(result: ObjectiveAssessmentResult): void {
+  validateGapAssessmentResult(result);
 }
 
 export function validateRemediationMapRecord(remediationMap: RemediationMapRecord): void {

@@ -14,6 +14,7 @@ import {
 } from "../../src/cli/commands/index.js";
 import { EXIT_CODE } from "../../src/cli/exit-codes.js";
 import type { CampaignRecord, RunRecord, StageName, StageResultRecord } from "../../src/contracts/model.js";
+import { validateConvergeStageResult } from "../../src/contracts/validators.js";
 import {
   getConvergeWorkflowStageContract,
   resolveConvergeWorkflowTransition
@@ -301,6 +302,19 @@ test("smoke: shared workflow contracts define converge pre-remediation stages", 
   const assessingTransition = resolveConvergeWorkflowTransition("assessing-gaps", "findings_recorded");
   assert.equal(assessingTransition.routeKind, "proceed");
   assert.equal(assessingTransition.nextStage, "planning-remediation");
+});
+
+test("smoke: legacy objective-assessing stage id is rejected by converge stage validator", () => {
+  assert.throws(
+    () => validateConvergeStageResult({
+      version: 1,
+      stage: "objective-assessing" as never,
+      status: "completed",
+      route: { kind: "done" },
+      data: { outcome_code: "no_gaps" }
+    }),
+    /invalid converge stage result stage/i
+  );
 });
 
 test("smoke: assessing-gaps only evaluates normative target-spec sections", async () => {
