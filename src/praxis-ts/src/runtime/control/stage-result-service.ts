@@ -151,7 +151,7 @@ export class StageResultService {
     run: RunRecord,
     completedStoryId: string | null,
   ): Promise<void> {
-    const commitPolicy = run.constraints?.commit_per_story;
+    const commitPolicy = run.workflow_constraints?.commit_per_story;
     if (!commitPolicy?.enabled || !completedStoryId) {
       return;
     }

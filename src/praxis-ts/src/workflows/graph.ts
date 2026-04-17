@@ -135,7 +135,7 @@ export function resolveWorkflowTransition(
 }
 
 export function expectedInputArtifacts(
-  run: Pick<RunRecord, "workflow" | "current" | "mode" | "constraints">,
+  run: Pick<RunRecord, "workflow" | "current" | "mode" | "workflow_constraints">,
 ): string[] {
   const stage = run.current.stage;
 
@@ -146,13 +146,13 @@ export function expectedInputArtifacts(
   return expectedInputArtifactsForStage(
     stage,
     run.current.artifact_dir,
-    run.constraints?.clarifying_required_artifacts ?? [],
+    run.workflow_constraints?.clarifying_required_artifacts ?? [],
     run.workflow,
   );
 }
 
 export function expectedInputArtifactsForTransition(
-  run: Pick<RunRecord, "workflow" | "current" | "routing" | "constraints">,
+  run: Pick<RunRecord, "workflow" | "current" | "routing" | "workflow_constraints">,
   transition: {
     from_stage: StageName | null;
     from_outcome_code: string | null;
@@ -168,7 +168,7 @@ export function expectedInputArtifactsForTransition(
     stage,
     run.current.artifact_dir,
     transition,
-    run.constraints?.clarifying_required_artifacts ?? [],
+    run.workflow_constraints?.clarifying_required_artifacts ?? [],
     run.workflow,
   );
 }

@@ -223,7 +223,7 @@ export class RunLifecycleService {
   }
 
   private async enforcePendingCommitGate(run: RunRecord): Promise<void> {
-    const commitPolicy = run.constraints?.commit_per_story;
+    const commitPolicy = run.workflow_constraints?.commit_per_story;
     if (!commitPolicy?.enabled || !commitPolicy.pending_story_id) {
       return;
     }

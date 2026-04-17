@@ -612,7 +612,8 @@ export class ConvergePassService {
       run.execution.mode,
     );
     const clarifyingArtifacts = buildConvergeClarifyingArtifacts(briefPath);
-    run.constraints = {
+    run.workflow_constraints = {
+      workflow: "converge-pre-remediation",
       clarifying_required_artifacts: clarifyingArtifacts,
       clarifying_allowed_outcomes: ["story_spec_ready", "bug_fix_ready", "clarification_needed"],
       bounded_scope: {

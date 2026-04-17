@@ -149,7 +149,7 @@ function validateRunScopedOutcomeConstraints(run: RunRecord, result: StageResult
   if (result.stage !== "clarifying-intent") {
     return;
   }
-  const allowedOutcomes = run.constraints?.clarifying_allowed_outcomes;
+  const allowedOutcomes = run.workflow_constraints?.clarifying_allowed_outcomes;
   if (!allowedOutcomes || allowedOutcomes.length === 0) {
     return;
   }

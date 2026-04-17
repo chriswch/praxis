@@ -186,71 +186,87 @@ export function validateRunRecord(run: RunRecord): void {
     throw new ContractError("current.slice_id is required when current.scope is slice");
   }
 
-  if (run.constraints !== undefined) {
-    assertRecord(run.constraints, "constraints");
+  if (run.workflow_constraints !== undefined) {
+    assertRecord(run.workflow_constraints, "workflow_constraints");
 
-    if (run.constraints.clarifying_required_artifacts !== undefined) {
+    // workflow_constraints.workflow identifies the *origin* of the constraints
+    // (which workflow configured them), not the run's own workflow. A converge
+    // campaign seeds a craft child run with converge-pre-remediation constraints,
+    // so we don't enforce workflow === run.workflow.
+    assertEnum(
+      run.workflow_constraints.workflow,
+      ["converge-pre-remediation"] as const,
+      "workflow_constraints.workflow",
+    );
+
+    if (run.workflow_constraints.clarifying_required_artifacts !== undefined) {
       assertStringArray(
-        run.constraints.clarifying_required_artifacts,
-        "constraints.clarifying_required_artifacts",
+        run.workflow_constraints.clarifying_required_artifacts,
+        "workflow_constraints.clarifying_required_artifacts",
       );
-      for (const path of run.constraints.clarifying_required_artifacts) {
-        assertPraxisPath(path, "constraints.clarifying_required_artifacts item");
+      for (const path of run.workflow_constraints.clarifying_required_artifacts) {
+        assertPraxisPath(path, "workflow_constraints.clarifying_required_artifacts item");
       }
     }
 
-    if (run.constraints.clarifying_allowed_outcomes !== undefined) {
+    if (run.workflow_constraints.clarifying_allowed_outcomes !== undefined) {
       assertStringArray(
-        run.constraints.clarifying_allowed_outcomes,
-        "constraints.clarifying_allowed_outcomes",
+        run.workflow_constraints.clarifying_allowed_outcomes,
+        "workflow_constraints.clarifying_allowed_outcomes",
       );
-      for (const outcomeCode of run.constraints.clarifying_allowed_outcomes) {
-        assertPlainString(outcomeCode, "constraints.clarifying_allowed_outcomes item");
+      for (const outcomeCode of run.workflow_constraints.clarifying_allowed_outcomes) {
+        assertPlainString(outcomeCode, "workflow_constraints.clarifying_allowed_outcomes item");
       }
     }
 
-    if (run.constraints.bounded_scope !== undefined) {
-      assertRecord(run.constraints.bounded_scope, "constraints.bounded_scope");
+    if (run.workflow_constraints.bounded_scope !== undefined) {
+      assertRecord(run.workflow_constraints.bounded_scope, "workflow_constraints.bounded_scope");
       assertEnum(
-        run.constraints.bounded_scope.kind,
+        run.workflow_constraints.bounded_scope.kind,
         ["converge_pass"],
-        "constraints.bounded_scope.kind",
+        "workflow_constraints.bounded_scope.kind",
       );
-      assertPlainString(run.constraints.bounded_scope.pass_id, "constraints.bounded_scope.pass_id");
+      assertPlainString(
+        run.workflow_constraints.bounded_scope.pass_id,
+        "workflow_constraints.bounded_scope.pass_id",
+      );
       assertRepoRelativePath(
-        run.constraints.bounded_scope.objective_path,
-        "constraints.bounded_scope.objective_path",
+        run.workflow_constraints.bounded_scope.objective_path,
+        "workflow_constraints.bounded_scope.objective_path",
       );
       assertStringArray(
-        run.constraints.bounded_scope.finding_ids,
-        "constraints.bounded_scope.finding_ids",
+        run.workflow_constraints.bounded_scope.finding_ids,
+        "workflow_constraints.bounded_scope.finding_ids",
       );
       assertStringArray(
-        run.constraints.bounded_scope.story_ids,
-        "constraints.bounded_scope.story_ids",
+        run.workflow_constraints.bounded_scope.story_ids,
+        "workflow_constraints.bounded_scope.story_ids",
       );
       assertPraxisPath(
-        run.constraints.bounded_scope.brief_path,
-        "constraints.bounded_scope.brief_path",
+        run.workflow_constraints.bounded_scope.brief_path,
+        "workflow_constraints.bounded_scope.brief_path",
       );
     }
 
-    if (run.constraints.commit_per_story !== undefined) {
-      assertRecord(run.constraints.commit_per_story, "constraints.commit_per_story");
-      assertBoolean(
-        run.constraints.commit_per_story.enabled,
-        "constraints.commit_per_story.enabled",
+    if (run.workflow_constraints.commit_per_story !== undefined) {
+      assertRecord(
+        run.workflow_constraints.commit_per_story,
+        "workflow_constraints.commit_per_story",
       );
-      if (run.constraints.commit_per_story.last_verified_head !== null) {
+      assertBoolean(
+        run.workflow_constraints.commit_per_story.enabled,
+        "workflow_constraints.commit_per_story.enabled",
+      );
+      if (run.workflow_constraints.commit_per_story.last_verified_head !== null) {
         assertPlainString(
-          run.constraints.commit_per_story.last_verified_head,
-          "constraints.commit_per_story.last_verified_head",
+          run.workflow_constraints.commit_per_story.last_verified_head,
+          "workflow_constraints.commit_per_story.last_verified_head",
         );
       }
-      if (run.constraints.commit_per_story.pending_story_id !== null) {
+      if (run.workflow_constraints.commit_per_story.pending_story_id !== null) {
         assertPlainString(
-          run.constraints.commit_per_story.pending_story_id,
-          "constraints.commit_per_story.pending_story_id",
+          run.workflow_constraints.commit_per_story.pending_story_id,
+          "workflow_constraints.commit_per_story.pending_story_id",
         );
       }
     }

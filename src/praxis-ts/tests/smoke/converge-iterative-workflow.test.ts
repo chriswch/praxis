@@ -149,8 +149,8 @@ void test("smoke: converge writes target-spec gap artifacts and launches bounded
 
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.equal(run.mode, "multi_slice");
-  assert.ok(run.constraints?.bounded_scope);
-  assert.ok(run.constraints.clarifying_required_artifacts?.length);
+  assert.ok(run.workflow_constraints?.bounded_scope);
+  assert.ok(run.workflow_constraints.clarifying_required_artifacts?.length);
 
   const targetSpec = await readFile(join(repoRoot, ".praxis", "target-spec.md"), "utf8");
   assert.match(targetSpec, /^# Target Spec/m);
@@ -220,7 +220,7 @@ void test("smoke: converge writes target-spec gap artifacts and launches bounded
   assert.equal(planningResult.stage, "planning-remediation");
   assert.match(planningResult.data.outcome_code, /^(remediation_map_ready|no_selection)$/);
 
-  const requiredArtifacts = run.constraints.clarifying_required_artifacts ?? [];
+  const requiredArtifacts = run.workflow_constraints.clarifying_required_artifacts ?? [];
   const briefPath = requiredArtifacts[0];
   assert.ok(briefPath);
   for (const artifact of REQUIRED_CONVERGE_HANDOFF_ARTIFACTS) {
@@ -766,7 +766,7 @@ void test("smoke: commit-per-story is enforced at story boundary before continue
   const gatedRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.equal(gatedRun.status, "waiting_for_user");
   assert.equal(gatedRun.routing.stop_reason_code, "commit_per_story_required");
-  assert.equal(gatedRun.constraints?.commit_per_story?.pending_story_id, firstStoryId);
+  assert.equal(gatedRun.workflow_constraints?.commit_per_story?.pending_story_id, firstStoryId);
 
   assert.equal(await runContinueCommand(repoRoot, true), EXIT_CODE.REJECTED);
 
@@ -780,7 +780,7 @@ void test("smoke: commit-per-story is enforced at story boundary before continue
 
   assert.equal(await runContinueCommand(repoRoot, true), EXIT_CODE.OK);
   const resumedRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
-  assert.equal(resumedRun.constraints?.commit_per_story?.pending_story_id, null);
+  assert.equal(resumedRun.workflow_constraints?.commit_per_story?.pending_story_id, null);
 });
 
 void test("smoke: converge blocks when child run slot ownership no longer matches run state", async () => {

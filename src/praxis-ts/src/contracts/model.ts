@@ -230,6 +230,31 @@ export interface RepoInstructionSurface {
   description: string;
 }
 
+// Workflow-scoped constraints on a RunRecord. Structured as a discriminated union keyed on
+// `workflow` so craft runs never carry converge-specific fields. Today only the
+// converge-pre-remediation branch exists; add a branch per workflow that grows additional
+// constraints.
+export interface ConvergePreRemediationConstraints {
+  workflow: "converge-pre-remediation";
+  clarifying_required_artifacts?: string[];
+  clarifying_allowed_outcomes?: string[];
+  bounded_scope?: {
+    kind: "converge_pass";
+    pass_id: string;
+    objective_path: string;
+    finding_ids: string[];
+    story_ids: string[];
+    brief_path: string;
+  };
+  commit_per_story?: {
+    enabled: boolean;
+    last_verified_head: string | null;
+    pending_story_id: string | null;
+  };
+}
+
+export type RunWorkflowConstraints = ConvergePreRemediationConstraints;
+
 export interface RunRecord {
   version: number;
   run_id: string;
@@ -267,23 +292,7 @@ export interface RunRecord {
     session_id: string | null;
     resumable: boolean;
   };
-  constraints?: {
-    clarifying_required_artifacts?: string[];
-    clarifying_allowed_outcomes?: string[];
-    bounded_scope?: {
-      kind: "converge_pass";
-      pass_id: string;
-      objective_path: string;
-      finding_ids: string[];
-      story_ids: string[];
-      brief_path: string;
-    };
-    commit_per_story?: {
-      enabled: boolean;
-      last_verified_head: string | null;
-      pending_story_id: string | null;
-    };
-  };
+  workflow_constraints?: RunWorkflowConstraints;
   timestamps: {
     created_at: string;
     updated_at: string;

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { ClaudeAdapter } from "../../../src/runtime/adapters/claude-adapter.js";
 import { getAdapter, getAllAdapters } from "../../../src/runtime/adapters/index.js";
 import { InvalidInputError } from "../../../src/contracts/errors.js";
-import type { AdapterLaunchRequest } from "../../../src/runtime/adapters/types.js";
+import type { AdapterLaunchRequest, RuntimeAdapter } from "../../../src/runtime/adapters/types.js";
 
 function buildLaunchRequest(): AdapterLaunchRequest {
   return {
@@ -31,7 +31,7 @@ function buildLaunchRequest(): AdapterLaunchRequest {
         boundary_handoff_path: null,
         instruction_surfaces: [],
       },
-      worker: { adapter: "claude", mode: "session", worker_class: "session_worker" },
+      worker: { adapter: "claude", mode: "fresh_session", worker_class: "session_worker" },
       execution: {
         fresh_context: true,
         worktree_mode: "shared",
@@ -73,7 +73,7 @@ function buildLaunchRequest(): AdapterLaunchRequest {
       },
       worker: {
         adapter: "claude",
-        mode: "session",
+        mode: "fresh_session",
         worker_class: "session_worker",
         resume_session_id: null,
       },
@@ -102,8 +102,12 @@ void test("ClaudeAdapter.health reports not implemented without probing the bina
 
 void test("ClaudeAdapter.launch rejects with a not-implemented error", async () => {
   const adapter = new ClaudeAdapter();
+  // Use the request builder to document the shape the adapter would have received in
+  // a real launch — but cast to the interface type so the stub's narrower signature
+  // (launch(): ...) still accepts it.
+  const runtimeAdapter: RuntimeAdapter = adapter;
   await assert.rejects(
-    () => adapter.launch(buildLaunchRequest()),
+    () => runtimeAdapter.launch(buildLaunchRequest()),
     (error: unknown) =>
       error instanceof InvalidInputError && /not implemented/i.test((error as Error).message),
   );
@@ -111,8 +115,9 @@ void test("ClaudeAdapter.launch rejects with a not-implemented error", async () 
 
 void test("ClaudeAdapter.resume rejects with a not-implemented error", async () => {
   const adapter = new ClaudeAdapter();
+  const runtimeAdapter: RuntimeAdapter = adapter;
   await assert.rejects(
-    () => adapter.resume("some-session", buildLaunchRequest()),
+    () => runtimeAdapter.resume("some-session", buildLaunchRequest()),
     (error: unknown) =>
       error instanceof InvalidInputError && /not implemented/i.test((error as Error).message),
   );
@@ -120,7 +125,8 @@ void test("ClaudeAdapter.resume rejects with a not-implemented error", async () 
 
 void test("ClaudeAdapter.cancel returns cancelled:false to prevent false run-cancel", async () => {
   const adapter = new ClaudeAdapter();
-  const result = await adapter.cancel({ session_id: "foo", locator: "bar" });
+  const runtimeAdapter: RuntimeAdapter = adapter;
+  const result = await runtimeAdapter.cancel({ session_id: "foo", locator: "bar" });
   assert.equal(result.cancelled, false);
   assert.match(result.reason, /not implemented/i);
 });
