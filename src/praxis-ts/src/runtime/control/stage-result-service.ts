@@ -188,38 +188,59 @@ export class StageResultService {
     } else {
       await this.repo.saveRun(run);
     }
-    await this.repo.appendStageResultRecord(accepted.result);
+    const auditWarnings: string[] = [];
+    await this.tryAuditWrite(
+      "stage_history_append_failed",
+      auditWarnings,
+      async () => this.repo.appendStageResultRecord(accepted.result)
+    );
     const telemetry = new ToolTelemetry(this.repo);
-    await telemetry.recordToolUse({
-      run_id: run.run_id,
-      stage: accepted.result.stage,
-      tool: "submit-stage-result",
-      status: "granted"
-    });
-    for (const toolUse of accepted.result.tool_uses ?? []) {
-      await telemetry.recordToolUse({
+    await this.tryAuditWrite(
+      "tool_telemetry_submit_failed",
+      auditWarnings,
+      async () => telemetry.recordToolUse({
         run_id: run.run_id,
         stage: accepted.result.stage,
-        tool: toolUse.tool,
-        status: toolUse.status,
-        reason: toolUse.reason ?? undefined
-      });
+        tool: "submit-stage-result",
+        status: "granted"
+      })
+    );
+    for (const toolUse of accepted.result.tool_uses ?? []) {
+      await this.tryAuditWrite(
+        `tool_telemetry_${toolUse.tool}_failed`,
+        auditWarnings,
+        async () => telemetry.recordToolUse({
+          run_id: run.run_id,
+          stage: accepted.result.stage,
+          tool: toolUse.tool,
+          status: toolUse.status,
+          reason: toolUse.reason ?? undefined
+        })
+      );
     }
 
-    await this.repo.appendLifecycleEvent({
-      ts: run.timestamps.updated_at,
-      type: "stage_result_accepted",
-      run_id: run.run_id,
-      stage: accepted.result.stage,
-      action: "submit-stage-result",
-      details: {
-        outcome_code: accepted.result.data.outcome_code,
-        route_kind: accepted.transition.route_kind,
-        next_stage: routingDecision.next_stage,
-        next_action: routingDecision.next_action,
-        run_status: routingDecision.status
-      }
-    });
+    await this.tryAuditWrite(
+      "lifecycle_event_append_failed",
+      auditWarnings,
+      async () => this.repo.appendLifecycleEvent({
+        ts: run.timestamps.updated_at,
+        type: "stage_result_accepted",
+        run_id: run.run_id,
+        stage: accepted.result.stage,
+        action: "submit-stage-result",
+        details: {
+          outcome_code: accepted.result.data.outcome_code,
+          route_kind: accepted.transition.route_kind,
+          next_stage: routingDecision.next_stage,
+          next_action: routingDecision.next_action,
+          run_status: routingDecision.status
+        }
+      })
+    );
+
+    if (auditWarnings.length > 0) {
+      await this.recordAuditDegradedState(run.run_id, accepted.result.stage, auditWarnings);
+    }
 
     return {
       stage: accepted.result.stage,
@@ -228,7 +249,40 @@ export class StageResultService {
       next_stage: routingDecision.next_stage,
       next_action: routingDecision.next_action,
       run_status: routingDecision.status,
-      reason: routingDecision.reason
+      reason: routingDecision.reason,
+      ...(auditWarnings.length > 0 ? { audit_warnings: auditWarnings } : {})
     };
+  }
+
+  private async tryAuditWrite(
+    code: string,
+    warnings: string[],
+    operation: () => Promise<void>
+  ): Promise<void> {
+    try {
+      await operation();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      warnings.push(`${code}: ${detail}`);
+    }
+  }
+
+  private async recordAuditDegradedState(
+    runId: string,
+    stage: string,
+    warnings: string[]
+  ): Promise<void> {
+    try {
+      await this.repo.appendAuditWarning({
+        ts: nowIsoUtc(),
+        run_id: runId,
+        stage,
+        action: "submit-stage-result",
+        warning_count: warnings.length,
+        warnings
+      });
+    } catch {
+      // Best effort marker: the stage result is still accepted even when warning persistence fails.
+    }
   }
 }

@@ -12,6 +12,8 @@ import {
   runSubmitStageResultCommand
 } from "../../src/cli/commands/index.js";
 import { EXIT_CODE } from "../../src/cli/exit-codes.js";
+import { RunController } from "../../src/runtime/control/index.js";
+import { PraxisStateRepository } from "../../src/runtime/state/index.js";
 import type { CampaignRecord, RunRecord, StageName, StageResultRecord } from "../../src/contracts/model.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 
@@ -151,6 +153,43 @@ test("smoke: boundary activation reuses the shared checkpoint policy", async () 
   assert.equal(runAfterBoundary.current.stage, "clarifying-intent");
   assert.equal(runAfterBoundary.routing.next_action, "confirm_then_run");
   assert.equal(runAfterBoundary.status, "waiting_for_user");
+});
+
+test("smoke: stage-result acceptance stays successful when post-commit audit append degrades", async () => {
+  const repoRoot = await createTempRepo();
+  assert.equal(
+    await runRunCommand(repoRoot, true, {
+      adapter: "codex",
+      executionMode: "autopilot",
+      entryTask: "audit degradation probe"
+    }),
+    EXIT_CODE.OK
+  );
+
+  await mkdir(join(repoRoot, ".praxis", "stage-history.jsonl"), { recursive: true });
+  const stageResultPath = await writeStageResult(
+    repoRoot,
+    "clarifying-intent",
+    ".praxis",
+    "bug_fix_ready",
+    "proceed",
+    { dispatch_id: await prepareDispatch(repoRoot) }
+  );
+
+  const controller = new RunController(new PraxisStateRepository(repoRoot));
+  const outcome = await controller.submitStageResult(stageResultPath);
+  assert.ok(
+    outcome.audit_warnings?.some((warning) => warning.includes("stage_history_append_failed")),
+    "expected degraded audit warning when stage-history append fails"
+  );
+
+  const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
+  assert.equal(run.current.stage, "driving-tdd");
+  assert.equal(run.status, "running");
+
+  const warningLog = await readFile(join(repoRoot, ".praxis", "audit-warnings.jsonl"), "utf8");
+  assert.match(warningLog, /stage_history_append_failed/);
+  assert.match(warningLog, /submit-stage-result/);
 });
 
 test("smoke: persisted forge run and campaign state is rejected with actionable errors", async () => {

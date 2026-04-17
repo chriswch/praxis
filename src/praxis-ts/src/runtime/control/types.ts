@@ -91,6 +91,7 @@ export type SubmitStageResultOutcome = {
   next_action: string;
   run_status: string;
   reason: string;
+  audit_warnings?: string[];
 };
 
 export type LifecycleActionOutcome = {
