@@ -5,6 +5,7 @@ export type PraxisPathSet = {
   praxisDir: string;
   objectiveFile: string;
   targetSpecFile: string;
+  clarificationFile: string;
   gapFile: string;
   gapDataFile: string;
   remediationMapFile: string;
@@ -37,6 +38,7 @@ export function resolvePraxisPaths(repoRoot: string): PraxisPathSet {
     praxisDir,
     objectiveFile: join(praxisDir, "objective.md"),
     targetSpecFile: join(praxisDir, "target-spec.md"),
+    clarificationFile: join(praxisDir, "clarification.json"),
     gapFile: join(praxisDir, "gap.md"),
     gapDataFile: join(praxisDir, "gap.json"),
     remediationMapFile: join(praxisDir, "remediation-map.md"),

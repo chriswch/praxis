@@ -683,13 +683,15 @@ export class ConvergeCampaignService {
     const outcomeCode = draft.needsClarification ? "clarification_needed" : "target_spec_ready";
     await this.repo.saveTargetSpecArtifacts({
       targetSpecMarkdown: draft.markdown,
+      clarificationRecord: draft.clarificationRecord,
       stageResult: buildConvergeStageResult({
         stage: "clarifying-intent",
         profile: campaign.profile,
         outcomeCode,
         data: {
           clarification_issues: draft.clarificationIssues,
-          acceptance_criteria_count: draft.acceptanceCriteriaCount
+          acceptance_criteria_count: draft.acceptanceCriteriaCount,
+          clarification_approval_status: draft.clarificationRecord.approval.status
         }
       })
     });

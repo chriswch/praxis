@@ -219,13 +219,41 @@ export class PraxisStateRepository {
   async saveTargetSpecArtifacts(
     payload: {
       targetSpecMarkdown: string;
+      clarificationRecord: Record<string, unknown>;
       stageResult: ConvergeStageResultRecord & { stage: "clarifying-intent" };
     }
   ): Promise<void> {
     const resultsDir = join(this.paths.praxisDir, "results");
     await mkdir(resultsDir, { recursive: true });
     validateConvergeStageResult(payload.stageResult);
+
+    const previousClarification = await readJsonFileIfExists<Record<string, unknown>>(this.paths.clarificationFile);
+    const previousDecisions = (
+      previousClarification
+      && typeof previousClarification.decisions === "object"
+      && previousClarification.decisions !== null
+      && !Array.isArray(previousClarification.decisions)
+    )
+      ? previousClarification.decisions as Record<string, unknown>
+      : {};
+    const currentDecisions = (
+      typeof payload.clarificationRecord.decisions === "object"
+      && payload.clarificationRecord.decisions !== null
+      && !Array.isArray(payload.clarificationRecord.decisions)
+    )
+      ? payload.clarificationRecord.decisions as Record<string, unknown>
+      : {};
+    const changedDecisionKeys = Object.keys(currentDecisions).filter((key) =>
+      JSON.stringify(currentDecisions[key]) !== JSON.stringify(previousDecisions[key])
+    );
+    const clarificationSnapshot = {
+      ...payload.clarificationRecord,
+      updated_at: new Date().toISOString(),
+      changed_decisions_from_previous: changedDecisionKeys
+    };
+
     await writeFile(this.paths.targetSpecFile, `${payload.targetSpecMarkdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(this.paths.clarificationFile, clarificationSnapshot);
     await writeJsonFile(join(resultsDir, "clarifying-intent.json"), payload.stageResult);
 
     const attemptId = await this.nextClarificationAttemptId();
@@ -233,13 +261,23 @@ export class PraxisStateRepository {
     const attemptResultsDir = join(attemptDir, "results");
     await mkdir(attemptResultsDir, { recursive: true });
     await writeFile(join(attemptDir, "target-spec.md"), `${payload.targetSpecMarkdown.trimEnd()}\n`, "utf8");
+    await writeJsonFile(join(attemptDir, "clarification.json"), clarificationSnapshot);
     await writeJsonFile(join(attemptResultsDir, "clarifying-intent.json"), payload.stageResult);
     await writeJsonFile(join(attemptDir, "attempt.json"), {
       version: 1,
       attempt_id: attemptId,
       stage: "clarifying-intent",
       outcome_code: payload.stageResult.data.outcome_code,
-      route_kind: payload.stageResult.route.kind
+      route_kind: payload.stageResult.route.kind,
+      changed_decisions: changedDecisionKeys,
+      approval_status: (
+        typeof clarificationSnapshot.approval === "object"
+        && clarificationSnapshot.approval !== null
+        && !Array.isArray(clarificationSnapshot.approval)
+        && typeof (clarificationSnapshot.approval as Record<string, unknown>).status === "string"
+      )
+        ? (clarificationSnapshot.approval as Record<string, unknown>).status
+        : null
     });
   }
 

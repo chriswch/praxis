@@ -25,6 +25,7 @@ import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 const execFileAsync = promisify(execFile);
 const REQUIRED_CONVERGE_HANDOFF_ARTIFACTS = [
   ".praxis/target-spec.md",
+  ".praxis/clarification.json",
   ".praxis/gap.md",
   ".praxis/gap.json",
   ".praxis/remediation-map.md",
@@ -409,6 +410,45 @@ test("smoke: converge pauses at clarifying-intent when objective is too vague", 
   assert.ok(clarifyingResult.data.clarification_issues.length > 0);
 });
 
+test("smoke: clarifying-intent requires explicit normative acceptance criteria", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "- Document current converge architecture state.",
+      "- Capture migration notes for future planning."
+    ]
+  });
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "architecture-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 2,
+      maxStoriesPerPass: 2,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const campaign = await readJson<CampaignRecord>(join(repoRoot, ".praxis", "campaign.json"));
+  assert.equal(campaign.status, "waiting_for_user");
+  assert.match(campaign.reason, /explicit normative acceptance criterion/i);
+
+  const clarification = await readJson<{
+    approval: { status: string; reasons: string[] };
+    decisions: { acceptance_criteria: { items: string[] } };
+  }>(join(repoRoot, ".praxis", "clarification.json"));
+  assert.equal(clarification.approval.status, "needs_operator");
+  assert.equal(clarification.decisions.acceptance_criteria.items.length, 0);
+  assert.ok(clarification.approval.reasons.length > 0);
+});
+
 test("smoke: clarifying-intent persists durable attempt history across retries", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
@@ -436,8 +476,12 @@ test("smoke: clarifying-intent persists durable attempt history across retries",
 
   const firstAttemptDir = join(repoRoot, ".praxis", "clarifications", "C-001");
   assert.equal(await exists(join(firstAttemptDir, "target-spec.md")), true);
-  const firstAttempt = await readJson<{ outcome_code: string }>(join(firstAttemptDir, "attempt.json"));
+  assert.equal(await exists(join(firstAttemptDir, "clarification.json")), true);
+  const firstAttempt = await readJson<{ outcome_code: string; approval_status: string | null }>(
+    join(firstAttemptDir, "attempt.json")
+  );
   assert.equal(firstAttempt.outcome_code, "clarification_needed");
+  assert.equal(firstAttempt.approval_status, "needs_operator");
 
   await writeFile(
     join(repoRoot, objective),
@@ -453,8 +497,12 @@ test("smoke: clarifying-intent persists durable attempt history across retries",
   assert.equal(await runConvergeContinueCommand(repoRoot, true), EXIT_CODE.OK);
   const secondAttemptDir = join(repoRoot, ".praxis", "clarifications", "C-002");
   assert.equal(await exists(join(secondAttemptDir, "target-spec.md")), true);
-  const secondAttempt = await readJson<{ outcome_code: string }>(join(secondAttemptDir, "attempt.json"));
+  assert.equal(await exists(join(secondAttemptDir, "clarification.json")), true);
+  const secondAttempt = await readJson<{ outcome_code: string; changed_decisions: string[] }>(
+    join(secondAttemptDir, "attempt.json")
+  );
   assert.equal(secondAttempt.outcome_code, "target_spec_ready");
+  assert.ok(secondAttempt.changed_decisions.length > 0);
 });
 
 test("smoke: planning-remediation is assessment-driven without confidence hard gate", () => {

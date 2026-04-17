@@ -65,6 +65,39 @@ export type TargetSpecDraft = {
   needsClarification: boolean;
   clarificationIssues: string[];
   acceptanceCriteriaCount: number;
+  clarificationRecord: ClarificationDecisionRecord;
+};
+
+export type ClarificationDecisionRecord = {
+  version: 1;
+  campaign_id: string;
+  source_objective_path: string;
+  decisions: {
+    goal: {
+      text: string;
+      source: string;
+    };
+    scope: {
+      items: string[];
+      source: string;
+    };
+    non_goals: {
+      items: string[];
+      source: string;
+    };
+    constraints: {
+      items: string[];
+      source: string;
+    };
+    acceptance_criteria: {
+      items: string[];
+      source: string;
+    };
+  };
+  approval: {
+    status: "approved" | "needs_operator";
+    reasons: string[];
+  };
 };
 
 function isListItem(line: string): boolean {
@@ -179,24 +212,33 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
 
   const explicitAcceptanceCriteria = unique([
     ...pickSectionItems(sections, /acceptance|success|criteria|definition of done/),
-    ...listItems.filter((item) => /\b(must|should|verify|ensure|confirm)\b/i.test(item))
+    ...listItems.filter((item) => /\b(must|should|shall|verify|ensure|confirm|required|keep|maintain)\b/i.test(item))
   ]);
-  const acceptanceCriteria = explicitAcceptanceCriteria.length > 0
-    ? explicitAcceptanceCriteria
-    : listItems;
-  const acceptanceSource = explicitAcceptanceCriteria.length > 0 ? "objective_declared" : "fallback_from_list_items";
+  const acceptanceCriteria = explicitAcceptanceCriteria;
+  const acceptanceSource = explicitAcceptanceCriteria.length > 0 ? "objective_declared" : "missing";
 
   const clarificationIssues: string[] = [];
+  const approvalReasons: string[] = [];
   if (goal.length < 20) {
     clarificationIssues.push("Objective goal is too short or ambiguous for reliable comparison.");
   }
   if (acceptanceCriteria.length < 1) {
-    clarificationIssues.push("At least one acceptance criterion is required for dependable gap assessment.");
+    clarificationIssues.push("At least one explicit normative acceptance criterion is required for dependable gap assessment.");
+    approvalReasons.push("Acceptance criteria could not be derived from explicit normative objective content.");
   }
   if (listItems.length < 1 && objectiveLines.length < 3) {
     clarificationIssues.push("Objective source is too sparse; add concrete requirements before assessment.");
   }
+  if (scopeSource === "inferred_from_paths") {
+    approvalReasons.push("Scope was inferred from source paths and should be operator-confirmed.");
+  }
+  if (nonGoalsSource === "fallback_default") {
+    approvalReasons.push("Non-goals are using defaults and should be operator-confirmed.");
+  }
   const needsClarification = clarificationIssues.length > 0;
+  const approvalStatus: "approved" | "needs_operator" = (needsClarification || approvalReasons.length > 0)
+    ? "needs_operator"
+    : "approved";
 
   const markdown = [
     "# Target Spec",
@@ -231,6 +273,8 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     `- Non-goals source: ${nonGoalsSource}`,
     `- Constraints source: ${constraintsSource}`,
     `- Acceptance criteria source: ${acceptanceSource}`,
+    `- Approval status: ${approvalStatus}`,
+    ...(approvalReasons.length > 0 ? approvalReasons.map((reason) => `- Approval note: ${reason}`) : []),
     "",
     "## Clarification Status",
     "",
@@ -253,7 +297,38 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     markdown,
     needsClarification,
     clarificationIssues,
-    acceptanceCriteriaCount: acceptanceCriteria.length
+    acceptanceCriteriaCount: acceptanceCriteria.length,
+    clarificationRecord: {
+      version: 1,
+      campaign_id: campaign.campaign_id,
+      source_objective_path: campaign.objective.normalized_path,
+      decisions: {
+        goal: {
+          text: goal,
+          source: goal.length > 0 ? "objective_or_summary" : "missing"
+        },
+        scope: {
+          items: scopeItems,
+          source: scopeSource
+        },
+        non_goals: {
+          items: scopedNonGoals,
+          source: nonGoalsSource
+        },
+        constraints: {
+          items: scopedConstraints,
+          source: constraintsSource
+        },
+        acceptance_criteria: {
+          items: acceptanceCriteria,
+          source: acceptanceSource
+        }
+      },
+      approval: {
+        status: approvalStatus,
+        reasons: approvalReasons
+      }
+    }
   };
 }
 
@@ -297,6 +372,7 @@ export function buildConvergeClarifyingArtifacts(briefPath: string): string[] {
   return [
     briefPath,
     ".praxis/target-spec.md",
+    ".praxis/clarification.json",
     ".praxis/gap.md",
     ".praxis/gap.json",
     ".praxis/remediation-map.md",
