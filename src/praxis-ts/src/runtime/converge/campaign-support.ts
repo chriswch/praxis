@@ -1,17 +1,23 @@
 import { isAbsolute, join, relative } from "node:path";
 import { InvalidInputError } from "../../contracts/errors.js";
-import type { CampaignLedgerRecord, CampaignRecord, FindingStatus, RunRecord, StoryLedgerRecord } from "../../contracts/model.js";
+import type {
+  CampaignLedgerRecord,
+  CampaignRecord,
+  FindingStatus,
+  RunRecord,
+  StoryLedgerRecord,
+} from "../../contracts/model.js";
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
 function findingIsActive(status: FindingStatus): boolean {
-  return ["open", "batched", "in_progress", "still_open", "regressed", "escalated"].includes(status);
+  return ["open", "batched", "in_progress", "still_open", "regressed", "escalated"].includes(
+    status,
+  );
 }
 
 export function normalizeRepoPath(repoRoot: string, candidatePath: string): string {
-  const absolute = isAbsolute(candidatePath)
-    ? candidatePath
-    : join(repoRoot, candidatePath);
+  const absolute = isAbsolute(candidatePath) ? candidatePath : join(repoRoot, candidatePath);
   const normalized = relative(repoRoot, absolute).replace(/\\/g, "/");
   if (!normalized || normalized.startsWith("../")) {
     throw new InvalidInputError(`Objective path must be inside repo root: ${candidatePath}`);
@@ -56,7 +62,7 @@ export function formatObjectiveMarkdown(campaign: CampaignRecord): string {
     `- Auto continue: ${campaign.auto_continue ? "enabled" : "disabled"}`,
     `- Allow waive: ${campaign.allow_waive ? "enabled" : "disabled"}`,
     `- Scope: ${campaign.objective.scope.length > 0 ? campaign.objective.scope.join(", ") : "(repo root)"}`,
-    ""
+    "",
   ].join("\n");
 }
 
@@ -150,7 +156,10 @@ function unique(values: string[]): string[] {
   return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
 }
 
-export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText: string): TargetSpecDraft {
+export function formatTargetSpecMarkdown(
+  campaign: CampaignRecord,
+  objectiveText: string,
+): TargetSpecDraft {
   const trimmed = objectiveText.trim();
   const objectiveLines = trimmed
     .split(/\r?\n/)
@@ -167,52 +176,58 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     ...objectiveLines
       .filter((line) => !line.startsWith("#"))
       .filter((line) => !isListItem(line))
-      .slice(0, 1)
+      .slice(0, 1),
   ]);
   const goal = goalCandidates[0] ?? "";
 
   const explicitScope = unique([
     ...campaign.objective.scope,
-    ...pickSectionItems(sections, /scope|boundary|in scope/)
+    ...pickSectionItems(sections, /scope|boundary|in scope/),
   ]);
   const inferredScopeFromPaths = objectiveLines
     .flatMap((line) => [...line.matchAll(/(?:^|\s)(src\/[A-Za-z0-9_./-]+)/g)])
     .map((match) => match[1]);
-  const scopeItems = explicitScope.length > 0
-    ? explicitScope
-    : unique(inferredScopeFromPaths).length > 0
-      ? unique(inferredScopeFromPaths)
-      : ["(repo root)"];
-  const scopeSource = explicitScope.length > 0
-    ? "objective_declared"
-    : unique(inferredScopeFromPaths).length > 0
-      ? "inferred_from_paths"
-      : "fallback_default";
+  const scopeItems =
+    explicitScope.length > 0
+      ? explicitScope
+      : unique(inferredScopeFromPaths).length > 0
+        ? unique(inferredScopeFromPaths)
+        : ["(repo root)"];
+  const scopeSource =
+    explicitScope.length > 0
+      ? "objective_declared"
+      : unique(inferredScopeFromPaths).length > 0
+        ? "inferred_from_paths"
+        : "fallback_default";
 
   const nonGoals = unique([
     ...pickSectionItems(sections, /non-?goals?|out of scope/),
-    ...listItems.filter((item) => /\b(do not|don't|out of scope|exclude|defer)\b/i.test(item))
+    ...listItems.filter((item) => /\b(do not|don't|out of scope|exclude|defer)\b/i.test(item)),
   ]);
-  const scopedNonGoals = nonGoals.length > 0
-    ? nonGoals
-    : [`Limit remediation to the declared scope (${scopeItems.join(", ")}).`];
+  const scopedNonGoals =
+    nonGoals.length > 0
+      ? nonGoals
+      : [`Limit remediation to the declared scope (${scopeItems.join(", ")}).`];
   const nonGoalsSource = nonGoals.length > 0 ? "objective_declared" : "fallback_default";
 
   const constraints = unique([
     ...pickSectionItems(sections, /constraint|guardrail|policy/),
-    ...listItems.filter((item) => /\b(must|required|bounded|preserve|commit)\b/i.test(item))
+    ...listItems.filter((item) => /\b(must|required|bounded|preserve|commit)\b/i.test(item)),
   ]);
-  const scopedConstraints = constraints.length > 0
-    ? constraints
-    : [
-        "Keep remediation bounded to selected findings for each pass.",
-        "Preserve fresh-session execution boundaries for child stories."
-      ];
+  const scopedConstraints =
+    constraints.length > 0
+      ? constraints
+      : [
+          "Keep remediation bounded to selected findings for each pass.",
+          "Preserve fresh-session execution boundaries for child stories.",
+        ];
   const constraintsSource = constraints.length > 0 ? "objective_declared" : "fallback_default";
 
   const explicitAcceptanceCriteria = unique([
     ...pickSectionItems(sections, /acceptance|success|criteria|definition of done/),
-    ...listItems.filter((item) => /\b(must|should|shall|verify|ensure|confirm|required|keep|maintain)\b/i.test(item))
+    ...listItems.filter((item) =>
+      /\b(must|should|shall|verify|ensure|confirm|required|keep|maintain)\b/i.test(item),
+    ),
   ]);
   const acceptanceCriteria = explicitAcceptanceCriteria;
   const acceptanceSource = explicitAcceptanceCriteria.length > 0 ? "objective_declared" : "missing";
@@ -223,11 +238,17 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     clarificationIssues.push("Objective goal is too short or ambiguous for reliable comparison.");
   }
   if (acceptanceCriteria.length < 1) {
-    clarificationIssues.push("At least one explicit normative acceptance criterion is required for dependable gap assessment.");
-    approvalReasons.push("Acceptance criteria could not be derived from explicit normative objective content.");
+    clarificationIssues.push(
+      "At least one explicit normative acceptance criterion is required for dependable gap assessment.",
+    );
+    approvalReasons.push(
+      "Acceptance criteria could not be derived from explicit normative objective content.",
+    );
   }
   if (listItems.length < 1 && objectiveLines.length < 3) {
-    clarificationIssues.push("Objective source is too sparse; add concrete requirements before assessment.");
+    clarificationIssues.push(
+      "Objective source is too sparse; add concrete requirements before assessment.",
+    );
   }
   if (scopeSource === "inferred_from_paths") {
     approvalReasons.push("Scope was inferred from source paths and should be operator-confirmed.");
@@ -236,9 +257,8 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     approvalReasons.push("Non-goals are using defaults and should be operator-confirmed.");
   }
   const needsClarification = clarificationIssues.length > 0;
-  const approvalStatus: "approved" | "needs_operator" = (needsClarification || approvalReasons.length > 0)
-    ? "needs_operator"
-    : "approved";
+  const approvalStatus: "approved" | "needs_operator" =
+    needsClarification || approvalReasons.length > 0 ? "needs_operator" : "approved";
 
   const markdown = [
     "# Target Spec",
@@ -274,7 +294,9 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     `- Constraints source: ${constraintsSource}`,
     `- Acceptance criteria source: ${acceptanceSource}`,
     `- Approval status: ${approvalStatus}`,
-    ...(approvalReasons.length > 0 ? approvalReasons.map((reason) => `- Approval note: ${reason}`) : []),
+    ...(approvalReasons.length > 0
+      ? approvalReasons.map((reason) => `- Approval note: ${reason}`)
+      : []),
     "",
     "## Clarification Status",
     "",
@@ -290,7 +312,7 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
     "## Imported Objective Source (read-only context)",
     "",
     trimmed.length > 0 ? trimmed : "(empty objective source)",
-    ""
+    "",
   ].join("\n");
 
   return {
@@ -305,30 +327,30 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
       decisions: {
         goal: {
           text: goal,
-          source: goal.length > 0 ? "objective_or_summary" : "missing"
+          source: goal.length > 0 ? "objective_or_summary" : "missing",
         },
         scope: {
           items: scopeItems,
-          source: scopeSource
+          source: scopeSource,
         },
         non_goals: {
           items: scopedNonGoals,
-          source: nonGoalsSource
+          source: nonGoalsSource,
         },
         constraints: {
           items: scopedConstraints,
-          source: constraintsSource
+          source: constraintsSource,
         },
         acceptance_criteria: {
           items: acceptanceCriteria,
-          source: acceptanceSource
-        }
+          source: acceptanceSource,
+        },
       },
       approval: {
         status: approvalStatus,
-        reasons: approvalReasons
-      }
-    }
+        reasons: approvalReasons,
+      },
+    },
   };
 }
 
@@ -361,7 +383,9 @@ export function listCompletedStoryIds(ledger: StoryLedgerRecord | null): string[
   if (!ledger) {
     return [];
   }
-  return ledger.stories.order.filter((storyId) => ledger.stories.items[storyId]?.status === "completed");
+  return ledger.stories.order.filter(
+    (storyId) => ledger.stories.items[storyId]?.status === "completed",
+  );
 }
 
 export function requiredCommitsForCompletion(completedStoryIds: string[]): number {
@@ -376,6 +400,6 @@ export function buildConvergeClarifyingArtifacts(briefPath: string): string[] {
     ".praxis/gap.md",
     ".praxis/gap.json",
     ".praxis/remediation-map.md",
-    ".praxis/remediation-map.json"
+    ".praxis/remediation-map.json",
   ];
 }

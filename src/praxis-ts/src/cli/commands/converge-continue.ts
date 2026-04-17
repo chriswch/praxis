@@ -11,7 +11,7 @@ export async function runConvergeContinueCommand(repoRoot: string, json: boolean
       ok: true,
       code: EXIT_CODE.OK,
       message: `Campaign ${outcome.campaign_id} continued.`,
-      data: outcome
+      data: outcome,
     };
   });
 }

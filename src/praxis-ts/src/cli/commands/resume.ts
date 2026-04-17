@@ -10,7 +10,7 @@ export type ResumeCommandOptions = {
 export async function runResumeCommand(
   repoRoot: string,
   json: boolean,
-  options: ResumeCommandOptions = {}
+  options: ResumeCommandOptions = {},
 ): Promise<number> {
   return runCommandWithEnvelope(json, async () => {
     const controller = new RunController(new PraxisStateRepository(repoRoot));
@@ -25,8 +25,8 @@ export async function runResumeCommand(
         : `Run ${outcome.run_id} resumed at ${outcome.next_stage}.`,
       data: {
         ...outcome,
-        resumed
-      }
+        resumed,
+      },
     };
   });
 }

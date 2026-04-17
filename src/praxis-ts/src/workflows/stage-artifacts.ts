@@ -18,7 +18,7 @@ export function expectedInputArtifactsForStage(
   stage: StageName,
   artifactDir: string,
   clarifyingRequiredArtifacts: string[],
-  workflow: WorkflowName = "craft"
+  workflow: WorkflowName = "craft",
 ): string[] {
   if (workflow === "converge-pre-remediation") {
     if (stage === "clarifying-intent") {
@@ -52,7 +52,7 @@ export function expectedInputArtifactsForTransition(
   artifactDir: string,
   transition: TransitionContext,
   clarifyingRequiredArtifacts: string[],
-  workflow: WorkflowName = "craft"
+  workflow: WorkflowName = "craft",
 ): string[] {
   if (workflow === "converge-pre-remediation") {
     if (stage === "clarifying-intent") {
@@ -82,13 +82,16 @@ export function expectedInputArtifactsForTransition(
     return [toPosix(join(artifactDir, "review.md"))];
   }
   if (stage === "verifying-and-adapting") {
-    if (transition.from_stage === "code-reviewing" && transition.from_outcome_code === "review_skipped") {
+    if (
+      transition.from_stage === "code-reviewing" &&
+      transition.from_outcome_code === "review_skipped"
+    ) {
       return [toPosix(join(artifactDir, "review.md"))];
     }
     if (
-      transition.from_stage === "code-improving"
-      && (transition.from_outcome_code === "improvement_ready"
-        || transition.from_outcome_code === "improvement_skipped")
+      transition.from_stage === "code-improving" &&
+      (transition.from_outcome_code === "improvement_ready" ||
+        transition.from_outcome_code === "improvement_skipped")
     ) {
       return [toPosix(join(artifactDir, "improvement.md"))];
     }
@@ -100,7 +103,7 @@ export function expectedInputArtifactsForTransition(
 export function expectedContractOutputArtifacts(
   stage: StageName,
   artifactDir: string,
-  workflow: WorkflowName = "craft"
+  workflow: WorkflowName = "craft",
 ): string[] {
   if (workflow === "converge-pre-remediation") {
     switch (stage) {
@@ -108,19 +111,15 @@ export function expectedContractOutputArtifacts(
         return [
           ".praxis/target-spec.md",
           ".praxis/clarification.json",
-          resultPath(".praxis", stage)
+          resultPath(".praxis", stage),
         ];
       case "assessing-gaps":
-        return [
-          ".praxis/gap.md",
-          ".praxis/gap.json",
-          resultPath(".praxis", stage)
-        ];
+        return [".praxis/gap.md", ".praxis/gap.json", resultPath(".praxis", stage)];
       case "planning-remediation":
         return [
           ".praxis/remediation-map.md",
           ".praxis/remediation-map.json",
-          resultPath(".praxis", stage)
+          resultPath(".praxis", stage),
         ];
       default:
         return [];
@@ -151,7 +150,7 @@ export function expectedContractOutputArtifacts(
 export function primaryContractOutputArtifact(
   stage: StageName,
   artifactDir: string,
-  workflow: WorkflowName = "craft"
+  workflow: WorkflowName = "craft",
 ): string | null {
   if (workflow === "converge-pre-remediation") {
     switch (stage) {
@@ -191,7 +190,7 @@ export function expectedOutcomeArtifacts(
   stage: StageName,
   artifactDir: string,
   outcomeCode: string,
-  workflow: WorkflowName = "craft"
+  workflow: WorkflowName = "craft",
 ): string[] {
   if (workflow === "converge-pre-remediation") {
     switch (stage) {

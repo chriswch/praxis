@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import type { CampaignLedgerRecord, ConvergeProfile, ObjectiveFinding } from "../../contracts/model.js";
+import type {
+  CampaignLedgerRecord,
+  ConvergeProfile,
+  ObjectiveFinding,
+} from "../../contracts/model.js";
 
 function normalizeText(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
@@ -7,7 +11,10 @@ function normalizeText(value: string): string {
 
 export function buildFindingFingerprint(
   profile: ConvergeProfile,
-  finding: Pick<ObjectiveFinding, "category" | "objective_refs" | "affected_paths" | "title" | "summary">
+  finding: Pick<
+    ObjectiveFinding,
+    "category" | "objective_refs" | "affected_paths" | "title" | "summary"
+  >,
 ): string {
   const material = [
     profile,
@@ -15,7 +22,7 @@ export function buildFindingFingerprint(
     finding.objective_refs.map(normalizeText).sort().join(","),
     finding.affected_paths.map(normalizeText).sort().join(","),
     normalizeText(finding.title),
-    normalizeText(finding.summary)
+    normalizeText(finding.summary),
   ].join("|");
 
   return createHash("sha1").update(material).digest("hex").slice(0, 16);

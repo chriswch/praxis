@@ -4,7 +4,12 @@ import { dirname, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { probeCommand } from "./command-probe.js";
 import { selectInstructionSurfaces } from "../workers/context-manifest.js";
-import type { AdapterHealth, AdapterLaunchRequest, AdapterLaunchResponse, RuntimeAdapter } from "./types.js";
+import type {
+  AdapterHealth,
+  AdapterLaunchRequest,
+  AdapterLaunchResponse,
+  RuntimeAdapter,
+} from "./types.js";
 import { resolvePraxisCliInvocation } from "../workers/praxis-cli-invocation.js";
 
 type WorkerHostMode = "launch" | "resume";
@@ -48,7 +53,7 @@ export class CodexAdapter implements RuntimeAdapter {
       supports_resume: true,
       reason: probe.reason,
       binary: probe.binary,
-      version: probe.version
+      version: probe.version,
     };
   }
 
@@ -60,11 +65,15 @@ export class CodexAdapter implements RuntimeAdapter {
     return this.startWorkerHost("resume", request, sessionId);
   }
 
-  async cancel(handle: { session_id: string | null; locator: string | null }): Promise<{ cancelled: boolean; reason: string }> {
+  async cancel(handle: {
+    session_id: string | null;
+    locator: string | null;
+  }): Promise<{ cancelled: boolean; reason: string }> {
     if (!handle.locator) {
       return {
         cancelled: false,
-        reason: "No worker-host locator provided. session_id is provider-owned and cannot stop the worker process."
+        reason:
+          "No worker-host locator provided. session_id is provider-owned and cannot stop the worker process.",
       };
     }
 
@@ -72,7 +81,7 @@ export class CodexAdapter implements RuntimeAdapter {
     if (!pid) {
       return {
         cancelled: true,
-        reason: `Cancelled worker via opaque locator ${handle.locator}.`
+        reason: `Cancelled worker via opaque locator ${handle.locator}.`,
       };
     }
 
@@ -83,19 +92,20 @@ export class CodexAdapter implements RuntimeAdapter {
         process.kill(pid, "SIGKILL");
         return {
           cancelled: true,
-          reason: `Force-stopped worker host at ${handle.locator}.`
+          reason: `Force-stopped worker host at ${handle.locator}.`,
         };
       }
       return {
         cancelled: true,
-        reason: `Cancelled worker host at ${handle.locator}.`
+        reason: `Cancelled worker host at ${handle.locator}.`,
       };
     } catch (error) {
       return {
         cancelled: false,
-        reason: error instanceof Error
-          ? `Failed to cancel worker host ${handle.locator}: ${error.message}`
-          : `Failed to cancel worker host ${handle.locator}.`
+        reason:
+          error instanceof Error
+            ? `Failed to cancel worker host ${handle.locator}: ${error.message}`
+            : `Failed to cancel worker host ${handle.locator}.`,
       };
     }
   }
@@ -103,7 +113,7 @@ export class CodexAdapter implements RuntimeAdapter {
   private async startWorkerHost(
     mode: WorkerHostMode,
     request: AdapterLaunchRequest,
-    resumeSessionId: string | null
+    resumeSessionId: string | null,
   ): Promise<AdapterLaunchResponse> {
     const workerIdPrefix = mode === "resume" ? "wrk_codex_resume" : "wrk_codex";
     const workerId = `${workerIdPrefix}_${request.dispatch.stage}_${randomUUID()}`;
@@ -125,7 +135,7 @@ export class CodexAdapter implements RuntimeAdapter {
       "--handshake-path",
       handshakeRelativePath,
       "--mode",
-      mode
+      mode,
     ];
     if (resumeSessionId) {
       args.push("--expected-session-id", resumeSessionId);
@@ -135,7 +145,7 @@ export class CodexAdapter implements RuntimeAdapter {
       cwd: request.repoRoot,
       env: process.env,
       detached: true,
-      stdio: "ignore"
+      stdio: "ignore",
     });
     child.unref();
 
@@ -147,12 +157,12 @@ export class CodexAdapter implements RuntimeAdapter {
     }
     if (handshake.dispatch_id !== request.dispatch.dispatch_id) {
       throw new Error(
-        `Codex worker host handshake dispatch mismatch. Expected ${request.dispatch.dispatch_id}, received ${handshake.dispatch_id}.`
+        `Codex worker host handshake dispatch mismatch. Expected ${request.dispatch.dispatch_id}, received ${handshake.dispatch_id}.`,
       );
     }
     if (handshake.worker_id !== workerId) {
       throw new Error(
-        `Codex worker host handshake worker mismatch. Expected ${workerId}, received ${handshake.worker_id}.`
+        `Codex worker host handshake worker mismatch. Expected ${workerId}, received ${handshake.worker_id}.`,
       );
     }
     if (!handshake.session_id) {
@@ -160,13 +170,13 @@ export class CodexAdapter implements RuntimeAdapter {
     }
     if (resumeSessionId && handshake.session_id !== resumeSessionId) {
       throw new Error(
-        `Codex worker host resumed a different provider session. Expected ${resumeSessionId}, received ${handshake.session_id}.`
+        `Codex worker host resumed a different provider session. Expected ${resumeSessionId}, received ${handshake.session_id}.`,
       );
     }
 
     const instructionSurfaces = selectInstructionSurfaces(
       request.launch.context_manifest.instruction_surfaces,
-      "codex"
+      "codex",
     );
     return {
       worker_id: handshake.worker_id,
@@ -177,8 +187,8 @@ export class CodexAdapter implements RuntimeAdapter {
         command: handshake.provider_details.command,
         mode: handshake.provider_details.mode,
         instruction_surfaces: instructionSurfaces.map((surface) => surface.path),
-        handshake_path: handshakeRelativePath
-      }
+        handshake_path: handshakeRelativePath,
+      },
     };
   }
 }
@@ -226,18 +236,22 @@ function isWorkerHostHandshake(payload: unknown): payload is WorkerHostHandshake
   }
 
   if (record.status === "ready") {
-    return typeof record.dispatch_id === "string"
-      && typeof record.worker_id === "string"
-      && typeof record.session_id === "string"
-      && typeof record.started_at === "string"
-      && typeof record.locator === "string";
+    return (
+      typeof record.dispatch_id === "string" &&
+      typeof record.worker_id === "string" &&
+      typeof record.session_id === "string" &&
+      typeof record.started_at === "string" &&
+      typeof record.locator === "string"
+    );
   }
 
   if (record.status === "error") {
-    return typeof record.dispatch_id === "string"
-      && typeof record.worker_id === "string"
-      && typeof record.error === "string"
-      && typeof record.emitted_at === "string";
+    return (
+      typeof record.dispatch_id === "string" &&
+      typeof record.worker_id === "string" &&
+      typeof record.error === "string" &&
+      typeof record.emitted_at === "string"
+    );
   }
 
   return false;

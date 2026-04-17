@@ -11,7 +11,7 @@ export async function runConvergeResumeCommand(repoRoot: string, json: boolean):
       ok: true,
       code: EXIT_CODE.OK,
       message: `Campaign ${outcome.campaign_id} resumed.`,
-      data: outcome
+      data: outcome,
     };
   });
 }

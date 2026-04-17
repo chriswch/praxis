@@ -19,7 +19,7 @@ import {
   runResumeCommand,
   runRunCommand,
   runSubmitStageResultCommand,
-  runStatusCommand
+  runStatusCommand,
 } from "./commands/index.js";
 import {
   ADAPTER_NAMES,
@@ -29,7 +29,7 @@ import {
   type AdapterName,
   type ConvergeProfile,
   type ExecutionMode,
-  type FindingSeverity
+  type FindingSeverity,
 } from "../contracts/model.js";
 
 type GlobalOptions = {
@@ -78,22 +78,27 @@ function registerLifecycleCommands(program: Command): void {
     .addOption(
       new Option("--adapter <adapter>", "Adapter name")
         .choices([...ADAPTER_NAMES])
-        .default("codex")
+        .default("codex"),
     )
     .addOption(
       new Option("--execution-mode <mode>", "Execution mode")
         .choices([...EXECUTION_MODES])
-        .default("manual")
+        .default("manual"),
     )
     .option("--entrypoint <entrypoint>", "Runtime entrypoint")
     .action(async (opts: RunOptions, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = await runRunCommand(global.repoRoot, global.json, {
-        adapter: opts.adapter,
-        executionMode: opts.executionMode,
-        entryTask: opts.entryTask,
-        entrypoint: opts.entrypoint
-      }, { orchestrate: true });
+      process.exitCode = await runRunCommand(
+        global.repoRoot,
+        global.json,
+        {
+          adapter: opts.adapter,
+          executionMode: opts.executionMode,
+          entryTask: opts.entryTask,
+          entrypoint: opts.entrypoint,
+        },
+        { orchestrate: true },
+      );
     });
 
   program
@@ -101,7 +106,9 @@ function registerLifecycleCommands(program: Command): void {
     .description("Advance a paused run")
     .action(async (_, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = await runContinueCommand(global.repoRoot, global.json, { orchestrate: true });
+      process.exitCode = await runContinueCommand(global.repoRoot, global.json, {
+        orchestrate: true,
+      });
     });
 
   program
@@ -109,7 +116,9 @@ function registerLifecycleCommands(program: Command): void {
     .description("Resume an in-progress worker when safe")
     .action(async (_, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = await runResumeCommand(global.repoRoot, global.json, { orchestrate: true });
+      process.exitCode = await runResumeCommand(global.repoRoot, global.json, {
+        orchestrate: true,
+      });
     });
 
   program
@@ -118,12 +127,9 @@ function registerLifecycleCommands(program: Command): void {
     .option("--note <text>", "Approval note")
     .action(async (opts: { note?: string }, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = await runApproveCommand(
-        global.repoRoot,
-        global.json,
-        opts.note ?? null,
-        { orchestrate: true }
-      );
+      process.exitCode = await runApproveCommand(global.repoRoot, global.json, opts.note ?? null, {
+        orchestrate: true,
+      });
     });
 
   program
@@ -172,17 +178,17 @@ function registerConvergeCommands(program: Command): void {
     .addOption(
       new Option("--adapter <adapter>", "Adapter name")
         .choices([...ADAPTER_NAMES])
-        .default("codex")
+        .default("codex"),
     )
     .addOption(
       new Option("--profile <profile>", "Assessment profile")
         .choices([...CONVERGE_PROFILES])
-        .default("product-spec-gap")
+        .default("product-spec-gap"),
     )
     .addOption(
       new Option("--severity-threshold <severity>", "Convergence threshold")
         .choices([...FINDING_SEVERITIES])
-        .default("medium")
+        .default("medium"),
     )
     .option("--max-passes <n>", "Maximum convergence passes", "8")
     .option("--max-findings-per-pass <n>", "Maximum findings per remediation batch", "12")
@@ -204,7 +210,7 @@ function registerConvergeCommands(program: Command): void {
         scope: Array.isArray(opts.scope) ? opts.scope : [],
         commitPerStory: opts.commitPerStory ?? false,
         autoContinue: opts.autoContinue ?? false,
-        allowWaive: opts.allowWaive ?? false
+        allowWaive: opts.allowWaive ?? false,
       });
     });
 
@@ -246,7 +252,11 @@ function registerConvergeCommands(program: Command): void {
     .option("--note <text>", "Cancellation note")
     .action(async (opts: { note?: string }, cmd: Command) => {
       const global = toGlobalOptions(cmd);
-      process.exitCode = await runConvergeCancelCommand(global.repoRoot, global.json, opts.note ?? null);
+      process.exitCode = await runConvergeCancelCommand(
+        global.repoRoot,
+        global.json,
+        opts.note ?? null,
+      );
     });
 }
 
@@ -268,7 +278,7 @@ function registerInternalCommands(program: Command): void {
       process.exitCode = await runSubmitStageResultCommand(
         global.repoRoot,
         global.json,
-        opts.stageResultPath
+        opts.stageResultPath,
       );
     });
 
@@ -299,7 +309,7 @@ function registerInternalCommands(program: Command): void {
           locator?: string;
           resumable?: boolean;
         },
-        cmd: Command
+        cmd: Command,
       ) => {
         const global = toGlobalOptions(cmd);
         process.exitCode = await runRegisterWorkerSessionCommand(global.repoRoot, global.json, {
@@ -308,9 +318,9 @@ function registerInternalCommands(program: Command): void {
           sessionId: opts.sessionId ?? null,
           startedAt: opts.startedAt,
           locator: opts.locator ?? null,
-          resumable: opts.resumable ?? false
+          resumable: opts.resumable ?? false,
         });
-      }
+      },
     );
 
   program
@@ -330,7 +340,7 @@ function registerInternalCommands(program: Command): void {
           mode: string;
           expectedSessionId?: string;
         },
-        cmd: Command
+        cmd: Command,
       ) => {
         const global = toGlobalOptions(cmd);
         if (opts.mode !== "launch" && opts.mode !== "resume") {
@@ -341,9 +351,9 @@ function registerInternalCommands(program: Command): void {
           workerId: opts.workerId,
           handshakePath: opts.handshakePath,
           mode: opts.mode,
-          expectedSessionId: opts.expectedSessionId
+          expectedSessionId: opts.expectedSessionId,
         });
-      }
+      },
     );
 }
 

@@ -32,6 +32,6 @@ export function buildToolPolicy(stage: StageName): ToolPolicy {
     writable_roots: ["."],
     blocked_paths: [".git", ".env"],
     network: reviewLikeStage ? "restricted" : "enabled",
-    profile: stageToProfile(stage)
+    profile: stageToProfile(stage),
   };
 }

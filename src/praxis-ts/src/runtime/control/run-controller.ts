@@ -9,10 +9,7 @@ import { DispatchService } from "./dispatch-service.js";
 import { StageResultService } from "./stage-result-service.js";
 import { RunQueryService } from "./run-query-service.js";
 import { WorkerExecutionService } from "./worker-execution-service.js";
-import {
-  decideStageEntryCheckpoint,
-  describeStageEntryCheckpoint
-} from "./checkpoint-policy.js";
+import { decideStageEntryCheckpoint, describeStageEntryCheckpoint } from "./checkpoint-policy.js";
 import type {
   InspectProjection,
   LaunchStageOutcome,
@@ -21,7 +18,7 @@ import type {
   RegisterWorkerSessionOutcome,
   RunCreateInput,
   SubmitStageResultOutcome,
-  WorkerLaunchPayload
+  WorkerLaunchPayload,
 } from "./types.js";
 import type { StatusProjection } from "./status-projector.js";
 
@@ -46,14 +43,14 @@ export class RunController {
     const existing = await this.repo.loadRun();
     if (existing) {
       throw new RejectedProgressionError(
-        "A run already exists at .praxis/run.json. Use status/inspect/resume instead."
+        "A run already exists at .praxis/run.json. Use status/inspect/resume instead.",
       );
     }
 
     const timestamp = nowIsoUtc();
     const initialCheckpoint = decideStageEntryCheckpoint({
       execution_mode: input.executionMode,
-      stage: "clarifying-intent"
+      stage: "clarifying-intent",
     });
     const run: RunRecord = {
       version: 1,
@@ -64,38 +61,42 @@ export class RunController {
       entry_task: input.entryTask,
       runtime: {
         adapter: input.adapter,
-        entrypoint: input.entrypoint ?? "praxis:craft"
+        entrypoint: input.entrypoint ?? "praxis:craft",
       },
       execution: {
         mode: input.executionMode,
-        fresh_context_per_story: true
+        fresh_context_per_story: true,
       },
       current: {
         scope: "root",
         slice_id: null,
         artifact_dir: ".praxis",
-        stage: "clarifying-intent"
+        stage: "clarifying-intent",
       },
       routing: {
         next_action: initialCheckpoint.next_action,
         next_stage: "clarifying-intent",
         next_slice_id: null,
-        reason: describeStageEntryCheckpoint("clarifying-intent", "run_initialization", initialCheckpoint),
+        reason: describeStageEntryCheckpoint(
+          "clarifying-intent",
+          "run_initialization",
+          initialCheckpoint,
+        ),
         stop_reason_code: initialCheckpoint.stop_reason_code,
         boundary_handoff_path: null,
         entered_from_stage: null,
-        entered_from_outcome_code: null
+        entered_from_outcome_code: null,
       },
       active: {
         dispatch_id: null,
         worker_id: null,
         session_id: null,
-        resumable: false
+        resumable: false,
       },
       timestamps: {
         created_at: timestamp,
-        updated_at: timestamp
-      }
+        updated_at: timestamp,
+      },
     };
     run.status = initialCheckpoint.status;
 
@@ -106,7 +107,7 @@ export class RunController {
       type: "run_initialized",
       run_id: run.run_id,
       stage: run.current.stage,
-      action: "run"
+      action: "run",
     });
 
     return run;
@@ -124,7 +125,9 @@ export class RunController {
     return this.dispatchService.createDispatch();
   }
 
-  async registerWorkerSession(input: RegisterWorkerSessionInput): Promise<RegisterWorkerSessionOutcome> {
+  async registerWorkerSession(
+    input: RegisterWorkerSessionInput,
+  ): Promise<RegisterWorkerSessionOutcome> {
     return this.dispatchService.registerWorkerSession(input);
   }
 
@@ -159,5 +162,4 @@ export class RunController {
   async cancelRun(note: string | null): Promise<LifecycleActionOutcome> {
     return this.lifecycle.cancelRun(note);
   }
-
 }

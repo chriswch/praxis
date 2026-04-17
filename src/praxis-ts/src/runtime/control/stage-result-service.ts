@@ -1,7 +1,7 @@
 import {
   checkpointStoryBoundary,
   clearBoundaryHandoffIfConsumed,
-  initializeStoryLedgerFromSliceMap
+  initializeStoryLedgerFromSliceMap,
 } from "./story-boundary.js";
 import { ToolTelemetry } from "../tools/index.js";
 import { validateStageResult } from "../../contracts/validators.js";
@@ -49,7 +49,7 @@ export class StageResultService {
     }
     if (!run.active.dispatch_id) {
       throw new RejectedProgressionError(
-        "No active dispatch exists for this run. Prepare a dispatch before submitting a stage result."
+        "No active dispatch exists for this run. Prepare a dispatch before submitting a stage result.",
       );
     }
     const activeDispatch = await this.repo.loadDispatch(run.active.dispatch_id);
@@ -61,7 +61,7 @@ export class StageResultService {
       this.repo.paths.root,
       stageResultPath,
       run,
-      activeDispatch
+      activeDispatch,
     );
     validateStageResult(accepted.result);
     let ledger = await this.repo.loadStoryLedger();
@@ -74,7 +74,7 @@ export class StageResultService {
       ledger = await initializeStoryLedgerFromSliceMap(
         this.repo.paths.root,
         run,
-        run.execution.mode
+        run.execution.mode,
       );
       ledgerNeedsCommit = true;
     }
@@ -103,7 +103,9 @@ export class StageResultService {
     return { run, accepted, ledger, ledgerNeedsCommit, routingDecision };
   }
 
-  private async boundaryMutationPhase(phase: StageResultRoutingPhase): Promise<StageResultRoutingPhase> {
+  private async boundaryMutationPhase(
+    phase: StageResultRoutingPhase,
+  ): Promise<StageResultRoutingPhase> {
     const { run, accepted, routingDecision } = phase;
     let { ledger, ledgerNeedsCommit } = phase;
     const boundarySourceStoryId = ledger?.stories.active ?? null;
@@ -116,13 +118,15 @@ export class StageResultService {
 
     if (boundaryTransitionRequired) {
       if (!ledger) {
-        throw new BlockedStateError("Story boundary transition requires .praxis/story-ledger.json.");
+        throw new BlockedStateError(
+          "Story boundary transition requires .praxis/story-ledger.json.",
+        );
       }
       const boundary = await checkpointStoryBoundary(
         this.repo.paths.root,
         run,
         ledger,
-        accepted.result
+        accepted.result,
       );
       ledger = boundary.ledger;
       ledgerNeedsCommit = true;
@@ -139,13 +143,13 @@ export class StageResultService {
       accepted,
       ledger,
       ledgerNeedsCommit,
-      routingDecision
+      routingDecision,
     };
   }
 
   private async applyCommitPerStoryBoundaryGate(
     run: RunRecord,
-    completedStoryId: string | null
+    completedStoryId: string | null,
   ): Promise<void> {
     const commitPolicy = run.constraints?.commit_per_story;
     if (!commitPolicy?.enabled || !completedStoryId) {
@@ -161,7 +165,7 @@ export class StageResultService {
     const producedCommits = await listCommitRange(
       this.repo.paths.root,
       commitPolicy.last_verified_head,
-      head
+      head,
     );
     const worktreeDirty = await hasUncommittedChanges(this.repo.paths.root);
 
@@ -180,7 +184,9 @@ export class StageResultService {
       : `Story ${completedStoryId} completed, but commit-per-story is enabled and no new commit was detected for this boundary. Commit the story before continuing.`;
   }
 
-  private async persistenceCommitPhase(phase: StageResultRoutingPhase): Promise<SubmitStageResultOutcome> {
+  private async persistenceCommitPhase(
+    phase: StageResultRoutingPhase,
+  ): Promise<SubmitStageResultOutcome> {
     const { run, accepted, routingDecision, ledger, ledgerNeedsCommit } = phase;
 
     if (ledgerNeedsCommit && ledger) {
@@ -189,40 +195,32 @@ export class StageResultService {
       await this.repo.saveRun(run);
     }
     const auditWarnings: string[] = [];
-    await this.tryAuditWrite(
-      "stage_history_append_failed",
-      auditWarnings,
-      async () => this.repo.appendStageResultRecord(accepted.result)
+    await this.tryAuditWrite("stage_history_append_failed", auditWarnings, async () =>
+      this.repo.appendStageResultRecord(accepted.result),
     );
     const telemetry = new ToolTelemetry(this.repo);
-    await this.tryAuditWrite(
-      "tool_telemetry_submit_failed",
-      auditWarnings,
-      async () => telemetry.recordToolUse({
+    await this.tryAuditWrite("tool_telemetry_submit_failed", auditWarnings, async () =>
+      telemetry.recordToolUse({
         run_id: run.run_id,
         stage: accepted.result.stage,
         tool: "submit-stage-result",
-        status: "granted"
-      })
+        status: "granted",
+      }),
     );
     for (const toolUse of accepted.result.tool_uses ?? []) {
-      await this.tryAuditWrite(
-        `tool_telemetry_${toolUse.tool}_failed`,
-        auditWarnings,
-        async () => telemetry.recordToolUse({
+      await this.tryAuditWrite(`tool_telemetry_${toolUse.tool}_failed`, auditWarnings, async () =>
+        telemetry.recordToolUse({
           run_id: run.run_id,
           stage: accepted.result.stage,
           tool: toolUse.tool,
           status: toolUse.status,
-          reason: toolUse.reason ?? undefined
-        })
+          reason: toolUse.reason ?? undefined,
+        }),
       );
     }
 
-    await this.tryAuditWrite(
-      "lifecycle_event_append_failed",
-      auditWarnings,
-      async () => this.repo.appendLifecycleEvent({
+    await this.tryAuditWrite("lifecycle_event_append_failed", auditWarnings, async () =>
+      this.repo.appendLifecycleEvent({
         ts: run.timestamps.updated_at,
         type: "stage_result_accepted",
         run_id: run.run_id,
@@ -233,14 +231,17 @@ export class StageResultService {
           route_kind: accepted.transition.route_kind,
           next_stage: routingDecision.next_stage,
           next_action: routingDecision.next_action,
-          run_status: routingDecision.status
-        }
-      })
+          run_status: routingDecision.status,
+        },
+      }),
     );
 
     if (auditWarnings.length > 0) {
       await this.recordAuditDegradedState(run, accepted.result.stage, auditWarnings);
-    } else if (run.audit_status !== undefined || (run.audit_warnings && run.audit_warnings.length > 0)) {
+    } else if (
+      run.audit_status !== undefined ||
+      (run.audit_warnings && run.audit_warnings.length > 0)
+    ) {
       // Clear a stale degraded marker carried over from an earlier stage once the
       // current acceptance committed cleanly — the run is no longer partially audited.
       delete run.audit_status;
@@ -256,14 +257,14 @@ export class StageResultService {
       next_action: routingDecision.next_action,
       run_status: routingDecision.status,
       reason: routingDecision.reason,
-      ...(auditWarnings.length > 0 ? { audit_warnings: auditWarnings } : {})
+      ...(auditWarnings.length > 0 ? { audit_warnings: auditWarnings } : {}),
     };
   }
 
   private async tryAuditWrite(
     code: string,
     warnings: string[],
-    operation: () => Promise<void>
+    operation: () => Promise<void>,
   ): Promise<void> {
     try {
       await operation();
@@ -276,7 +277,7 @@ export class StageResultService {
   private async recordAuditDegradedState(
     run: RunRecord,
     stage: string,
-    warnings: string[]
+    warnings: string[],
   ): Promise<void> {
     run.audit_status = "degraded";
     run.audit_warnings = warnings;
@@ -293,7 +294,7 @@ export class StageResultService {
         stage,
         action: "submit-stage-result",
         warning_count: warnings.length,
-        warnings
+        warnings,
       });
     } catch {
       // Best effort marker: the stage result is still accepted even when warning persistence fails.

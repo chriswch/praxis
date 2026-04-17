@@ -60,6 +60,6 @@ export function resolvePraxisPaths(repoRoot: string): PraxisPathSet {
     sessionsDir: join(praxisDir, "sessions"),
     worktreesDir: join(praxisDir, "worktrees"),
     approvalsDir: join(praxisDir, "approvals"),
-    policyDir: join(praxisDir, "policy")
+    policyDir: join(praxisDir, "policy"),
   };
 }

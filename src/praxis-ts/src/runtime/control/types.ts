@@ -4,7 +4,7 @@ import type {
   ExecutionMode,
   RunRecord,
   StageName,
-  WorkerSessionRegistration
+  WorkerSessionRegistration,
 } from "../../contracts/model.js";
 import type { StatusProjection } from "./status-projector.js";
 

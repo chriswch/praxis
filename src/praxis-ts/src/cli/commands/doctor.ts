@@ -14,7 +14,7 @@ export async function runDoctorCommand(repoRoot: string, json: boolean): Promise
       ok: report.summary.healthy,
       code: report.summary.healthy ? EXIT_CODE.OK : EXIT_CODE.HEALTH_FAILED,
       message,
-      data: report
+      data: report,
     };
   });
 }

@@ -37,7 +37,7 @@ export function projectStatus(run: RunRecord, ledger: StoryLedgerRecord | null):
       scope: run.current.scope,
       slice_id: run.current.slice_id,
       stage: run.current.stage,
-      artifact_dir: run.current.artifact_dir
+      artifact_dir: run.current.artifact_dir,
     },
     next_action: run.routing.next_action,
     next_stage: run.routing.next_stage,
@@ -45,13 +45,13 @@ export function projectStatus(run: RunRecord, ledger: StoryLedgerRecord | null):
     active_worker: {
       worker_id: run.active.worker_id,
       session_id: run.active.session_id,
-      resumable: run.active.resumable
+      resumable: run.active.resumable,
     },
     multi_slice: {
       mode: run.mode,
       active_story: ledger?.stories.active ?? null,
-      last_completed: ledger?.stories.last_completed ?? null
+      last_completed: ledger?.stories.last_completed ?? null,
     },
-    updated_at: run.timestamps.updated_at
+    updated_at: run.timestamps.updated_at,
   };
 }

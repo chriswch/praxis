@@ -11,7 +11,7 @@ export async function runConvergeInspectCommand(repoRoot: string, json: boolean)
       ok: true,
       code: EXIT_CODE.OK,
       message: `Inspecting campaign ${inspection.campaign.campaign_id}.`,
-      data: inspection
+      data: inspection,
     };
   });
 }

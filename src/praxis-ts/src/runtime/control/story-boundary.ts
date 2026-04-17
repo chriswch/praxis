@@ -4,10 +4,7 @@ import { readJsonFile, writeJsonFile } from "../state/index.js";
 import type { RunRecord, StageResultRecord, StoryLedgerRecord } from "../../contracts/model.js";
 import { nowIsoUtc } from "../common/time.js";
 import { BlockedStateError, InvalidInputError } from "../../contracts/errors.js";
-import {
-  decideStageEntryCheckpoint,
-  describeStageEntryCheckpoint
-} from "./checkpoint-policy.js";
+import { decideStageEntryCheckpoint, describeStageEntryCheckpoint } from "./checkpoint-policy.js";
 
 type SliceMapStory = {
   id: string;
@@ -21,7 +18,7 @@ type SliceMapDocument = {
 export async function initializeStoryLedgerFromSliceMap(
   repoRoot: string,
   run: RunRecord,
-  executionMode: RunRecord["execution"]["mode"]
+  executionMode: RunRecord["execution"]["mode"],
 ): Promise<StoryLedgerRecord> {
   const sliceMapPath = join(repoRoot, ".praxis", "slice-map.json");
   const sliceMap = await readJsonFile<SliceMapDocument>(sliceMapPath);
@@ -56,7 +53,7 @@ export async function initializeStoryLedgerFromSliceMap(
       artifact_dir: `.praxis/slices/${storyId}`,
       status: storyId === firstId ? "active" : "pending",
       carry_forward_from: null,
-      handoff_path: null
+      handoff_path: null,
     };
 
     await mkdir(join(repoRoot, items[storyId].artifact_dir, "results"), { recursive: true });
@@ -77,8 +74,8 @@ export async function initializeStoryLedgerFromSliceMap(
       order,
       active: firstId,
       last_completed: null,
-      items
-    }
+      items,
+    },
   };
 
   return ledger;
@@ -88,7 +85,7 @@ function buildHandoffPayload(
   run: RunRecord,
   ledger: StoryLedgerRecord,
   completedStoryId: string,
-  stageResult: StageResultRecord
+  stageResult: StageResultRecord,
 ): Record<string, unknown> {
   return {
     version: 1,
@@ -98,15 +95,15 @@ function buildHandoffPayload(
     summary: stageResult.summary_path,
     carry_forward_context: {
       outcome_code: stageResult.data.outcome_code,
-      routing_reason: run.routing.reason
+      routing_reason: run.routing.reason,
     },
     changed_paths: stageResult.output_artifacts ?? stageResult.artifacts_written,
     commit_meta: {
       checkpointed_at: nowIsoUtc(),
       base_story: completedStoryId,
       workflow: run.workflow,
-      execution_mode: ledger.execution_mode
-    }
+      execution_mode: ledger.execution_mode,
+    },
   };
 }
 
@@ -114,7 +111,7 @@ export async function checkpointStoryBoundary(
   repoRoot: string,
   run: RunRecord,
   ledger: StoryLedgerRecord,
-  stageResult: StageResultRecord
+  stageResult: StageResultRecord,
 ): Promise<{
   run: RunRecord;
   ledger: StoryLedgerRecord;
@@ -153,7 +150,7 @@ export async function checkpointStoryBoundary(
     return {
       run,
       ledger,
-      handoff_path: handoffPath
+      handoff_path: handoffPath,
     };
   }
 
@@ -161,7 +158,7 @@ export async function checkpointStoryBoundary(
   nextStory.carry_forward_from = activeStoryId;
   const stageCheckpoint = decideStageEntryCheckpoint({
     execution_mode: run.execution.mode,
-    stage: "clarifying-intent"
+    stage: "clarifying-intent",
   });
   const requiresConfirmation = stageCheckpoint.next_action === "confirm_then_run";
   nextStory.status = requiresConfirmation ? "active_next" : "active";
@@ -170,7 +167,7 @@ export async function checkpointStoryBoundary(
   run.routing.reason = `${describeStageEntryCheckpoint(
     "clarifying-intent",
     "story_boundary",
-    stageCheckpoint
+    stageCheckpoint,
   )} Next slice: ${nextStoryId}.`;
   run.routing.stop_reason_code = stageCheckpoint.stop_reason_code;
 
@@ -186,7 +183,7 @@ export async function checkpointStoryBoundary(
   return {
     run,
     ledger,
-    handoff_path: handoffPath
+    handoff_path: handoffPath,
   };
 }
 

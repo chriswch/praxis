@@ -17,12 +17,12 @@ export class WorkerExecutionService {
     let run = await this.loadRunOrThrow();
     if (!run.current.stage || run.routing.next_action !== "run_stage") {
       throw new RejectedProgressionError(
-        `Cannot launch a worker while next_action is ${run.routing.next_action}.`
+        `Cannot launch a worker while next_action is ${run.routing.next_action}.`,
       );
     }
     if (run.active.worker_id) {
       throw new RejectedProgressionError(
-        `Worker ${run.active.worker_id} already owns the active dispatch.`
+        `Worker ${run.active.worker_id} already owns the active dispatch.`,
       );
     }
 
@@ -39,7 +39,7 @@ export class WorkerExecutionService {
       const response = await adapter.launch({
         dispatch,
         launch,
-        repoRoot: this.repo.paths.root
+        repoRoot: this.repo.paths.root,
       });
       if (dispatch.worker.adapter === "codex" && !response.session_id) {
         throw new BlockedStateError("Codex launch failed to return a real provider session_id.");
@@ -51,7 +51,7 @@ export class WorkerExecutionService {
         started_at: response.started_at,
         locator: response.locator,
         resumable: response.session_id !== null,
-        details: response.details ?? null
+        details: response.details ?? null,
       });
 
       return {
@@ -63,7 +63,7 @@ export class WorkerExecutionService {
         locator: response.locator,
         resumable: registration.resumable,
         mode: "launch",
-        reason: registration.reason
+        reason: registration.reason,
       };
     } catch (error) {
       await this.persistAdapterFailure(run, dispatch, "adapter_launch_failed", "launch", error);
@@ -90,7 +90,7 @@ export class WorkerExecutionService {
     const resumeSessionId = launch.worker.resume_session_id;
     if (!resumeSessionId) {
       throw new BlockedStateError(
-        `No Praxis-owned resumable session is registered for dispatch ${dispatch.dispatch_id}.`
+        `No Praxis-owned resumable session is registered for dispatch ${dispatch.dispatch_id}.`,
       );
     }
 
@@ -98,14 +98,14 @@ export class WorkerExecutionService {
       const response = await adapter.resume(resumeSessionId, {
         dispatch,
         launch,
-        repoRoot: this.repo.paths.root
+        repoRoot: this.repo.paths.root,
       });
       if (!response.session_id) {
         throw new BlockedStateError("Adapter resume did not return a provider session_id.");
       }
       if (response.session_id !== resumeSessionId) {
         throw new BlockedStateError(
-          `Adapter resume changed provider session_id. Expected ${resumeSessionId}, received ${response.session_id}.`
+          `Adapter resume changed provider session_id. Expected ${resumeSessionId}, received ${response.session_id}.`,
         );
       }
       const registration = await this.dispatchService.registerWorkerSession({
@@ -115,7 +115,7 @@ export class WorkerExecutionService {
         started_at: response.started_at,
         locator: response.locator,
         resumable: true,
-        details: response.details ?? null
+        details: response.details ?? null,
       });
 
       return {
@@ -127,7 +127,7 @@ export class WorkerExecutionService {
         locator: response.locator,
         resumable: registration.resumable,
         mode: "resume",
-        reason: registration.reason
+        reason: registration.reason,
       };
     } catch (error) {
       await this.persistAdapterFailure(run, dispatch, "adapter_resume_failed", "resume", error);
@@ -155,7 +155,7 @@ export class WorkerExecutionService {
     dispatch: DispatchRecord,
     stopReasonCode: string,
     action: "launch" | "resume",
-    error: unknown
+    error: unknown,
   ): Promise<void> {
     const detailMessage = error instanceof Error ? error.message : String(error);
     const now = nowIsoUtc();
@@ -174,8 +174,8 @@ export class WorkerExecutionService {
       action,
       details: {
         dispatch_id: dispatch.dispatch_id,
-        error: detailMessage
-      }
+        error: detailMessage,
+      },
     });
   }
 }

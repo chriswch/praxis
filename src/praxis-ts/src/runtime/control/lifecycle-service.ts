@@ -22,7 +22,7 @@ export class RunLifecycleService {
 
     if (!["confirm_then_run", "ask_user"].includes(run.routing.next_action)) {
       throw new RejectedProgressionError(
-        `continue is only valid when next_action is confirm_then_run or ask_user (found ${run.routing.next_action}).`
+        `continue is only valid when next_action is confirm_then_run or ask_user (found ${run.routing.next_action}).`,
       );
     }
 
@@ -40,7 +40,7 @@ export class RunLifecycleService {
       type: "run_continued",
       run_id: run.run_id,
       stage: run.current.stage,
-      action: "continue"
+      action: "continue",
     });
 
     return this.toOutcome(run);
@@ -53,7 +53,7 @@ export class RunLifecycleService {
     }
     if (run.routing.next_action !== "confirm_then_run") {
       throw new RejectedProgressionError(
-        `approve is only valid when next_action is confirm_then_run (found ${run.routing.next_action}).`
+        `approve is only valid when next_action is confirm_then_run (found ${run.routing.next_action}).`,
       );
     }
 
@@ -64,7 +64,7 @@ export class RunLifecycleService {
       run_id: run.run_id,
       stage: run.current.stage,
       note,
-      approved_at: run.timestamps.updated_at
+      approved_at: run.timestamps.updated_at,
     });
     await this.repo.saveRun(run);
     await this.repo.appendLifecycleEvent({
@@ -74,8 +74,8 @@ export class RunLifecycleService {
       stage: run.current.stage,
       action: "approve",
       details: {
-        approval_id: approvalId
-      }
+        approval_id: approvalId,
+      },
     });
 
     return this.toOutcome(run);
@@ -92,12 +92,14 @@ export class RunLifecycleService {
     }
 
     if (run.routing.next_action === "confirm_then_run" || run.routing.next_action === "ask_user") {
-      throw new RejectedProgressionError("Run is waiting for operator input. Use continue or approve.");
+      throw new RejectedProgressionError(
+        "Run is waiting for operator input. Use continue or approve.",
+      );
     }
 
     if (!run.active.resumable || !run.active.session_id) {
       throw new RejectedProgressionError(
-        "No resumable adapter session is registered for this run."
+        "No resumable adapter session is registered for this run.",
       );
     }
 
@@ -111,8 +113,8 @@ export class RunLifecycleService {
       stage: run.current.stage,
       action: "resume",
       details: {
-        session_id: run.active.session_id
-      }
+        session_id: run.active.session_id,
+      },
     });
 
     return this.toOutcome(run);
@@ -126,7 +128,7 @@ export class RunLifecycleService {
       const cancellationHandle = await this.loadCancellationHandle(run);
       if (!cancellationHandle) {
         throw new BlockedStateError(
-          "Active worker cannot be cancelled because no session_id or locator is registered."
+          "Active worker cannot be cancelled because no session_id or locator is registered.",
         );
       }
       const adapter = getAdapter(run.runtime.adapter);
@@ -159,7 +161,7 @@ export class RunLifecycleService {
       run_id: run.run_id,
       stage: null,
       action: "cancel",
-      details: note ? { note } : undefined
+      details: note ? { note } : undefined,
     });
 
     return this.toOutcome(run);
@@ -185,11 +187,13 @@ export class RunLifecycleService {
 
     return {
       session_id: sessionId,
-      locator
+      locator,
     };
   }
 
-  private readLocatorFromSessionRecord(sessionRecord: Record<string, unknown> | null): string | null {
+  private readLocatorFromSessionRecord(
+    sessionRecord: Record<string, unknown> | null,
+  ): string | null {
     if (!sessionRecord) {
       return null;
     }
@@ -229,14 +233,14 @@ export class RunLifecycleService {
     const producedCommits = await listCommitRange(
       this.repo.paths.root,
       commitPolicy.last_verified_head,
-      head
+      head,
     );
 
     if (dirty || producedCommits.length === 0) {
       throw new RejectedProgressionError(
         dirty
           ? `Story ${commitPolicy.pending_story_id} requires a clean commit checkpoint before continuing. Commit or stash local changes first.`
-          : `Story ${commitPolicy.pending_story_id} requires at least one new commit before continuing.`
+          : `Story ${commitPolicy.pending_story_id} requires at least one new commit before continuing.`,
       );
     }
 
@@ -250,7 +254,7 @@ export class RunLifecycleService {
       status: run.status,
       next_action: run.routing.next_action,
       next_stage: run.routing.next_stage,
-      reason: run.routing.reason
+      reason: run.routing.reason,
     };
   }
 }

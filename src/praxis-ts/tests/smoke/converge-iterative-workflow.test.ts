@@ -10,16 +10,21 @@ import {
   runConvergeRunCommand,
   runContinueCommand,
   runDispatchCommand,
-  runSubmitStageResultCommand
+  runSubmitStageResultCommand,
 } from "../../src/cli/commands/index.js";
 import { EXIT_CODE } from "../../src/cli/exit-codes.js";
-import type { CampaignRecord, RunRecord, StageName, StageResultRecord } from "../../src/contracts/model.js";
+import type {
+  CampaignRecord,
+  RunRecord,
+  StageName,
+  StageResultRecord,
+} from "../../src/contracts/model.js";
 import { validateConvergeStageResult } from "../../src/contracts/validators.js";
 import {
   WORKFLOW_GRAPH,
   getConvergeWorkflowStageContract,
   resolveConvergeWorkflowTransition,
-  resolveWorkflowOutcome
+  resolveWorkflowOutcome,
 } from "../../src/workflows/index.js";
 import { planRemediation } from "../../src/runtime/converge/planner.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
@@ -31,21 +36,20 @@ const REQUIRED_CONVERGE_HANDOFF_ARTIFACTS = [
   ".praxis/gap.md",
   ".praxis/gap.json",
   ".praxis/remediation-map.md",
-  ".praxis/remediation-map.json"
+  ".praxis/remediation-map.json",
 ];
 
 type ConvergeObjectiveOptions = {
   lines: string[];
 };
 
-async function writeObjective(repoRoot: string, options: ConvergeObjectiveOptions): Promise<string> {
+async function writeObjective(
+  repoRoot: string,
+  options: ConvergeObjectiveOptions,
+): Promise<string> {
   await mkdir(join(repoRoot, "docs"), { recursive: true });
   const objectivePath = join(repoRoot, "docs", "objective.md");
-  await writeFile(
-    objectivePath,
-    ["# Objective", "", ...options.lines].join("\n"),
-    "utf8"
-  );
+  await writeFile(objectivePath, ["# Objective", "", ...options.lines].join("\n"), "utf8");
   return "docs/objective.md";
 }
 
@@ -54,7 +58,7 @@ async function writePlanningDoc(repoRoot: string, lines: string[]): Promise<void
   await writeFile(
     join(repoRoot, ".plan", "shadow-evidence.md"),
     ["# Planning Notes", "", ...lines].join("\n"),
-    "utf8"
+    "utf8",
   );
 }
 
@@ -83,19 +87,26 @@ async function submitStage(
   stage: StageName,
   artifactDir: string,
   outcomeCode: string,
-  routeKind: StageResultRecord["route"]["kind"]
+  routeKind: StageResultRecord["route"]["kind"],
 ): Promise<void> {
   const dispatchId = await prepareDispatch(repoRoot);
   const activeRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   const overrides: Partial<StageResultRecord> = {
-    dispatch_id: dispatchId
+    dispatch_id: dispatchId,
   };
   if (activeRun.active.session_id) {
     overrides.session_id = activeRun.active.session_id;
   }
-  const stageResultPath = await writeStageResult(repoRoot, stage, artifactDir, outcomeCode, routeKind, {
-    ...overrides
-  });
+  const stageResultPath = await writeStageResult(
+    repoRoot,
+    stage,
+    artifactDir,
+    outcomeCode,
+    routeKind,
+    {
+      ...overrides,
+    },
+  );
   assert.equal(await runSubmitStageResultCommand(repoRoot, true, stageResultPath), EXIT_CODE.OK);
 }
 
@@ -104,7 +115,9 @@ async function initGitRepo(repoRoot: string): Promise<void> {
   await execFileAsync("git", ["config", "user.email", "smoke@example.com"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.name", "Smoke Bot"], { cwd: repoRoot });
   await execFileAsync("git", ["add", "."], { cwd: repoRoot });
-  await execFileAsync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "seed"], { cwd: repoRoot });
+  await execFileAsync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "seed"], {
+    cwd: repoRoot,
+  });
 }
 
 test("smoke: converge writes target-spec gap artifacts and launches bounded remediation", async () => {
@@ -113,8 +126,8 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
     lines: [
       "- Must enforce bounded remediation scope per pass.",
       "- Must pass selected findings and non-goals into child craft execution.",
-      "- Must persist converge campaign artifacts under .praxis."
-    ]
+      "- Must persist converge campaign artifacts under .praxis.",
+    ],
   });
 
   assert.equal(
@@ -129,9 +142,9 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
@@ -148,7 +161,7 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   assert.match(targetSpec, /^## Acceptance Criteria$/m);
 
   const clarifyingResult = await readJson<{ stage: string; data: { outcome_code: string } }>(
-    join(repoRoot, ".praxis", "results", "clarifying-intent.json")
+    join(repoRoot, ".praxis", "results", "clarifying-intent.json"),
   );
   assert.equal(clarifyingResult.stage, "clarifying-intent");
   assert.equal(clarifyingResult.data.outcome_code, "target_spec_ready");
@@ -196,13 +209,13 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   }
 
   const assessingResult = await readJson<{ stage: string; data: { outcome_code: string } }>(
-    join(repoRoot, ".praxis", "results", "assessing-gaps.json")
+    join(repoRoot, ".praxis", "results", "assessing-gaps.json"),
   );
   assert.equal(assessingResult.stage, "assessing-gaps");
   assert.match(assessingResult.data.outcome_code, /^(findings_recorded|no_gaps)$/);
 
   const planningResult = await readJson<{ stage: string; data: { outcome_code: string } }>(
-    join(repoRoot, ".praxis", "results", "planning-remediation.json")
+    join(repoRoot, ".praxis", "results", "planning-remediation.json"),
   );
   assert.equal(planningResult.stage, "planning-remediation");
   assert.match(planningResult.data.outcome_code, /^(remediation_map_ready|no_selection)$/);
@@ -215,11 +228,14 @@ test("smoke: converge writes target-spec gap artifacts and launches bounded reme
   }
   const dispatchId = await prepareDispatch(repoRoot);
   const dispatch = await readJson<{ inputs: { required_artifacts: string[] } }>(
-    join(repoRoot, ".praxis", "dispatches", `${dispatchId}.json`)
+    join(repoRoot, ".praxis", "dispatches", `${dispatchId}.json`),
   );
   assert.ok(dispatch.inputs.required_artifacts.includes(briefPath!));
   for (const artifact of REQUIRED_CONVERGE_HANDOFF_ARTIFACTS) {
-    assert.ok(dispatch.inputs.required_artifacts.includes(artifact), `dispatch missing ${artifact}`);
+    assert.ok(
+      dispatch.inputs.required_artifacts.includes(artifact),
+      `dispatch missing ${artifact}`,
+    );
   }
 });
 
@@ -228,8 +244,8 @@ test("smoke: converge pre-remediation stage results expose routing metadata", as
   const objective = await writeObjective(repoRoot, {
     lines: [
       "- Must keep pre-remediation stages explicit and contract-driven.",
-      "- Must emit stable stage routing metadata for clarifying, assessing, and planning."
-    ]
+      "- Must emit stable stage routing metadata for clarifying, assessing, and planning.",
+    ],
   });
 
   assert.equal(
@@ -244,9 +260,9 @@ test("smoke: converge pre-remediation stage results expose routing metadata", as
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const clarifyingResult = await readJson<{
@@ -303,14 +319,17 @@ test("smoke: shared workflow contracts define converge pre-remediation stages", 
   assert.ok(clarifying.outputs.includes(".praxis/target-spec.md"));
   assert.ok(clarifying.outputs.includes(".praxis/clarification.json"));
 
-  const assessingTransition = resolveConvergeWorkflowTransition("assessing-gaps", "findings_recorded");
+  const assessingTransition = resolveConvergeWorkflowTransition(
+    "assessing-gaps",
+    "findings_recorded",
+  );
   assert.equal(assessingTransition.routeKind, "proceed");
   assert.equal(assessingTransition.nextStage, "planning-remediation");
 
   const sharedTransition = resolveWorkflowOutcome(
     "converge-pre-remediation",
     "assessing-gaps",
-    "findings_recorded"
+    "findings_recorded",
   );
   assert.equal(sharedTransition.routeKind, "proceed");
   assert.equal(sharedTransition.nextStage, "planning-remediation");
@@ -319,23 +338,22 @@ test("smoke: shared workflow contracts define converge pre-remediation stages", 
 
 test("smoke: legacy objective-assessing stage id is rejected by converge stage validator", () => {
   assert.throws(
-    () => validateConvergeStageResult({
-      version: 1,
-      stage: "objective-assessing" as never,
-      status: "completed",
-      route: { kind: "done" },
-      data: { outcome_code: "no_gaps" }
-    }),
-    /invalid converge stage result stage/i
+    () =>
+      validateConvergeStageResult({
+        version: 1,
+        stage: "objective-assessing" as never,
+        status: "completed",
+        route: { kind: "done" },
+        data: { outcome_code: "no_gaps" },
+      }),
+    /invalid converge stage result stage/i,
   );
 });
 
 test("smoke: assessing-gaps only evaluates normative target-spec sections", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
-    lines: [
-      "- Must enforce durable remediation snapshots for every converge review pass."
-    ]
+    lines: ["- Must enforce durable remediation snapshots for every converge review pass."],
   });
 
   assert.equal(
@@ -350,9 +368,9 @@ test("smoke: assessing-gaps only evaluates normative target-spec sections", asyn
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const gap = await readJson<{
@@ -364,12 +382,15 @@ test("smoke: assessing-gaps only evaluates normative target-spec sections", asyn
   assert.ok(gap.findings.length > 0);
   for (const finding of gap.findings) {
     assert.ok(
-      finding.objective_refs.every((ref) => !ref.includes("#clarification-status")
-        && !ref.includes("#references")
-        && !ref.includes("#imported-objective-content")
-        && !ref.includes("#scope")
-        && !ref.includes("#non-goals")),
-      `finding references non-normative section: ${finding.objective_refs.join(", ")}`
+      finding.objective_refs.every(
+        (ref) =>
+          !ref.includes("#clarification-status") &&
+          !ref.includes("#references") &&
+          !ref.includes("#imported-objective-content") &&
+          !ref.includes("#scope") &&
+          !ref.includes("#non-goals"),
+      ),
+      `finding references non-normative section: ${finding.objective_refs.join(", ")}`,
     );
     assert.doesNotMatch(finding.expected_behavior, /Needs clarification:/i);
   }
@@ -378,9 +399,7 @@ test("smoke: assessing-gaps only evaluates normative target-spec sections", asyn
 test("smoke: converge pauses at clarifying-intent when objective is too vague", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
-    lines: [
-      "Ship it."
-    ]
+    lines: ["Ship it."],
   });
 
   assert.equal(
@@ -395,9 +414,9 @@ test("smoke: converge pauses at clarifying-intent when objective is too vague", 
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const campaign = await readJson<CampaignRecord>(join(repoRoot, ".praxis", "campaign.json"));
@@ -427,8 +446,8 @@ test("smoke: clarifying-intent requires explicit normative acceptance criteria",
   const objective = await writeObjective(repoRoot, {
     lines: [
       "- Document current converge architecture state.",
-      "- Capture migration notes for future planning."
-    ]
+      "- Capture migration notes for future planning.",
+    ],
   });
 
   assert.equal(
@@ -443,9 +462,9 @@ test("smoke: clarifying-intent requires explicit normative acceptance criteria",
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const campaign = await readJson<CampaignRecord>(join(repoRoot, ".praxis", "campaign.json"));
@@ -464,9 +483,7 @@ test("smoke: clarifying-intent requires explicit normative acceptance criteria",
 test("smoke: clarifying-intent persists durable attempt history across retries", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {
-    lines: [
-      "Ship it."
-    ]
+    lines: ["Ship it."],
   });
 
   assert.equal(
@@ -481,16 +498,16 @@ test("smoke: clarifying-intent persists durable attempt history across retries",
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const firstAttemptDir = join(repoRoot, ".praxis", "clarifications", "C-001");
   assert.equal(await exists(join(firstAttemptDir, "target-spec.md")), true);
   assert.equal(await exists(join(firstAttemptDir, "clarification.json")), true);
   const firstAttempt = await readJson<{ outcome_code: string; approval_status: string | null }>(
-    join(firstAttemptDir, "attempt.json")
+    join(firstAttemptDir, "attempt.json"),
   );
   assert.equal(firstAttempt.outcome_code, "clarification_needed");
   assert.equal(firstAttempt.approval_status, "needs_operator");
@@ -501,9 +518,9 @@ test("smoke: clarifying-intent persists durable attempt history across retries",
       "# Objective",
       "",
       "- Must persist converge clarification history as durable artifacts.",
-      "- Must preserve latest target spec pointer while keeping historical clarification attempts."
+      "- Must preserve latest target spec pointer while keeping historical clarification attempts.",
     ].join("\n"),
-    "utf8"
+    "utf8",
   );
 
   assert.equal(await runConvergeContinueCommand(repoRoot, true), EXIT_CODE.OK);
@@ -511,7 +528,7 @@ test("smoke: clarifying-intent persists durable attempt history across retries",
   assert.equal(await exists(join(secondAttemptDir, "target-spec.md")), true);
   assert.equal(await exists(join(secondAttemptDir, "clarification.json")), true);
   const secondAttempt = await readJson<{ outcome_code: string; changed_decisions: string[] }>(
-    join(secondAttemptDir, "attempt.json")
+    join(secondAttemptDir, "attempt.json"),
   );
   assert.equal(secondAttempt.outcome_code, "target_spec_ready");
   assert.ok(secondAttempt.changed_decisions.length > 0);
@@ -544,18 +561,21 @@ test("smoke: planning-remediation is assessment-driven without confidence hard g
           affected_paths: ["src/runtime/core.ts"],
           recommended_direction: "Implement guard.",
           recommended_action: "Implement guard.",
-          confidence: 0.2
-        }
-      ]
+          confidence: 0.2,
+        },
+      ],
     },
     severityThreshold: "high",
     maxFindingsPerPass: 1,
     maxStoriesPerPass: 1,
-    generatedAt: "2026-04-17T00:00:00.000Z"
+    generatedAt: "2026-04-17T00:00:00.000Z",
   });
 
   assert.deepEqual(planned.remediationMap.selected_finding_ids, ["G-001"]);
-  assert.match(planned.remediationMap.selection.policy.join(" "), /assessment artifacts plus explicit campaign policy/i);
+  assert.match(
+    planned.remediationMap.selection.policy.join(" "),
+    /assessment artifacts plus explicit campaign policy/i,
+  );
 });
 
 test("smoke: planning-remediation groups related findings when story budget is tight", async () => {
@@ -565,8 +585,8 @@ test("smoke: planning-remediation groups related findings when story budget is t
       "- Must enforce converge remediation contract coverage for bounded passes.",
       "- Must enforce converge remediation contract durability for bounded passes.",
       "- Must enforce converge remediation contract routing for bounded passes.",
-      "- Must enforce converge remediation contract handoff for bounded passes."
-    ]
+      "- Must enforce converge remediation contract handoff for bounded passes.",
+    ],
   });
 
   assert.equal(
@@ -581,9 +601,9 @@ test("smoke: planning-remediation groups related findings when story budget is t
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const remediationMap = await readJson<{
@@ -598,7 +618,7 @@ test("smoke: planning-remediation groups related findings when story budget is t
   assert.ok(remediationMap.slices.length <= 2);
   assert.ok(
     remediationMap.slices.some((slice) => slice.finding_ids.length > 1),
-    "expected at least one grouped remediation slice"
+    "expected at least one grouped remediation slice",
   );
 });
 
@@ -607,8 +627,8 @@ test("smoke: converge persists review snapshots with current stage naming", asyn
   const objective = await writeObjective(repoRoot, {
     lines: [
       "- Must persist converge review history for each assessment pass.",
-      "- Must keep latest gap and remediation map pointers in .praxis root."
-    ]
+      "- Must keep latest gap and remediation map pointers in .praxis root.",
+    ],
   });
 
   assert.equal(
@@ -623,9 +643,9 @@ test("smoke: converge persists review snapshots with current stage naming", asyn
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const gap = await readJson<{ review_id: string }>(join(repoRoot, ".praxis", "gap.json"));
@@ -644,13 +664,11 @@ test("smoke: gap assessment does not treat .plan-only matches as implementation 
   const repoRoot = await createTempRepo();
   const token = "architecture-shadow-closure-token-8842";
   const objective = await writeObjective(repoRoot, {
-    lines: [
-      `- Must enforce ${token} in runtime implementation before remediation can pass.`
-    ]
+    lines: [`- Must enforce ${token} in runtime implementation before remediation can pass.`],
   });
   await writePlanningDoc(repoRoot, [
     `- Candidate implementation note: ${token}`,
-    "- This note is planning-only and should not count as code evidence."
+    "- This note is planning-only and should not count as code evidence.",
   ]);
 
   assert.equal(
@@ -665,9 +683,9 @@ test("smoke: gap assessment does not treat .plan-only matches as implementation 
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const gap = await readJson<{
@@ -683,22 +701,22 @@ test("smoke: gap assessment does not treat .plan-only matches as implementation 
   assert.ok(tokenFinding, "expected a finding for the tokenized objective requirement");
   assert.match(
     tokenFinding!.current_behavior,
-    /executable behavior evidence|insufficient for closure/i
+    /executable behavior evidence|insufficient for closure/i,
   );
   assert.ok(
     tokenFinding!.evidence.some((line) => /Coverage summary: behavior=/i.test(line)),
-    "expected behavior coverage summary in evidence"
+    "expected behavior coverage summary in evidence",
   );
   assert.ok(
     tokenFinding!.evidence.some((line) => /Executable behavior probes were not found/i.test(line)),
-    "expected explicit behavior-probe closure warning"
+    "expected explicit behavior-probe closure warning",
   );
   for (const evidenceLine of tokenFinding!.evidence) {
     assert.doesNotMatch(evidenceLine, /\.plan/i);
   }
   assert.ok(
     tokenFinding!.affected_paths.some((path) => path.startsWith("src/")),
-    "affected paths should fall back to implementation surfaces"
+    "affected paths should fall back to implementation surfaces",
   );
 });
 
@@ -708,8 +726,8 @@ test("smoke: commit-per-story is enforced at story boundary before continue", as
     lines: [
       "- Must implement alpha remediation gate for campaign convergence.",
       "- Must implement beta remediation gate for campaign convergence.",
-      "- Must implement gamma remediation gate for campaign convergence."
-    ]
+      "- Must implement gamma remediation gate for campaign convergence.",
+    ],
   });
   await initGitRepo(repoRoot);
 
@@ -725,9 +743,9 @@ test("smoke: commit-per-story is enforced at story boundary before continue", as
       scope: [],
       commitPerStory: true,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const initialRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
@@ -739,7 +757,13 @@ test("smoke: commit-per-story is enforced at story boundary before continue", as
   await submitStage(repoRoot, "sketching-design", firstArtifactDir, "sketch_skipped", "proceed");
   await submitStage(repoRoot, "driving-tdd", firstArtifactDir, "tdd_complete", "proceed");
   await submitStage(repoRoot, "code-reviewing", firstArtifactDir, "review_skipped", "proceed");
-  await submitStage(repoRoot, "verifying-and-adapting", firstArtifactDir, "next_slice", "next_slice");
+  await submitStage(
+    repoRoot,
+    "verifying-and-adapting",
+    firstArtifactDir,
+    "next_slice",
+    "next_slice",
+  );
 
   const gatedRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
   assert.equal(gatedRun.status, "waiting_for_user");
@@ -750,7 +774,11 @@ test("smoke: commit-per-story is enforced at story boundary before continue", as
 
   await writeFile(join(repoRoot, `story-${firstStoryId}.txt`), `${firstStoryId}\n`, "utf8");
   await execFileAsync("git", ["add", `story-${firstStoryId}.txt`], { cwd: repoRoot });
-  await execFileAsync("git", ["-c", "commit.gpgsign=false", "commit", "-m", `commit ${firstStoryId}`], { cwd: repoRoot });
+  await execFileAsync(
+    "git",
+    ["-c", "commit.gpgsign=false", "commit", "-m", `commit ${firstStoryId}`],
+    { cwd: repoRoot },
+  );
 
   assert.equal(await runContinueCommand(repoRoot, true), EXIT_CODE.OK);
   const resumedRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
@@ -762,8 +790,8 @@ test("smoke: converge blocks when child run slot ownership no longer matches run
   const objective = await writeObjective(repoRoot, {
     lines: [
       "- Must implement delta987 reconciliation sentinel for pass ownership.",
-      "- Must persist epsilon-slot handshake across converge launches."
-    ]
+      "- Must persist epsilon-slot handshake across converge launches.",
+    ],
   });
 
   assert.equal(
@@ -778,9 +806,9 @@ test("smoke: converge blocks when child run slot ownership no longer matches run
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const childRun = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
@@ -788,7 +816,7 @@ test("smoke: converge blocks when child run slot ownership no longer matches run
   await writeFile(
     join(repoRoot, ".praxis", "run.json"),
     `${JSON.stringify(childRun, null, 2)}\n`,
-    "utf8"
+    "utf8",
   );
 
   assert.equal(await runConvergeContinueCommand(repoRoot, true), EXIT_CODE.OK);

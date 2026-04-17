@@ -19,7 +19,7 @@ export function resolvePraxisCliInvocation(): PraxisCliInvocation {
     }
     return {
       command: process.execPath,
-      args: [tsxCli, sourceEntry]
+      args: [tsxCli, sourceEntry],
     };
   }
 
@@ -27,12 +27,12 @@ export function resolvePraxisCliInvocation(): PraxisCliInvocation {
   if (existsSync(distEntry)) {
     return {
       command: process.execPath,
-      args: [distEntry]
+      args: [distEntry],
     };
   }
 
   return {
     command: "praxis",
-    args: []
+    args: [],
   };
 }

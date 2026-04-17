@@ -15,7 +15,7 @@ export type RegisterWorkerSessionOptions = {
 export async function runRegisterWorkerSessionCommand(
   repoRoot: string,
   json: boolean,
-  options: RegisterWorkerSessionOptions
+  options: RegisterWorkerSessionOptions,
 ): Promise<number> {
   return runCommandWithEnvelope(json, async () => {
     const controller = new RunController(new PraxisStateRepository(repoRoot));
@@ -25,14 +25,14 @@ export async function runRegisterWorkerSessionCommand(
       session_id: options.sessionId,
       started_at: options.startedAt,
       locator: options.locator,
-      resumable: options.resumable
+      resumable: options.resumable,
     });
 
     return {
       ok: true,
       code: EXIT_CODE.OK,
       message: `Registered worker session for dispatch ${result.dispatch_id}.`,
-      data: result
+      data: result,
     };
   });
 }

@@ -13,7 +13,7 @@ export async function runStatusCommand(repoRoot: string, json: boolean): Promise
       ok: true,
       code: EXIT_CODE.OK,
       message: `Run ${status.run_id} is ${status.status}. Next action: ${status.next_action}.`,
-      data: status
+      data: status,
     };
   });
 }

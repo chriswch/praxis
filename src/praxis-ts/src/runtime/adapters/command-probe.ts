@@ -10,7 +10,10 @@ export type CommandProbeResult = {
   reason: string;
 };
 
-export async function probeCommand(binary: string, versionArgs = ["--version"]): Promise<CommandProbeResult> {
+export async function probeCommand(
+  binary: string,
+  versionArgs = ["--version"],
+): Promise<CommandProbeResult> {
   try {
     const { stdout, stderr } = await execFileAsync(binary, versionArgs);
     const output = `${stdout}\n${stderr}`.trim();
@@ -19,7 +22,7 @@ export async function probeCommand(binary: string, versionArgs = ["--version"]):
       binary,
       version,
       healthy: true,
-      reason: version ? `${binary} is available (${version}).` : `${binary} is available.`
+      reason: version ? `${binary} is available (${version}).` : `${binary} is available.`,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -27,7 +30,7 @@ export async function probeCommand(binary: string, versionArgs = ["--version"]):
       binary: null,
       version: null,
       healthy: false,
-      reason: `${binary} is unavailable: ${message}`
+      reason: `${binary} is unavailable: ${message}`,
     };
   }
 }

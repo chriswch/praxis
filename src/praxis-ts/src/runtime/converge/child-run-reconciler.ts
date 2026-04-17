@@ -5,7 +5,7 @@ import type {
   CampaignRecord,
   PassBatchRecord,
   PassSummaryRecord,
-  RunRecord
+  RunRecord,
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import type { ChildRunSlotService } from "./child-run-slot.js";
@@ -22,7 +22,7 @@ export type ChildRunReconcileResult = {
 type AssessCallback = (
   campaign: CampaignRecord,
   ledger: CampaignLedgerRecord,
-  passNumber: number
+  passNumber: number,
 ) => Promise<{
   campaign: CampaignRecord;
   ledger: CampaignLedgerRecord;
@@ -44,13 +44,17 @@ export class ChildRunReconciler {
     private readonly childRunSlot: ChildRunSlotService,
     private readonly passService: ConvergePassService,
     private readonly stopPolicy: CampaignStopPolicy,
-    private readonly assess: AssessCallback
+    private readonly assess: AssessCallback,
   ) {}
 
   async reconcile(
     campaign: CampaignRecord,
-    ledger: CampaignLedgerRecord
-  ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord; continueToPlanning: boolean }> {
+    ledger: CampaignLedgerRecord,
+  ): Promise<{
+    campaign: CampaignRecord;
+    ledger: CampaignLedgerRecord;
+    continueToPlanning: boolean;
+  }> {
     if (campaign.current_pass < 1 || !campaign.current_child_run_id) {
       throw new BlockedStateError("Campaign has no active pass to reconcile.");
     }
@@ -60,7 +64,7 @@ export class ChildRunReconciler {
     if (!artifacts) {
       this.markBlocked(
         campaign,
-        `Pass ${passId} is missing batch/summary artifacts required for child reconciliation.`
+        `Pass ${passId} is missing batch/summary artifacts required for child reconciliation.`,
       );
       return { campaign, ledger, continueToPlanning: false };
     }
@@ -69,7 +73,7 @@ export class ChildRunReconciler {
     if (!slotCheck.ok) {
       this.markBlocked(
         campaign,
-        `Pass ${passId} child-run slot validation failed: ${stringifyError(slotCheck.error)}`
+        `Pass ${passId} child-run slot validation failed: ${stringifyError(slotCheck.error)}`,
       );
       await this.patchChildRunRecord(passId, { status: "slot_mismatch" });
       return { campaign, ledger, continueToPlanning: false };
@@ -79,7 +83,7 @@ export class ChildRunReconciler {
     if (!childRun) {
       this.markBlocked(
         campaign,
-        `Pass ${passId} expects child run ${campaign.current_child_run_id}, but no matching run state exists.`
+        `Pass ${passId} expects child run ${campaign.current_child_run_id}, but no matching run state exists.`,
       );
       await this.patchChildRunRecord(passId, { status: "missing" });
       return { campaign, ledger, continueToPlanning: false };
@@ -90,7 +94,7 @@ export class ChildRunReconciler {
       child_run_id: childRun.run_id,
       reason: childRun.routing.reason,
       next_action: childRun.routing.next_action,
-      next_stage: childRun.routing.next_stage
+      next_stage: childRun.routing.next_stage,
     });
 
     const transition = this.classifyTransition(childRun);
@@ -110,7 +114,10 @@ export class ChildRunReconciler {
         return { campaign, ledger, continueToPlanning: false };
 
       case "unsupported":
-        this.markBlocked(campaign, `Child run ${childRun.run_id} is in unsupported state ${childRun.status}.`);
+        this.markBlocked(
+          campaign,
+          `Child run ${childRun.run_id} is in unsupported state ${childRun.status}.`,
+        );
         return { campaign, ledger, continueToPlanning: false };
 
       case "terminal_not_completed":
@@ -121,7 +128,7 @@ export class ChildRunReconciler {
         await this.repo.savePassSummary(passId, {
           ...artifacts.summary,
           outcome: "needs_operator",
-          generated_at: nowIsoUtc()
+          generated_at: nowIsoUtc(),
         });
         return { campaign, ledger, continueToPlanning: false };
 
@@ -133,7 +140,7 @@ export class ChildRunReconciler {
   private async loadPassArtifacts(passId: string): Promise<PassArtifacts | null> {
     const [batch, summary] = await Promise.all([
       this.repo.loadPassBatch(passId),
-      this.repo.loadPassSummary(passId)
+      this.repo.loadPassSummary(passId),
     ]);
     if (!batch || !summary) {
       return null;
@@ -143,7 +150,7 @@ export class ChildRunReconciler {
 
   private async assertSlotOwnership(
     campaign: CampaignRecord,
-    passId: string
+    passId: string,
   ): Promise<{ ok: true } | { ok: false; error: unknown }> {
     const childRun = await this.repo.loadRun();
     try {
@@ -151,7 +158,7 @@ export class ChildRunReconciler {
         campaign.campaign_id,
         passId,
         campaign.current_child_run_id!,
-        childRun
+        childRun,
       );
       return { ok: true };
     } catch (error) {
@@ -159,7 +166,9 @@ export class ChildRunReconciler {
     }
   }
 
-  private classifyTransition(childRun: RunRecord):
+  private classifyTransition(
+    childRun: RunRecord,
+  ):
     | { kind: "still_running" }
     | { kind: "needs_operator" }
     | { kind: "unsupported" }
@@ -185,11 +194,19 @@ export class ChildRunReconciler {
     ledger: CampaignLedgerRecord,
     passId: string,
     artifacts: PassArtifacts,
-    childRun: RunRecord
-  ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord; continueToPlanning: boolean }> {
+    childRun: RunRecord,
+  ): Promise<{
+    campaign: CampaignRecord;
+    ledger: CampaignLedgerRecord;
+    continueToPlanning: boolean;
+  }> {
     const completion = await this.passService.collectChildCompletion(passId);
     if (completion.producedCommits.length > 0) {
-      attachCommitRefsToFindings(ledger, artifacts.batch.selected_finding_ids, completion.producedCommits);
+      attachCommitRefsToFindings(
+        ledger,
+        artifacts.batch.selected_finding_ids,
+        completion.producedCommits,
+      );
     }
 
     if (campaign.commit_per_story) {
@@ -206,7 +223,7 @@ export class ChildRunReconciler {
           completed_story_ids: completion.completedStoryIds,
           produced_commits: completion.producedCommits,
           outcome: "needs_operator",
-          generated_at: nowIsoUtc()
+          generated_at: nowIsoUtc(),
         });
         await this.patchChildRunRecord(passId, {
           status: "completed",
@@ -214,8 +231,8 @@ export class ChildRunReconciler {
             commit_per_story: true,
             required_commits: requiredCommits,
             produced_commits: completion.producedCommits.length,
-            worktree_dirty: completion.worktreeDirty
-          }
+            worktree_dirty: completion.worktreeDirty,
+          },
         });
         return { campaign, ledger, continueToPlanning: false };
       }
@@ -227,10 +244,11 @@ export class ChildRunReconciler {
 
     const postAssessmentDecision = this.stopPolicy.decidePostAssessment(
       campaign,
-      reassessment.unresolvedAtThreshold
+      reassessment.unresolvedAtThreshold,
     );
     const budgetExhausted =
-      postAssessmentDecision === "continue" && this.stopPolicy.isBudgetExhausted(campaign, campaign.current_pass + 1);
+      postAssessmentDecision === "continue" &&
+      this.stopPolicy.isBudgetExhausted(campaign, campaign.current_pass + 1);
     const summaryOutcome = budgetExhausted ? "budget_exhausted" : postAssessmentDecision;
 
     const updatedSummary: PassSummaryRecord = {
@@ -240,7 +258,7 @@ export class ChildRunReconciler {
       reassessment_review_id: campaign.current_review_id,
       unresolved_at_or_above_threshold: reassessment.unresolvedAtThreshold,
       outcome: summaryOutcome,
-      generated_at: nowIsoUtc()
+      generated_at: nowIsoUtc(),
     };
     await this.repo.savePassSummary(passId, updatedSummary);
     await this.patchChildRunRecord(passId, {
@@ -249,7 +267,7 @@ export class ChildRunReconciler {
       produced_commits: completion.producedCommits,
       completed_story_ids: completion.completedStoryIds,
       reassessment_review_id: campaign.current_review_id,
-      unresolved_at_or_above_threshold: reassessment.unresolvedAtThreshold
+      unresolved_at_or_above_threshold: reassessment.unresolvedAtThreshold,
     });
 
     campaign.current_child_run_id = null;
@@ -282,7 +300,7 @@ export class ChildRunReconciler {
     await this.repo.savePassChildRun(passId, {
       ...existing,
       ...patch,
-      updated_at: nowIsoUtc()
+      updated_at: nowIsoUtc(),
     });
   }
 }

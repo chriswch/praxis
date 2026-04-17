@@ -8,6 +8,6 @@ export type CommandOptions = {
 export function resolveCommandOptions(opts: Partial<CommandOptions>): CommandOptions {
   return {
     repoRoot: resolve(opts.repoRoot ?? "."),
-    json: Boolean(opts.json)
+    json: Boolean(opts.json),
   };
 }

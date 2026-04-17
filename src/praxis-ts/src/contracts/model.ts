@@ -19,7 +19,7 @@ export const FINDING_STATUS = [
   "regressed",
   "waived",
   "duplicate",
-  "escalated"
+  "escalated",
 ] as const;
 export type FindingStatus = (typeof FINDING_STATUS)[number];
 
@@ -28,7 +28,7 @@ export const CAMPAIGN_STATUS = [
   "waiting_for_user",
   "blocked",
   "completed",
-  "cancelled"
+  "cancelled",
 ] as const;
 export type CampaignStatus = (typeof CAMPAIGN_STATUS)[number];
 
@@ -38,7 +38,7 @@ export const CAMPAIGN_STOP_REASON_CODES = [
   "blocked",
   "stalled",
   "budget_exhausted",
-  "cancelled"
+  "cancelled",
 ] as const;
 export type CampaignStopReasonCode = (typeof CAMPAIGN_STOP_REASON_CODES)[number];
 
@@ -61,11 +61,18 @@ export const RUN_STATUS = [
   "completed",
   "failed",
   "cancelled",
-  "cancelling"
+  "cancelling",
 ] as const;
 export type RunStatus = (typeof RUN_STATUS)[number];
 
-export const ROUTE_KINDS = ["proceed", "ask_user", "done", "next_slice", "rework", "escalate"] as const;
+export const ROUTE_KINDS = [
+  "proceed",
+  "ask_user",
+  "done",
+  "next_slice",
+  "rework",
+  "escalate",
+] as const;
 export type RouteKind = (typeof ROUTE_KINDS)[number];
 
 export const STAGE_RESULT_STATUS = ["completed", "blocked", "failed", "skipped"] as const;
@@ -77,20 +84,14 @@ export const RUN_NEXT_ACTIONS = [
   "confirm_then_run",
   "finish",
   "cancel",
-  "idle"
+  "idle",
 ] as const;
 export type RunNextAction = (typeof RUN_NEXT_ACTIONS)[number];
 
-export const WORKER_CLASSES = [
-  "interactive_orchestrator",
-  "session_worker"
-] as const;
+export const WORKER_CLASSES = ["interactive_orchestrator", "session_worker"] as const;
 export type WorkerClass = (typeof WORKER_CLASSES)[number];
 
-export const DISPATCH_WORKER_MODES = [
-  "fresh_session",
-  "same_stage_resume"
-] as const;
+export const DISPATCH_WORKER_MODES = ["fresh_session", "same_stage_resume"] as const;
 export type DispatchWorkerMode = (typeof DISPATCH_WORKER_MODES)[number];
 
 export const PERMISSION_PROFILES = [
@@ -98,7 +99,7 @@ export const PERMISSION_PROFILES = [
   "design",
   "implementation",
   "review",
-  "verification"
+  "verification",
 ] as const;
 export type PermissionProfile = (typeof PERMISSION_PROFILES)[number];
 
@@ -120,14 +121,14 @@ export const STAGE_NAMES = [
   "driving-tdd",
   "code-reviewing",
   "code-improving",
-  "verifying-and-adapting"
+  "verifying-and-adapting",
 ] as const;
 export type StageName = (typeof STAGE_NAMES)[number];
 
 export const CONVERGE_STAGE_NAMES = [
   "clarifying-intent",
   "assessing-gaps",
-  "planning-remediation"
+  "planning-remediation",
 ] as const satisfies readonly StageName[];
 export type ConvergeStageName = (typeof CONVERGE_STAGE_NAMES)[number];
 
@@ -468,7 +469,17 @@ export type CampaignLedgerRecord = {
 
 export type GapFinding = {
   finding_id: string;
-} & Omit<CampaignFinding, "finding_id" | "status" | "introduced_in_pass" | "resolved_in_pass" | "child_run_ids" | "story_ids" | "commit_refs" | "last_seen_pass">;
+} & Omit<
+  CampaignFinding,
+  | "finding_id"
+  | "status"
+  | "introduced_in_pass"
+  | "resolved_in_pass"
+  | "child_run_ids"
+  | "story_ids"
+  | "commit_refs"
+  | "last_seen_pass"
+>;
 export type ObjectiveFinding = GapFinding;
 
 export type GapAssessmentResult = {

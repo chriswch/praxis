@@ -5,10 +5,5 @@
     "noEmit": true,
     "allowJs": true
   },
-  "include": [
-    "src/**/*.ts",
-    "tests/**/*.ts",
-    "tests/**/*.mjs",
-    "eslint.config.mjs"
-  ]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "tests/**/*.mjs", "eslint.config.mjs"]
 }

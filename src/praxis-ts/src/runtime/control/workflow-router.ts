@@ -1,9 +1,6 @@
 import type { RunRecord, StageName } from "../../contracts/model.js";
 import type { StageResultAcceptance } from "./stage-result-validator.js";
-import {
-  decideStageEntryCheckpoint,
-  describeStageEntryCheckpoint
-} from "./checkpoint-policy.js";
+import { decideStageEntryCheckpoint, describeStageEntryCheckpoint } from "./checkpoint-policy.js";
 
 export type RoutingDecision = {
   next_action: RunRecord["routing"]["next_action"];
@@ -17,7 +14,7 @@ export type RoutingDecision = {
 function pauseForConfirmation(
   stage: StageName,
   reason: string,
-  stopReasonCode: string | null = null
+  stopReasonCode: string | null = null,
 ): RoutingDecision {
   return {
     next_action: "confirm_then_run",
@@ -25,7 +22,7 @@ function pauseForConfirmation(
     status: "waiting_for_user",
     reason,
     stop_reason_code: stopReasonCode,
-    current_stage: stage
+    current_stage: stage,
   };
 }
 
@@ -36,11 +33,14 @@ function pauseForUser(stage: StageName, reason: string, stopReasonCode: string):
     status: "waiting_for_user",
     reason,
     stop_reason_code: stopReasonCode,
-    current_stage: stage
+    current_stage: stage,
   };
 }
 
-export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptance): RoutingDecision {
+export function decideNextRouting(
+  run: RunRecord,
+  accepted: StageResultAcceptance,
+): RoutingDecision {
   const { result, transition } = accepted;
   const nextStage = transition.next_stage;
 
@@ -49,7 +49,7 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
     return pauseForUser(
       askUserStage,
       `Stage ${result.stage} requested user input (${result.data.outcome_code}).`,
-      "needs_user_input"
+      "needs_user_input",
     );
   }
 
@@ -57,7 +57,7 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
     return pauseForUser(
       nextStage ?? result.stage,
       `Stage ${result.stage} requested rework (${result.data.outcome_code}).`,
-      "rework_requested"
+      "rework_requested",
     );
   }
 
@@ -65,7 +65,7 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
     return pauseForUser(
       nextStage ?? result.stage,
       `Stage ${result.stage} escalated to operator (${result.data.outcome_code}).`,
-      "escalation"
+      "escalation",
     );
   }
 
@@ -76,7 +76,7 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
       status: "completed",
       reason: `Run completed at ${result.stage} (${result.data.outcome_code}).`,
       stop_reason_code: null,
-      current_stage: null
+      current_stage: null,
     };
   }
 
@@ -87,7 +87,7 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
       status: "waiting_for_user",
       reason: "Slice boundary reached. Activate next slice after checkpoint.",
       stop_reason_code: "boundary_pending",
-      current_stage: "clarifying-intent"
+      current_stage: "clarifying-intent",
     };
   }
 
@@ -103,7 +103,7 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
         status: "waiting_for_user",
         reason: "Story completed; boundary checkpoint required for next slice.",
         stop_reason_code: "boundary_pending",
-        current_stage: "clarifying-intent"
+        current_stage: "clarifying-intent",
       };
     }
 
@@ -113,7 +113,7 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
       status: "completed",
       reason: `Run completed after ${result.stage} (${result.data.outcome_code}).`,
       stop_reason_code: null,
-      current_stage: null
+      current_stage: null,
     };
   }
 
@@ -121,7 +121,7 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
     execution_mode: run.execution.mode,
     stage: nextStage,
     needs_user_input: result.needs_user_input,
-    needs_confirmation: result.needs_confirmation
+    needs_confirmation: result.needs_confirmation,
   });
   const reason = describeStageEntryCheckpoint(nextStage, "stage_transition", checkpoint);
   if (checkpoint.next_action === "ask_user") {
@@ -136,6 +136,6 @@ export function decideNextRouting(run: RunRecord, accepted: StageResultAcceptanc
     status: checkpoint.status,
     reason,
     stop_reason_code: checkpoint.stop_reason_code,
-    current_stage: nextStage
+    current_stage: nextStage,
   };
 }

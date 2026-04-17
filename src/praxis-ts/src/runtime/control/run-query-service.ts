@@ -24,42 +24,46 @@ export class RunQueryService {
     }
 
     const ledger = await this.repo.loadStoryLedger();
-    const activeDispatch = run.active.dispatch_id ? await this.repo.loadDispatch(run.active.dispatch_id) : null;
+    const activeDispatch = run.active.dispatch_id
+      ? await this.repo.loadDispatch(run.active.dispatch_id)
+      : null;
     const activeSession = run.active.session_id
       ? await this.repo.loadSessionRecord(run.active.session_id)
       : run.active.worker_id
         ? await this.repo.loadSessionRecord(`worker_${run.active.worker_id}`)
         : null;
-    const activeWorktree = run.active.dispatch_id ? await this.repo.loadWorktreeRecord(run.active.dispatch_id) : null;
+    const activeWorktree = run.active.dispatch_id
+      ? await this.repo.loadWorktreeRecord(run.active.dispatch_id)
+      : null;
     const [recentEvents, recentStageHistory, recentPolicyRecords] = await Promise.all([
       this.repo.listLifecycleEvents(40),
       this.repo.listStageHistory(40),
-      this.repo.listPolicyRecords(40)
+      this.repo.listPolicyRecords(40),
     ]);
     const artifactInspection = activeDispatch
       ? {
           required_inputs: await Promise.all(
             activeDispatch.inputs.required_artifacts.map(async (path) => ({
               path,
-              exists: await exists(this.repo.resolvePath(path))
-            }))
+              exists: await exists(this.repo.resolvePath(path)),
+            })),
           ),
           expected_outputs: await Promise.all(
             activeDispatch.contract.expected_output_artifacts.map(async (path) => ({
               path,
-              exists: await exists(this.repo.resolvePath(path))
-            }))
+              exists: await exists(this.repo.resolvePath(path)),
+            })),
           ),
           stage_result: {
             path: activeDispatch.stage_result_path,
-            exists: await exists(this.repo.resolvePath(activeDispatch.stage_result_path))
+            exists: await exists(this.repo.resolvePath(activeDispatch.stage_result_path)),
           },
           boundary_handoff: run.routing.boundary_handoff_path
             ? {
                 path: run.routing.boundary_handoff_path,
-                exists: await exists(this.repo.resolvePath(run.routing.boundary_handoff_path))
+                exists: await exists(this.repo.resolvePath(run.routing.boundary_handoff_path)),
               }
-            : null
+            : null,
         }
       : null;
 
@@ -82,8 +86,8 @@ export class RunQueryService {
         dispatches_dir: this.repo.paths.dispatchesDir,
         sessions_dir: this.repo.paths.sessionsDir,
         worktrees_dir: this.repo.paths.worktreesDir,
-        policy_dir: this.repo.paths.policyDir
-      }
+        policy_dir: this.repo.paths.policyDir,
+      },
     };
   }
 }

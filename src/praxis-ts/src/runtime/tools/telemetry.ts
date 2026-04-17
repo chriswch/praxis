@@ -16,7 +16,7 @@ export class ToolTelemetry {
       run_id: payload.run_id,
       stage: payload.stage,
       dispatch_id: payload.dispatch_id,
-      policy: payload.policy
+      policy: payload.policy,
     });
   }
 
@@ -34,7 +34,7 @@ export class ToolTelemetry {
       stage: payload.stage,
       tool: payload.tool,
       status: payload.status,
-      reason: payload.reason ?? null
+      reason: payload.reason ?? null,
     });
   }
 }

@@ -13,7 +13,7 @@ import type {
   RemediationMapRecord,
   RunRecord,
   StageResultRecord,
-  StoryLedgerRecord
+  StoryLedgerRecord,
 } from "../../contracts/model.js";
 import {
   validateCampaignLedgerRecord,
@@ -27,14 +27,14 @@ import {
   validateRemediationMapRecord,
   validateRunRecord,
   validateStageResult,
-  validateStoryLedgerRecord
+  validateStoryLedgerRecord,
 } from "../../contracts/validators.js";
 import {
   appendJsonLine,
   ensureDir,
   readJsonFileIfExists,
   readJsonLines,
-  writeJsonFile
+  writeJsonFile,
 } from "./store.js";
 import { resolvePraxisPaths, type PraxisPathSet } from "./paths.js";
 
@@ -140,7 +140,7 @@ export class PraxisStateRepository {
     const pending = {
       version: 1,
       run,
-      ledger
+      ledger,
     };
     await writeJsonFile(this.paths.runLedgerTransactionFile, pending);
     await writeJsonFile(this.paths.runFile, run);
@@ -155,7 +155,7 @@ export class PraxisStateRepository {
 
   async loadDispatch(dispatchId: string): Promise<DispatchRecord | null> {
     const dispatch = await readJsonFileIfExists<DispatchRecord>(
-      join(this.paths.dispatchesDir, `${dispatchId}.json`)
+      join(this.paths.dispatchesDir, `${dispatchId}.json`),
     );
     if (dispatch) {
       validateDispatchRecord(dispatch);
@@ -186,7 +186,7 @@ export class PraxisStateRepository {
 
   async loadSessionRecord(sessionId: string): Promise<Record<string, unknown> | null> {
     return readJsonFileIfExists<Record<string, unknown>>(
-      join(this.paths.sessionsDir, `${sessionId}.json`)
+      join(this.paths.sessionsDir, `${sessionId}.json`),
     );
   }
 
@@ -196,7 +196,7 @@ export class PraxisStateRepository {
 
   async loadWorktreeRecord(dispatchId: string): Promise<Record<string, unknown> | null> {
     return readJsonFileIfExists<Record<string, unknown>>(
-      join(this.paths.worktreesDir, `${dispatchId}.json`)
+      join(this.paths.worktreesDir, `${dispatchId}.json`),
     );
   }
 
@@ -216,13 +216,11 @@ export class PraxisStateRepository {
     await writeFile(this.paths.targetSpecFile, `${markdown.trimEnd()}\n`, "utf8");
   }
 
-  async saveGapArtifacts(
-    payload: {
-      gapMarkdown: string;
-      gap: GapAssessmentResult;
-      stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
-    }
-  ): Promise<void> {
+  async saveGapArtifacts(payload: {
+    gapMarkdown: string;
+    gap: GapAssessmentResult;
+    stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
+  }): Promise<void> {
     validateGapAssessmentResult(payload.gap);
     validateConvergeStageResult(payload.stageResult);
     const resultsDir = join(this.paths.praxisDir, "results");
@@ -247,7 +245,11 @@ export class PraxisStateRepository {
     return gap;
   }
 
-  async savePassBatch(passId: string, batchMarkdown: string, batch: PassBatchRecord): Promise<void> {
+  async savePassBatch(
+    passId: string,
+    batchMarkdown: string,
+    batch: PassBatchRecord,
+  ): Promise<void> {
     validatePassBatchRecord(batch);
     const passDir = join(this.paths.passesDir, passId);
     await mkdir(passDir, { recursive: true });
@@ -256,7 +258,9 @@ export class PraxisStateRepository {
   }
 
   async loadPassBatch(passId: string): Promise<PassBatchRecord | null> {
-    const batch = await readJsonFileIfExists<PassBatchRecord>(join(this.paths.passesDir, passId, "batch.json"));
+    const batch = await readJsonFileIfExists<PassBatchRecord>(
+      join(this.paths.passesDir, passId, "batch.json"),
+    );
     if (batch) {
       validatePassBatchRecord(batch);
     }
@@ -266,7 +270,7 @@ export class PraxisStateRepository {
   async saveRemediationMap(
     markdown: string,
     remediationMap: RemediationMapRecord,
-    stageResult: ConvergeStageResultRecord & { stage: "planning-remediation" }
+    stageResult: ConvergeStageResultRecord & { stage: "planning-remediation" },
   ): Promise<void> {
     validateRemediationMapRecord(remediationMap);
     validateConvergeStageResult(stageResult);
@@ -293,7 +297,7 @@ export class PraxisStateRepository {
 
   async loadPassSummary(passId: string): Promise<PassSummaryRecord | null> {
     const summary = await readJsonFileIfExists<PassSummaryRecord>(
-      join(this.paths.passesDir, passId, "summary.json")
+      join(this.paths.passesDir, passId, "summary.json"),
     );
     if (summary) {
       validatePassSummaryRecord(summary);
@@ -308,24 +312,26 @@ export class PraxisStateRepository {
   }
 
   async loadPassChildRun(passId: string): Promise<Record<string, unknown> | null> {
-    return readJsonFileIfExists<Record<string, unknown>>(join(this.paths.passesDir, passId, "child-run.json"));
+    return readJsonFileIfExists<Record<string, unknown>>(
+      join(this.paths.passesDir, passId, "child-run.json"),
+    );
   }
 
   async clearRunControlState(): Promise<void> {
     await Promise.all([
       this.safeUnlink(this.paths.runFile),
       this.safeUnlink(this.paths.storyLedgerFile),
-      this.safeUnlink(this.paths.runLedgerTransactionFile)
+      this.safeUnlink(this.paths.runLedgerTransactionFile),
     ]);
     await Promise.all([
       rm(this.paths.dispatchesDir, { recursive: true, force: true }),
       rm(this.paths.sessionsDir, { recursive: true, force: true }),
-      rm(this.paths.worktreesDir, { recursive: true, force: true })
+      rm(this.paths.worktreesDir, { recursive: true, force: true }),
     ]);
     await Promise.all([
       mkdir(this.paths.dispatchesDir, { recursive: true }),
       mkdir(this.paths.sessionsDir, { recursive: true }),
-      mkdir(this.paths.worktreesDir, { recursive: true })
+      mkdir(this.paths.worktreesDir, { recursive: true }),
     ]);
   }
 
@@ -341,7 +347,7 @@ export class PraxisStateRepository {
 
   async listPolicyRecords(limit = 50): Promise<Record<string, unknown>[]> {
     const records = await readJsonLines<Record<string, unknown>>(
-      join(this.paths.policyDir, "tool-records.jsonl")
+      join(this.paths.policyDir, "tool-records.jsonl"),
     );
     return records.slice(-limit);
   }
@@ -374,5 +380,4 @@ export class PraxisStateRepository {
       // Marker is best-effort cleanup; recovery remains safe when already removed.
     }
   }
-
 }

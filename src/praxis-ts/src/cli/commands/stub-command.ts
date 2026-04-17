@@ -7,9 +7,9 @@ export function runStubCommand(commandName: string, json: boolean): number {
       ok: true,
       code: EXIT_CODE.OK,
       message: `${commandName} command is wired and ready for runtime implementation.`,
-      data: { command: commandName }
+      data: { command: commandName },
     },
-    json
+    json,
   );
 
   return EXIT_CODE.OK;

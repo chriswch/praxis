@@ -16,7 +16,7 @@ export async function readHeadCommit(repoRoot: string): Promise<string | null> {
 export async function listCommitRange(
   repoRoot: string,
   fromExclusive: string | null,
-  toInclusive: string | null
+  toInclusive: string | null,
 ): Promise<string[]> {
   if (!toInclusive) {
     return [];
@@ -25,7 +25,9 @@ export async function listCommitRange(
   const revision = fromExclusive ? `${fromExclusive}..${toInclusive}` : toInclusive;
 
   try {
-    const { stdout } = await execFileAsync("git", ["log", "--format=%H", revision], { cwd: repoRoot });
+    const { stdout } = await execFileAsync("git", ["log", "--format=%H", revision], {
+      cwd: repoRoot,
+    });
     return stdout
       .split("\n")
       .map((line) => line.trim())
@@ -46,7 +48,8 @@ export async function hasUncommittedChanges(repoRoot: string): Promise<boolean> 
       const pathFragment = line.length > 3 ? line.slice(3) : "";
       const renameParts = pathFragment.split(" -> ").map((part) => part.trim());
       const touchesOnlyPraxisArtifacts =
-        renameParts.length > 0 && renameParts.every((part) => part === ".praxis" || part.startsWith(".praxis/"));
+        renameParts.length > 0 &&
+        renameParts.every((part) => part === ".praxis" || part.startsWith(".praxis/"));
       if (!touchesOnlyPraxisArtifacts) {
         return true;
       }

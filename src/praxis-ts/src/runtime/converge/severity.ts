@@ -4,7 +4,7 @@ const SEVERITY_RANK: Record<FindingSeverity, number> = {
   critical: 0,
   high: 1,
   medium: 2,
-  low: 3
+  low: 3,
 };
 
 export function compareSeverity(a: FindingSeverity, b: FindingSeverity): number {
@@ -13,7 +13,7 @@ export function compareSeverity(a: FindingSeverity, b: FindingSeverity): number 
 
 export function isAtOrAboveSeverity(
   severity: FindingSeverity,
-  threshold: FindingSeverity
+  threshold: FindingSeverity,
 ): boolean {
   return SEVERITY_RANK[severity] <= SEVERITY_RANK[threshold];
 }

@@ -9,14 +9,16 @@ const resumeSessionId = resumeCommand ? args[1] : null;
 const outputPath = readFlagValue(args, "-o");
 const sessionId = resumeSessionId ?? `fake_codex_session_${Date.now()}`;
 
-process.stdout.write(`${JSON.stringify({
-  event: "session.started",
-  session_id: sessionId
-})}\n`);
+process.stdout.write(
+  `${JSON.stringify({
+    event: "session.started",
+    session_id: sessionId,
+  })}\n`,
+);
 
 if (process.env.PRAXIS_FAKE_CODEX_WRITE_OUTPUT === "1" && outputPath) {
   await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, "{\n  \"ok\": true\n}\n", "utf8");
+  await writeFile(outputPath, '{\n  "ok": true\n}\n', "utf8");
 }
 
 const delayMs = parseIntOrDefault(process.env.PRAXIS_FAKE_CODEX_DELAY_MS, 5);

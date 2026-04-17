@@ -5,14 +5,11 @@ export { compileDispatch } from "./dispatch-compiler.js";
 export { buildDoctorReport } from "./doctor-service.js";
 export { loadAndValidateStageResult } from "./stage-result-validator.js";
 export { decideNextRouting } from "./workflow-router.js";
-export {
-  decideStageEntryCheckpoint,
-  describeStageEntryCheckpoint
-} from "./checkpoint-policy.js";
+export { decideStageEntryCheckpoint, describeStageEntryCheckpoint } from "./checkpoint-policy.js";
 export {
   checkpointStoryBoundary,
   clearBoundaryHandoffIfConsumed,
-  initializeStoryLedgerFromSliceMap
+  initializeStoryLedgerFromSliceMap,
 } from "./story-boundary.js";
 export type {
   InspectProjection,
@@ -21,6 +18,6 @@ export type {
   RegisterWorkerSessionOutcome,
   RunCreateInput,
   SubmitStageResultOutcome,
-  WorkerLaunchPayload
+  WorkerLaunchPayload,
 } from "./types.js";
 export type { StatusProjection } from "./status-projector.js";

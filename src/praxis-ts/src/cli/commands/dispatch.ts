@@ -12,7 +12,7 @@ export async function runDispatchCommand(repoRoot: string, json: boolean): Promi
       ok: true,
       code: EXIT_CODE.OK,
       message: `Prepared dispatch ${dispatch.dispatch_id} for ${dispatch.stage}.`,
-      data: dispatch
+      data: dispatch,
     };
   });
 }

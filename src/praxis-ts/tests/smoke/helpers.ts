@@ -21,7 +21,7 @@ export async function writeStageResult(
   artifactDir: string,
   outcomeCode: string,
   routeKind: StageResultRecord["route"]["kind"],
-  overrides: Partial<StageResultRecord> = {}
+  overrides: Partial<StageResultRecord> = {},
 ): Promise<string> {
   const relativePath = `${artifactDir}/results/${stage}.json`;
   const fullPath = join(repoRoot, relativePath);
@@ -40,32 +40,32 @@ export async function writeStageResult(
       kind: routeKind,
       next_stage: null,
       next_slice_id: null,
-      reason: null
+      reason: null,
     },
     data: {
-      outcome_code: outcomeCode
+      outcome_code: outcomeCode,
     },
     worker: {
       worker_id: "wrk_test",
       adapter: "codex",
       session_id: null,
-      worker_class: "session_worker"
+      worker_class: "session_worker",
     },
     execution: {
       permission_profile: "implementation",
       worktree_mode: "shared",
       fresh_context: true,
-      resumed: false
+      resumed: false,
     },
     input_artifacts: [],
     output_artifacts: [],
     verification: {
       tests_run: false,
-      diff_reviewed: true
+      diff_reviewed: true,
     },
     handoff: null,
     needs_user_input: false,
-    needs_confirmation: false
+    needs_confirmation: false,
   };
 
   const payload: StageResultRecord = {
@@ -73,12 +73,12 @@ export async function writeStageResult(
     ...overrides,
     route: {
       ...base.route,
-      ...(overrides.route ?? {})
+      ...(overrides.route ?? {}),
     },
     data: {
       ...base.data,
-      ...(overrides.data ?? {})
-    }
+      ...(overrides.data ?? {}),
+    },
   };
 
   const artifactFiles = new Set<string>([...payload.artifacts_written]);
@@ -88,7 +88,11 @@ export async function writeStageResult(
   for (const artifactPath of payload.output_artifacts ?? []) {
     artifactFiles.add(artifactPath);
   }
-  for (const artifactPath of expectedOutcomeArtifacts(stage, artifactDir, payload.data.outcome_code)) {
+  for (const artifactPath of expectedOutcomeArtifacts(
+    stage,
+    artifactDir,
+    payload.data.outcome_code,
+  )) {
     artifactFiles.add(artifactPath);
   }
 

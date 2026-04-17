@@ -4,11 +4,13 @@ import { nowIsoUtc } from "../common/time.js";
 import { compileDispatch } from "./dispatch-compiler.js";
 import { ToolTelemetry } from "../tools/index.js";
 import { exists } from "../state/store.js";
-import {
-  validateWorkerSessionRegistration
-} from "../../contracts/validators.js";
+import { validateWorkerSessionRegistration } from "../../contracts/validators.js";
 import { BlockedStateError, RejectedProgressionError } from "../../contracts/errors.js";
-import type { DispatchRecord, RunRecord, WorkerSessionRegistration } from "../../contracts/model.js";
+import type {
+  DispatchRecord,
+  RunRecord,
+  WorkerSessionRegistration,
+} from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import type { RegisterWorkerSessionOutcome, WorkerLaunchPayload } from "./types.js";
 
@@ -32,21 +34,29 @@ export class DispatchService {
     this.assertDispatchLaunchAllowed(run, "dispatch");
     if (run.active.dispatch_id) {
       throw new RejectedProgressionError(
-        `Dispatch ${run.active.dispatch_id} is already active. Submit a stage result, register a worker session, or cancel before creating another dispatch.`
+        `Dispatch ${run.active.dispatch_id} is already active. Submit a stage result, register a worker session, or cancel before creating another dispatch.`,
       );
     }
 
     const handoffData = await this.loadBoundaryHandoffOrBlock(run, "dispatch");
 
-    const dispatch = compileDispatch({ run, boundaryHandoff: handoffData, repoRoot: this.repo.paths.root });
-    await this.ensureRequiredArtifactsExistOrBlock(run, dispatch.inputs.required_artifacts, "dispatch");
+    const dispatch = compileDispatch({
+      run,
+      boundaryHandoff: handoffData,
+      repoRoot: this.repo.paths.root,
+    });
+    await this.ensureRequiredArtifactsExistOrBlock(
+      run,
+      dispatch.inputs.required_artifacts,
+      "dispatch",
+    );
     await this.repo.saveDispatch(dispatch);
     const telemetry = new ToolTelemetry(this.repo);
     await telemetry.recordPolicyDecision({
       run_id: run.run_id,
       stage: dispatch.stage,
       dispatch_id: dispatch.dispatch_id,
-      policy: dispatch.tool_policy
+      policy: dispatch.tool_policy,
     });
 
     run.active.dispatch_id = dispatch.dispatch_id;
@@ -67,14 +77,16 @@ export class DispatchService {
       details: {
         dispatch_id: dispatch.dispatch_id,
         worktree_mode: dispatch.execution.worktree_mode,
-        workspace_root: dispatch.execution.workspace_root
-      }
+        workspace_root: dispatch.execution.workspace_root,
+      },
     });
 
     return dispatch;
   }
 
-  async registerWorkerSession(input: WorkerSessionRegistration): Promise<RegisterWorkerSessionOutcome> {
+  async registerWorkerSession(
+    input: WorkerSessionRegistration,
+  ): Promise<RegisterWorkerSessionOutcome> {
     validateWorkerSessionRegistration(input);
 
     const run = await this.repo.loadRun();
@@ -82,16 +94,18 @@ export class DispatchService {
       throw new BlockedStateError("No active run found at .praxis/run.json.");
     }
     if (!run.current.stage) {
-      throw new RejectedProgressionError("Cannot register a worker session without an active stage.");
+      throw new RejectedProgressionError(
+        "Cannot register a worker session without an active stage.",
+      );
     }
     if (!run.active.dispatch_id) {
       throw new RejectedProgressionError(
-        "Cannot register a worker session without an active dispatch. Run `praxis dispatch` first."
+        "Cannot register a worker session without an active dispatch. Run `praxis dispatch` first.",
       );
     }
     if (run.active.dispatch_id !== input.dispatch_id) {
       throw new RejectedProgressionError(
-        `Worker session dispatch mismatch. Expected ${run.active.dispatch_id}, received ${input.dispatch_id}.`
+        `Worker session dispatch mismatch. Expected ${run.active.dispatch_id}, received ${input.dispatch_id}.`,
       );
     }
 
@@ -116,7 +130,7 @@ export class DispatchService {
       started_at: input.started_at,
       locator: input.locator,
       recorded_at: now,
-      provider_details: input.details ?? null
+      provider_details: input.details ?? null,
     };
 
     run.active.worker_id = input.worker_id;
@@ -141,8 +155,8 @@ export class DispatchService {
         worker_id: input.worker_id,
         session_id: input.session_id,
         resumable,
-        provider_details: input.details ?? null
-      }
+        provider_details: input.details ?? null,
+      },
     });
 
     return {
@@ -152,7 +166,7 @@ export class DispatchService {
       session_id: input.session_id,
       resumable,
       stage: run.current.stage,
-      reason: run.routing.reason
+      reason: run.routing.reason,
     };
   }
 
@@ -175,9 +189,13 @@ export class DispatchService {
     await this.ensureRequiredArtifactsExistOrBlock(
       run,
       dispatch.inputs.required_artifacts,
-      "build-worker-launch"
+      "build-worker-launch",
     );
-    const resumeSessionId = await this.resolveResumeSessionIdOrBlock(run, dispatch, "build-worker-launch");
+    const resumeSessionId = await this.resolveResumeSessionIdOrBlock(
+      run,
+      dispatch,
+      "build-worker-launch",
+    );
 
     return {
       run_id: run.run_id,
@@ -191,24 +209,27 @@ export class DispatchService {
       context_manifest: dispatch.context_manifest,
       inputs: {
         required_artifacts: dispatch.inputs.required_artifacts,
-        boundary_handoff: boundaryHandoff ?? dispatch.inputs.boundary_handoff
+        boundary_handoff: boundaryHandoff ?? dispatch.inputs.boundary_handoff,
       },
       policy: dispatch.tool_policy,
       worker: {
         adapter: dispatch.worker.adapter,
         mode: dispatch.worker.mode,
         worker_class: dispatch.worker.worker_class,
-        resume_session_id: resumeSessionId
+        resume_session_id: resumeSessionId,
       },
       execution: dispatch.execution,
       runtime: {
         entrypoint: run.runtime.entrypoint,
-        fresh_context_per_story: run.execution.fresh_context_per_story
-      }
+        fresh_context_per_story: run.execution.fresh_context_per_story,
+      },
     };
   }
 
-  private assertDispatchLaunchAllowed(run: RunRecord, action: "dispatch" | "build-worker-launch"): void {
+  private assertDispatchLaunchAllowed(
+    run: RunRecord,
+    action: "dispatch" | "build-worker-launch",
+  ): void {
     if (!run.current.stage) {
       throw new BlockedStateError(`Cannot ${action} without an active stage.`);
     }
@@ -219,20 +240,20 @@ export class DispatchService {
 
     if (run.routing.next_action !== "run_stage") {
       throw new RejectedProgressionError(
-        `Cannot ${action} while next_action is ${run.routing.next_action}. Expected run_stage.`
+        `Cannot ${action} while next_action is ${run.routing.next_action}. Expected run_stage.`,
       );
     }
 
     if (run.routing.next_stage !== run.current.stage) {
       throw new RejectedProgressionError(
-        `Cannot ${action} while next_stage (${run.routing.next_stage}) differs from current stage (${run.current.stage}).`
+        `Cannot ${action} while next_stage (${run.routing.next_stage}) differs from current stage (${run.current.stage}).`,
       );
     }
   }
 
   private async loadBoundaryHandoffOrBlock(
     run: RunRecord,
-    action: "dispatch" | "build-worker-launch"
+    action: "dispatch" | "build-worker-launch",
   ): Promise<Record<string, unknown> | null> {
     const handoffPath = run.routing.boundary_handoff_path;
     if (!handoffPath) {
@@ -265,8 +286,8 @@ export class DispatchService {
         action,
         details: {
           boundary_handoff_path: handoffPath,
-          error: detailMessage
-        }
+          error: detailMessage,
+        },
       });
       throw new BlockedStateError(blockedReason);
     }
@@ -275,7 +296,7 @@ export class DispatchService {
   private async ensureRequiredArtifactsExistOrBlock(
     run: RunRecord,
     requiredArtifacts: string[],
-    action: "dispatch" | "build-worker-launch"
+    action: "dispatch" | "build-worker-launch",
   ): Promise<void> {
     const missingArtifacts: string[] = [];
 
@@ -306,8 +327,8 @@ export class DispatchService {
       stage: run.current.stage,
       action,
       details: {
-        missing_artifacts: missingArtifacts
-      }
+        missing_artifacts: missingArtifacts,
+      },
     });
     throw new BlockedStateError(blockedReason);
   }
@@ -315,7 +336,7 @@ export class DispatchService {
   private async resolveResumeSessionIdOrBlock(
     run: RunRecord,
     dispatch: DispatchRecord,
-    action: "build-worker-launch"
+    action: "build-worker-launch",
   ): Promise<string | null> {
     if (!run.active.resumable) {
       return null;
@@ -327,7 +348,7 @@ export class DispatchService {
         run,
         dispatch,
         action,
-        "Run is marked resumable but no active session_id is registered."
+        "Run is marked resumable but no active session_id is registered.",
       );
     }
 
@@ -337,18 +358,18 @@ export class DispatchService {
         run,
         dispatch,
         action,
-        `No Praxis-owned session record exists for ${sessionId}.`
+        `No Praxis-owned session record exists for ${sessionId}.`,
       );
     }
 
     const activeSession = sessionRecord as ActiveSessionRecord;
     const matchesActiveDispatch =
-      activeSession.run_id === run.run_id
-      && activeSession.dispatch_id === dispatch.dispatch_id
-      && activeSession.stage === dispatch.stage
-      && activeSession.adapter === dispatch.worker.adapter
-      && activeSession.session_id === sessionId
-      && activeSession.resumable === true;
+      activeSession.run_id === run.run_id &&
+      activeSession.dispatch_id === dispatch.dispatch_id &&
+      activeSession.stage === dispatch.stage &&
+      activeSession.adapter === dispatch.worker.adapter &&
+      activeSession.session_id === sessionId &&
+      activeSession.resumable === true;
 
     if (matchesActiveDispatch) {
       return sessionId;
@@ -358,7 +379,7 @@ export class DispatchService {
       run,
       dispatch,
       action,
-      `Session ${sessionId} is not a Praxis-owned resumable session for dispatch ${dispatch.dispatch_id} (${dispatch.stage}).`
+      `Session ${sessionId} is not a Praxis-owned resumable session for dispatch ${dispatch.dispatch_id} (${dispatch.stage}).`,
     );
   }
 
@@ -366,7 +387,7 @@ export class DispatchService {
     run: RunRecord,
     dispatch: DispatchRecord,
     action: "build-worker-launch",
-    detail: string
+    detail: string,
   ): Promise<never> {
     const now = nowIsoUtc();
     const blockedReason = `${detail} Register a fresh Praxis-owned worker session for the active dispatch before retrying ${action}.`;
@@ -386,8 +407,8 @@ export class DispatchService {
       details: {
         dispatch_id: dispatch.dispatch_id,
         session_id: run.active.session_id,
-        error: detail
-      }
+        error: detail,
+      },
     });
 
     throw new BlockedStateError(blockedReason);

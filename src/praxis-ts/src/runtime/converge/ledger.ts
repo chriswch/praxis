@@ -3,12 +3,19 @@ import type {
   CampaignLedgerRecord,
   FindingSeverity,
   FindingStatus,
-  GapAssessmentResult
+  GapAssessmentResult,
 } from "../../contracts/model.js";
 import { nextFindingId } from "./identity.js";
 import { compareSeverity, isAtOrAboveSeverity } from "./severity.js";
 
-const ACTIVE_FINDING_STATUSES: FindingStatus[] = ["open", "batched", "in_progress", "still_open", "regressed", "escalated"];
+const ACTIVE_FINDING_STATUSES: FindingStatus[] = [
+  "open",
+  "batched",
+  "in_progress",
+  "still_open",
+  "regressed",
+  "escalated",
+];
 
 function findingIsActive(status: FindingStatus): boolean {
   return ACTIVE_FINDING_STATUSES.includes(status);
@@ -30,7 +37,7 @@ function unresolvedStatusFromPrevious(previousStatus: FindingStatus): FindingSta
 export function createEmptyCampaignLedger(
   campaignId: string,
   profile: CampaignLedgerRecord["profile"],
-  updatedAt: string
+  updatedAt: string,
 ): CampaignLedgerRecord {
   return {
     version: 1,
@@ -39,8 +46,8 @@ export function createEmptyCampaignLedger(
     findings: {},
     finding_order: [],
     timestamps: {
-      updated_at: updatedAt
-    }
+      updated_at: updatedAt,
+    },
   };
 }
 
@@ -48,7 +55,7 @@ export function mergeAssessmentIntoLedger(
   ledger: CampaignLedgerRecord,
   assessment: GapAssessmentResult,
   passNumber: number,
-  updatedAt: string
+  updatedAt: string,
 ): {
   ledger: CampaignLedgerRecord;
   activeFindingIds: string[];
@@ -110,7 +117,7 @@ export function mergeAssessmentIntoLedger(
       child_run_ids: [],
       story_ids: [],
       commit_refs: [],
-      last_seen_pass: passNumber
+      last_seen_pass: passNumber,
     };
     ledger.findings[findingId] = created;
     ledger.finding_order.push(findingId);
@@ -139,7 +146,7 @@ export function mergeAssessmentIntoLedger(
     ledger,
     activeFindingIds: listActiveFindings(ledger).map((finding) => finding.finding_id),
     introducedFindingIds,
-    fixedFindingIds
+    fixedFindingIds,
   };
 }
 
@@ -158,7 +165,7 @@ export function listActiveFindings(ledger: CampaignLedgerRecord): CampaignFindin
 
 export function countUnresolvedAtOrAboveThreshold(
   ledger: CampaignLedgerRecord,
-  threshold: FindingSeverity
+  threshold: FindingSeverity,
 ): number {
   let count = 0;
   for (const finding of listActiveFindings(ledger)) {
@@ -175,7 +182,11 @@ export function markFindingsBatched(ledger: CampaignLedgerRecord, findingIds: st
     if (!finding) {
       continue;
     }
-    if (finding.status === "open" || finding.status === "still_open" || finding.status === "regressed") {
+    if (
+      finding.status === "open" ||
+      finding.status === "still_open" ||
+      finding.status === "regressed"
+    ) {
       finding.status = "batched";
     }
   }
@@ -185,7 +196,7 @@ export function markFindingsInProgress(
   ledger: CampaignLedgerRecord,
   findingIds: string[],
   childRunId: string,
-  storyIds: string[]
+  storyIds: string[],
 ): void {
   for (const findingId of findingIds) {
     const finding = ledger.findings[findingId];
@@ -207,7 +218,7 @@ export function markFindingsInProgress(
 export function attachCommitRefsToFindings(
   ledger: CampaignLedgerRecord,
   findingIds: string[],
-  commitRefs: string[]
+  commitRefs: string[],
 ): void {
   for (const findingId of findingIds) {
     const finding = ledger.findings[findingId];

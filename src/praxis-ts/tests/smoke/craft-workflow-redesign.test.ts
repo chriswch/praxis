@@ -9,12 +9,17 @@ import {
   runConvergeRunCommand,
   runDispatchCommand,
   runRunCommand,
-  runSubmitStageResultCommand
+  runSubmitStageResultCommand,
 } from "../../src/cli/commands/index.js";
 import { EXIT_CODE } from "../../src/cli/exit-codes.js";
 import { RunController } from "../../src/runtime/control/index.js";
 import { PraxisStateRepository } from "../../src/runtime/state/index.js";
-import type { CampaignRecord, RunRecord, StageName, StageResultRecord } from "../../src/contracts/model.js";
+import type {
+  CampaignRecord,
+  RunRecord,
+  StageName,
+  StageResultRecord,
+} from "../../src/contracts/model.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -31,10 +36,10 @@ async function submitStage(
   stage: StageName,
   artifactDir: string,
   outcomeCode: string,
-  routeKind: StageResultRecord["route"]["kind"]
+  routeKind: StageResultRecord["route"]["kind"],
 ): Promise<void> {
   const path = await writeStageResult(repoRoot, stage, artifactDir, outcomeCode, routeKind, {
-    dispatch_id: await prepareDispatch(repoRoot)
+    dispatch_id: await prepareDispatch(repoRoot),
   });
   assert.equal(await runSubmitStageResultCommand(repoRoot, true, path), EXIT_CODE.OK);
 }
@@ -46,12 +51,12 @@ async function writeCraftSliceMap(repoRoot: string): Promise<void> {
       {
         slices: [
           { id: "S-001", title: "First" },
-          { id: "S-002", title: "Second" }
-        ]
+          { id: "S-002", title: "Second" },
+        ],
       },
       null,
-      2
-    )
+      2,
+    ),
   );
 }
 
@@ -64,9 +69,9 @@ async function prepareConvergeObjective(repoRoot: string): Promise<string> {
       "# Objective",
       "",
       "- Keep runtime contracts coherent.",
-      "- Keep run control behavior deterministic."
+      "- Keep run control behavior deterministic.",
     ].join("\n"),
-    "utf8"
+    "utf8",
   );
   return "docs/objective.md";
 }
@@ -80,11 +85,11 @@ test("smoke: run initialization checkpoint policy gates manual and auto-runs aut
       {
         adapter: "codex",
         executionMode: "manual",
-        entryTask: "manual init"
+        entryTask: "manual init",
       },
-      { orchestrate: true }
+      { orchestrate: true },
     ),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
   const manualRun = await readJson<RunRecord>(join(manualRepo, ".praxis", "run.json"));
   assert.equal(manualRun.workflow, "craft");
@@ -101,11 +106,11 @@ test("smoke: run initialization checkpoint policy gates manual and auto-runs aut
       {
         adapter: "codex",
         executionMode: "autopilot",
-        entryTask: "autopilot init"
+        entryTask: "autopilot init",
       },
-      { orchestrate: true }
+      { orchestrate: true },
     ),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
   const autopilotRun = await readJson<RunRecord>(join(autopilotRepo, ".praxis", "run.json"));
   assert.equal(autopilotRun.workflow, "craft");
@@ -121,18 +126,36 @@ test("smoke: boundary activation reuses the shared checkpoint policy", async () 
     await runRunCommand(repoRoot, true, {
       adapter: "codex",
       executionMode: "autopilot",
-      entryTask: "boundary gating"
+      entryTask: "boundary gating",
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   await submitStage(repoRoot, "clarifying-intent", ".praxis", "feature_brief_ready", "proceed");
   await writeCraftSliceMap(repoRoot);
   await submitStage(repoRoot, "slicing-stories", ".praxis", "slice_map_ready", "proceed");
-  await submitStage(repoRoot, "clarifying-intent", ".praxis/slices/S-001", "story_spec_ready", "proceed");
-  await submitStage(repoRoot, "sketching-design", ".praxis/slices/S-001", "sketch_skipped", "proceed");
+  await submitStage(
+    repoRoot,
+    "clarifying-intent",
+    ".praxis/slices/S-001",
+    "story_spec_ready",
+    "proceed",
+  );
+  await submitStage(
+    repoRoot,
+    "sketching-design",
+    ".praxis/slices/S-001",
+    "sketch_skipped",
+    "proceed",
+  );
   await submitStage(repoRoot, "driving-tdd", ".praxis/slices/S-001", "tdd_complete", "proceed");
-  await submitStage(repoRoot, "code-reviewing", ".praxis/slices/S-001", "review_skipped", "proceed");
+  await submitStage(
+    repoRoot,
+    "code-reviewing",
+    ".praxis/slices/S-001",
+    "review_skipped",
+    "proceed",
+  );
 
   // Flip to manual before the boundary transition to validate policy reuse.
   const runPath = join(repoRoot, ".praxis", "run.json");
@@ -145,7 +168,7 @@ test("smoke: boundary activation reuses the shared checkpoint policy", async () 
     "verifying-and-adapting",
     ".praxis/slices/S-001",
     "next_slice",
-    "next_slice"
+    "next_slice",
   );
 
   const runAfterBoundary = await readJson<RunRecord>(runPath);
@@ -161,9 +184,9 @@ test("smoke: stage-result acceptance stays successful when post-commit audit app
     await runRunCommand(repoRoot, true, {
       adapter: "codex",
       executionMode: "autopilot",
-      entryTask: "audit degradation probe"
+      entryTask: "audit degradation probe",
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   await mkdir(join(repoRoot, ".praxis", "stage-history.jsonl"), { recursive: true });
@@ -173,14 +196,14 @@ test("smoke: stage-result acceptance stays successful when post-commit audit app
     ".praxis",
     "bug_fix_ready",
     "proceed",
-    { dispatch_id: await prepareDispatch(repoRoot) }
+    { dispatch_id: await prepareDispatch(repoRoot) },
   );
 
   const controller = new RunController(new PraxisStateRepository(repoRoot));
   const outcome = await controller.submitStageResult(stageResultPath);
   assert.ok(
     outcome.audit_warnings?.some((warning) => warning.includes("stage_history_append_failed")),
-    "expected degraded audit warning when stage-history append fails"
+    "expected degraded audit warning when stage-history append fails",
   );
 
   const run = await readJson<RunRecord>(join(repoRoot, ".praxis", "run.json"));
@@ -198,9 +221,9 @@ test("smoke: persisted forge run and campaign state is rejected with actionable 
     await runRunCommand(repoRoot, true, {
       adapter: "codex",
       executionMode: "autopilot",
-      entryTask: "reject forge state"
+      entryTask: "reject forge state",
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const runPath = join(repoRoot, ".praxis", "run.json");
@@ -209,16 +232,13 @@ test("smoke: persisted forge run and campaign state is rejected with actionable 
   await writeFile(runPath, `${JSON.stringify(forgedRun, null, 2)}\n`, "utf8");
 
   const tsxCli = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
-  let runStatusFailure: Error & { code?: number; stdout?: string } | null = null;
+  let runStatusFailure: (Error & { code?: number; stdout?: string }) | null = null;
   try {
-    await execFileAsync(process.execPath, [
-      tsxCli,
-      "src/index.ts",
-      "--repo-root",
-      repoRoot,
-      "--json",
-      "status"
-    ], { cwd: process.cwd() });
+    await execFileAsync(
+      process.execPath,
+      [tsxCli, "src/index.ts", "--repo-root", repoRoot, "--json", "status"],
+      { cwd: process.cwd() },
+    );
   } catch (error) {
     runStatusFailure = error as Error & { code?: number; stdout?: string };
   }
@@ -241,9 +261,9 @@ test("smoke: persisted forge run and campaign state is rejected with actionable 
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const campaignPath = join(repoRoot, ".praxis", "campaign.json");
@@ -251,17 +271,13 @@ test("smoke: persisted forge run and campaign state is rejected with actionable 
   const forgedCampaign = { ...campaign, workflow: "forge" };
   await writeFile(campaignPath, `${JSON.stringify(forgedCampaign, null, 2)}\n`, "utf8");
 
-  let campaignStatusFailure: Error & { code?: number; stdout?: string } | null = null;
+  let campaignStatusFailure: (Error & { code?: number; stdout?: string }) | null = null;
   try {
-    await execFileAsync(process.execPath, [
-      tsxCli,
-      "src/index.ts",
-      "--repo-root",
-      repoRoot,
-      "--json",
-      "converge",
-      "status"
-    ], { cwd: process.cwd() });
+    await execFileAsync(
+      process.execPath,
+      [tsxCli, "src/index.ts", "--repo-root", repoRoot, "--json", "converge", "status"],
+      { cwd: process.cwd() },
+    );
   } catch (error) {
     campaignStatusFailure = error as Error & { code?: number; stdout?: string };
   }
@@ -275,19 +291,23 @@ test("smoke: public CLI no longer accepts workflow selection and converge runs c
   const repoRoot = await createTempRepo();
   const tsxCli = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
 
-  let runFlagFailure: Error & { code?: number; stderr?: string } | null = null;
+  let runFlagFailure: (Error & { code?: number; stderr?: string }) | null = null;
   try {
-    await execFileAsync(process.execPath, [
-      tsxCli,
-      "src/index.ts",
-      "--repo-root",
-      repoRoot,
-      "run",
-      "--workflow",
-      "craft",
-      "--entry-task",
-      "should fail"
-    ], { cwd: process.cwd() });
+    await execFileAsync(
+      process.execPath,
+      [
+        tsxCli,
+        "src/index.ts",
+        "--repo-root",
+        repoRoot,
+        "run",
+        "--workflow",
+        "craft",
+        "--entry-task",
+        "should fail",
+      ],
+      { cwd: process.cwd() },
+    );
   } catch (error) {
     runFlagFailure = error as Error & { code?: number; stderr?: string };
   }
@@ -295,20 +315,24 @@ test("smoke: public CLI no longer accepts workflow selection and converge runs c
   assert.notEqual(runFlagFailure.code, 0);
   assert.match(runFlagFailure.stderr ?? "", /unknown option '--workflow'/i);
 
-  let convergeFlagFailure: Error & { code?: number; stderr?: string } | null = null;
+  let convergeFlagFailure: (Error & { code?: number; stderr?: string }) | null = null;
   try {
-    await execFileAsync(process.execPath, [
-      tsxCli,
-      "src/index.ts",
-      "--repo-root",
-      repoRoot,
-      "converge",
-      "run",
-      "--objective",
-      "docs/missing.md",
-      "--workflow",
-      "craft"
-    ], { cwd: process.cwd() });
+    await execFileAsync(
+      process.execPath,
+      [
+        tsxCli,
+        "src/index.ts",
+        "--repo-root",
+        repoRoot,
+        "converge",
+        "run",
+        "--objective",
+        "docs/missing.md",
+        "--workflow",
+        "craft",
+      ],
+      { cwd: process.cwd() },
+    );
   } catch (error) {
     convergeFlagFailure = error as Error & { code?: number; stderr?: string };
   }
@@ -329,9 +353,9 @@ test("smoke: public CLI no longer accepts workflow selection and converge runs c
       scope: [],
       commitPerStory: false,
       autoContinue: false,
-      allowWaive: false
+      allowWaive: false,
     }),
-    EXIT_CODE.OK
+    EXIT_CODE.OK,
   );
 
   const campaign = await readJson<CampaignRecord>(join(repoRoot, ".praxis", "campaign.json"));

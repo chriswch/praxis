@@ -1,7 +1,10 @@
 import type { CampaignRecord, PassSummaryRecord } from "../../contracts/model.js";
 
 export type PostAssessmentDecision = "continue" | "converged" | "stalled";
-export type TerminalStopReason = Exclude<PassSummaryRecord["outcome"], "continue" | "needs_operator">;
+export type TerminalStopReason = Exclude<
+  PassSummaryRecord["outcome"],
+  "continue" | "needs_operator"
+>;
 
 const NO_PROGRESS_STALL_THRESHOLD = 2;
 
@@ -11,7 +14,7 @@ const NO_PROGRESS_STALL_THRESHOLD = 2;
 export class CampaignStopPolicy {
   decidePostAssessment(
     campaign: CampaignRecord,
-    unresolvedAtThreshold: number
+    unresolvedAtThreshold: number,
   ): PostAssessmentDecision {
     if (unresolvedAtThreshold === 0) {
       return "converged";

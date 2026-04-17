@@ -3,13 +3,13 @@ import { printEnvelope, type CommandEnvelope } from "../output.js";
 import {
   BlockedStateError,
   InvalidInputError,
-  RejectedProgressionError
+  RejectedProgressionError,
 } from "../../contracts/errors.js";
 import { ContractError } from "../../contracts/validators.js";
 
 export async function runCommandWithEnvelope<T>(
   json: boolean,
-  operation: () => Promise<CommandEnvelope<T>>
+  operation: () => Promise<CommandEnvelope<T>>,
 ): Promise<number> {
   try {
     const envelope = await operation();
@@ -18,8 +18,7 @@ export async function runCommandWithEnvelope<T>(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     const code =
-      error instanceof InvalidInputError
-        || error instanceof ContractError
+      error instanceof InvalidInputError || error instanceof ContractError
         ? EXIT_CODE.INVALID_INPUT
         : error instanceof BlockedStateError
           ? EXIT_CODE.BLOCKED
@@ -29,7 +28,7 @@ export async function runCommandWithEnvelope<T>(
     const envelope: CommandEnvelope<Record<string, never>> = {
       ok: false,
       code,
-      message
+      message,
     };
     printEnvelope(envelope, json);
     return code;

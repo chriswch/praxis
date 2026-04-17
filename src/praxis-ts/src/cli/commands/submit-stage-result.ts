@@ -6,7 +6,7 @@ import { runCommandWithEnvelope } from "./shared.js";
 export async function runSubmitStageResultCommand(
   repoRoot: string,
   json: boolean,
-  stageResultPath: string
+  stageResultPath: string,
 ): Promise<number> {
   return runCommandWithEnvelope(json, async () => {
     const controller = new RunController(new PraxisStateRepository(repoRoot));
@@ -16,7 +16,7 @@ export async function runSubmitStageResultCommand(
       ok: true,
       code: EXIT_CODE.OK,
       message: `Accepted ${outcome.stage} result (${outcome.outcome_code}).`,
-      data: outcome
+      data: outcome,
     };
   });
 }

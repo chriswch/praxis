@@ -6,7 +6,7 @@ import { runCommandWithEnvelope } from "./shared.js";
 export async function runConvergeCancelCommand(
   repoRoot: string,
   json: boolean,
-  note: string | null
+  note: string | null,
 ): Promise<number> {
   return runCommandWithEnvelope(json, async () => {
     const service = new ConvergeCampaignService(new PraxisStateRepository(repoRoot));
@@ -15,7 +15,7 @@ export async function runConvergeCancelCommand(
       ok: true,
       code: EXIT_CODE.OK,
       message: `Campaign ${outcome.campaign_id} cancelled.`,
-      data: outcome
+      data: outcome,
     };
   });
 }

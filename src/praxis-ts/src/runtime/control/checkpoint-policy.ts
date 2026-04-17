@@ -31,13 +31,15 @@ function defaultCheckpointOverride(executionMode: ExecutionMode): StageCheckpoin
   return executionMode === "manual" ? "confirm" : "run";
 }
 
-export function decideStageEntryCheckpoint(input: StageEntryCheckpointInput): StageEntryCheckpointDecision {
+export function decideStageEntryCheckpoint(
+  input: StageEntryCheckpointInput,
+): StageEntryCheckpointDecision {
   if (input.needs_user_input) {
     return {
       next_action: "ask_user",
       status: "waiting_for_user",
       stop_reason_code: "needs_user_input",
-      source: "needs_user_input"
+      source: "needs_user_input",
     };
   }
 
@@ -46,7 +48,7 @@ export function decideStageEntryCheckpoint(input: StageEntryCheckpointInput): St
       next_action: "confirm_then_run",
       status: "waiting_for_user",
       stop_reason_code: "confirmation_required",
-      source: "needs_confirmation"
+      source: "needs_confirmation",
     };
   }
 
@@ -57,7 +59,7 @@ export function decideStageEntryCheckpoint(input: StageEntryCheckpointInput): St
       next_action: "confirm_then_run",
       status: "waiting_for_user",
       stop_reason_code: "stage_checkpoint",
-      source: "stage_override"
+      source: "stage_override",
     };
   }
   if (stageOverride === "run") {
@@ -65,7 +67,7 @@ export function decideStageEntryCheckpoint(input: StageEntryCheckpointInput): St
       next_action: "run_stage",
       status: "running",
       stop_reason_code: null,
-      source: "stage_override"
+      source: "stage_override",
     };
   }
 
@@ -75,7 +77,7 @@ export function decideStageEntryCheckpoint(input: StageEntryCheckpointInput): St
       next_action: "confirm_then_run",
       status: "waiting_for_user",
       stop_reason_code: "manual_checkpoint",
-      source: "execution_mode_default"
+      source: "execution_mode_default",
     };
   }
 
@@ -83,14 +85,14 @@ export function decideStageEntryCheckpoint(input: StageEntryCheckpointInput): St
     next_action: "run_stage",
     status: "running",
     stop_reason_code: null,
-    source: "execution_mode_default"
+    source: "execution_mode_default",
   };
 }
 
 export function describeStageEntryCheckpoint(
   stage: StageName,
   context: StageEntryContext,
-  decision: StageEntryCheckpointDecision
+  decision: StageEntryCheckpointDecision,
 ): string {
   if (decision.source === "needs_user_input") {
     return `Paused for user input before ${stage}.`;

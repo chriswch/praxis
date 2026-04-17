@@ -1,10 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
-import type {
-  ConvergeProfile,
-  GapAssessmentResult,
-  GapFinding
-} from "../../contracts/model.js";
+import type { ConvergeProfile, GapAssessmentResult, GapFinding } from "../../contracts/model.js";
 import { buildFindingFingerprint } from "./identity.js";
 import { compareSeverity } from "./severity.js";
 
@@ -86,7 +82,7 @@ const STOPWORDS = new Set([
   "the",
   "to",
   "with",
-  "without"
+  "without",
 ]);
 
 const ACTION_VERB_ROOTS = [
@@ -118,7 +114,7 @@ const ACTION_VERB_ROOTS = [
   "capture",
   "store",
   "synchronize",
-  "activate"
+  "activate",
 ];
 
 const CONTRADICTION_MARKERS: Array<{ label: string; pattern: RegExp }> = [
@@ -126,18 +122,39 @@ const CONTRADICTION_MARKERS: Array<{ label: string; pattern: RegExp }> = [
   { label: "not_implemented", pattern: /not implemented/ },
   { label: "placeholder", pattern: /\bplaceholder\b/ },
   { label: "stub", pattern: /\bstub\b/ },
-  { label: "throw_unimplemented", pattern: /throw\s+new\s+error\([^)]*(not implemented|todo|stub)/ },
-  { label: "disabled_path", pattern: /\b(skip|disabled|noop)\b/ }
+  {
+    label: "throw_unimplemented",
+    pattern: /throw\s+new\s+error\([^)]*(not implemented|todo|stub)/,
+  },
+  { label: "disabled_path", pattern: /\b(skip|disabled|noop)\b/ },
 ];
 
-const EXCLUDED_DIRS = new Set([".git", ".praxis", "node_modules", "dist", "build", ".next", "coverage"]);
-const ALLOWED_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".md", ".yml", ".yaml"]);
+const EXCLUDED_DIRS = new Set([
+  ".git",
+  ".praxis",
+  "node_modules",
+  "dist",
+  "build",
+  ".next",
+  "coverage",
+]);
+const ALLOWED_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".json",
+  ".md",
+  ".yml",
+  ".yaml",
+]);
 const CODE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
 
 export const DEFAULT_ASSESSMENT_SCOPE: readonly string[] = [
   "src",
   "README.md",
-  "product-spec.md"
+  "product-spec.md",
 ] as const;
 const NORMATIVE_SECTION_PATTERNS = [
   /\bacceptance\b/,
@@ -145,7 +162,7 @@ const NORMATIVE_SECTION_PATTERNS = [
   /\brequirements?\b/,
   /\bconstraints?\b/,
   /\bexpected behavior\b/,
-  /\bdefinition of done\b/
+  /\bdefinition of done\b/,
 ];
 const NON_NORMATIVE_SECTION_PATTERNS = [
   /\bgoal\b/,
@@ -153,7 +170,7 @@ const NON_NORMATIVE_SECTION_PATTERNS = [
   /\bnon-?goals?\b/,
   /\bclarification status\b/,
   /\breferences?\b/,
-  /\bimported objective content\b/
+  /\bimported objective content\b/,
 ];
 
 function slugify(value: string): string {
@@ -179,7 +196,10 @@ function sectionIsNormative(section: string): boolean {
   return NORMATIVE_SECTION_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
-function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: string): ObjectiveRequirement[] {
+function parseObjectiveRequirements(
+  targetSpecPath: string,
+  targetSpecText: string,
+): ObjectiveRequirement[] {
   const lines = targetSpecText.split(/\r?\n/);
   const requirements: ObjectiveRequirement[] = [];
   let section = "Objective";
@@ -215,7 +235,7 @@ function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: stri
       section,
       text: statement,
       objectiveRef: `${targetSpecPath}#${refAnchor}`,
-      line: index + 1
+      line: index + 1,
     });
   }
 
@@ -255,7 +275,7 @@ function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: stri
       section,
       text: statement,
       objectiveRef: `${targetSpecPath}#${refAnchor}`,
-      line: index + 1
+      line: index + 1,
     });
   }
 
@@ -274,7 +294,7 @@ function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: stri
       section: "Objective",
       text: trimmed,
       objectiveRef: `${targetSpecPath}#line-${index + 1}`,
-      line: index + 1
+      line: index + 1,
     });
     if (fallbackCount >= 12) {
       break;
@@ -298,9 +318,7 @@ function escapeRegex(value: string): string {
 }
 
 function extractKeywords(text: string): string[] {
-  const codeTerms = [...text.matchAll(/`([^`]+)`/g)]
-    .map((match) => splitTerms(match[1]))
-    .flat();
+  const codeTerms = [...text.matchAll(/`([^`]+)`/g)].map((match) => splitTerms(match[1])).flat();
   const plainWords = splitTerms(text);
   const ranked = [...codeTerms, ...plainWords]
     .filter((token) => token.length >= 3 || token.startsWith("--") || token.includes("/"))
@@ -332,7 +350,8 @@ function extractLiterals(text: string): string[] {
 function extractForbiddenTerms(text: string): string[] {
   const lower = text.toLowerCase();
   const candidates: string[] = [];
-  const pattern = /(?:without|remove|drop|deprecate|legacy|no longer|must not|should not|do not)\s+`?([a-z0-9._/-]{3,})`?/g;
+  const pattern =
+    /(?:without|remove|drop|deprecate|legacy|no longer|must not|should not|do not)\s+`?([a-z0-9._/-]{3,})`?/g;
   for (const match of lower.matchAll(pattern)) {
     const term = match[1]?.trim();
     if (term && term.length >= 3) {
@@ -357,9 +376,14 @@ function looksLikeActionToken(token: string): boolean {
 function extractBehaviorActions(text: string): string[] {
   const tokens = splitTerms(text).filter((token) => token.length >= 3);
   const extracted = tokens.filter((token) => looksLikeActionToken(token));
-  const fromModal = [...text.toLowerCase().matchAll(/\b(?:must|should|shall|ensure|verify|confirm)\s+([a-z0-9_-]{3,})/g)]
-    .map((match) => match[1]);
-  const combined = Array.from(new Set([...fromModal, ...extracted])).filter((token) => !STOPWORDS.has(token));
+  const fromModal = [
+    ...text
+      .toLowerCase()
+      .matchAll(/\b(?:must|should|shall|ensure|verify|confirm)\s+([a-z0-9_-]{3,})/g),
+  ].map((match) => match[1]);
+  const combined = Array.from(new Set([...fromModal, ...extracted])).filter(
+    (token) => !STOPWORDS.has(token),
+  );
   return combined.slice(0, 10);
 }
 
@@ -373,8 +397,9 @@ function extractBehaviorEntities(text: string, actions: string[]): string[] {
 }
 
 function extractBehaviorPhrases(text: string): string[] {
-  const phrases = extractLiterals(text)
-    .filter((literal) => literal.includes("/") || literal.includes(".") || literal.startsWith("--"));
+  const phrases = extractLiterals(text).filter(
+    (literal) => literal.includes("/") || literal.includes(".") || literal.startsWith("--"),
+  );
   return phrases.slice(0, 8);
 }
 
@@ -386,16 +411,31 @@ function classifyCategory(requirement: string): string {
   if (lower.includes("assessment") || lower.includes("target") || lower.includes("profile")) {
     return "gap-assessment";
   }
-  if (lower.includes("ledger") || lower.includes("artifact") || lower.includes("durable") || lower.includes("history")) {
+  if (
+    lower.includes("ledger") ||
+    lower.includes("artifact") ||
+    lower.includes("durable") ||
+    lower.includes("history")
+  ) {
     return "durable-state";
   }
-  if (lower.includes("batch") || lower.includes("finding") || lower.includes("story") || lower.includes("slice")) {
+  if (
+    lower.includes("batch") ||
+    lower.includes("finding") ||
+    lower.includes("story") ||
+    lower.includes("slice")
+  ) {
     return "batch-planning";
   }
   if (lower.includes("child") || lower.includes("scope") || lower.includes("craft")) {
     return "child-remediation";
   }
-  if (lower.includes("stop") || lower.includes("stalled") || lower.includes("budget") || lower.includes("converged")) {
+  if (
+    lower.includes("stop") ||
+    lower.includes("stalled") ||
+    lower.includes("budget") ||
+    lower.includes("converged")
+  ) {
     return "stop-policy";
   }
   if (lower.includes("commit")) {
@@ -431,14 +471,14 @@ function buildSignals(requirement: string): RequirementSignals {
   const behaviorEntities = extractBehaviorEntities(requirement, behaviorActions);
   const strict = /\b(must|required|authoritative|shall)\b/.test(lower);
   const foundational =
-    lower.includes("assessment")
-    || lower.includes("stop")
-    || lower.includes("child")
-    || lower.includes("command")
-    || lower.includes("durable")
-    || lower.includes("routing")
-    || lower.includes("contract")
-    || lower.includes("history");
+    lower.includes("assessment") ||
+    lower.includes("stop") ||
+    lower.includes("child") ||
+    lower.includes("command") ||
+    lower.includes("durable") ||
+    lower.includes("routing") ||
+    lower.includes("contract") ||
+    lower.includes("history");
   return {
     keywords: extractKeywords(requirement),
     literals: extractLiterals(requirement),
@@ -447,7 +487,7 @@ function buildSignals(requirement: string): RequirementSignals {
     behaviorEntities,
     behaviorPhrases: extractBehaviorPhrases(requirement),
     strict,
-    foundational
+    foundational,
   };
 }
 
@@ -455,7 +495,7 @@ function inferSeverity(
   profile: ConvergeProfile,
   signals: RequirementSignals,
   kind: GapFinding["kind"],
-  codeCoverage: number
+  codeCoverage: number,
 ): GapFinding["severity"] {
   if (kind === "wrong") {
     if (signals.strict || signals.foundational) {
@@ -490,9 +530,10 @@ async function listRepoDocuments(repoRoot: string, scope: string[]): Promise<Rep
     return normalized === ".plan" || normalized.startsWith(".plan/");
   });
 
-  const stack = scope.length > 0
-    ? scope.map((item) => join(repoRoot, item))
-    : DEFAULT_ASSESSMENT_SCOPE.map((item) => join(repoRoot, item));
+  const stack =
+    scope.length > 0
+      ? scope.map((item) => join(repoRoot, item))
+      : DEFAULT_ASSESSMENT_SCOPE.map((item) => join(repoRoot, item));
 
   const visited = new Set<string>();
   while (stack.length > 0) {
@@ -544,7 +585,7 @@ async function listRepoDocuments(repoRoot: string, scope: string[]): Promise<Rep
         path: relativePath,
         text,
         lower: text.toLowerCase(),
-        source
+        source,
       });
     } catch {
       // Best effort indexing: unreadable files are ignored.
@@ -567,7 +608,7 @@ function collectSnippets(document: RepoDocument, tokens: string[]): string[] {
       return {
         line: index + 1,
         text: line.trim(),
-        score
+        score,
       };
     })
     .filter((entry) => entry.score > 0)
@@ -593,12 +634,15 @@ function lineIncludesToken(lineLower: string, token: string): boolean {
 }
 
 function findContradictionMarkers(lineLower: string): string[] {
-  return CONTRADICTION_MARKERS
-    .filter((entry) => entry.pattern.test(lineLower))
-    .map((entry) => entry.label);
+  return CONTRADICTION_MARKERS.filter((entry) => entry.pattern.test(lineLower)).map(
+    (entry) => entry.label,
+  );
 }
 
-function collectBehaviorProbes(document: RepoDocument, signals: RequirementSignals): BehaviorProbe[] {
+function collectBehaviorProbes(
+  document: RepoDocument,
+  signals: RequirementSignals,
+): BehaviorProbe[] {
   if (document.source !== "code") {
     return [];
   }
@@ -615,17 +659,28 @@ function collectBehaviorProbes(document: RepoDocument, signals: RequirementSigna
     }
 
     const lower = statement.toLowerCase();
-    const matchedActions = signals.behaviorActions.filter((token) => lineIncludesToken(lower, token));
-    const matchedEntities = signals.behaviorEntities.filter((token) => lineIncludesToken(lower, token));
-    const matchedPhrases = signals.behaviorPhrases.filter((phrase) => lineIncludesToken(lower, phrase));
+    const matchedActions = signals.behaviorActions.filter((token) =>
+      lineIncludesToken(lower, token),
+    );
+    const matchedEntities = signals.behaviorEntities.filter((token) =>
+      lineIncludesToken(lower, token),
+    );
+    const matchedPhrases = signals.behaviorPhrases.filter((phrase) =>
+      lineIncludesToken(lower, phrase),
+    );
 
-    if (matchedActions.length === 0 && matchedEntities.length === 0 && matchedPhrases.length === 0) {
+    if (
+      matchedActions.length === 0 &&
+      matchedEntities.length === 0 &&
+      matchedPhrases.length === 0
+    ) {
       continue;
     }
 
-    const executableShape = /\b(if|switch|case|for|while|return|throw|await|new|function|class|const|let|var|export|import)\b|=>|\w+\(/.test(
-      statement
-    );
+    const executableShape =
+      /\b(if|switch|case|for|while|return|throw|await|new|function|class|const|let|var|export|import)\b|=>|\w+\(/.test(
+        statement,
+      );
     if (!executableShape && matchedPhrases.length === 0) {
       continue;
     }
@@ -633,12 +688,12 @@ function collectBehaviorProbes(document: RepoDocument, signals: RequirementSigna
     const contradictionMarkers = findContradictionMarkers(lower);
     const score = Number.parseFloat(
       (
-        (matchedActions.length * 0.5)
-        + (matchedEntities.length * 0.35)
-        + (matchedPhrases.length * 0.25)
-        + (executableShape ? 0.2 : 0)
-        - (contradictionMarkers.length > 0 ? 0.15 : 0)
-      ).toFixed(2)
+        matchedActions.length * 0.5 +
+        matchedEntities.length * 0.35 +
+        matchedPhrases.length * 0.25 +
+        (executableShape ? 0.2 : 0) -
+        (contradictionMarkers.length > 0 ? 0.15 : 0)
+      ).toFixed(2),
     );
     if (score < 0.45) {
       continue;
@@ -652,7 +707,7 @@ function collectBehaviorProbes(document: RepoDocument, signals: RequirementSigna
       matchedEntities,
       matchedPhrases,
       contradictionMarkers,
-      score
+      score,
     });
   }
 
@@ -676,14 +731,12 @@ function matchDocument(document: RepoDocument, signals: RequirementSignals): Doc
     return null;
   }
 
-  const keywordScore = signals.keywords.length > 0
-    ? matchedKeywords.length / signals.keywords.length
-    : 0;
-  const literalScore = signals.literals.length > 0
-    ? matchedLiterals.length / signals.literals.length
-    : 0;
+  const keywordScore =
+    signals.keywords.length > 0 ? matchedKeywords.length / signals.keywords.length : 0;
+  const literalScore =
+    signals.literals.length > 0 ? matchedLiterals.length / signals.literals.length : 0;
   const sourceBonus = document.source === "code" ? 0.1 : 0;
-  const score = Math.min(1, (keywordScore * 0.7) + (literalScore * 0.3) + sourceBonus);
+  const score = Math.min(1, keywordScore * 0.7 + literalScore * 0.3 + sourceBonus);
 
   return {
     path: document.path,
@@ -691,21 +744,21 @@ function matchDocument(document: RepoDocument, signals: RequirementSignals): Doc
     matchedKeywords,
     matchedLiterals,
     score,
-    snippets: collectSnippets(document, [...matchedKeywords, ...matchedLiterals])
+    snippets: collectSnippets(document, [...matchedKeywords, ...matchedLiterals]),
   };
 }
 
 function detectContradiction(
   signals: RequirementSignals,
   behaviorProbes: BehaviorProbe[],
-  codeMatches: DocumentMatch[]
+  codeMatches: DocumentMatch[],
 ): { hasConflict: boolean; terms: string[] } {
   const contradictoryMarkers = Array.from(
-    new Set(behaviorProbes.flatMap((probe) => probe.contradictionMarkers))
+    new Set(behaviorProbes.flatMap((probe) => probe.contradictionMarkers)),
   );
 
   const forbiddenFromBehavior = signals.forbiddenTerms.filter((term) =>
-    behaviorProbes.some((probe) => lineIncludesToken(probe.statement.toLowerCase(), term))
+    behaviorProbes.some((probe) => lineIncludesToken(probe.statement.toLowerCase(), term)),
   );
 
   const forbiddenFromSnippets = signals.forbiddenTerms.filter((term) =>
@@ -716,35 +769,41 @@ function detectContradiction(
           return false;
         }
         const escapedTerm = escapeRegex(term);
-        return new RegExp(`\\b(import|from|require|new|extends|implements|class|function|const|let|var|type|interface)\\b[^\\n]*\\b${escapedTerm}\\b`).test(lower)
-          || new RegExp(`\\b${escapedTerm}\\b\\s*(\\(|\\.|:)`).test(lower);
-      })
-    )
+        return (
+          new RegExp(
+            `\\b(import|from|require|new|extends|implements|class|function|const|let|var|type|interface)\\b[^\\n]*\\b${escapedTerm}\\b`,
+          ).test(lower) || new RegExp(`\\b${escapedTerm}\\b\\s*(\\(|\\.|:)`).test(lower)
+        );
+      }),
+    ),
   );
 
-  const conflictingTerms = Array.from(new Set([
-    ...forbiddenFromBehavior,
-    ...forbiddenFromSnippets,
-    ...contradictoryMarkers
-  ]));
+  const conflictingTerms = Array.from(
+    new Set([...forbiddenFromBehavior, ...forbiddenFromSnippets, ...contradictoryMarkers]),
+  );
 
   return {
     hasConflict: conflictingTerms.length > 0,
-    terms: conflictingTerms
+    terms: conflictingTerms,
   };
 }
 
-function inferConfidence(kind: GapFinding["kind"], contradiction: boolean, codeCoverage: number, nonCodeCoverage: number): number {
+function inferConfidence(
+  kind: GapFinding["kind"],
+  contradiction: boolean,
+  codeCoverage: number,
+  nonCodeCoverage: number,
+): number {
   if (contradiction) {
     return 0.88;
   }
 
   if (kind === "missing") {
-    const base = 0.66 + (nonCodeCoverage * 0.2);
+    const base = 0.66 + nonCodeCoverage * 0.2;
     return Math.max(0.5, Math.min(0.9, Number.parseFloat(base.toFixed(2))));
   }
 
-  const base = 0.58 + (Math.max(codeCoverage, nonCodeCoverage) * 0.28);
+  const base = 0.58 + Math.max(codeCoverage, nonCodeCoverage) * 0.28;
   return Math.max(0.45, Math.min(0.9, Number.parseFloat(base.toFixed(2))));
 }
 
@@ -756,7 +815,7 @@ function summarizeCurrentBehavior(
   matchedNonCodeTerms: string[],
   uncoveredBehaviorTerms: string[],
   contradiction: { hasConflict: boolean; terms: string[] },
-  codeMatches: DocumentMatch[]
+  codeMatches: DocumentMatch[],
 ): string {
   if (contradiction.hasConflict) {
     const snippets = behaviorProbes
@@ -764,14 +823,16 @@ function summarizeCurrentBehavior(
       .map((probe) => `${probe.path}:${probe.line} ${probe.statement}`);
     return [
       `Observed behavior still conflicts with required semantics (${contradiction.terms.join(", ")}).`,
-      snippets.length > 0 ? `Evidence: ${snippets.join(" | ")}` : "Evidence appears in sampled in-scope code surfaces."
+      snippets.length > 0
+        ? `Evidence: ${snippets.join(" | ")}`
+        : "Evidence appears in sampled in-scope code surfaces.",
     ].join(" ");
   }
 
   if (behaviorProbes.length === 0) {
     return [
       `No in-scope executable behavior evidence was found for requirement line ${requirement.line}.`,
-      `Non-code sources matched ${matchedNonCodeTerms.length} term(s) (${Math.round(nonCodeCoverage * 100)}% coverage), which is insufficient for closure.`
+      `Non-code sources matched ${matchedNonCodeTerms.length} term(s) (${Math.round(nonCodeCoverage * 100)}% coverage), which is insufficient for closure.`,
     ].join(" ");
   }
 
@@ -779,14 +840,17 @@ function summarizeCurrentBehavior(
   const snippets = behaviorProbes
     .slice(0, 3)
     .map((probe) => `${probe.path}:${probe.line} ${probe.statement}`);
-  const uncovered = uncoveredBehaviorTerms.length > 0
-    ? `Observed behavior remains partial; missing behavior signals for ${uncoveredBehaviorTerms.slice(0, 6).join(", ")}.`
-    : "Observed behavior probes cover the extracted requirement actions and entities.";
+  const uncovered =
+    uncoveredBehaviorTerms.length > 0
+      ? `Observed behavior remains partial; missing behavior signals for ${uncoveredBehaviorTerms.slice(0, 6).join(", ")}.`
+      : "Observed behavior probes cover the extracted requirement actions and entities.";
 
   return [
     `Observed executable behavior evidence in ${topPaths.join(", ")}.`,
-    snippets.length > 0 ? `Representative behavior probes: ${snippets.join(" | ")}` : "Representative probes were not captured for this requirement.",
-    uncovered
+    snippets.length > 0
+      ? `Representative behavior probes: ${snippets.join(" | ")}`
+      : "Representative probes were not captured for this requirement.",
+    uncovered,
   ].join(" ");
 }
 
@@ -799,17 +863,19 @@ function summarizeEvidence(
   matchedNonCodeTerms: string[],
   behaviorProbes: BehaviorProbe[],
   codeMatches: DocumentMatch[],
-  nonCodeMatches: DocumentMatch[]
+  nonCodeMatches: DocumentMatch[],
 ): string[] {
   const lines: string[] = [
     `Objective requirement (line ${requirement.line}): ${requirement.text}`,
     `Coverage summary: behavior=${Math.round(codeCoverage * 100)}%, non-code=${Math.round(nonCodeCoverage * 100)}%.`,
     `Observed behavior actions: ${matchedBehaviorActions.length > 0 ? matchedBehaviorActions.slice(0, 10).join(", ") : "(none)"}.`,
-    `Observed behavior entities: ${matchedBehaviorEntities.length > 0 ? matchedBehaviorEntities.slice(0, 10).join(", ") : "(none)"}.`
+    `Observed behavior entities: ${matchedBehaviorEntities.length > 0 ? matchedBehaviorEntities.slice(0, 10).join(", ") : "(none)"}.`,
   ];
 
   if (behaviorProbes.length === 0) {
-    lines.push("Executable behavior probes were not found; non-code sources are insufficient for closure.");
+    lines.push(
+      "Executable behavior probes were not found; non-code sources are insufficient for closure.",
+    );
   }
 
   const probes = behaviorProbes
@@ -856,7 +922,7 @@ function shouldEmitFinding(
   strict: boolean,
   codeCoverage: number,
   hasBehaviorEvidence: boolean,
-  contradiction: boolean
+  contradiction: boolean,
 ): boolean {
   if (contradiction) {
     return true;
@@ -865,11 +931,7 @@ function shouldEmitFinding(
     return true;
   }
 
-  const threshold = strict
-    ? 0.9
-    : profile === "architecture-gap"
-      ? 0.8
-      : 0.75;
+  const threshold = strict ? 0.9 : profile === "architecture-gap" ? 0.8 : 0.75;
   return codeCoverage < threshold;
 }
 
@@ -885,11 +947,13 @@ export async function assessGaps(input: AssessmentInput): Promise<{
   for (const requirement of requirements) {
     const signals = buildSignals(requirement.text);
     const allTerms = Array.from(new Set([...signals.keywords, ...signals.literals]));
-    const behaviorTerms = Array.from(new Set([
-      ...signals.behaviorActions,
-      ...signals.behaviorEntities,
-      ...signals.behaviorPhrases
-    ]));
+    const behaviorTerms = Array.from(
+      new Set([
+        ...signals.behaviorActions,
+        ...signals.behaviorEntities,
+        ...signals.behaviorPhrases,
+      ]),
+    );
     if (allTerms.length === 0) {
       continue;
     }
@@ -919,39 +983,61 @@ export async function assessGaps(input: AssessmentInput): Promise<{
       .filter((match) => !match.path.startsWith(".plan/"));
 
     const matchedCodeTerms = Array.from(
-      new Set(codeMatches.flatMap((match) => [...match.matchedKeywords, ...match.matchedLiterals]))
+      new Set(codeMatches.flatMap((match) => [...match.matchedKeywords, ...match.matchedLiterals])),
     );
     const matchedNonCodeTerms = Array.from(
-      new Set(nonCodeMatches.flatMap((match) => [...match.matchedKeywords, ...match.matchedLiterals]))
+      new Set(
+        nonCodeMatches.flatMap((match) => [...match.matchedKeywords, ...match.matchedLiterals]),
+      ),
     ).filter((term) => !matchedCodeTerms.includes(term));
 
     const behaviorProbes = documents
       .flatMap((document) => collectBehaviorProbes(document, signals))
       .slice(0, 8);
     const matchedBehaviorActions = Array.from(
-      new Set(behaviorProbes.flatMap((probe) => probe.matchedActions))
+      new Set(behaviorProbes.flatMap((probe) => probe.matchedActions)),
     );
     const matchedBehaviorEntities = Array.from(
-      new Set(behaviorProbes.flatMap((probe) => [...probe.matchedEntities, ...probe.matchedPhrases]))
+      new Set(
+        behaviorProbes.flatMap((probe) => [...probe.matchedEntities, ...probe.matchedPhrases]),
+      ),
     );
 
-    const actionCoverage = signals.behaviorActions.length > 0
-      ? matchedBehaviorActions.length / signals.behaviorActions.length
-      : (behaviorProbes.length > 0 ? 1 : 0);
-    const entityCoverage = (signals.behaviorEntities.length + signals.behaviorPhrases.length) > 0
-      ? matchedBehaviorEntities.length / Math.max(1, signals.behaviorEntities.length + signals.behaviorPhrases.length)
-      : (behaviorProbes.length > 0 ? 1 : 0);
-    const behaviorCoverage = Number.parseFloat(((actionCoverage * 0.6) + (entityCoverage * 0.4)).toFixed(2));
+    const actionCoverage =
+      signals.behaviorActions.length > 0
+        ? matchedBehaviorActions.length / signals.behaviorActions.length
+        : behaviorProbes.length > 0
+          ? 1
+          : 0;
+    const entityCoverage =
+      signals.behaviorEntities.length + signals.behaviorPhrases.length > 0
+        ? matchedBehaviorEntities.length /
+          Math.max(1, signals.behaviorEntities.length + signals.behaviorPhrases.length)
+        : behaviorProbes.length > 0
+          ? 1
+          : 0;
+    const behaviorCoverage = Number.parseFloat(
+      (actionCoverage * 0.6 + entityCoverage * 0.4).toFixed(2),
+    );
 
     const lexicalCoverage = matchedCodeTerms.length / allTerms.length;
-    const codeCoverage = behaviorProbes.length > 0
-      ? Math.max(behaviorCoverage, lexicalCoverage * 0.5)
-      : lexicalCoverage * 0.3;
+    const codeCoverage =
+      behaviorProbes.length > 0
+        ? Math.max(behaviorCoverage, lexicalCoverage * 0.5)
+        : lexicalCoverage * 0.3;
     const nonCodeCoverage = matchedNonCodeTerms.length / allTerms.length;
     const hasBehaviorEvidence = behaviorProbes.length > 0;
     const contradiction = detectContradiction(signals, behaviorProbes, codeMatches);
 
-    if (!shouldEmitFinding(input.profile, signals.strict, codeCoverage, hasBehaviorEvidence, contradiction.hasConflict)) {
+    if (
+      !shouldEmitFinding(
+        input.profile,
+        signals.strict,
+        codeCoverage,
+        hasBehaviorEvidence,
+        contradiction.hasConflict,
+      )
+    ) {
       continue;
     }
 
@@ -965,14 +1051,20 @@ export async function assessGaps(input: AssessmentInput): Promise<{
 
     const category = classifyCategory(requirement.text);
     const severity = inferSeverity(input.profile, signals, kind, codeCoverage);
-    const confidence = inferConfidence(kind, contradiction.hasConflict, codeCoverage, nonCodeCoverage);
+    const confidence = inferConfidence(
+      kind,
+      contradiction.hasConflict,
+      codeCoverage,
+      nonCodeCoverage,
+    );
 
-    const affectedPaths = codeMatches.length > 0
-      ? Array.from(new Set(codeMatches.slice(0, 3).map((match) => match.path)))
-      : defaultAffectedPathsForCategory(category);
+    const affectedPaths =
+      codeMatches.length > 0
+        ? Array.from(new Set(codeMatches.slice(0, 3).map((match) => match.path)))
+        : defaultAffectedPathsForCategory(category);
 
-    const uncoveredBehaviorTerms = behaviorTerms.filter((term) =>
-      !matchedBehaviorActions.includes(term) && !matchedBehaviorEntities.includes(term)
+    const uncoveredBehaviorTerms = behaviorTerms.filter(
+      (term) => !matchedBehaviorActions.includes(term) && !matchedBehaviorEntities.includes(term),
     );
     const recommended = recommendedAction(input.profile, requirement);
 
@@ -994,7 +1086,7 @@ export async function assessGaps(input: AssessmentInput): Promise<{
         matchedNonCodeTerms,
         uncoveredBehaviorTerms,
         contradiction,
-        codeMatches
+        codeMatches,
       ),
       evidence: summarizeEvidence(
         requirement,
@@ -1005,13 +1097,13 @@ export async function assessGaps(input: AssessmentInput): Promise<{
         matchedNonCodeTerms,
         behaviorProbes,
         codeMatches,
-        nonCodeMatches
+        nonCodeMatches,
       ),
       objective_refs: [requirement.objectiveRef],
       affected_paths: affectedPaths,
       recommended_direction: recommended,
       recommended_action: recommended,
-      confidence
+      confidence,
     };
 
     finding.fingerprint = buildFindingFingerprint(input.profile, finding);
@@ -1032,7 +1124,7 @@ export async function assessGaps(input: AssessmentInput): Promise<{
     review_id: input.reviewId,
     target_spec_path: input.targetSpecPath,
     findings,
-    generated_at: input.generatedAt
+    generated_at: input.generatedAt,
   };
 
   const markdownLines: string[] = [
@@ -1053,7 +1145,7 @@ export async function assessGaps(input: AssessmentInput): Promise<{
       : `${findings.length} in-scope gap(s) were identified relative to the target spec.`,
     "",
     findings.length === 0 ? "## Findings" : "## Ordered Findings",
-    ""
+    "",
   ];
 
   for (const finding of findings) {
@@ -1073,7 +1165,7 @@ export async function assessGaps(input: AssessmentInput): Promise<{
 
   return {
     gapMarkdown: markdownLines.join("\n"),
-    gap: assessment
+    gap: assessment,
   };
 }
 

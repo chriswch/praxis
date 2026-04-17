@@ -3,10 +3,10 @@ export {
   expectedInputArtifacts,
   expectedInputArtifactsForTransition,
   resolveWorkflowOutcome,
-  resolveWorkflowTransition
+  resolveWorkflowTransition,
 } from "./graph.js";
 export {
   getConvergeWorkflowStageContract,
-  resolveConvergeWorkflowTransition
+  resolveConvergeWorkflowTransition,
 } from "./converge-pre-remediation.js";
 export type { ConvergeStageName } from "../contracts/model.js";

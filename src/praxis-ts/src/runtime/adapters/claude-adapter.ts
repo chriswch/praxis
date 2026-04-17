@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { nowIsoUtc } from "../common/time.js";
 import { probeCommand } from "./command-probe.js";
 import { selectInstructionSurfaces } from "../workers/context-manifest.js";
-import type { AdapterHealth, AdapterLaunchRequest, AdapterLaunchResponse, RuntimeAdapter } from "./types.js";
+import type {
+  AdapterHealth,
+  AdapterLaunchRequest,
+  AdapterLaunchResponse,
+  RuntimeAdapter,
+} from "./types.js";
 
 export class ClaudeAdapter implements RuntimeAdapter {
   readonly name = "claude" as const;
@@ -22,7 +27,7 @@ export class ClaudeAdapter implements RuntimeAdapter {
           ? "claude is available and HOME is configured."
           : "HOME is required to initialize Claude runtime home.",
       binary: probe.binary,
-      version: probe.version
+      version: probe.version,
     };
   }
 
@@ -31,7 +36,10 @@ export class ClaudeAdapter implements RuntimeAdapter {
   // nothing is actually running on the other end. Promote to a real process host before
   // depending on the session for anything beyond identity bookkeeping.
   async launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
-    const instructionSurfaces = selectInstructionSurfaces(request.launch.context_manifest.instruction_surfaces, "claude");
+    const instructionSurfaces = selectInstructionSurfaces(
+      request.launch.context_manifest.instruction_surfaces,
+      "claude",
+    );
     const commandPreview = buildClaudeCommandPreview(request);
     return {
       worker_id: `wrk_claude_${request.dispatch.stage}_${randomUUID()}`,
@@ -40,13 +48,16 @@ export class ClaudeAdapter implements RuntimeAdapter {
       locator: `claude-cli://${request.dispatch.dispatch_id}?entrypoint=${encodeURIComponent(request.launch.runtime.entrypoint)}&instructions=${instructionSurfaces.length}`,
       details: {
         command: commandPreview,
-        instruction_surfaces: instructionSurfaces.map((surface) => surface.path)
-      }
+        instruction_surfaces: instructionSurfaces.map((surface) => surface.path),
+      },
     };
   }
 
   async resume(sessionId: string, request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
-    const instructionSurfaces = selectInstructionSurfaces(request.launch.context_manifest.instruction_surfaces, "claude");
+    const instructionSurfaces = selectInstructionSurfaces(
+      request.launch.context_manifest.instruction_surfaces,
+      "claude",
+    );
     const commandPreview = buildClaudeCommandPreview(request, sessionId);
     return {
       worker_id: `wrk_claude_resume_${request.dispatch.stage}_${randomUUID()}`,
@@ -55,34 +66,37 @@ export class ClaudeAdapter implements RuntimeAdapter {
       locator: `claude-cli://${request.dispatch.dispatch_id}?resume=true&instructions=${instructionSurfaces.length}`,
       details: {
         command: commandPreview,
-        instruction_surfaces: instructionSurfaces.map((surface) => surface.path)
-      }
+        instruction_surfaces: instructionSurfaces.map((surface) => surface.path),
+      },
     };
   }
 
-  async cancel(handle: { session_id: string | null; locator: string | null }): Promise<{ cancelled: boolean; reason: string }> {
+  async cancel(handle: {
+    session_id: string | null;
+    locator: string | null;
+  }): Promise<{ cancelled: boolean; reason: string }> {
     if (handle.session_id) {
       return {
         cancelled: true,
-        reason: `Cancelled session ${handle.session_id}.`
+        reason: `Cancelled session ${handle.session_id}.`,
       };
     }
     if (handle.locator) {
       return {
         cancelled: true,
-        reason: `Cancelled worker at ${handle.locator}.`
+        reason: `Cancelled worker at ${handle.locator}.`,
       };
     }
     return {
       cancelled: false,
-      reason: "No cancellation handle provided."
+      reason: "No cancellation handle provided.",
     };
   }
 }
 
 function buildClaudeCommandPreview(
   request: AdapterLaunchRequest,
-  resumeSessionId: string | null = null
+  resumeSessionId: string | null = null,
 ): Record<string, unknown> {
   const prompt = buildStagePrompt(request);
   const args = resumeSessionId
@@ -94,7 +108,7 @@ function buildClaudeCommandPreview(
     args,
     cwd: request.launch.execution.workspace_root,
     primary_output: request.launch.contract.primary_output,
-    stage_result_path: request.launch.stage_result_path
+    stage_result_path: request.launch.stage_result_path,
   };
 }
 
@@ -105,6 +119,6 @@ function buildStagePrompt(request: AdapterLaunchRequest): string {
     `Instructions: ${request.launch.contract.stage_instructions.join(" | ")}`,
     `Required inputs: ${request.launch.inputs.required_artifacts.join(", ") || "none"}`,
     `Primary output: ${request.launch.contract.primary_output ?? "none"}`,
-    `Stage result: ${request.launch.stage_result_path}`
+    `Stage result: ${request.launch.stage_result_path}`,
   ].join("\n");
 }

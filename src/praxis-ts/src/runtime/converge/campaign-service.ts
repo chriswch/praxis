@@ -1,11 +1,15 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { InvalidInputError, BlockedStateError, RejectedProgressionError } from "../../contracts/errors.js";
+import {
+  InvalidInputError,
+  BlockedStateError,
+  RejectedProgressionError,
+} from "../../contracts/errors.js";
 import { nowIsoUtc } from "../common/time.js";
 import type {
   CampaignLedgerRecord,
   CampaignRecord,
-  ConvergeStageResultRecord
+  ConvergeStageResultRecord,
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import { ChildRunSlotService } from "./child-run-slot.js";
@@ -15,20 +19,20 @@ import {
   countUnresolvedAtOrAboveThreshold,
   createEmptyCampaignLedger,
   listActiveFindings,
-  mergeAssessmentIntoLedger
+  mergeAssessmentIntoLedger,
 } from "./ledger.js";
 import { isAtOrAboveSeverity } from "./severity.js";
 import type {
   ConvergeActionOutcome,
   ConvergeInspectProjection,
   ConvergeRunInput,
-  ConvergeStatusProjection
+  ConvergeStatusProjection,
 } from "./types.js";
 import {
   applyWaivePolicy,
   formatObjectiveMarkdown,
   normalizeRepoPath,
-  parseReviewOrdinal
+  parseReviewOrdinal,
 } from "./campaign-support.js";
 import { ConvergePassService } from "./pass-service.js";
 import type { GapAssessor } from "./gap-assessor.js";
@@ -47,7 +51,10 @@ export class ConvergeCampaignService {
   private readonly stopPolicy: CampaignStopPolicy;
   private readonly reconciler: ChildRunReconciler;
 
-  constructor(private readonly repo: PraxisStateRepository, options: ConvergeCampaignServiceOptions = {}) {
+  constructor(
+    private readonly repo: PraxisStateRepository,
+    options: ConvergeCampaignServiceOptions = {},
+  ) {
     this.childRunSlot = new ChildRunSlotService(repo);
     this.passService = new ConvergePassService(repo, this.childRunSlot);
     this.preRemediation = new ConvergePreRemediationService(repo, options.gapAssessor);
@@ -63,14 +70,14 @@ export class ConvergeCampaignService {
           ledger,
           passNumber,
           this.nextReviewId(campaign),
-          await readFile(this.repo.paths.targetSpecFile, "utf8")
+          await readFile(this.repo.paths.targetSpecFile, "utf8"),
         );
         return {
           campaign: result.campaign,
           ledger: result.ledger,
-          unresolvedAtThreshold: result.unresolvedAtThreshold
+          unresolvedAtThreshold: result.unresolvedAtThreshold,
         };
-      }
+      },
     );
   }
 
@@ -89,7 +96,7 @@ export class ConvergeCampaignService {
     const existing = await this.repo.loadCampaign();
     if (existing && !["completed", "cancelled"].includes(existing.status)) {
       throw new RejectedProgressionError(
-        `Campaign ${existing.campaign_id} is ${existing.status}. Use converge status/continue/resume/cancel.`
+        `Campaign ${existing.campaign_id} is ${existing.status}. Use converge status/continue/resume/cancel.`,
       );
     }
 
@@ -114,7 +121,7 @@ export class ConvergeCampaignService {
         normalized_path: normalizedObjectivePath,
         profile: input.profile,
         scope: [...input.scope],
-        created_at: now
+        created_at: now,
       },
       profile: input.profile,
       severity_threshold: input.severityThreshold,
@@ -132,12 +139,12 @@ export class ConvergeCampaignService {
       reason: "Campaign initialized. Starting first assessment pass.",
       metrics: {
         last_unresolved_at_or_above_threshold: null,
-        no_progress_passes: 0
+        no_progress_passes: 0,
       },
       timestamps: {
         created_at: now,
-        updated_at: now
-      }
+        updated_at: now,
+      },
     };
 
     const ledger = createEmptyCampaignLedger(campaign.campaign_id, campaign.profile, now);
@@ -252,8 +259,8 @@ export class ConvergeCampaignService {
       child_run: childRun,
       unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(
         ledger,
-        campaign.severity_threshold
-      )
+        campaign.severity_threshold,
+      ),
     };
   }
 
@@ -268,7 +275,7 @@ export class ConvergeCampaignService {
         title: finding.title,
         severity: finding.severity,
         status: finding.status,
-        affected_paths: finding.affected_paths
+        affected_paths: finding.affected_paths,
       }));
 
     const passIds = await this.listPassIds();
@@ -278,7 +285,7 @@ export class ConvergeCampaignService {
       pre_remediation_contracts: {
         "clarifying-intent": getConvergeStageContract("clarifying-intent"),
         "assessing-gaps": getConvergeStageContract("assessing-gaps"),
-        "planning-remediation": getConvergeStageContract("planning-remediation")
+        "planning-remediation": getConvergeStageContract("planning-remediation"),
       },
       artifacts: {
         objective_file: this.repo.paths.objectiveFile,
@@ -292,18 +299,18 @@ export class ConvergeCampaignService {
         child_run_slot_file: this.repo.paths.childRunSlotFile,
         reviews_dir: this.repo.paths.reviewsDir,
         clarifications_dir: this.repo.paths.clarificationsDir,
-        passes_dir: this.repo.paths.passesDir
+        passes_dir: this.repo.paths.passesDir,
       },
       unresolved_findings: unresolved,
       child_run: childRun,
-      recent_pass_ids: passIds
+      recent_pass_ids: passIds,
     };
   }
 
   private async progressCampaign(
     campaign: CampaignRecord,
     ledger: CampaignLedgerRecord,
-    objectiveText: string
+    objectiveText: string,
   ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord }> {
     while (campaign.status === "running") {
       if (campaign.current_child_run_id) {
@@ -322,7 +329,7 @@ export class ConvergeCampaignService {
           ledger,
           campaign.current_pass + 1,
           this.nextReviewId(campaign),
-          objectiveText
+          objectiveText,
         );
         campaign = assessed.campaign;
         ledger = assessed.ledger;
@@ -332,7 +339,10 @@ export class ConvergeCampaignService {
           return { campaign, ledger };
         }
 
-        const decision = this.stopPolicy.decidePostAssessment(campaign, assessed.unresolvedAtThreshold);
+        const decision = this.stopPolicy.decidePostAssessment(
+          campaign,
+          assessed.unresolvedAtThreshold,
+        );
         if (decision !== "continue") {
           this.applyTerminalStop(campaign, decision);
           return { campaign, ledger };
@@ -356,7 +366,7 @@ export class ConvergeCampaignService {
 
   private applyTerminalStop(
     campaign: CampaignRecord,
-    code: "converged" | "stalled" | "budget_exhausted"
+    code: "converged" | "stalled" | "budget_exhausted",
   ): void {
     campaign.status = "completed";
     campaign.stop_reason_code = code;
@@ -369,7 +379,7 @@ export class ConvergeCampaignService {
     ledger: CampaignLedgerRecord,
     passNumber: number,
     reviewId: string,
-    targetSpecText: string
+    targetSpecText: string,
   ): Promise<{
     campaign: CampaignRecord;
     ledger: CampaignLedgerRecord;
@@ -379,13 +389,16 @@ export class ConvergeCampaignService {
     const { gap, stageResult } = await this.preRemediation.runAssessingGaps(
       campaign,
       targetSpecText,
-      reviewId
+      reviewId,
     );
 
     const merged = mergeAssessmentIntoLedger(ledger, gap, passNumber, nowIsoUtc());
     applyWaivePolicy(campaign, merged.ledger);
 
-    const unresolvedAtThreshold = countUnresolvedAtOrAboveThreshold(merged.ledger, campaign.severity_threshold);
+    const unresolvedAtThreshold = countUnresolvedAtOrAboveThreshold(
+      merged.ledger,
+      campaign.severity_threshold,
+    );
     const previousUnresolved = campaign.metrics.last_unresolved_at_or_above_threshold;
     if (previousUnresolved !== null && unresolvedAtThreshold >= previousUnresolved) {
       campaign.metrics.no_progress_passes += 1;
@@ -400,7 +413,7 @@ export class ConvergeCampaignService {
       campaign,
       ledger: merged.ledger,
       stageResult,
-      unresolvedAtThreshold
+      unresolvedAtThreshold,
     };
   }
 
@@ -419,7 +432,9 @@ export class ConvergeCampaignService {
   private async requireCampaignLedger(): Promise<CampaignLedgerRecord> {
     const ledger = await this.repo.loadCampaignLedger();
     if (!ledger) {
-      throw new BlockedStateError("No converge campaign ledger found at .praxis/campaign-ledger.json.");
+      throw new BlockedStateError(
+        "No converge campaign ledger found at .praxis/campaign-ledger.json.",
+      );
     }
     return ledger;
   }
@@ -443,27 +458,27 @@ export class ConvergeCampaignService {
       status: campaign.status,
       current_pass: campaign.current_pass,
       stop_reason_code: campaign.stop_reason_code,
-      reason: campaign.reason
+      reason: campaign.reason,
     };
   }
 
   private async refreshTargetSpecFromObjective(
     campaign: CampaignRecord,
-    objectiveTextOverride?: string
+    objectiveTextOverride?: string,
   ): Promise<{
     targetSpecText: string;
     needsClarification: boolean;
     clarificationIssues: string[];
   }> {
-    const objectiveText = objectiveTextOverride
-      ?? await readFile(join(this.repo.paths.root, campaign.objective.normalized_path), "utf8");
+    const objectiveText =
+      objectiveTextOverride ??
+      (await readFile(join(this.repo.paths.root, campaign.objective.normalized_path), "utf8"));
     const clarifying = await this.preRemediation.runClarifyingIntent(campaign, objectiveText);
 
     return {
       targetSpecText: clarifying.targetSpecText,
       needsClarification: clarifying.draft.needsClarification,
-      clarificationIssues: clarifying.draft.clarificationIssues
+      clarificationIssues: clarifying.draft.clarificationIssues,
     };
   }
-
 }

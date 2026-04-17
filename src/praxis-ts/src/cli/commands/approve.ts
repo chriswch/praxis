@@ -11,7 +11,7 @@ export async function runApproveCommand(
   repoRoot: string,
   json: boolean,
   note: string | null,
-  options: ApproveCommandOptions = {}
+  options: ApproveCommandOptions = {},
 ): Promise<number> {
   return runCommandWithEnvelope(json, async () => {
     const controller = new RunController(new PraxisStateRepository(repoRoot));
@@ -26,8 +26,8 @@ export async function runApproveCommand(
         : `Run ${outcome.run_id} approved for ${outcome.next_stage}.`,
       data: {
         ...outcome,
-        launched
-      }
+        launched,
+      },
     };
   });
 }

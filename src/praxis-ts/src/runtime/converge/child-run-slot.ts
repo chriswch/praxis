@@ -12,11 +12,16 @@ export class ChildRunSlotService {
       return;
     }
     throw new BlockedStateError(
-      `Child run slot is active for ${slot.campaign_id}/${slot.pass_id} (${slot.child_run_id}); release it before launching ${campaignId}/${passId}.`
+      `Child run slot is active for ${slot.campaign_id}/${slot.pass_id} (${slot.child_run_id}); release it before launching ${campaignId}/${passId}.`,
     );
   }
 
-  async claim(campaignId: string, passId: string, childRunId: string, reason: string): Promise<void> {
+  async claim(
+    campaignId: string,
+    passId: string,
+    childRunId: string,
+    reason: string,
+  ): Promise<void> {
     await this.repo.saveChildRunSlot({
       version: 1,
       campaign_id: campaignId,
@@ -24,7 +29,7 @@ export class ChildRunSlotService {
       child_run_id: childRunId,
       status: "active",
       reason,
-      updated_at: nowIsoUtc()
+      updated_at: nowIsoUtc(),
     });
   }
 
@@ -40,7 +45,7 @@ export class ChildRunSlotService {
       ...slot,
       status: "released",
       reason,
-      updated_at: nowIsoUtc()
+      updated_at: nowIsoUtc(),
     });
   }
 
@@ -48,27 +53,25 @@ export class ChildRunSlotService {
     campaignId: string,
     passId: string,
     expectedRunId: string,
-    currentRun: RunRecord | null
+    currentRun: RunRecord | null,
   ): Promise<void> {
     const slot = await this.repo.loadChildRunSlot();
     if (!slot || slot.status !== "active") {
-      throw new BlockedStateError(
-        `Missing active child run slot for ${campaignId}/${passId}.`
-      );
+      throw new BlockedStateError(`Missing active child run slot for ${campaignId}/${passId}.`);
     }
     if (slot.campaign_id !== campaignId || slot.pass_id !== passId) {
       throw new BlockedStateError(
-        `Child run slot ownership mismatch: expected ${campaignId}/${passId}, found ${slot.campaign_id}/${slot.pass_id}.`
+        `Child run slot ownership mismatch: expected ${campaignId}/${passId}, found ${slot.campaign_id}/${slot.pass_id}.`,
       );
     }
     if (slot.child_run_id !== expectedRunId) {
       throw new BlockedStateError(
-        `Child run slot mismatch: expected run ${expectedRunId}, found ${slot.child_run_id}.`
+        `Child run slot mismatch: expected run ${expectedRunId}, found ${slot.child_run_id}.`,
       );
     }
     if (currentRun && currentRun.run_id !== expectedRunId) {
       throw new BlockedStateError(
-        `Active run ${currentRun.run_id} replaced expected child run ${expectedRunId}.`
+        `Active run ${currentRun.run_id} replaced expected child run ${expectedRunId}.`,
       );
     }
   }

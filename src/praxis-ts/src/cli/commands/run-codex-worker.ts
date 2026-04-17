@@ -1,6 +1,9 @@
 import { EXIT_CODE } from "../exit-codes.js";
 import { runCommandWithEnvelope } from "./shared.js";
-import { runCodexWorkerHost, type WorkerHostMode } from "../../runtime/workers/codex-worker-host.js";
+import {
+  runCodexWorkerHost,
+  type WorkerHostMode,
+} from "../../runtime/workers/codex-worker-host.js";
 
 export type RunCodexWorkerCommandArgs = {
   dispatchId: string;
@@ -13,7 +16,7 @@ export type RunCodexWorkerCommandArgs = {
 export async function runRunCodexWorkerCommand(
   repoRoot: string,
   json: boolean,
-  args: RunCodexWorkerCommandArgs
+  args: RunCodexWorkerCommandArgs,
 ): Promise<number> {
   return runCommandWithEnvelope(json, async () => {
     await runCodexWorkerHost({
@@ -22,7 +25,7 @@ export async function runRunCodexWorkerCommand(
       workerId: args.workerId,
       handshakePath: args.handshakePath,
       mode: args.mode,
-      expectedSessionId: args.expectedSessionId ?? null
+      expectedSessionId: args.expectedSessionId ?? null,
     });
 
     return {
@@ -32,8 +35,8 @@ export async function runRunCodexWorkerCommand(
       data: {
         dispatch_id: args.dispatchId,
         worker_id: args.workerId,
-        mode: args.mode
-      }
+        mode: args.mode,
+      },
     };
   });
 }

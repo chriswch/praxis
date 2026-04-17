@@ -1,7 +1,10 @@
 import { exists } from "../state/store.js";
 import { getAllAdapters } from "../adapters/index.js";
 import { resolvePraxisPaths } from "../state/paths.js";
-import { buildInstructionSurfaceManifest, selectInstructionSurfaces } from "../workers/context-manifest.js";
+import {
+  buildInstructionSurfaceManifest,
+  selectInstructionSurfaces,
+} from "../workers/context-manifest.js";
 import { EXIT_CODE } from "../../cli/exit-codes.js";
 
 export type DoctorReport = {
@@ -51,11 +54,12 @@ export async function buildDoctorReport(repoRoot: string): Promise<DoctorReport>
         reason: health.reason,
         binary: health.binary,
         version: health.version,
-        instruction_surfaces_found: selectInstructionSurfaces(instructionSurfaces, health.adapter).map(
-          (surface) => surface.path
-        )
+        instruction_surfaces_found: selectInstructionSurfaces(
+          instructionSurfaces,
+          health.adapter,
+        ).map((surface) => surface.path),
       };
-    })
+    }),
   );
 
   const [
@@ -65,7 +69,7 @@ export async function buildDoctorReport(repoRoot: string): Promise<DoctorReport>
     hasDispatchDirectory,
     hasSessionDirectory,
     hasWorktreeDirectory,
-    repoIsGit
+    repoIsGit,
   ] = await Promise.all([
     exists(paths.praxisDir),
     exists(paths.runFile),
@@ -73,16 +77,24 @@ export async function buildDoctorReport(repoRoot: string): Promise<DoctorReport>
     exists(paths.dispatchesDir),
     exists(paths.sessionsDir),
     exists(paths.worktreesDir),
-    exists(`${repoRoot}/.git`)
+    exists(`${repoRoot}/.git`),
   ]);
 
-  const integrity = !praxisDirExists
-    || (hasDispatchDirectory && hasSessionDirectory && hasWorktreeDirectory && (hasRunManifest || hasEventLog))
-    ? "healthy"
-    : "warning";
+  const integrity =
+    !praxisDirExists ||
+    (hasDispatchDirectory &&
+      hasSessionDirectory &&
+      hasWorktreeDirectory &&
+      (hasRunManifest || hasEventLog))
+      ? "healthy"
+      : "warning";
   const reasons = [
-    ...adapters.filter((adapter) => !adapter.healthy).map((adapter) => `${adapter.adapter}: ${adapter.reason}`),
-    ...(integrity === "warning" ? ["runtime_integrity: .praxis layout is incomplete for durable recovery."] : [])
+    ...adapters
+      .filter((adapter) => !adapter.healthy)
+      .map((adapter) => `${adapter.adapter}: ${adapter.reason}`),
+    ...(integrity === "warning"
+      ? ["runtime_integrity: .praxis layout is incomplete for durable recovery."]
+      : []),
   ];
   const healthy = reasons.length === 0;
 
@@ -93,7 +105,7 @@ export async function buildDoctorReport(repoRoot: string): Promise<DoctorReport>
       platform: process.platform,
       praxis_dir_exists: praxisDirExists,
       repo_is_git: repoIsGit,
-      instruction_surfaces: instructionSurfaces
+      instruction_surfaces: instructionSurfaces,
     },
     adapters,
     recoverability: {
@@ -102,12 +114,12 @@ export async function buildDoctorReport(repoRoot: string): Promise<DoctorReport>
       has_dispatch_directory: hasDispatchDirectory,
       has_session_directory: hasSessionDirectory,
       has_worktree_directory: hasWorktreeDirectory,
-      integrity
+      integrity,
     },
     summary: {
       healthy,
       exit_code: healthy ? EXIT_CODE.OK : EXIT_CODE.HEALTH_FAILED,
-      reasons
-    }
+      reasons,
+    },
   };
 }

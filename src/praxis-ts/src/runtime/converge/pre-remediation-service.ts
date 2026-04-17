@@ -2,7 +2,7 @@ import { nowIsoUtc } from "../common/time.js";
 import type {
   CampaignRecord,
   ConvergeStageResultRecord,
-  GapAssessmentResult
+  GapAssessmentResult,
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import { formatTargetSpecMarkdown, type TargetSpecDraft } from "./campaign-support.js";
@@ -14,14 +14,17 @@ export class ConvergePreRemediationService {
   private readonly clarificationStore: ClarificationStore;
   private readonly gapAssessor: GapAssessor;
 
-  constructor(private readonly repo: PraxisStateRepository, gapAssessor: GapAssessor = new LexicalGapAssessor()) {
+  constructor(
+    private readonly repo: PraxisStateRepository,
+    gapAssessor: GapAssessor = new LexicalGapAssessor(),
+  ) {
     this.clarificationStore = new ClarificationStore(repo);
     this.gapAssessor = gapAssessor;
   }
 
   async runClarifyingIntent(
     campaign: CampaignRecord,
-    objectiveText: string
+    objectiveText: string,
   ): Promise<{
     targetSpecText: string;
     draft: TargetSpecDraft;
@@ -36,27 +39,27 @@ export class ConvergePreRemediationService {
       data: {
         clarification_issues: draft.clarificationIssues,
         acceptance_criteria_count: draft.acceptanceCriteriaCount,
-        clarification_approval_status: draft.clarificationRecord.approval.status
-      }
+        clarification_approval_status: draft.clarificationRecord.approval.status,
+      },
     });
 
     await this.clarificationStore.persistTargetSpec({
       targetSpecMarkdown: draft.markdown,
       clarificationRecord: draft.clarificationRecord,
-      stageResult
+      stageResult,
     });
 
     return {
       targetSpecText: draft.markdown,
       draft,
-      stageResult
+      stageResult,
     };
   }
 
   async runAssessingGaps(
     campaign: CampaignRecord,
     targetSpecText: string,
-    reviewId: string
+    reviewId: string,
   ): Promise<{
     stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
     gap: GapAssessmentResult;
@@ -70,7 +73,7 @@ export class ConvergePreRemediationService {
       targetSpecText,
       scope: campaign.objective.scope,
       reviewId,
-      generatedAt
+      generatedAt,
     });
 
     const stageResult = buildConvergeStageResult({
@@ -79,15 +82,15 @@ export class ConvergePreRemediationService {
       reviewId,
       outcomeCode: gap.findings.length === 0 ? "no_gaps" : "findings_recorded",
       data: {
-        findings_count: gap.findings.length
-      }
+        findings_count: gap.findings.length,
+      },
     });
     await this.repo.saveGapArtifacts({ gapMarkdown, gap, stageResult });
 
     return {
       stageResult,
       gap,
-      findingsCount: gap.findings.length
+      findingsCount: gap.findings.length,
     };
   }
 }

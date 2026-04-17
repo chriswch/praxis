@@ -11,18 +11,18 @@ export { planRemediation, planPassBatch } from "./planner.js";
 export {
   buildConvergeStageResult,
   getConvergeStageContract,
-  resolveConvergeStageTransition
+  resolveConvergeStageTransition,
 } from "./stage-runtime.js";
 export {
   createEmptyCampaignLedger,
   mergeAssessmentIntoLedger,
   listActiveFindings,
-  countUnresolvedAtOrAboveThreshold
+  countUnresolvedAtOrAboveThreshold,
 } from "./ledger.js";
 export type {
   ConvergeActionOutcome,
   ConvergeChildRunProjection,
   ConvergeInspectProjection,
   ConvergeRunInput,
-  ConvergeStatusProjection
+  ConvergeStatusProjection,
 } from "./types.js";

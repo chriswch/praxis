@@ -37,7 +37,7 @@ import {
   type RunRecord,
   type StageResultRecord,
   type StoryLedgerRecord,
-  type WorkerSessionRegistration
+  type WorkerSessionRegistration,
 } from "./model.js";
 
 export class ContractError extends Error {
@@ -47,16 +47,23 @@ export class ContractError extends Error {
   }
 }
 
-function assertEnum<T extends string>(value: string, allowed: readonly T[], label: string): asserts value is T {
+function assertEnum<T extends string>(
+  value: string,
+  allowed: readonly T[],
+  label: string,
+): asserts value is T {
   if (!allowed.includes(value as T)) {
     throw new ContractError(`Invalid ${label}: ${value}. Allowed: ${allowed.join(", ")}.`);
   }
 }
 
-function assertWorkflowName(value: string, label: string): asserts value is (typeof WORKFLOW_NAMES)[number] {
+function assertWorkflowName(
+  value: string,
+  label: string,
+): asserts value is (typeof WORKFLOW_NAMES)[number] {
   if (value === "forge") {
     throw new ContractError(
-      `Invalid ${label}: forge. Legacy forge state is not supported; start a fresh run or campaign using craft.`
+      `Invalid ${label}: forge. Legacy forge state is not supported; start a fresh run or campaign using craft.`,
     );
   }
   assertEnum(value, WORKFLOW_NAMES, label);
@@ -183,14 +190,20 @@ export function validateRunRecord(run: RunRecord): void {
     assertRecord(run.constraints, "constraints");
 
     if (run.constraints.clarifying_required_artifacts !== undefined) {
-      assertStringArray(run.constraints.clarifying_required_artifacts, "constraints.clarifying_required_artifacts");
+      assertStringArray(
+        run.constraints.clarifying_required_artifacts,
+        "constraints.clarifying_required_artifacts",
+      );
       for (const path of run.constraints.clarifying_required_artifacts) {
         assertPraxisPath(path, "constraints.clarifying_required_artifacts item");
       }
     }
 
     if (run.constraints.clarifying_allowed_outcomes !== undefined) {
-      assertStringArray(run.constraints.clarifying_allowed_outcomes, "constraints.clarifying_allowed_outcomes");
+      assertStringArray(
+        run.constraints.clarifying_allowed_outcomes,
+        "constraints.clarifying_allowed_outcomes",
+      );
       for (const outcomeCode of run.constraints.clarifying_allowed_outcomes) {
         assertPlainString(outcomeCode, "constraints.clarifying_allowed_outcomes item");
       }
@@ -198,27 +211,46 @@ export function validateRunRecord(run: RunRecord): void {
 
     if (run.constraints.bounded_scope !== undefined) {
       assertRecord(run.constraints.bounded_scope, "constraints.bounded_scope");
-      assertEnum(run.constraints.bounded_scope.kind, ["converge_pass"], "constraints.bounded_scope.kind");
+      assertEnum(
+        run.constraints.bounded_scope.kind,
+        ["converge_pass"],
+        "constraints.bounded_scope.kind",
+      );
       assertPlainString(run.constraints.bounded_scope.pass_id, "constraints.bounded_scope.pass_id");
-      assertRepoRelativePath(run.constraints.bounded_scope.objective_path, "constraints.bounded_scope.objective_path");
-      assertStringArray(run.constraints.bounded_scope.finding_ids, "constraints.bounded_scope.finding_ids");
-      assertStringArray(run.constraints.bounded_scope.story_ids, "constraints.bounded_scope.story_ids");
-      assertPraxisPath(run.constraints.bounded_scope.brief_path, "constraints.bounded_scope.brief_path");
+      assertRepoRelativePath(
+        run.constraints.bounded_scope.objective_path,
+        "constraints.bounded_scope.objective_path",
+      );
+      assertStringArray(
+        run.constraints.bounded_scope.finding_ids,
+        "constraints.bounded_scope.finding_ids",
+      );
+      assertStringArray(
+        run.constraints.bounded_scope.story_ids,
+        "constraints.bounded_scope.story_ids",
+      );
+      assertPraxisPath(
+        run.constraints.bounded_scope.brief_path,
+        "constraints.bounded_scope.brief_path",
+      );
     }
 
     if (run.constraints.commit_per_story !== undefined) {
       assertRecord(run.constraints.commit_per_story, "constraints.commit_per_story");
-      assertBoolean(run.constraints.commit_per_story.enabled, "constraints.commit_per_story.enabled");
+      assertBoolean(
+        run.constraints.commit_per_story.enabled,
+        "constraints.commit_per_story.enabled",
+      );
       if (run.constraints.commit_per_story.last_verified_head !== null) {
         assertPlainString(
           run.constraints.commit_per_story.last_verified_head,
-          "constraints.commit_per_story.last_verified_head"
+          "constraints.commit_per_story.last_verified_head",
         );
       }
       if (run.constraints.commit_per_story.pending_story_id !== null) {
         assertPlainString(
           run.constraints.commit_per_story.pending_story_id,
-          "constraints.commit_per_story.pending_story_id"
+          "constraints.commit_per_story.pending_story_id",
         );
       }
     }
@@ -260,11 +292,15 @@ export function validateStageResult(result: StageResultRecord): void {
 
   if (result.route.next_stage !== null) {
     assertEnum(result.route.next_stage, STAGE_NAMES, "route.next_stage");
-    throw new ContractError("route.next_stage must be null because next-stage routing is runtime-derived");
+    throw new ContractError(
+      "route.next_stage must be null because next-stage routing is runtime-derived",
+    );
   }
   if (result.route.next_slice_id !== null) {
     assertPlainString(result.route.next_slice_id, "route.next_slice_id");
-    throw new ContractError("route.next_slice_id must be null because next-slice routing is runtime-derived");
+    throw new ContractError(
+      "route.next_slice_id must be null because next-slice routing is runtime-derived",
+    );
   }
 
   assertPraxisPath(result.summary_path, "summary_path");
@@ -312,9 +348,19 @@ export function validateStageResult(result: StageResultRecord): void {
 
   if (result.execution !== undefined) {
     assertRecord(result.execution, "execution");
-    const permissionProfiles = ["planning", "design", "implementation", "review", "verification"] as const;
+    const permissionProfiles = [
+      "planning",
+      "design",
+      "implementation",
+      "review",
+      "verification",
+    ] as const;
     const worktreeModes = ["shared"] as const;
-    assertEnum(result.execution.permission_profile, permissionProfiles, "execution.permission_profile");
+    assertEnum(
+      result.execution.permission_profile,
+      permissionProfiles,
+      "execution.permission_profile",
+    );
     assertEnum(result.execution.worktree_mode, worktreeModes, "execution.worktree_mode");
     assertBoolean(result.execution.fresh_context, "execution.fresh_context");
     assertBoolean(result.execution.resumed, "execution.resumed");
@@ -389,7 +435,7 @@ export function validateDispatchRecord(dispatch: DispatchRecord): void {
   assertEnum(
     dispatch.execution.workspace_origin,
     ["shared"],
-    "dispatch.execution.workspace_origin"
+    "dispatch.execution.workspace_origin",
   );
   assertEnum(dispatch.tool_policy.profile, PERMISSION_PROFILES, "dispatch.tool_policy.profile");
 
@@ -405,37 +451,53 @@ export function validateDispatchRecord(dispatch: DispatchRecord): void {
   for (const instruction of dispatch.contract.stage_instructions) {
     assertPlainString(instruction, "dispatch.contract.stage_instructions item");
   }
-  assertStringArray(dispatch.contract.expected_output_artifacts, "dispatch.contract.expected_output_artifacts");
+  assertStringArray(
+    dispatch.contract.expected_output_artifacts,
+    "dispatch.contract.expected_output_artifacts",
+  );
   for (const path of dispatch.contract.expected_output_artifacts) {
     assertPraxisPath(path, "dispatch.contract.expected_output_artifacts item");
   }
   assertPraxisPath(dispatch.contract.primary_output, "dispatch.contract.primary_output");
 
-  assertStringArray(dispatch.context_manifest.declared_inputs, "dispatch.context_manifest.declared_inputs");
+  assertStringArray(
+    dispatch.context_manifest.declared_inputs,
+    "dispatch.context_manifest.declared_inputs",
+  );
   for (const path of dispatch.context_manifest.declared_inputs) {
     assertPraxisPath(path, "dispatch.context_manifest.declared_inputs item");
   }
   assertPraxisPath(
     dispatch.context_manifest.boundary_handoff_path,
-    "dispatch.context_manifest.boundary_handoff_path"
+    "dispatch.context_manifest.boundary_handoff_path",
   );
   for (const [index, surface] of dispatch.context_manifest.instruction_surfaces.entries()) {
     assertRecord(surface, `dispatch.context_manifest.instruction_surfaces[${index}]`);
-    assertRepoRelativePath(surface.path, `dispatch.context_manifest.instruction_surfaces[${index}].path`);
-    assertEnum(surface.kind, ["file", "directory"], `dispatch.context_manifest.instruction_surfaces[${index}].kind`);
+    assertRepoRelativePath(
+      surface.path,
+      `dispatch.context_manifest.instruction_surfaces[${index}].path`,
+    );
+    assertEnum(
+      surface.kind,
+      ["file", "directory"],
+      `dispatch.context_manifest.instruction_surfaces[${index}].kind`,
+    );
     assertEnum(
       surface.provider,
       ["shared", "codex", "claude"],
-      `dispatch.context_manifest.instruction_surfaces[${index}].provider`
+      `dispatch.context_manifest.instruction_surfaces[${index}].provider`,
     );
     assertBoolean(
       surface.authoritative,
-      `dispatch.context_manifest.instruction_surfaces[${index}].authoritative`
+      `dispatch.context_manifest.instruction_surfaces[${index}].authoritative`,
     );
-    assertBoolean(surface.exists, `dispatch.context_manifest.instruction_surfaces[${index}].exists`);
+    assertBoolean(
+      surface.exists,
+      `dispatch.context_manifest.instruction_surfaces[${index}].exists`,
+    );
     assertPlainString(
       surface.description,
-      `dispatch.context_manifest.instruction_surfaces[${index}].description`
+      `dispatch.context_manifest.instruction_surfaces[${index}].description`,
     );
   }
 
@@ -477,7 +539,7 @@ export function validateStoryLedgerRecord(ledger: StoryLedgerRecord): void {
     assertEnum(story.status, statuses, `stories.items.${storyId}.status`);
     if (story.carry_forward_from !== null && !items[story.carry_forward_from]) {
       throw new ContractError(
-        `stories.items.${storyId}.carry_forward_from references missing story ${story.carry_forward_from}`
+        `stories.items.${storyId}.carry_forward_from references missing story ${story.carry_forward_from}`,
       );
     }
     assertPraxisPath(story.handoff_path, `stories.items.${storyId}.handoff_path`);
@@ -524,7 +586,7 @@ export function validateCampaignRecord(campaign: CampaignRecord): void {
   const campaignWorkflow = campaign.workflow as string;
   if (campaignWorkflow === "forge") {
     throw new ContractError(
-      "Invalid campaign.workflow: forge. Legacy forge campaigns are unsupported; start a fresh campaign."
+      "Invalid campaign.workflow: forge. Legacy forge campaigns are unsupported; start a fresh campaign.",
     );
   }
   assertEnum(campaignWorkflow, ["craft"], "campaign.workflow");
@@ -553,8 +615,8 @@ export function validateCampaignRecord(campaign: CampaignRecord): void {
   assertPlainString(campaign.reason, "campaign.reason");
   assertRecord(campaign.metrics, "campaign.metrics");
   if (
-    campaign.metrics.last_unresolved_at_or_above_threshold !== null
-    && campaign.metrics.last_unresolved_at_or_above_threshold < 0
+    campaign.metrics.last_unresolved_at_or_above_threshold !== null &&
+    campaign.metrics.last_unresolved_at_or_above_threshold < 0
   ) {
     throw new ContractError("campaign.metrics.last_unresolved_at_or_above_threshold must be >= 0");
   }
@@ -596,7 +658,9 @@ export function validateCampaignLedgerRecord(ledger: CampaignLedgerRecord): void
   for (const findingId of ledger.finding_order) {
     assertPlainString(findingId, "campaign ledger finding_order item");
     if (seenFindingIds.has(findingId)) {
-      throw new ContractError(`campaign ledger finding_order contains duplicate finding id ${findingId}`);
+      throw new ContractError(
+        `campaign ledger finding_order contains duplicate finding id ${findingId}`,
+      );
     }
     seenFindingIds.add(findingId);
     if (!ledger.findings[findingId]) {
@@ -606,7 +670,9 @@ export function validateCampaignLedgerRecord(ledger: CampaignLedgerRecord): void
 
   for (const [findingId, finding] of Object.entries(ledger.findings)) {
     if (finding.finding_id !== findingId) {
-      throw new ContractError(`campaign finding key ${findingId} must match finding_id ${finding.finding_id}`);
+      throw new ContractError(
+        `campaign finding key ${findingId} must match finding_id ${finding.finding_id}`,
+      );
     }
     assertPlainString(finding.fingerprint, `${findingId}.fingerprint`);
     assertPlainString(finding.title, `${findingId}.title`);
@@ -634,7 +700,10 @@ export function validateCampaignLedgerRecord(ledger: CampaignLedgerRecord): void
     if (finding.introduced_in_pass < 1) {
       throw new ContractError(`${findingId}.introduced_in_pass must be >= 1`);
     }
-    if (finding.resolved_in_pass !== null && finding.resolved_in_pass < finding.introduced_in_pass) {
+    if (
+      finding.resolved_in_pass !== null &&
+      finding.resolved_in_pass < finding.introduced_in_pass
+    ) {
       throw new ContractError(`${findingId}.resolved_in_pass must be >= introduced_in_pass`);
     }
     assertStringArray(finding.child_run_ids, `${findingId}.child_run_ids`);
@@ -686,7 +755,10 @@ export function validateObjectiveAssessmentResult(result: ObjectiveAssessmentRes
   validateGapAssessmentResult(result);
 }
 
-function validateRemediationSelectionFields(fields: RemediationSelectionFields, label: string): void {
+function validateRemediationSelectionFields(
+  fields: RemediationSelectionFields,
+  label: string,
+): void {
   if (fields.version < 1) {
     throw new ContractError(`${label} version must be >= 1`);
   }
@@ -706,12 +778,18 @@ function validateRemediationSelectionFields(fields: RemediationSelectionFields, 
   for (const [index, selected] of fields.selection.selected.entries()) {
     assertPlainString(selected.finding_id, `${label} selection.selected[${index}].finding_id`);
     if (typeof selected.priority_score !== "number" || Number.isNaN(selected.priority_score)) {
-      throw new ContractError(`${label} selection.selected[${index}].priority_score must be a number`);
+      throw new ContractError(
+        `${label} selection.selected[${index}].priority_score must be a number`,
+      );
     }
-    assertEnum(selected.risk, ["high", "medium", "low"], `${label} selection.selected[${index}].risk`);
+    assertEnum(
+      selected.risk,
+      ["high", "medium", "low"],
+      `${label} selection.selected[${index}].risk`,
+    );
     assertStringArray(
       selected.depends_on_finding_ids,
-      `${label} selection.selected[${index}].depends_on_finding_ids`
+      `${label} selection.selected[${index}].depends_on_finding_ids`,
     );
     assertPlainString(selected.reason, `${label} selection.selected[${index}].reason`);
   }
@@ -783,6 +861,6 @@ export function validatePassSummaryRecord(summary: PassSummaryRecord): void {
   assertEnum(
     summary.outcome,
     ["continue", "converged", "needs_operator", "stalled", "budget_exhausted"],
-    "pass summary outcome"
+    "pass summary outcome",
   );
 }

@@ -26,7 +26,7 @@ export function compileDispatch(input: DispatchCompileInput): DispatchRecord {
   const policy = buildToolPolicy(stage);
   const requiredArtifacts = expectedInputArtifactsForTransition(run, {
     from_stage: run.routing.entered_from_stage,
-    from_outcome_code: run.routing.entered_from_outcome_code
+    from_outcome_code: run.routing.entered_from_outcome_code,
   });
   const workerMode = run.active.resumable ? "same_stage_resume" : "fresh_session";
 
@@ -43,30 +43,30 @@ export function compileDispatch(input: DispatchCompileInput): DispatchRecord {
     created_at: nowIsoUtc(),
     inputs: {
       required_artifacts: requiredArtifacts,
-      boundary_handoff: boundaryHandoff
+      boundary_handoff: boundaryHandoff,
     },
     contract: buildStageContract(run.workflow, stage, artifactDir),
     context_manifest: {
       declared_inputs: requiredArtifacts,
       boundary_handoff_path: run.routing.boundary_handoff_path,
-      instruction_surfaces: buildInstructionSurfaceManifest(repoRoot)
+      instruction_surfaces: buildInstructionSurfaceManifest(repoRoot),
     },
     worker: {
       adapter: run.runtime.adapter,
       mode: workerMode,
-      worker_class: "session_worker"
+      worker_class: "session_worker",
     },
     execution: {
       fresh_context: true,
       worktree_mode: "shared",
       workspace_root: repoRoot,
-      workspace_origin: "shared"
+      workspace_origin: "shared",
     },
     tool_policy: {
       writable_roots: policy.writable_roots,
       blocked_paths: policy.blocked_paths,
       network: policy.network,
-      profile: policy.profile
-    }
+      profile: policy.profile,
+    },
   };
 }

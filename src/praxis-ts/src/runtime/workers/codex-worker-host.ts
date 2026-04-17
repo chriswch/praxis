@@ -60,7 +60,7 @@ const SESSION_ID_KEYS = [
   "thread_id",
   "threadId",
   "conversation_id",
-  "conversationId"
+  "conversationId",
 ] as const;
 
 export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promise<void> {
@@ -69,11 +69,13 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
   const launch = await controller.buildWorkerLaunch();
   if (launch.dispatch_id !== input.dispatchId) {
     throw new Error(
-      `run-codex-worker dispatch mismatch. Expected ${input.dispatchId}, found ${launch.dispatch_id}.`
+      `run-codex-worker dispatch mismatch. Expected ${input.dispatchId}, found ${launch.dispatch_id}.`,
     );
   }
   if (launch.worker.adapter !== "codex") {
-    throw new Error(`run-codex-worker only supports codex adapter (found ${launch.worker.adapter}).`);
+    throw new Error(
+      `run-codex-worker only supports codex adapter (found ${launch.worker.adapter}).`,
+    );
   }
 
   const handshakeAbsolutePath = resolve(input.repoRoot, input.handshakePath);
@@ -83,7 +85,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
   const child = spawn(spawned.binary, spawned.args, {
     cwd: spawned.cwd,
     env: process.env,
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
   });
 
   const startupTimestamp = nowIsoUtc();
@@ -101,7 +103,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       dispatch_id: input.dispatchId,
       worker_id: input.workerId,
       error: message,
-      emitted_at: nowIsoUtc()
+      emitted_at: nowIsoUtc(),
     });
     handshakeWritten = true;
   };
@@ -110,9 +112,13 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
     if (handshakeWritten) {
       return;
     }
-    if (input.mode === "resume" && input.expectedSessionId && candidateSessionId !== input.expectedSessionId) {
+    if (
+      input.mode === "resume" &&
+      input.expectedSessionId &&
+      candidateSessionId !== input.expectedSessionId
+    ) {
       await failHandshake(
-        `Codex resumed a different session_id. Expected ${input.expectedSessionId}, received ${candidateSessionId}.`
+        `Codex resumed a different session_id. Expected ${input.expectedSessionId}, received ${candidateSessionId}.`,
       );
       child.kill("SIGTERM");
       return;
@@ -131,10 +137,10 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
         command: {
           binary: spawned.binary,
           args: spawned.args,
-          cwd: spawned.cwd
+          cwd: spawned.cwd,
         },
-        mode: input.mode
-      }
+        mode: input.mode,
+      },
     });
     handshakeWritten = true;
   };
@@ -172,9 +178,11 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
     void failHandshake(`Failed to start codex process: ${startupError}`);
   });
 
-  const exitResult = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolveExit) => {
-    child.once("exit", (code, signal) => resolveExit({ code, signal }));
-  });
+  const exitResult = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+    (resolveExit) => {
+      child.once("exit", (code, signal) => resolveExit({ code, signal }));
+    },
+  );
 
   if (!handshakeWritten) {
     const stderrSummary = stderrBuffer.slice(-12).join("\n");
@@ -183,10 +191,10 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
         startupError
           ? `Codex failed during startup: ${startupError}`
           : "Codex exited before emitting a provider session_id.",
-        stderrSummary ? `stderr:\n${stderrSummary}` : null
+        stderrSummary ? `stderr:\n${stderrSummary}` : null,
       ]
         .filter(Boolean)
-        .join("\n")
+        .join("\n"),
     );
     return;
   }
@@ -202,7 +210,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       exit_code: exitResult.code,
       exit_signal: exitResult.signal,
       recorded_at: nowIsoUtc(),
-      stderr_tail: stderrBuffer.slice(-40)
+      stderr_tail: stderrBuffer.slice(-40),
     });
     return;
   }
@@ -216,7 +224,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       worker_id: input.workerId,
       session_id: sessionId,
       stage_result_path: launch.stage_result_path,
-      recorded_at: nowIsoUtc()
+      recorded_at: nowIsoUtc(),
     });
     return;
   }
@@ -232,7 +240,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
       session_id: sessionId,
       stage_result_path: launch.stage_result_path,
       recorded_at: nowIsoUtc(),
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 }
@@ -240,10 +248,13 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
 function buildCodexCommand(
   mode: WorkerHostMode,
   launch: WorkerLaunchPayload,
-  expectedSessionId: string | null
+  expectedSessionId: string | null,
 ): SpawnedCodexCommand {
   const binary = process.env.PRAXIS_CODEX_BIN?.trim() || "codex";
-  const stageResultAbsolutePath = resolve(launch.execution.workspace_root, launch.stage_result_path);
+  const stageResultAbsolutePath = resolve(
+    launch.execution.workspace_root,
+    launch.stage_result_path,
+  );
   const prompt = buildStagePrompt(launch);
   const sandboxMode = process.env.PRAXIS_CODEX_SANDBOX?.trim() || "workspace-write";
 
@@ -264,9 +275,9 @@ function buildCodexCommand(
         "--json",
         "-o",
         stageResultAbsolutePath,
-        prompt
+        prompt,
       ],
-      cwd: launch.execution.workspace_root
+      cwd: launch.execution.workspace_root,
     };
   }
 
@@ -283,9 +294,9 @@ function buildCodexCommand(
       "--json",
       "-o",
       stageResultAbsolutePath,
-      prompt
+      prompt,
     ],
-    cwd: launch.execution.workspace_root
+    cwd: launch.execution.workspace_root,
   };
 }
 
@@ -300,7 +311,7 @@ function buildStagePrompt(launch: WorkerLaunchPayload): string {
     `Dispatch: ${launch.dispatch_id}`,
     `Run: ${launch.run_id}`,
     `Worker mode: ${launch.worker.mode}`,
-    `Trace: ${randomUUID()}`
+    `Trace: ${randomUUID()}`,
   ].join("\n");
 }
 
@@ -372,7 +383,7 @@ async function writeWorkerHandshake(path: string, payload: WorkerHostHandshake):
 async function writeWorkerTrace(
   repoRoot: string,
   workerId: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
 ): Promise<void> {
   const tracePath = resolve(repoRoot, ".praxis", "traces", `${workerId}.json`);
   await mkdir(dirname(tracePath), { recursive: true });

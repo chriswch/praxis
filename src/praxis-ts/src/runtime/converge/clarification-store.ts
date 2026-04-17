@@ -31,7 +31,7 @@ export class ClarificationStore {
     await writeFile(
       this.repo.paths.targetSpecFile,
       `${payload.targetSpecMarkdown.trimEnd()}\n`,
-      "utf8"
+      "utf8",
     );
     await writeJsonFile(this.repo.paths.clarificationFile, snapshot);
     await writeJsonFile(join(resultsDir, "clarifying-intent.json"), payload.stageResult);
@@ -43,7 +43,7 @@ export class ClarificationStore {
     await writeFile(
       join(attemptDir, "target-spec.md"),
       `${payload.targetSpecMarkdown.trimEnd()}\n`,
-      "utf8"
+      "utf8",
     );
     await writeJsonFile(join(attemptDir, "clarification.json"), snapshot);
     await writeJsonFile(join(attemptResultsDir, "clarifying-intent.json"), payload.stageResult);
@@ -54,29 +54,29 @@ export class ClarificationStore {
       outcome_code: payload.stageResult.data.outcome_code,
       route_kind: payload.stageResult.route.kind,
       changed_decisions: changedDecisions,
-      approval_status: readApprovalStatus(snapshot)
+      approval_status: readApprovalStatus(snapshot),
     });
   }
 
   private async computeChangedDecisions(current: Record<string, unknown>): Promise<string[]> {
     const previousClarification = await readJsonFileIfExists<Record<string, unknown>>(
-      this.repo.paths.clarificationFile
+      this.repo.paths.clarificationFile,
     );
     const previousDecisions = readDecisionMap(previousClarification);
     const currentDecisions = readDecisionMap(current);
-    return Object.keys(currentDecisions).filter((key) =>
-      JSON.stringify(currentDecisions[key]) !== JSON.stringify(previousDecisions[key])
+    return Object.keys(currentDecisions).filter(
+      (key) => JSON.stringify(currentDecisions[key]) !== JSON.stringify(previousDecisions[key]),
     );
   }
 
   private annotateSnapshot(
     record: Record<string, unknown>,
-    changedDecisions: string[]
+    changedDecisions: string[],
   ): ClarificationAttemptSnapshot {
     return {
       ...record,
       updated_at: new Date().toISOString(),
-      changed_decisions_from_previous: changedDecisions
+      changed_decisions_from_previous: changedDecisions,
     };
   }
 
@@ -100,7 +100,9 @@ export class ClarificationStore {
   }
 }
 
-function readDecisionMap(record: Record<string, unknown> | null | undefined): Record<string, unknown> {
+function readDecisionMap(
+  record: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
   if (!record) {
     return {};
   }

@@ -10,7 +10,7 @@ export type ContinueCommandOptions = {
 export async function runContinueCommand(
   repoRoot: string,
   json: boolean,
-  options: ContinueCommandOptions = {}
+  options: ContinueCommandOptions = {},
 ): Promise<number> {
   return runCommandWithEnvelope(json, async () => {
     const controller = new RunController(new PraxisStateRepository(repoRoot));
@@ -25,8 +25,8 @@ export async function runContinueCommand(
         : `Run ${outcome.run_id} continued at ${outcome.next_stage}.`,
       data: {
         ...outcome,
-        launched
-      }
+        launched,
+      },
     };
   });
 }

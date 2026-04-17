@@ -8,7 +8,7 @@ import type {
   GapAssessmentResult,
   PassSummaryRecord,
   RemediationMapRecord,
-  RunRecord
+  RunRecord,
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import { RunController } from "../control/run-controller.js";
@@ -17,11 +17,17 @@ import { hasUncommittedChanges, listCommitRange, readHeadCommit } from "./git.js
 import {
   countUnresolvedAtOrAboveThreshold,
   markFindingsBatched,
-  markFindingsInProgress
+  markFindingsInProgress,
 } from "./ledger.js";
 import { planRemediation } from "./planner.js";
 import { ChildRunSlotService } from "./child-run-slot.js";
-import { buildConvergeClarifyingArtifacts, isRunTerminal, listCompletedStoryIds, readOptionalString, stringifyError } from "./campaign-support.js";
+import {
+  buildConvergeClarifyingArtifacts,
+  isRunTerminal,
+  listCompletedStoryIds,
+  readOptionalString,
+  stringifyError,
+} from "./campaign-support.js";
 import { buildPassId } from "./identity.js";
 import { buildConvergeStageResult } from "./stage-runtime.js";
 
@@ -45,20 +51,18 @@ type PassPlan = {
   selectedLedgerFindingIds: string[];
 };
 
-type ChildLaunchOutcome =
-  | { ok: true; value: ChildLaunchResult }
-  | { ok: false; error: unknown };
+type ChildLaunchOutcome = { ok: true; value: ChildLaunchResult } | { ok: false; error: unknown };
 
 export class ConvergePassService {
   constructor(
     private readonly repo: PraxisStateRepository,
-    private readonly childRunSlot: ChildRunSlotService
+    private readonly childRunSlot: ChildRunSlotService,
   ) {}
 
   async planAndLaunchPass(
     campaign: CampaignRecord,
     ledger: CampaignLedgerRecord,
-    passNumber: number
+    passNumber: number,
   ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord }> {
     const latestAssessment = await this.loadLatestAssessmentOrThrow(campaign);
     const plan = this.planPass(campaign, ledger, passNumber, latestAssessment);
@@ -79,13 +83,17 @@ export class ConvergePassService {
     return { campaign, ledger };
   }
 
-  private async loadLatestAssessmentOrThrow(campaign: CampaignRecord): Promise<GapAssessmentResult> {
+  private async loadLatestAssessmentOrThrow(
+    campaign: CampaignRecord,
+  ): Promise<GapAssessmentResult> {
     if (!campaign.current_review_id) {
       throw new BlockedStateError("Cannot plan remediation without an assessment review id.");
     }
     const latestAssessment = await this.repo.loadGapAssessment();
     if (!latestAssessment) {
-      throw new BlockedStateError("Cannot plan remediation without .praxis/gap.json from assessing-gaps.");
+      throw new BlockedStateError(
+        "Cannot plan remediation without .praxis/gap.json from assessing-gaps.",
+      );
     }
     return latestAssessment;
   }
@@ -94,7 +102,7 @@ export class ConvergePassService {
     campaign: CampaignRecord,
     ledger: CampaignLedgerRecord,
     passNumber: number,
-    latestAssessment: GapAssessmentResult
+    latestAssessment: GapAssessmentResult,
   ): PassPlan {
     const reviewId = campaign.current_review_id;
     if (!reviewId) {
@@ -108,23 +116,22 @@ export class ConvergePassService {
       severityThreshold: campaign.severity_threshold,
       maxFindingsPerPass: campaign.max_findings_per_pass,
       maxStoriesPerPass: campaign.max_stories_per_pass,
-      generatedAt: nowIsoUtc()
+      generatedAt: nowIsoUtc(),
     });
     const selectedLedgerFindingIds = this.resolveLedgerFindingIds(
       latestAssessment,
       ledger,
-      batchPlan.remediationMap.selected_finding_ids
+      batchPlan.remediationMap.selected_finding_ids,
     );
     const planningStageResult = buildConvergeStageResult({
       stage: "planning-remediation",
-      outcomeCode: batchPlan.remediationMap.slices.length === 0
-        ? "no_selection"
-        : "remediation_map_ready",
+      outcomeCode:
+        batchPlan.remediationMap.slices.length === 0 ? "no_selection" : "remediation_map_ready",
       data: {
         selected_findings_count: batchPlan.remediationMap.selected_finding_ids.length,
         deferred_findings_count: batchPlan.remediationMap.deferred_finding_ids.length,
-        slices_count: batchPlan.remediationMap.slices.length
-      }
+        slices_count: batchPlan.remediationMap.slices.length,
+      },
     });
     return {
       passId: batchPlan.passId,
@@ -132,7 +139,7 @@ export class ConvergePassService {
       remediationMap: batchPlan.remediationMap,
       remediationMarkdown: batchPlan.remediationMarkdown,
       planningStageResult,
-      selectedLedgerFindingIds
+      selectedLedgerFindingIds,
     };
   }
 
@@ -141,7 +148,7 @@ export class ConvergePassService {
     await this.repo.saveRemediationMap(
       plan.remediationMarkdown,
       plan.remediationMap,
-      plan.planningStageResult
+      plan.planningStageResult,
     );
     await this.repo.savePassBatch(plan.passId, plan.remediationMarkdown, {
       ...plan.remediationMap,
@@ -150,8 +157,8 @@ export class ConvergePassService {
         title: slice.title,
         finding_ids: slice.finding_ids,
         objective_context: slice.objective,
-        non_goals: slice.non_goals
-      }))
+        non_goals: slice.non_goals,
+      })),
     });
   }
 
@@ -159,28 +166,28 @@ export class ConvergePassService {
     campaign: CampaignRecord,
     ledger: CampaignLedgerRecord,
     plan: PassPlan,
-    latestAssessment: GapAssessmentResult
+    latestAssessment: GapAssessmentResult,
   ): Promise<void> {
     const reviewId = campaign.current_review_id!;
-    const severityByFindingId = new Map(latestAssessment.findings.map((finding) => [
-      finding.finding_id,
-      finding.severity
-    ]));
+    const severityByFindingId = new Map(
+      latestAssessment.findings.map((finding) => [finding.finding_id, finding.severity]),
+    );
     const highOrCriticalDeferred = plan.remediationMap.deferred_finding_ids.filter((findingId) => {
       const severity = severityByFindingId.get(findingId);
       return severity === "critical" || severity === "high";
     });
     campaign.status = "waiting_for_user";
     campaign.stop_reason_code = "needs_operator";
-    campaign.reason = highOrCriticalDeferred.length > 0
-      ? `Pass ${plan.passId} selected no findings under current severity and story limits; ${highOrCriticalDeferred.length} high-severity finding(s) were deferred by planning budget policy. Review .praxis/remediation-map.md and continue after policy adjustment.`
-      : `Pass ${plan.passId} selected no findings under the current severity and story limits. ${String(plan.planningStageResult.data.routing_reason ?? "Review .praxis/gap.md and continue when ready.")}`;
+    campaign.reason =
+      highOrCriticalDeferred.length > 0
+        ? `Pass ${plan.passId} selected no findings under current severity and story limits; ${highOrCriticalDeferred.length} high-severity finding(s) were deferred by planning budget policy. Review .praxis/remediation-map.md and continue after policy adjustment.`
+        : `Pass ${plan.passId} selected no findings under the current severity and story limits. ${String(plan.planningStageResult.data.routing_reason ?? "Review .praxis/gap.md and continue when ready.")}`;
     campaign.timestamps.updated_at = nowIsoUtc();
 
     await this.persistPassSummary(campaign, ledger, plan, {
       childRunId: null,
       plannedFindingIds: [],
-      outcome: "needs_operator"
+      outcome: "needs_operator",
     });
     await this.repo.savePassChildRun(plan.passId, {
       version: 2,
@@ -189,11 +196,14 @@ export class ConvergePassService {
       adapter: campaign.adapter,
       status: "not_launched",
       reason: campaign.reason,
-      generated_at: nowIsoUtc()
+      generated_at: nowIsoUtc(),
     });
   }
 
-  private async tryLaunchChildRun(campaign: CampaignRecord, plan: PassPlan): Promise<ChildLaunchOutcome> {
+  private async tryLaunchChildRun(
+    campaign: CampaignRecord,
+    plan: PassPlan,
+  ): Promise<ChildLaunchOutcome> {
     try {
       const value = await this.launchChildCraftRun(campaign, plan.passId, plan.remediationMap);
       return { ok: true, value };
@@ -206,7 +216,7 @@ export class ConvergePassService {
     campaign: CampaignRecord,
     ledger: CampaignLedgerRecord,
     plan: PassPlan,
-    error: unknown
+    error: unknown,
   ): Promise<void> {
     campaign.status = "blocked";
     campaign.stop_reason_code = "blocked";
@@ -216,7 +226,7 @@ export class ConvergePassService {
     await this.persistPassSummary(campaign, ledger, plan, {
       childRunId: null,
       plannedFindingIds: plan.remediationMap.selected_finding_ids,
-      outcome: "needs_operator"
+      outcome: "needs_operator",
     });
     await this.repo.savePassChildRun(plan.passId, {
       version: 2,
@@ -225,7 +235,7 @@ export class ConvergePassService {
       adapter: campaign.adapter,
       status: "launch_failed",
       launch_error: stringifyError(error),
-      generated_at: nowIsoUtc()
+      generated_at: nowIsoUtc(),
     });
   }
 
@@ -233,20 +243,20 @@ export class ConvergePassService {
     campaign: CampaignRecord,
     ledger: CampaignLedgerRecord,
     plan: PassPlan,
-    launchResult: ChildLaunchResult
+    launchResult: ChildLaunchResult,
   ): Promise<void> {
     const plannedStoryIds = plan.remediationMap.slices.map((slice) => slice.slice_id);
     markFindingsInProgress(
       ledger,
       plan.selectedLedgerFindingIds,
       launchResult.childRunId,
-      plannedStoryIds
+      plannedStoryIds,
     );
     await this.repo.savePassChildRun(plan.passId, launchResult.childRunRecord);
     await this.persistPassSummary(campaign, ledger, plan, {
       childRunId: launchResult.childRunId,
       plannedFindingIds: plan.remediationMap.selected_finding_ids,
-      outcome: campaign.auto_continue ? "continue" : "needs_operator"
+      outcome: campaign.auto_continue ? "continue" : "needs_operator",
     });
 
     campaign.current_pass = plan.passNumber;
@@ -271,7 +281,7 @@ export class ConvergePassService {
       childRunId: string | null;
       plannedFindingIds: string[];
       outcome: PassSummaryRecord["outcome"];
-    }
+    },
   ): Promise<void> {
     const summary: PassSummaryRecord = {
       version: 1,
@@ -284,9 +294,12 @@ export class ConvergePassService {
       planned_finding_ids: fields.plannedFindingIds,
       completed_story_ids: [],
       produced_commits: [],
-      unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(ledger, campaign.severity_threshold),
+      unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(
+        ledger,
+        campaign.severity_threshold,
+      ),
       outcome: fields.outcome,
-      generated_at: nowIsoUtc()
+      generated_at: nowIsoUtc(),
     };
     await this.repo.savePassSummary(plan.passId, summary);
   }
@@ -308,7 +321,7 @@ export class ConvergePassService {
     const childRecord = passId ? await this.repo.loadPassChildRun(passId) : null;
     const activeRun = await this.repo.loadRun();
 
-    let status = childRecord ? readOptionalString(childRecord, "status") ?? "unknown" : "unknown";
+    let status = childRecord ? (readOptionalString(childRecord, "status") ?? "unknown") : "unknown";
     let reason = childRecord ? readOptionalString(childRecord, "reason") : null;
     let nextAction = childRecord ? readOptionalString(childRecord, "next_action") : null;
     let nextStage = childRecord ? readOptionalString(childRecord, "next_stage") : null;
@@ -336,12 +349,12 @@ export class ConvergePassService {
       reason,
       next_action: nextAction,
       next_stage: nextStage,
-      updated_at: updatedAt
+      updated_at: updatedAt,
     };
   }
 
   async collectChildCompletion(passId: string): Promise<ChildCompletion> {
-    const childRecord = await this.repo.loadPassChildRun(passId) ?? {};
+    const childRecord = (await this.repo.loadPassChildRun(passId)) ?? {};
     const beforeHead = readOptionalString(childRecord, "before_head");
     const afterHead = await readHeadCommit(this.repo.paths.root);
     const producedCommits = await listCommitRange(this.repo.paths.root, beforeHead, afterHead);
@@ -353,21 +366,23 @@ export class ConvergePassService {
     return {
       completedStoryIds,
       producedCommits,
-      worktreeDirty
+      worktreeDirty,
     };
   }
 
   private resolveLedgerFindingIds(
     assessment: GapAssessmentResult,
     ledger: CampaignLedgerRecord,
-    selectedAssessmentFindingIds: string[]
+    selectedAssessmentFindingIds: string[],
   ): string[] {
-    const selectedAssessment = new Map(assessment.findings.map((finding) => [finding.finding_id, finding]));
+    const selectedAssessment = new Map(
+      assessment.findings.map((finding) => [finding.finding_id, finding]),
+    );
     const ledgerByFingerprint = new Map(
       ledger.finding_order.map((findingId) => {
         const finding = ledger.findings[findingId];
         return [finding.fingerprint, finding.finding_id] as const;
-      })
+      }),
     );
 
     const resolved: string[] = [];
@@ -388,7 +403,7 @@ export class ConvergePassService {
   private async launchChildCraftRun(
     campaign: CampaignRecord,
     passId: string,
-    remediationMap: RemediationMapRecord
+    remediationMap: RemediationMapRecord,
   ): Promise<ChildLaunchResult> {
     await this.childRunSlot.assertCanClaim(campaign.campaign_id, passId);
 
@@ -396,7 +411,7 @@ export class ConvergePassService {
     if (existingRun) {
       if (!isRunTerminal(existingRun.status)) {
         throw new BlockedStateError(
-          `Cannot launch child craft run while run ${existingRun.run_id} is ${existingRun.status}.`
+          `Cannot launch child craft run while run ${existingRun.run_id} is ${existingRun.status}.`,
         );
       }
       await this.repo.clearRunControlState();
@@ -409,7 +424,7 @@ export class ConvergePassService {
     const run = await controller.initializeRun({
       adapter: campaign.adapter,
       executionMode: "autopilot",
-      entryTask: `Converge remediation for ${passId} with authoritative scope in ${brief.markdownPath}`
+      entryTask: `Converge remediation for ${passId} with authoritative scope in ${brief.markdownPath}`,
     });
     await this.seedChildRunBoundedStories(
       run,
@@ -417,7 +432,7 @@ export class ConvergePassService {
       passId,
       remediationMap,
       brief.markdownPath,
-      beforeHead
+      beforeHead,
     );
 
     const launch = await controller.launchReadyStage();
@@ -425,10 +440,9 @@ export class ConvergePassService {
       campaign.campaign_id,
       passId,
       run.run_id,
-      `Child run ${run.run_id} launched for pass ${passId}.`
+      `Child run ${run.run_id} launched for pass ${passId}.`,
     );
-    const launchCommand =
-      `praxis run --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge remediation for ${passId} with authoritative scope in ${brief.markdownPath}"`;
+    const launchCommand = `praxis run --adapter ${campaign.adapter} --execution-mode autopilot --entry-task "Converge remediation for ${passId} with authoritative scope in ${brief.markdownPath}"`;
     return {
       childRunId: run.run_id,
       childRunRecord: {
@@ -453,26 +467,26 @@ export class ConvergePassService {
             story_id: slice.slice_id,
             title: slice.title,
             finding_ids: slice.finding_ids,
-            non_goals: slice.non_goals
+            non_goals: slice.non_goals,
           })),
           scope: campaign.objective.scope,
           non_goals: [
             "Do not expand remediation beyond selected finding IDs in this pass.",
-            "Escalate newly discovered out-of-scope high-risk issues to next reassessment."
-          ]
+            "Escalate newly discovered out-of-scope high-risk issues to next reassessment.",
+          ],
         },
         commit_policy: {
-          commit_per_story: campaign.commit_per_story
+          commit_per_story: campaign.commit_per_story,
         },
-        generated_at: nowIsoUtc()
-      }
+        generated_at: nowIsoUtc(),
+      },
     };
   }
 
   private async writeConvergePassBrief(
     campaign: CampaignRecord,
     passId: string,
-    remediationMap: RemediationMapRecord
+    remediationMap: RemediationMapRecord,
   ): Promise<{ markdownPath: string; jsonPath: string }> {
     const passDir = join(this.repo.paths.passesDir, passId);
     await mkdir(passDir, { recursive: true });
@@ -488,13 +502,13 @@ export class ConvergePassService {
       finding_ids: remediationMap.selected_finding_ids,
       story_ids: remediationMap.slices.map((slice) => slice.slice_id),
       commit_policy: {
-        commit_per_story: campaign.commit_per_story
+        commit_per_story: campaign.commit_per_story,
       },
       non_goals: [
         "Do not widen remediation beyond selected finding IDs for this pass.",
-        "Record newly discovered out-of-scope findings for reassessment instead of implementing them now."
+        "Record newly discovered out-of-scope findings for reassessment instead of implementing them now.",
       ],
-      generated_at: nowIsoUtc()
+      generated_at: nowIsoUtc(),
     };
 
     const markdown = [
@@ -511,14 +525,16 @@ export class ConvergePassService {
       "## Scope",
       "",
       "This brief is authoritative for the active pass. Remediation must stay bounded to these stories and finding IDs.",
-      ""
+      "",
     ];
     for (const slice of remediationMap.slices) {
       markdown.push(`### ${slice.slice_id} ${slice.title}`);
       markdown.push(`- Finding IDs: ${slice.finding_ids.join(", ")}`);
       markdown.push(`- Objective: ${slice.objective}`);
       markdown.push(`- Scope: ${slice.scope.join(", ")}`);
-      markdown.push(`- Dependencies: ${slice.dependencies.length > 0 ? slice.dependencies.join(", ") : "(none)"}`);
+      markdown.push(
+        `- Dependencies: ${slice.dependencies.length > 0 ? slice.dependencies.join(", ") : "(none)"}`,
+      );
       markdown.push(`- Done condition: ${slice.done_condition}`);
       markdown.push(`- Non-goals: ${slice.non_goals.join(" ")}`);
       markdown.push("");
@@ -529,8 +545,16 @@ export class ConvergePassService {
     markdown.push("- Escalate high-risk out-of-scope gaps to reassessment.");
     markdown.push("");
 
-    await writeFile(join(this.repo.paths.root, markdownPath), `${markdown.join("\n").trimEnd()}\n`, "utf8");
-    await writeFile(join(this.repo.paths.root, jsonPath), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    await writeFile(
+      join(this.repo.paths.root, markdownPath),
+      `${markdown.join("\n").trimEnd()}\n`,
+      "utf8",
+    );
+    await writeFile(
+      join(this.repo.paths.root, jsonPath),
+      `${JSON.stringify(payload, null, 2)}\n`,
+      "utf8",
+    );
 
     return { markdownPath, jsonPath };
   }
@@ -541,13 +565,13 @@ export class ConvergePassService {
     passId: string,
     remediationMap: RemediationMapRecord,
     briefPath: string,
-    beforeHead: string | null
+    beforeHead: string | null,
   ): Promise<void> {
     const sliceMap = {
       slices: remediationMap.slices.map((slice) => ({
         id: slice.slice_id,
-        title: slice.title
-      }))
+        title: slice.title,
+      })),
     };
     const sliceMapMarkdown = [
       "# Pass Slice Map",
@@ -558,16 +582,24 @@ export class ConvergePassService {
       "## Stories",
       "",
       ...remediationMap.slices.map((slice) => `- ${slice.slice_id}: ${slice.title}`),
-      ""
+      "",
     ].join("\n");
 
-    await writeFile(join(this.repo.paths.root, ".praxis", "slice-map.json"), `${JSON.stringify(sliceMap, null, 2)}\n`, "utf8");
-    await writeFile(join(this.repo.paths.root, ".praxis", "slice-map.md"), `${sliceMapMarkdown.trimEnd()}\n`, "utf8");
+    await writeFile(
+      join(this.repo.paths.root, ".praxis", "slice-map.json"),
+      `${JSON.stringify(sliceMap, null, 2)}\n`,
+      "utf8",
+    );
+    await writeFile(
+      join(this.repo.paths.root, ".praxis", "slice-map.md"),
+      `${sliceMapMarkdown.trimEnd()}\n`,
+      "utf8",
+    );
 
     const storyLedger = await initializeStoryLedgerFromSliceMap(
       this.repo.paths.root,
       run,
-      run.execution.mode
+      run.execution.mode,
     );
     const clarifyingArtifacts = buildConvergeClarifyingArtifacts(briefPath);
     run.constraints = {
@@ -579,13 +611,13 @@ export class ConvergePassService {
         objective_path: ".praxis/target-spec.md",
         finding_ids: remediationMap.selected_finding_ids,
         story_ids: remediationMap.slices.map((slice) => slice.slice_id),
-        brief_path: briefPath
+        brief_path: briefPath,
       },
       commit_per_story: {
         enabled: campaign.commit_per_story,
         last_verified_head: beforeHead,
-        pending_story_id: null
-      }
+        pending_story_id: null,
+      },
     };
     run.routing.reason = `Converge pass ${passId} bounded to remediation brief ${briefPath}.`;
     run.timestamps.updated_at = nowIsoUtc();

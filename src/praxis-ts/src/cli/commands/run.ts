@@ -19,7 +19,7 @@ export async function runRunCommand(
   repoRoot: string,
   json: boolean,
   args: RunCommandArgs,
-  options: RunCommandOptions = {}
+  options: RunCommandOptions = {},
 ): Promise<number> {
   return runCommandWithEnvelope(json, async () => {
     const repo = new PraxisStateRepository(repoRoot);
@@ -28,7 +28,7 @@ export async function runRunCommand(
       adapter: args.adapter,
       executionMode: args.executionMode,
       entryTask: args.entryTask,
-      entrypoint: args.entrypoint
+      entrypoint: args.entrypoint,
     });
     const shouldLaunch = options.orchestrate && run.routing.next_action === "run_stage";
     const launched = shouldLaunch ? await controller.launchReadyStage() : null;
@@ -46,8 +46,8 @@ export async function runRunCommand(
         execution_mode: run.execution.mode,
         next_action: run.routing.next_action,
         next_stage: run.routing.next_stage,
-        launched
-      }
+        launched,
+      },
     };
   });
 }
