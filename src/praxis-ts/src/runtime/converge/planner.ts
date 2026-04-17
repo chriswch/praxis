@@ -1,32 +1,28 @@
 import type {
-  CampaignFinding,
-  CampaignLedgerRecord,
   FindingSeverity,
+  GapFinding,
   GapAssessmentResult,
   RemediationMapRecord,
   RemediationSliceRecord
 } from "../../contracts/model.js";
 import { buildPassId } from "./identity.js";
 import { compareSeverity, isAtOrAboveSeverity } from "./severity.js";
-import { listActiveFindings } from "./ledger.js";
 
 type PlannerInput = {
   campaignId: string;
   passNumber: number;
   reviewId: string;
   latestAssessment: GapAssessmentResult;
-  ledger: CampaignLedgerRecord;
   severityThreshold: FindingSeverity;
   maxFindingsPerPass: number;
   maxStoriesPerPass: number;
-  minimumConfidence?: number;
   generatedAt: string;
 };
 
 type RiskLevel = "high" | "medium" | "low";
 
 type RankedCandidate = {
-  finding: CampaignFinding;
+  finding: GapFinding;
   risk: RiskLevel;
   dependsOnFindingIds: string[];
   priorityScore: number;
@@ -46,11 +42,11 @@ const RISK_SCORE: Record<RiskLevel, number> = {
   low: 5
 };
 
-function formatStoryTitle(finding: CampaignFinding): string {
+function formatStoryTitle(finding: GapFinding): string {
   return `${finding.severity.toUpperCase()}: ${finding.title}`;
 }
 
-function overlapsAffectedPath(left: CampaignFinding, right: CampaignFinding): boolean {
+function overlapsAffectedPath(left: GapFinding, right: GapFinding): boolean {
   if (left.affected_paths.length === 0 || right.affected_paths.length === 0) {
     return false;
   }
@@ -58,7 +54,7 @@ function overlapsAffectedPath(left: CampaignFinding, right: CampaignFinding): bo
   return left.affected_paths.some((path) => rightPaths.has(path));
 }
 
-function classifyRisk(finding: CampaignFinding): RiskLevel {
+function classifyRisk(finding: GapFinding): RiskLevel {
   if (finding.severity === "critical") {
     return "high";
   }
@@ -83,7 +79,7 @@ function buildSelectionReason(candidate: RankedCandidate): string {
   ].join("; ");
 }
 
-function rankCandidates(candidates: CampaignFinding[]): RankedCandidate[] {
+function rankCandidates(candidates: GapFinding[]): RankedCandidate[] {
   return candidates
     .map((finding) => {
       const dependsOnFindingIds = candidates
@@ -124,23 +120,15 @@ function rankCandidates(candidates: CampaignFinding[]): RankedCandidate[] {
     });
 }
 
-function buildAssessmentDrivenCandidates(
-  assessment: GapAssessmentResult,
-  ledger: CampaignLedgerRecord
-): CampaignFinding[] {
-  const activeByFingerprint = new Map(
-    listActiveFindings(ledger).map((finding) => [finding.fingerprint, finding] as const)
-  );
-
-  const picked: CampaignFinding[] = [];
-  const seenFindingIds = new Set<string>();
+function buildAssessmentDrivenCandidates(assessment: GapAssessmentResult): GapFinding[] {
+  const picked: GapFinding[] = [];
+  const seenFingerprints = new Set<string>();
   for (const assessedFinding of assessment.findings) {
-    const ledgerFinding = activeByFingerprint.get(assessedFinding.fingerprint);
-    if (!ledgerFinding || seenFindingIds.has(ledgerFinding.finding_id)) {
+    if (seenFingerprints.has(assessedFinding.fingerprint)) {
       continue;
     }
-    seenFindingIds.add(ledgerFinding.finding_id);
-    picked.push(ledgerFinding);
+    seenFingerprints.add(assessedFinding.fingerprint);
+    picked.push(assessedFinding);
   }
   return picked;
 }
@@ -210,28 +198,12 @@ export function planRemediation(input: PlannerInput): {
   passId: string;
   remediationMap: RemediationMapRecord;
   remediationMarkdown: string;
-  confidenceGate: number;
-  confidenceDeferredFindingIds: string[];
 } {
   const passId = buildPassId(input.passNumber);
-  const confidenceGate = Math.max(0, Math.min(1, input.minimumConfidence ?? 0));
 
-  const assessmentDrivenCandidates = buildAssessmentDrivenCandidates(input.latestAssessment, input.ledger)
+  const assessmentDrivenCandidates = buildAssessmentDrivenCandidates(input.latestAssessment)
     .filter((finding) => isAtOrAboveSeverity(finding.severity, input.severityThreshold));
-
-  const confidenceEligible = assessmentDrivenCandidates
-    .filter((finding) => finding.confidence >= confidenceGate);
-  const confidenceDeferred = assessmentDrivenCandidates
-    .filter((finding) => finding.confidence < confidenceGate)
-    .sort((left, right) => {
-      const severityOrder = compareSeverity(left.severity, right.severity);
-      if (severityOrder !== 0) {
-        return severityOrder;
-      }
-      return left.finding_id.localeCompare(right.finding_id);
-    });
-
-  const rankedCandidates = rankCandidates(confidenceEligible);
+  const rankedCandidates = rankCandidates(assessmentDrivenCandidates);
   const groupedCandidates = groupRelatedCandidates(rankedCandidates, preferredGroupSize(input));
 
   const selectedGroups: RankedCandidate[][] = [];
@@ -296,15 +268,14 @@ export function planRemediation(input: PlannerInput): {
     review_id: input.reviewId,
     selected_finding_ids: selectedFindingIds,
     deferred_finding_ids: [
-      ...deferredByBatchLimit.map((candidate) => candidate.finding.finding_id),
-      ...confidenceDeferred.map((candidate) => candidate.finding_id)
+      ...deferredByBatchLimit.map((candidate) => candidate.finding.finding_id)
     ],
     selection: {
       policy: [
         "Assessment-driven candidate pool from latest gap.json",
+        "Planner input is assessment artifacts plus explicit campaign policy (severity and budget)",
         "Severity-first ordering",
         "Dependency ordering where affected paths overlap",
-        `Confidence gate (>= ${confidenceGate.toFixed(2)}) before remediation selection`,
         "Grouped related findings by shared affected paths or category",
         "Bounded by max findings and max stories"
       ],
@@ -324,11 +295,7 @@ export function planRemediation(input: PlannerInput): {
       deferred: [
         ...deferredByBatchLimit.map((candidate) => ({
           finding_id: candidate.finding.finding_id,
-          reason: "deferred_by_batch_limit"
-        })),
-        ...confidenceDeferred.map((candidate) => ({
-          finding_id: candidate.finding_id,
-          reason: "deferred_low_confidence"
+          reason: `deferred_by_batch_limit; severity=${candidate.finding.severity}; confidence=${candidate.finding.confidence.toFixed(2)}`
         }))
       ]
     },
@@ -343,7 +310,6 @@ export function planRemediation(input: PlannerInput): {
     `- Review: ${input.reviewId}`,
     `- Severity threshold: ${input.severityThreshold}`,
     `- Candidate source: .praxis/gap.json (${input.latestAssessment.findings.length} finding(s))`,
-    `- Confidence gate: ${confidenceGate.toFixed(2)}`,
     `- Selected findings: ${remediationMap.selected_finding_ids.length}`,
     `- Deferred findings: ${remediationMap.deferred_finding_ids.length}`,
     "",
@@ -386,9 +352,7 @@ export function planRemediation(input: PlannerInput): {
   return {
     passId,
     remediationMap,
-    remediationMarkdown: lines.join("\n"),
-    confidenceGate,
-    confidenceDeferredFindingIds: confidenceDeferred.map((finding) => finding.finding_id)
+    remediationMarkdown: lines.join("\n")
   };
 }
 

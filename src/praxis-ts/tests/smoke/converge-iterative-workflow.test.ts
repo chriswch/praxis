@@ -18,6 +18,7 @@ import {
   getConvergeWorkflowStageContract,
   resolveConvergeWorkflowTransition
 } from "../../src/workflows/index.js";
+import { planRemediation } from "../../src/runtime/converge/planner.js";
 import { createTempRepo, readJson, writeStageResult } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -440,6 +441,47 @@ test("smoke: clarifying-intent persists durable attempt history across retries",
   assert.equal(await exists(join(secondAttemptDir, "target-spec.md")), true);
   const secondAttempt = await readJson<{ outcome_code: string }>(join(secondAttemptDir, "attempt.json"));
   assert.equal(secondAttempt.outcome_code, "target_spec_ready");
+});
+
+test("smoke: planning-remediation is assessment-driven without confidence hard gate", () => {
+  const planned = planRemediation({
+    campaignId: "campaign_test",
+    passNumber: 1,
+    reviewId: "R-001",
+    latestAssessment: {
+      version: 1,
+      profile: "product-spec-gap",
+      review_id: "R-001",
+      target_spec_path: ".praxis/target-spec.md",
+      generated_at: "2026-04-17T00:00:00.000Z",
+      findings: [
+        {
+          finding_id: "G-001",
+          fingerprint: "fp-001",
+          title: "critical runtime gap",
+          kind: "missing",
+          severity: "critical",
+          category: "runtime",
+          summary: "Critical path is missing.",
+          expected_behavior: "System enforces critical guard.",
+          current_behavior: "Guard is absent.",
+          evidence: ["src/runtime/core.ts:12 missing guard"],
+          objective_refs: [".praxis/target-spec.md#acceptance-criteria"],
+          affected_paths: ["src/runtime/core.ts"],
+          recommended_direction: "Implement guard.",
+          recommended_action: "Implement guard.",
+          confidence: 0.2
+        }
+      ]
+    },
+    severityThreshold: "high",
+    maxFindingsPerPass: 1,
+    maxStoriesPerPass: 1,
+    generatedAt: "2026-04-17T00:00:00.000Z"
+  });
+
+  assert.deepEqual(planned.remediationMap.selected_finding_ids, ["G-001"]);
+  assert.match(planned.remediationMap.selection.policy.join(" "), /assessment artifacts plus explicit campaign policy/i);
 });
 
 test("smoke: planning-remediation groups related findings when story budget is tight", async () => {

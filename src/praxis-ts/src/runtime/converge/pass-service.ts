@@ -2,7 +2,14 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { BlockedStateError } from "../../contracts/errors.js";
 import { nowIsoUtc } from "../common/time.js";
-import type { CampaignRecord, CampaignLedgerRecord, PassSummaryRecord, RemediationMapRecord, RunRecord } from "../../contracts/model.js";
+import type {
+  CampaignRecord,
+  CampaignLedgerRecord,
+  GapAssessmentResult,
+  PassSummaryRecord,
+  RemediationMapRecord,
+  RunRecord
+} from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 import { RunController } from "../control/run-controller.js";
 import { initializeStoryLedgerFromSliceMap } from "../control/story-boundary.js";
@@ -17,8 +24,6 @@ import { ChildRunSlotService } from "./child-run-slot.js";
 import { buildConvergeClarifyingArtifacts, isRunTerminal, listCompletedStoryIds, readOptionalString, stringifyError } from "./campaign-support.js";
 import { buildPassId } from "./identity.js";
 import { buildConvergeStageResult } from "./stage-runtime.js";
-
-const MIN_FINDING_CONFIDENCE_FOR_REMEDIATION = 0.65;
 
 type ChildLaunchResult = {
   childRunId: string;
@@ -56,13 +61,16 @@ export class ConvergePassService {
       passNumber,
       reviewId: campaign.current_review_id,
       latestAssessment,
-      ledger,
       severityThreshold: campaign.severity_threshold,
       maxFindingsPerPass: campaign.max_findings_per_pass,
       maxStoriesPerPass: campaign.max_stories_per_pass,
-      minimumConfidence: MIN_FINDING_CONFIDENCE_FOR_REMEDIATION,
       generatedAt: nowIsoUtc()
     });
+    const selectedLedgerFindingIds = this.resolveLedgerFindingIds(
+      latestAssessment,
+      ledger,
+      batchPlan.remediationMap.selected_finding_ids
+    );
     const planningStageResult = buildConvergeStageResult({
       stage: "planning-remediation",
       outcomeCode: batchPlan.remediationMap.slices.length === 0
@@ -75,7 +83,7 @@ export class ConvergePassService {
       }
     });
 
-    markFindingsBatched(ledger, batchPlan.remediationMap.selected_finding_ids);
+    markFindingsBatched(ledger, selectedLedgerFindingIds);
     await this.repo.saveRemediationMap(
       batchPlan.remediationMarkdown,
       batchPlan.remediationMap,
@@ -93,11 +101,19 @@ export class ConvergePassService {
     });
 
     if (batchPlan.remediationMap.selected_finding_ids.length === 0) {
-      const confidenceGatedCount = batchPlan.confidenceDeferredFindingIds.length;
+      const severityByFindingId = new Map(latestAssessment.findings.map((finding) => [
+        finding.finding_id,
+        finding.severity
+      ]));
+      const highOrCriticalDeferred = batchPlan.remediationMap.deferred_finding_ids
+        .filter((findingId) => {
+          const severity = severityByFindingId.get(findingId);
+          return severity === "critical" || severity === "high";
+        });
       campaign.status = "waiting_for_user";
       campaign.stop_reason_code = "needs_operator";
-      campaign.reason = confidenceGatedCount > 0
-        ? `Pass ${passId} selected no findings because ${confidenceGatedCount} finding(s) did not meet the confidence gate (${batchPlan.confidenceGate.toFixed(2)}). Review .praxis/gap.md and continue after objective clarification.`
+      campaign.reason = highOrCriticalDeferred.length > 0
+        ? `Pass ${passId} selected no findings under current severity and story limits; ${highOrCriticalDeferred.length} high-severity finding(s) were deferred by planning budget policy. Review .praxis/remediation-map.md and continue after policy adjustment.`
         : `Pass ${passId} selected no findings under the current severity and story limits. ${String(planningStageResult.data.routing_reason ?? "Review .praxis/gap.md and continue when ready.")}`;
       campaign.timestamps.updated_at = nowIsoUtc();
 
@@ -123,8 +139,6 @@ export class ConvergePassService {
         adapter: campaign.adapter,
         status: "not_launched",
         reason: campaign.reason,
-        confidence_gate: batchPlan.confidenceGate,
-        confidence_deferred_finding_ids: batchPlan.confidenceDeferredFindingIds,
         generated_at: nowIsoUtc()
       });
       return { campaign, ledger };
@@ -171,7 +185,7 @@ export class ConvergePassService {
     const plannedStoryIds = batchPlan.remediationMap.slices.map((slice) => slice.slice_id);
     markFindingsInProgress(
       ledger,
-      batchPlan.remediationMap.selected_finding_ids,
+      selectedLedgerFindingIds,
       launchResult.childRunId,
       plannedStoryIds
     );
@@ -276,6 +290,34 @@ export class ConvergePassService {
       producedCommits,
       worktreeDirty
     };
+  }
+
+  private resolveLedgerFindingIds(
+    assessment: GapAssessmentResult,
+    ledger: CampaignLedgerRecord,
+    selectedAssessmentFindingIds: string[]
+  ): string[] {
+    const selectedAssessment = new Map(assessment.findings.map((finding) => [finding.finding_id, finding]));
+    const ledgerByFingerprint = new Map(
+      ledger.finding_order.map((findingId) => {
+        const finding = ledger.findings[findingId];
+        return [finding.fingerprint, finding.finding_id] as const;
+      })
+    );
+
+    const resolved: string[] = [];
+    for (const assessedFindingId of selectedAssessmentFindingIds) {
+      const assessedFinding = selectedAssessment.get(assessedFindingId);
+      if (!assessedFinding) {
+        continue;
+      }
+      const ledgerFindingId = ledgerByFingerprint.get(assessedFinding.fingerprint);
+      if (!ledgerFindingId || resolved.includes(ledgerFindingId)) {
+        continue;
+      }
+      resolved.push(ledgerFindingId);
+    }
+    return resolved;
   }
 
   private async launchChildCraftRun(
