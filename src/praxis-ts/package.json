@@ -10,7 +10,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test tests/smoke/**/*.test.ts",
+    "test": "tsx --test tests/unit/**/*.test.ts tests/smoke/**/*.test.ts",
+    "test:unit": "tsx --test tests/unit/**/*.test.ts",
+    "test:smoke": "tsx --test tests/smoke/**/*.test.ts",
     "start": "tsx src/index.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

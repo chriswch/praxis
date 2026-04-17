@@ -1,124 +1,41 @@
-import { randomUUID } from "node:crypto";
-import { nowIsoUtc } from "../common/time.js";
-import { probeCommand } from "./command-probe.js";
-import { selectInstructionSurfaces } from "../workers/context-manifest.js";
+import { InvalidInputError } from "../../contracts/errors.js";
 import type {
   AdapterHealth,
-  AdapterLaunchRequest,
   AdapterLaunchResponse,
   RuntimeAdapter,
 } from "./types.js";
 
+export const CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON =
+  "Claude adapter is not implemented. Use --adapter codex until a real Claude worker host lands.";
+
+// The Claude adapter is intentionally a hard fail-close stub. A previous preview returned
+// synthetic session IDs from launch/resume and success from cancel, which let runs be
+// silently launched against a non-existent worker or falsely marked cancelled. Every
+// reachable method now rejects so no control flow can proceed against Claude. Replace this
+// module wholesale when a real process host is added.
 export class ClaudeAdapter implements RuntimeAdapter {
   readonly name = "claude" as const;
 
-  async health(): Promise<AdapterHealth> {
-    const probe = await probeCommand("claude");
-    const hasHome = Boolean(process.env.HOME);
-    const healthy = probe.healthy && hasHome;
-
-    return {
+  health(): Promise<AdapterHealth> {
+    return Promise.resolve({
       adapter: this.name,
-      healthy,
-      supports_resume: true,
-      reason: !probe.healthy
-        ? probe.reason
-        : hasHome
-          ? "claude is available and HOME is configured."
-          : "HOME is required to initialize Claude runtime home.",
-      binary: probe.binary,
-      version: probe.version,
-    };
-  }
-
-  // NOTE: launch/resume return a preview only — no Claude process is spawned here. The
-  // returned session_id is synthesized on the spot so callers can persist a handle, but
-  // nothing is actually running on the other end. Promote to a real process host before
-  // depending on the session for anything beyond identity bookkeeping.
-  launch(request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
-    const instructionSurfaces = selectInstructionSurfaces(
-      request.launch.context_manifest.instruction_surfaces,
-      "claude",
-    );
-    const commandPreview = buildClaudeCommandPreview(request);
-    return Promise.resolve({
-      worker_id: `wrk_claude_${request.dispatch.stage}_${randomUUID()}`,
-      session_id: `claude_session_${randomUUID()}`,
-      started_at: nowIsoUtc(),
-      locator: `claude-cli://${request.dispatch.dispatch_id}?entrypoint=${encodeURIComponent(request.launch.runtime.entrypoint)}&instructions=${String(instructionSurfaces.length)}`,
-      details: {
-        command: commandPreview,
-        instruction_surfaces: instructionSurfaces.map((surface) => surface.path),
-      },
+      healthy: false,
+      supports_resume: false,
+      reason: CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON,
+      binary: null,
+      version: null,
     });
   }
 
-  resume(sessionId: string, request: AdapterLaunchRequest): Promise<AdapterLaunchResponse> {
-    const instructionSurfaces = selectInstructionSurfaces(
-      request.launch.context_manifest.instruction_surfaces,
-      "claude",
-    );
-    const commandPreview = buildClaudeCommandPreview(request, sessionId);
-    return Promise.resolve({
-      worker_id: `wrk_claude_resume_${request.dispatch.stage}_${randomUUID()}`,
-      session_id: sessionId,
-      started_at: nowIsoUtc(),
-      locator: `claude-cli://${request.dispatch.dispatch_id}?resume=true&instructions=${String(instructionSurfaces.length)}`,
-      details: {
-        command: commandPreview,
-        instruction_surfaces: instructionSurfaces.map((surface) => surface.path),
-      },
-    });
+  launch(): Promise<AdapterLaunchResponse> {
+    return Promise.reject(new InvalidInputError(CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON));
   }
 
-  cancel(handle: {
-    session_id: string | null;
-    locator: string | null;
-  }): Promise<{ cancelled: boolean; reason: string }> {
-    if (handle.session_id) {
-      return Promise.resolve({
-        cancelled: true,
-        reason: `Cancelled session ${handle.session_id}.`,
-      });
-    }
-    if (handle.locator) {
-      return Promise.resolve({
-        cancelled: true,
-        reason: `Cancelled worker at ${handle.locator}.`,
-      });
-    }
-    return Promise.resolve({
-      cancelled: false,
-      reason: "No cancellation handle provided.",
-    });
+  resume(): Promise<AdapterLaunchResponse> {
+    return Promise.reject(new InvalidInputError(CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON));
   }
-}
 
-function buildClaudeCommandPreview(
-  request: AdapterLaunchRequest,
-  resumeSessionId: string | null = null,
-): Record<string, unknown> {
-  const prompt = buildStagePrompt(request);
-  const args = resumeSessionId
-    ? ["--resume", resumeSessionId]
-    : ["-p", prompt, "--add-dir", request.launch.execution.workspace_root];
-
-  return {
-    binary: "claude",
-    args,
-    cwd: request.launch.execution.workspace_root,
-    primary_output: request.launch.contract.primary_output,
-    stage_result_path: request.launch.stage_result_path,
-  };
-}
-
-function buildStagePrompt(request: AdapterLaunchRequest): string {
-  return [
-    `Stage: ${request.launch.stage}`,
-    `Goal: ${request.launch.contract.stage_goal}`,
-    `Instructions: ${request.launch.contract.stage_instructions.join(" | ")}`,
-    `Required inputs: ${request.launch.inputs.required_artifacts.join(", ") || "none"}`,
-    `Primary output: ${request.launch.contract.primary_output ?? "none"}`,
-    `Stage result: ${request.launch.stage_result_path}`,
-  ].join("\n");
+  cancel(): Promise<{ cancelled: boolean; reason: string }> {
+    return Promise.resolve({ cancelled: false, reason: CLAUDE_ADAPTER_NOT_IMPLEMENTED_REASON });
+  }
 }
