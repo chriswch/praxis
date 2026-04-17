@@ -36,6 +36,19 @@ type ChildCompletion = {
   worktreeDirty: boolean;
 };
 
+type PassPlan = {
+  passId: string;
+  passNumber: number;
+  remediationMap: RemediationMapRecord;
+  remediationMarkdown: string;
+  planningStageResult: ReturnType<typeof buildConvergeStageResult>;
+  selectedLedgerFindingIds: string[];
+};
+
+type ChildLaunchOutcome =
+  | { ok: true; value: ChildLaunchResult }
+  | { ok: false; error: unknown };
+
 export class ConvergePassService {
   constructor(
     private readonly repo: PraxisStateRepository,
@@ -47,6 +60,26 @@ export class ConvergePassService {
     ledger: CampaignLedgerRecord,
     passNumber: number
   ): Promise<{ campaign: CampaignRecord; ledger: CampaignLedgerRecord }> {
+    const latestAssessment = await this.loadLatestAssessmentOrThrow(campaign);
+    const plan = this.planPass(campaign, ledger, passNumber, latestAssessment);
+    await this.persistPlanArtifacts(plan, ledger);
+
+    if (plan.remediationMap.selected_finding_ids.length === 0) {
+      await this.applyNoSelectionOutcome(campaign, ledger, plan, latestAssessment);
+      return { campaign, ledger };
+    }
+
+    const launchOutcome = await this.tryLaunchChildRun(campaign, plan);
+    if (!launchOutcome.ok) {
+      await this.applyLaunchFailedOutcome(campaign, ledger, plan, launchOutcome.error);
+      return { campaign, ledger };
+    }
+
+    await this.applyLaunchedOutcome(campaign, ledger, plan, launchOutcome.value);
+    return { campaign, ledger };
+  }
+
+  private async loadLatestAssessmentOrThrow(campaign: CampaignRecord): Promise<GapAssessmentResult> {
     if (!campaign.current_review_id) {
       throw new BlockedStateError("Cannot plan remediation without an assessment review id.");
     }
@@ -54,12 +87,23 @@ export class ConvergePassService {
     if (!latestAssessment) {
       throw new BlockedStateError("Cannot plan remediation without .praxis/gap.json from assessing-gaps.");
     }
+    return latestAssessment;
+  }
 
-    const passId = buildPassId(passNumber);
+  private planPass(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    passNumber: number,
+    latestAssessment: GapAssessmentResult
+  ): PassPlan {
+    const reviewId = campaign.current_review_id;
+    if (!reviewId) {
+      throw new BlockedStateError("Cannot plan remediation without an assessment review id.");
+    }
     const batchPlan = planRemediation({
       campaignId: campaign.campaign_id,
       passNumber,
-      reviewId: campaign.current_review_id,
+      reviewId,
       latestAssessment,
       severityThreshold: campaign.severity_threshold,
       maxFindingsPerPass: campaign.max_findings_per_pass,
@@ -82,16 +126,26 @@ export class ConvergePassService {
         slices_count: batchPlan.remediationMap.slices.length
       }
     });
+    return {
+      passId: batchPlan.passId,
+      passNumber,
+      remediationMap: batchPlan.remediationMap,
+      remediationMarkdown: batchPlan.remediationMarkdown,
+      planningStageResult,
+      selectedLedgerFindingIds
+    };
+  }
 
-    markFindingsBatched(ledger, selectedLedgerFindingIds);
+  private async persistPlanArtifacts(plan: PassPlan, ledger: CampaignLedgerRecord): Promise<void> {
+    markFindingsBatched(ledger, plan.selectedLedgerFindingIds);
     await this.repo.saveRemediationMap(
-      batchPlan.remediationMarkdown,
-      batchPlan.remediationMap,
-      planningStageResult
+      plan.remediationMarkdown,
+      plan.remediationMap,
+      plan.planningStageResult
     );
-    await this.repo.savePassBatch(batchPlan.passId, batchPlan.remediationMarkdown, {
-      ...batchPlan.remediationMap,
-      stories: batchPlan.remediationMap.slices.map((slice) => ({
+    await this.repo.savePassBatch(plan.passId, plan.remediationMarkdown, {
+      ...plan.remediationMap,
+      stories: plan.remediationMap.slices.map((slice) => ({
         story_id: slice.slice_id,
         title: slice.title,
         finding_ids: slice.finding_ids,
@@ -99,131 +153,142 @@ export class ConvergePassService {
         non_goals: slice.non_goals
       }))
     });
+  }
 
-    if (batchPlan.remediationMap.selected_finding_ids.length === 0) {
-      const severityByFindingId = new Map(latestAssessment.findings.map((finding) => [
-        finding.finding_id,
-        finding.severity
-      ]));
-      const highOrCriticalDeferred = batchPlan.remediationMap.deferred_finding_ids
-        .filter((findingId) => {
-          const severity = severityByFindingId.get(findingId);
-          return severity === "critical" || severity === "high";
-        });
-      campaign.status = "waiting_for_user";
-      campaign.stop_reason_code = "needs_operator";
-      campaign.reason = highOrCriticalDeferred.length > 0
-        ? `Pass ${passId} selected no findings under current severity and story limits; ${highOrCriticalDeferred.length} high-severity finding(s) were deferred by planning budget policy. Review .praxis/remediation-map.md and continue after policy adjustment.`
-        : `Pass ${passId} selected no findings under the current severity and story limits. ${String(planningStageResult.data.routing_reason ?? "Review .praxis/gap.md and continue when ready.")}`;
-      campaign.timestamps.updated_at = nowIsoUtc();
+  private async applyNoSelectionOutcome(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    plan: PassPlan,
+    latestAssessment: GapAssessmentResult
+  ): Promise<void> {
+    const reviewId = campaign.current_review_id!;
+    const severityByFindingId = new Map(latestAssessment.findings.map((finding) => [
+      finding.finding_id,
+      finding.severity
+    ]));
+    const highOrCriticalDeferred = plan.remediationMap.deferred_finding_ids.filter((findingId) => {
+      const severity = severityByFindingId.get(findingId);
+      return severity === "critical" || severity === "high";
+    });
+    campaign.status = "waiting_for_user";
+    campaign.stop_reason_code = "needs_operator";
+    campaign.reason = highOrCriticalDeferred.length > 0
+      ? `Pass ${plan.passId} selected no findings under current severity and story limits; ${highOrCriticalDeferred.length} high-severity finding(s) were deferred by planning budget policy. Review .praxis/remediation-map.md and continue after policy adjustment.`
+      : `Pass ${plan.passId} selected no findings under the current severity and story limits. ${String(plan.planningStageResult.data.routing_reason ?? "Review .praxis/gap.md and continue when ready.")}`;
+    campaign.timestamps.updated_at = nowIsoUtc();
 
-      await this.repo.savePassSummary(passId, {
-        version: 1,
-        campaign_id: campaign.campaign_id,
-        pass_id: passId,
-        pass_number: passNumber,
-        child_run_id: null,
-        assessment_review_id: campaign.current_review_id,
-        reassessment_review_id: null,
-        planned_finding_ids: [],
-        completed_story_ids: [],
-        produced_commits: [],
-        unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(ledger, campaign.severity_threshold),
-        outcome: "needs_operator",
-        generated_at: nowIsoUtc()
-      });
-      await this.repo.savePassChildRun(passId, {
-        version: 2,
-        child_run_id: null,
-        workflow: campaign.workflow,
-        adapter: campaign.adapter,
-        status: "not_launched",
-        reason: campaign.reason,
-        generated_at: nowIsoUtc()
-      });
-      return { campaign, ledger };
-    }
+    await this.persistPassSummary(campaign, ledger, plan, {
+      childRunId: null,
+      plannedFindingIds: [],
+      outcome: "needs_operator"
+    });
+    await this.repo.savePassChildRun(plan.passId, {
+      version: 2,
+      child_run_id: null,
+      workflow: campaign.workflow,
+      adapter: campaign.adapter,
+      status: "not_launched",
+      reason: campaign.reason,
+      generated_at: nowIsoUtc()
+    });
+  }
 
-    let launchResult: ChildLaunchResult;
+  private async tryLaunchChildRun(campaign: CampaignRecord, plan: PassPlan): Promise<ChildLaunchOutcome> {
     try {
-      launchResult = await this.launchChildCraftRun(campaign, passId, batchPlan.remediationMap);
+      const value = await this.launchChildCraftRun(campaign, plan.passId, plan.remediationMap);
+      return { ok: true, value };
     } catch (error) {
-      campaign.status = "blocked";
-      campaign.stop_reason_code = "blocked";
-      campaign.reason =
-        `Pass ${passId} batch planned but child craft launch failed: ${stringifyError(error)}`;
-      campaign.timestamps.updated_at = nowIsoUtc();
-
-      const summary: PassSummaryRecord = {
-        version: 1,
-        campaign_id: campaign.campaign_id,
-        pass_id: passId,
-        pass_number: passNumber,
-        child_run_id: null,
-        assessment_review_id: campaign.current_review_id,
-        reassessment_review_id: null,
-        planned_finding_ids: batchPlan.remediationMap.selected_finding_ids,
-        completed_story_ids: [],
-        produced_commits: [],
-        unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(ledger, campaign.severity_threshold),
-        outcome: "needs_operator",
-        generated_at: nowIsoUtc()
-      };
-      await this.repo.savePassSummary(passId, summary);
-      await this.repo.savePassChildRun(passId, {
-        version: 2,
-        child_run_id: null,
-        workflow: campaign.workflow,
-        adapter: campaign.adapter,
-        status: "launch_failed",
-        launch_error: stringifyError(error),
-        generated_at: nowIsoUtc()
-      });
-      return { campaign, ledger };
+      return { ok: false, error };
     }
+  }
 
-    const plannedStoryIds = batchPlan.remediationMap.slices.map((slice) => slice.slice_id);
+  private async applyLaunchFailedOutcome(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    plan: PassPlan,
+    error: unknown
+  ): Promise<void> {
+    campaign.status = "blocked";
+    campaign.stop_reason_code = "blocked";
+    campaign.reason = `Pass ${plan.passId} batch planned but child craft launch failed: ${stringifyError(error)}`;
+    campaign.timestamps.updated_at = nowIsoUtc();
+
+    await this.persistPassSummary(campaign, ledger, plan, {
+      childRunId: null,
+      plannedFindingIds: plan.remediationMap.selected_finding_ids,
+      outcome: "needs_operator"
+    });
+    await this.repo.savePassChildRun(plan.passId, {
+      version: 2,
+      child_run_id: null,
+      workflow: campaign.workflow,
+      adapter: campaign.adapter,
+      status: "launch_failed",
+      launch_error: stringifyError(error),
+      generated_at: nowIsoUtc()
+    });
+  }
+
+  private async applyLaunchedOutcome(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    plan: PassPlan,
+    launchResult: ChildLaunchResult
+  ): Promise<void> {
+    const plannedStoryIds = plan.remediationMap.slices.map((slice) => slice.slice_id);
     markFindingsInProgress(
       ledger,
-      selectedLedgerFindingIds,
+      plan.selectedLedgerFindingIds,
       launchResult.childRunId,
       plannedStoryIds
     );
-    await this.repo.savePassChildRun(passId, launchResult.childRunRecord);
+    await this.repo.savePassChildRun(plan.passId, launchResult.childRunRecord);
+    await this.persistPassSummary(campaign, ledger, plan, {
+      childRunId: launchResult.childRunId,
+      plannedFindingIds: plan.remediationMap.selected_finding_ids,
+      outcome: campaign.auto_continue ? "continue" : "needs_operator"
+    });
 
-    const summary: PassSummaryRecord = {
-      version: 1,
-      campaign_id: campaign.campaign_id,
-      pass_id: passId,
-      pass_number: passNumber,
-      child_run_id: launchResult.childRunId,
-      assessment_review_id: campaign.current_review_id,
-      reassessment_review_id: null,
-      planned_finding_ids: batchPlan.remediationMap.selected_finding_ids,
-      completed_story_ids: [],
-      produced_commits: [],
-      unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(ledger, campaign.severity_threshold),
-      outcome: campaign.auto_continue ? "continue" : "needs_operator",
-      generated_at: nowIsoUtc()
-    };
-    await this.repo.savePassSummary(passId, summary);
-
-    campaign.current_pass = passNumber;
+    campaign.current_pass = plan.passNumber;
     campaign.current_child_run_id = launchResult.childRunId;
     if (campaign.auto_continue) {
       campaign.status = "running";
       campaign.stop_reason_code = null;
-      campaign.reason =
-        `Pass ${passId} launched child craft run ${launchResult.childRunId}. Waiting for child completion before reassessment.`;
+      campaign.reason = `Pass ${plan.passId} launched child craft run ${launchResult.childRunId}. Waiting for child completion before reassessment.`;
     } else {
       campaign.status = "waiting_for_user";
       campaign.stop_reason_code = "needs_operator";
-      campaign.reason =
-        `Pass ${passId} launched child craft remediation (${launchResult.childRunId}). Complete the child run and execute \`praxis converge continue\`.`;
+      campaign.reason = `Pass ${plan.passId} launched child craft remediation (${launchResult.childRunId}). Complete the child run and execute \`praxis converge continue\`.`;
     }
     campaign.timestamps.updated_at = nowIsoUtc();
+  }
 
-    return { campaign, ledger };
+  private async persistPassSummary(
+    campaign: CampaignRecord,
+    ledger: CampaignLedgerRecord,
+    plan: PassPlan,
+    fields: {
+      childRunId: string | null;
+      plannedFindingIds: string[];
+      outcome: PassSummaryRecord["outcome"];
+    }
+  ): Promise<void> {
+    const summary: PassSummaryRecord = {
+      version: 1,
+      campaign_id: campaign.campaign_id,
+      pass_id: plan.passId,
+      pass_number: plan.passNumber,
+      child_run_id: fields.childRunId,
+      assessment_review_id: campaign.current_review_id!,
+      reassessment_review_id: null,
+      planned_finding_ids: fields.plannedFindingIds,
+      completed_story_ids: [],
+      produced_commits: [],
+      unresolved_at_or_above_threshold: countUnresolvedAtOrAboveThreshold(ledger, campaign.severity_threshold),
+      outcome: fields.outcome,
+      generated_at: nowIsoUtc()
+    };
+    await this.repo.savePassSummary(plan.passId, summary);
   }
 
   async resolveChildRunProjection(campaign: CampaignRecord): Promise<{
