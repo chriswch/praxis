@@ -170,10 +170,13 @@ export function formatTargetSpecMarkdown(campaign: CampaignRecord, objectiveText
         "Preserve fresh-session execution boundaries for child stories."
       ];
 
-  const acceptanceCriteria = unique([
+  const explicitAcceptanceCriteria = unique([
     ...pickSectionItems(sections, /acceptance|success|criteria|definition of done/),
     ...listItems.filter((item) => /\b(must|should|verify|ensure|confirm)\b/i.test(item))
   ]);
+  const acceptanceCriteria = explicitAcceptanceCriteria.length > 0
+    ? explicitAcceptanceCriteria
+    : listItems;
 
   const clarificationIssues: string[] = [];
   if (goal.length < 20) {
