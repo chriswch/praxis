@@ -288,6 +288,51 @@ test("smoke: converge pre-remediation stage results expose routing metadata", as
   assert.match(planningResult.data.routing_reason, /(remediation map|selected)/i);
 });
 
+test("smoke: assessing-gaps only evaluates normative target-spec sections", async () => {
+  const repoRoot = await createTempRepo();
+  const objective = await writeObjective(repoRoot, {
+    lines: [
+      "- Must enforce durable remediation snapshots for every converge review pass."
+    ]
+  });
+
+  assert.equal(
+    await runConvergeRunCommand(repoRoot, true, {
+      adapter: "codex",
+      objective,
+      profile: "product-spec-gap",
+      severityThreshold: "medium",
+      maxPasses: 1,
+      maxFindingsPerPass: 2,
+      maxStoriesPerPass: 2,
+      scope: [],
+      commitPerStory: false,
+      autoContinue: false,
+      allowWaive: false
+    }),
+    EXIT_CODE.OK
+  );
+
+  const gap = await readJson<{
+    findings: Array<{
+      objective_refs: string[];
+      expected_behavior: string;
+    }>;
+  }>(join(repoRoot, ".praxis", "gap.json"));
+  assert.ok(gap.findings.length > 0);
+  for (const finding of gap.findings) {
+    assert.ok(
+      finding.objective_refs.every((ref) => !ref.includes("#clarification-status")
+        && !ref.includes("#references")
+        && !ref.includes("#imported-objective-content")
+        && !ref.includes("#scope")
+        && !ref.includes("#non-goals")),
+      `finding references non-normative section: ${finding.objective_refs.join(", ")}`
+    );
+    assert.doesNotMatch(finding.expected_behavior, /Needs clarification:/i);
+  }
+});
+
 test("smoke: converge pauses at clarifying-intent when objective is too vague", async () => {
   const repoRoot = await createTempRepo();
   const objective = await writeObjective(repoRoot, {

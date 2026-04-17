@@ -78,6 +78,22 @@ const STOPWORDS = new Set([
 const EXCLUDED_DIRS = new Set([".git", ".praxis", "node_modules", "dist", "build", ".next", "coverage"]);
 const ALLOWED_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".md", ".yml", ".yaml"]);
 const CODE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
+const NORMATIVE_SECTION_PATTERNS = [
+  /\bacceptance\b/,
+  /\bcriteria\b/,
+  /\brequirements?\b/,
+  /\bconstraints?\b/,
+  /\bexpected behavior\b/,
+  /\bdefinition of done\b/
+];
+const NON_NORMATIVE_SECTION_PATTERNS = [
+  /\bgoal\b/,
+  /\bscope\b/,
+  /\bnon-?goals?\b/,
+  /\bclarification status\b/,
+  /\breferences?\b/,
+  /\bimported objective content\b/
+];
 
 function slugify(value: string): string {
   return value
@@ -89,6 +105,17 @@ function slugify(value: string): string {
 
 function toRepoPath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\.\/+/, "");
+}
+
+function sectionIsNormative(section: string): boolean {
+  const normalized = section.trim().toLowerCase();
+  if (normalized.length === 0) {
+    return false;
+  }
+  if (NON_NORMATIVE_SECTION_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return false;
+  }
+  return NORMATIVE_SECTION_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: string): ObjectiveRequirement[] {
@@ -118,7 +145,50 @@ function parseObjectiveRequirements(targetSpecPath: string, targetSpecText: stri
     if (statement.length < 12) {
       continue;
     }
+    if (!sectionIsNormative(section)) {
+      continue;
+    }
 
+    const refAnchor = slugify(section) || `line-${index + 1}`;
+    requirements.push({
+      section,
+      text: statement,
+      objectiveRef: `${targetSpecPath}#${refAnchor}`,
+      line: index + 1
+    });
+  }
+
+  if (requirements.length > 0) {
+    return requirements;
+  }
+
+  // Fallback: if no normative headings are present, consider list items from
+  // any section except clearly non-normative sections.
+  section = "Objective";
+  for (const [index, rawLine] of lines.entries()) {
+    const line = rawLine.trim();
+    if (line.length === 0) {
+      continue;
+    }
+
+    const heading = /^#{1,6}\s+(.+)$/.exec(line);
+    if (heading) {
+      section = heading[1].trim();
+      continue;
+    }
+
+    if (NON_NORMATIVE_SECTION_PATTERNS.some((pattern) => pattern.test(section.toLowerCase()))) {
+      continue;
+    }
+
+    const listItem = /^(?:[-*]|\d+\.)\s+(.+)$/.exec(line);
+    if (!listItem) {
+      continue;
+    }
+    const statement = listItem[1].trim();
+    if (statement.length < 12) {
+      continue;
+    }
     const refAnchor = slugify(section) || `line-${index + 1}`;
     requirements.push({
       section,
@@ -160,6 +230,10 @@ function splitTerms(input: string): string[] {
     .split(/\s+/)
     .map((part) => part.trim())
     .filter(Boolean);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function extractKeywords(text: string): string[] {
@@ -456,9 +530,28 @@ function detectContradiction(signals: RequirementSignals, codeMatches: DocumentM
     return { hasConflict: false, terms: [] };
   }
 
+  const activeForbidden = matchedForbidden.filter((term) =>
+    codeMatches.some((match) =>
+      match.snippets.some((snippet) => {
+        const lower = snippet.toLowerCase();
+        if (!lower.includes(term)) {
+          return false;
+        }
+        const escapedTerm = escapeRegex(term);
+        // Require a likely executable usage shape instead of a raw token hit.
+        return new RegExp(`\\b(import|from|require|new|extends|implements|class|function|const|let|var|type|interface)\\b[^\\n]*\\b${escapedTerm}\\b`).test(lower)
+          || new RegExp(`\\b${escapedTerm}\\b\\s*(\\(|\\.|:)`).test(lower);
+      })
+    )
+  );
+
+  if (activeForbidden.length === 0) {
+    return { hasConflict: false, terms: [] };
+  }
+
   return {
     hasConflict: true,
-    terms: Array.from(new Set(matchedForbidden))
+    terms: Array.from(new Set(activeForbidden))
   };
 }
 
@@ -487,8 +580,14 @@ function summarizeCurrentBehavior(
   codeMatches: DocumentMatch[]
 ): string {
   if (contradiction.hasConflict) {
-    const paths = codeMatches.slice(0, 2).map((match) => match.path).join(", ");
-    return `Observed in-code behavior still references forbidden legacy terms (${contradiction.terms.join(", ")}) in ${paths || "in-scope code surfaces"}.`;
+    const snippets = codeMatches
+      .slice(0, 2)
+      .flatMap((match) => match.snippets)
+      .slice(0, 2);
+    return [
+      `Observed active code usage still references forbidden terms (${contradiction.terms.join(", ")}).`,
+      snippets.length > 0 ? `Evidence: ${snippets.join(" | ")}` : "Evidence appears in sampled in-scope code surfaces."
+    ].join(" ");
   }
 
   if (matchedCodeTerms.length === 0) {
@@ -499,13 +598,17 @@ function summarizeCurrentBehavior(
   }
 
   const topPaths = codeMatches.slice(0, 3).map((match) => match.path);
+  const snippets = codeMatches
+    .slice(0, 2)
+    .flatMap((match) => match.snippets)
+    .slice(0, 2);
   const uncovered = uncoveredTerms.length > 0
-    ? `Uncovered requirement terms remain: ${uncoveredTerms.slice(0, 6).join(", ")}.`
-    : "All extracted requirement terms are represented in code evidence.";
+    ? `Observed behavior remains partial; missing implementation signals for ${uncoveredTerms.slice(0, 6).join(", ")}.`
+    : "Observed behavior covers the extracted requirement terms in sampled code.";
 
   return [
-    `Observed implementation evidence in ${topPaths.join(", ")} with ${Math.round(codeCoverage * 100)}% code-term coverage.`,
-    `Matched code terms: ${matchedCodeTerms.slice(0, 8).join(", ")}.`,
+    `Observed implementation evidence in ${topPaths.join(", ")}.`,
+    snippets.length > 0 ? `Representative snippets: ${snippets.join(" | ")}` : "Representative snippets were not captured for this requirement.",
     uncovered
   ].join(" ");
 }
