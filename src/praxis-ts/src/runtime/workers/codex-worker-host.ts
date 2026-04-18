@@ -9,6 +9,7 @@ import { writeJsonFile } from "../state/store.js";
 import { PraxisStateRepository } from "../state/index.js";
 import { RunController } from "../control/index.js";
 import type { WorkerLaunchPayload } from "../control/types.js";
+import { resolveStageSkillCommand } from "./stage-skill-command.js";
 import {
   buildWorkerLocator,
   type WorkerHostHandshake,
@@ -289,8 +290,13 @@ function buildCodexCommand(
   };
 }
 
-function buildStagePrompt(launch: WorkerLaunchPayload): string {
-  return [
+export function buildStagePrompt(launch: WorkerLaunchPayload): string {
+  const slashCommand = resolveStageSkillCommand(launch.stage);
+  const lines = [];
+  if (slashCommand !== null) {
+    lines.push(`${slashCommand} ${launch.artifact_dir}`);
+  }
+  lines.push(
     `Stage: ${launch.stage}`,
     `Goal: ${launch.contract.stage_goal}`,
     `Instructions: ${launch.contract.stage_instructions.join(" | ")}`,
@@ -301,7 +307,8 @@ function buildStagePrompt(launch: WorkerLaunchPayload): string {
     `Run: ${launch.run_id}`,
     `Worker mode: ${launch.worker.mode}`,
     `Trace: ${randomUUID()}`,
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 function tryParseJson(line: string): Record<string, unknown> | null {
