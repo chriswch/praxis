@@ -2,7 +2,7 @@
 name: slicing-stories
 description: Splits a Feature Brief into an ordered slice map of thin, vertical story slices — each capturing scope and build order, while deferring detailed acceptance criteria to downstream `clarifying-intent`. Use after clarifying-intent produces a Feature Brief, when a feature is too large for one story. Triggers on "split this into stories", "slice this feature", "what should we build first", "create a slice map", or when a Feature Brief needs to be broken into deliverable increments.
 context: fork
-allowed-tools: Read, Grep, Glob, Bash(python3 *), Write, Edit
+allowed-tools: Read, Grep, Glob
 ---
 
 # Agile Story Slicer
@@ -23,52 +23,26 @@ Expects a **Feature Brief** from `clarifying-intent` containing:
 - Constraints & risks (if surfaced)
 - Open questions (blocking / deferrable)
 
-Read the Feature Brief from `.praxis/brief.md`.
-
-If the input is not a Feature Brief, stop and return a message asking the orchestrator to run `clarifying-intent` first.
+The caller provides the Feature Brief as input. If the input is not a Feature
+Brief, stop and return a message asking the caller to run `clarifying-intent`
+first.
 
 ## Output
 
-Produce two artifacts:
+Return both artifacts directly in the response. The caller decides what to
+persist.
 
 1. A human-readable **Slice Map (Markdown)** for reading/review.
 2. A canonical **Slice Map (JSON)** that conforms to `references/slice-map.spec.md`.
 
 - Put the Markdown first, and the JSON last (in a fenced `json` block).
 - Treat the JSON as the source of truth; ensure the Markdown is derivable from the JSON.
-- Write the JSON to `.praxis/slice-map.json` and optionally render Markdown with:
-  - `python3 scripts/render_slice_map_markdown.py .praxis/slice-map.json > .praxis/slice-map.md`
-- If producing JSON, validate with `python3 scripts/validate_slice_map.py .praxis/slice-map.json`.
-
-Also write the structured result file to `.praxis/results/slicing-stories.json`.
-
-## Result Contract
-
-Follow `../../src/praxis/contracts/stage-result.schema.json`.
-
-The result JSON is the routing source of truth. If you also include a human
-section such as `## Blocking Questions`, keep it consistent with the JSON
-result.
-Leave `route.next_stage = null`; the shared workflow resolves the canonical
-next stage from the workflow and outcome.
-
-Use these outcome codes:
-
-- `slice_map_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`, `route.next_slice_id = <first-slice-id if known>`,
-  `needs_user_input = false`, `needs_confirmation = false`
-- `blocking_questions` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = null`, `needs_user_input = true`
-
-Use `.praxis/slice-map.md` as `summary_path` when it exists; otherwise
-`.praxis/slice-map.json` is acceptable. Even on blocker outcomes, still write
-`.praxis/results/slicing-stories.json`.
 
 ## Workflow
 
 1. **Accept the Feature Brief.**
-   - Read the brief from `.praxis/brief.md`. Do not re-interview the requester — trust the brief's scope, constraints, and open questions.
-   - If there are blocking open questions that prevent slicing, write them clearly in your output under a `## Blocking Questions` heading if helpful, but always write `.praxis/results/slicing-stories.json` with `data.outcome_code = blocking_questions` and stop. The orchestrator will resolve them with the user and re-invoke this skill.
+   - Do not re-interview the requester — trust the brief's scope, constraints, and open questions.
+   - If there are blocking open questions that prevent slicing, write them clearly in your output under a `## Blocking Questions` heading and stop. The orchestrator will resolve them with the user and re-invoke this skill.
 
 2. **Identify seam lines.**
    - Find natural boundaries where the feature can be split into independently deliverable, testable behaviors.
@@ -107,7 +81,6 @@ Use `.praxis/slice-map.md` as `summary_path` when it exists; otherwise
      - Are `scope_in` boundaries clear enough that `clarifying-intent` can spec the slice without asking "what are we building?"
      - Do `scope_out` boundaries prevent overlap between slices?
      - Is anything in the slice map actually a spike (technology validation, integration proof) rather than a user story? If so, extract it as a spike in `clarifying-intent` and remove it from the slice map.
-   - If producing JSON, run `python3 scripts/validate_slice_map.py .praxis/slice-map.json`.
 
 ## Downstream Handoff
 
@@ -122,10 +95,7 @@ Each slice goes back to `clarifying-intent` to produce a Story-Level Behavioral 
 
 When updating, re-validate (step 5) and re-confirm with the requester. Don't treat slice map changes as failures — they're the agile feedback loop working at the planning level.
 
-## References and Tools
+## References
 
 - Templates and slicing heuristics: `references/templates.md`
 - Output schema: `references/slice-map.spec.md`
-- Validator: `python3 scripts/validate_slice_map.py .praxis/slice-map.json`
-- Markdown renderer: `python3 scripts/render_slice_map_markdown.py .praxis/slice-map.json`
-- Result schema: `../../src/praxis/contracts/stage-result.schema.json`

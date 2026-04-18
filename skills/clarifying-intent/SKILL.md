@@ -1,7 +1,7 @@
 ---
 name: clarifying-intent
 description: Clarifies ambiguous ideas, features, tasks, user stories, or problems by eliciting intent, constraints, unknowns, risks, and success criteria; asks focused questions; then produces a structured Feature Brief or Story-Level Behavioral Spec with testable acceptance criteria. Use when a request is vague or underspecified, when scoping work, when a user says "I have a rough idea", "help me scope this", "what should we build", "spec this out", or before planning and coding.
-allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Bash(find)
+allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(find)
 ---
 
 # Clarify Intent
@@ -10,54 +10,14 @@ allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Bash(find)
 
 Turn an underspecified request into an actionable, shared understanding. Triage by size: large inputs produce a Feature Brief and get split into stories; small inputs produce a Story-Level Behavioral Spec with testable acceptance criteria ready for TDD.
 
-## Artifact Directory
-
-If `$ARGUMENTS` is provided, use it as the artifact directory (for example,
-`.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
-
-- For feature-level clarification, always write the brief to `.praxis/brief.md`.
-  Do not write feature briefs into slice directories.
-- For story-level clarification, write the spec to `{artifact-dir}/spec.md`.
-- Ensure `{artifact-dir}/results/` exists before writing the structured result.
-- Write the structured result to `{artifact-dir}/results/clarifying-intent.json`.
-
-## Result Contract
-
-Follow `../../src/praxis/contracts/stage-result.schema.json`.
-
-The result JSON is the routing source of truth. Human-readable artifacts such as
-`brief.md` and `spec.md` remain for people; the orchestrator should route from
-`results/clarifying-intent.json`.
-Leave `route.next_stage = null`; the shared workflow resolves the canonical
-next stage from the workflow and outcome.
-
-Use these outcome codes:
-
-- `trivial_change` -> `status = skipped`, `route.kind = done`,
-  `route.next_stage = null`
-- `bug_fix_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`, `needs_confirmation = true`
-- `story_spec_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`, `needs_confirmation = true`
-- `feature_brief_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`, `needs_confirmation = true`
-- `clarification_needed` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = null`, `needs_user_input = true`
-
-For feature-level output, use `.praxis/brief.md` as `summary_path`. For
-story-level output, use `{artifact-dir}/spec.md` as `summary_path`. For trivial
-changes, `summary_path` may be `null`.
-
-Even if the stage stops early, is skipped, or needs user clarification, still
-write the result JSON.
+Return the brief or spec directly in the response. The caller decides what to
+persist.
 
 ## Story-Boundary Handoff Input
 
 When this skill runs for a slice that just started from a story boundary, the
-orchestrator should provide the handoff artifact referenced by
-`run.routing.boundary_handoff_path` as explicit input.
+caller provides the boundary handoff as explicit input.
 
-- Read that handoff first.
 - Use its `summary`, `carry_forward_context`, `changed_paths`, and
   `commit_meta` fields as bounded carry-forward context for the new story.
 - Treat the handoff as the canonical cross-story seed. Do not rely on old
@@ -142,27 +102,18 @@ The full pipeline (`clarifying-intent` → `slicing-stories` → `sketching-desi
 ### Trivial
 
 - No spec artifact is required.
-- Still write `{artifact-dir}/results/clarifying-intent.json` with
-  `data.outcome_code = trivial_change`.
 
 ### Feature-level (large input)
 
 Use the **Feature Brief** template from `references/templates.md`:
 
 - Problem/why now, goal & success criteria, scope boundaries, constraints & risks (if surfaced), open questions, downstream handoff (split into stories).
-- Write to `.praxis/brief.md`.
-- Write `.praxis/results/clarifying-intent.json` with
-  `data.outcome_code = feature_brief_ready`.
 
 ### Story-level (small/medium input)
 
 Use the **Story-Level Behavioral Spec** template from `references/templates.md`:
 
 - Problem (1–2 sentences), acceptance criteria (Given/When/Then — this is the primary artifact), scope boundaries, what must not break, open unknowns, downstream handoff.
-- Write to `.praxis/spec.md` (single-story) or `.praxis/slices/{slice-id}/spec.md` (multi-slice).
-- Write `{artifact-dir}/results/clarifying-intent.json` with
-  `data.outcome_code = story_spec_ready` or `bug_fix_ready`, depending on the
-  route.
 
 For full templates, question sets, and worked examples, read:
 

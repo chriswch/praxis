@@ -2,43 +2,17 @@
 name: sketching-design
 description: Produces a lightweight design sketch from a Story-Level Behavioral Spec by locating affected files in the codebase, matching existing patterns, and proposing a single implementation direction — just enough to write the first failing test. Use before TDD when the implementation path is non-obvious, after clarifying-intent or slicing-stories. Triggers on "where do I start?", "which files do I change?", "how should I implement this?", mapping a spec to code, or pre-implementation codebase exploration.
 context: fork
-allowed-tools: Read, Grep, Glob, Write, Edit
+allowed-tools: Read, Grep, Glob
 ---
 
 # Design Sketch
 
-## Artifact Directory
-
-If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
-
-Read the spec from `{artifact-dir}/spec.md`. Write the sketch to `{artifact-dir}/sketch.md`.
-Ensure `{artifact-dir}/results/` exists and write the structured result to
-`{artifact-dir}/results/sketching-design.json`.
-
-## Result Contract
-
-Follow `../../src/praxis/contracts/stage-result.schema.json`.
-
-The result JSON is the routing source of truth.
-Leave `route.next_stage = null`; the shared workflow resolves the canonical
-next stage from the workflow and outcome.
-
-Use these outcome codes:
-
-- `sketch_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`
-- `sketch_skipped` -> `status = skipped`, `route.kind = proceed`,
-  `route.next_stage = null`
-- `spec_issue` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = null`, `needs_user_input = true`
-
-Use `{artifact-dir}/sketch.md` as `summary_path` when you write it. If the
-stage is skipped and you do not write `sketch.md`, `summary_path` may be `null`.
-Even on skip or blocker outcomes, still write the result JSON.
-
 ## Overview
 
 Bridge the gap between "what to build" (behavioral spec) and "where to start coding" (first failing test). Explore the codebase, match existing patterns, and propose a direction — not a blueprint. The real design emerges from TDD's refactor step, not from this sketch.
+
+The caller provides the spec and receives the sketch in the response. The
+caller decides what to persist.
 
 ## Input
 
@@ -49,9 +23,9 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
 ## Workflow
 
 1. **Triage: decide if a sketch is needed.**
-   - Read the spec's acceptance criteria. If the implementation path is obvious — you know which file to open and what test to write — skip the sketch and write `{artifact-dir}/results/sketching-design.json` with `data.outcome_code = sketch_skipped`. A short note in `sketch.md` is optional.
+   - Read the spec's acceptance criteria. If the implementation path is obvious — you know which file to open and what test to write — skip the sketch. A short note in the response is optional.
    - Sizing guide (from `clarifying-intent` triage):
-     - **Trivial** (< half day): Skip. Emit `data.outcome_code = sketch_skipped`.
+     - **Trivial** (< half day): Skip.
      - **Small** (1–2 days, single behavior): Locate + pattern match only (steps 2–3). Skip step 4 if the direction is obvious from existing patterns.
      - **Medium** (3–5 days, story-level): Full sketch (steps 2–5).
      - **Large/Epic**: Should have been split first. Stop and return a message indicating `slicing-stories` should be run first.
@@ -64,7 +38,7 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
      - What's the blast radius? What existing code paths are touched?
    - Output: a **change map** — a short list of files/modules that will be touched, and why.
    - Scope: read only what's needed to answer these questions. Stop when you can name the files.
-   - **Early exit**: If codebase exploration reveals the spec's assumptions are wrong (e.g., the module it describes doesn't exist, the behavior is already implemented differently, or a stated constraint doesn't hold), stop and flag this in your output under a `## Spec Issue` heading if helpful, but always write `{artifact-dir}/results/sketching-design.json` with `data.outcome_code = spec_issue`. The orchestrator will resolve this with the user before continuing.
+   - **Early exit**: If codebase exploration reveals the spec's assumptions are wrong (e.g., the module it describes doesn't exist, the behavior is already implemented differently, or a stated constraint doesn't hold), stop and flag this in your output under a `## Spec Issue` heading. The orchestrator will resolve this with the user before continuing.
 
 3. **Read existing patterns.**
    - Before proposing anything new, answer:
@@ -91,9 +65,7 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
 6. **Produce the design sketch.**
    - Use the template from `references/templates.md`.
    - Keep it shorter than the behavioral spec that feeds it. If the sketch is longer, compress or remove sections.
-   - Write to `{artifact-dir}/sketch.md`.
-   - Write `{artifact-dir}/results/sketching-design.json` with
-     `data.outcome_code = sketch_ready`.
+   - Return it directly in the response.
 
 ## Guardrails
 
@@ -101,8 +73,7 @@ If the input is vague, underspecified, or feature-sized, stop and return a messa
 - **Shorter than the spec.** If the design sketch is longer than the behavioral spec, compress it.
 - **One approach, not candidates.** Pick and commit. TDD validates or invalidates.
 - **Existing patterns first.** Only propose new patterns when the codebase has no applicable analog.
-- **Skippable.** If the spec makes implementation obvious, skip the sketch and
-  emit `data.outcome_code = sketch_skipped`.
+- **Skippable.** If the spec makes implementation obvious, skip the sketch.
 - **Disposable.** TDD's refactor step overrides the sketch when it discovers better structure.
 - **Spikes over speculation.** If uncertain, write throwaway code to learn — don't plan harder.
 - **No architecture astronautics.** Don't propose design patterns, class hierarchies, or module structures that aren't directly needed for this one story.
