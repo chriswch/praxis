@@ -1,8 +1,6 @@
-import type { StageName } from "../../contracts/model.js";
+const STAGE_SKILL_COMMAND_PREFIX = "/praxis:";
 
-export const STAGE_SKILL_COMMAND_PREFIX = "/praxis:";
-
-const STAGE_SKILL_STAGES: ReadonlySet<StageName> = new Set<StageName>([
+const STAGE_SKILL_STAGES: ReadonlySet<string> = new Set<string>([
   "clarifying-intent",
   "slicing-stories",
   "sketching-design",
@@ -12,7 +10,7 @@ const STAGE_SKILL_STAGES: ReadonlySet<StageName> = new Set<StageName>([
   "verifying-and-adapting",
 ]);
 
-export function resolveStageSkillCommand(stage: StageName): string | null {
+export function resolveStageSkillCommand(stage: string): string | null {
   if (STAGE_SKILL_STAGES.has(stage)) {
     return `${STAGE_SKILL_COMMAND_PREFIX}${stage}`;
   }

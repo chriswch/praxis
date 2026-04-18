@@ -9,7 +9,6 @@ import { writeJsonFile } from "../state/store.js";
 import { PraxisStateRepository } from "../state/index.js";
 import { RunController } from "../control/index.js";
 import type { WorkerLaunchPayload } from "../control/types.js";
-import type { StageName } from "../../contracts/model.js";
 import { resolveStageSkillCommand } from "./stage-skill-command.js";
 import {
   buildWorkerLocator,
@@ -283,8 +282,8 @@ function buildClaudeCommand(
 }
 
 export function buildStagePrompt(launch: WorkerLaunchPayload): string {
-  const slashCommand = resolveStageSkillCommand(launch.stage as StageName);
-  const lines: string[] = [];
+  const slashCommand = resolveStageSkillCommand(launch.stage);
+  const lines = [];
   if (slashCommand !== null) {
     lines.push(`${slashCommand} ${launch.artifact_dir}`);
   }
