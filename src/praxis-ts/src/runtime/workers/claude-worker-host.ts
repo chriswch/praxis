@@ -9,6 +9,8 @@ import { writeJsonFile } from "../state/store.js";
 import { PraxisStateRepository } from "../state/index.js";
 import { RunController } from "../control/index.js";
 import type { WorkerLaunchPayload } from "../control/types.js";
+import type { StageName } from "../../contracts/model.js";
+import { resolveStageSkillCommand } from "./stage-skill-command.js";
 import {
   buildWorkerLocator,
   parsePositiveInt,
@@ -280,8 +282,13 @@ function buildClaudeCommand(
   };
 }
 
-function buildStagePrompt(launch: WorkerLaunchPayload): string {
-  return [
+export function buildStagePrompt(launch: WorkerLaunchPayload): string {
+  const slashCommand = resolveStageSkillCommand(launch.stage as StageName);
+  const lines: string[] = [];
+  if (slashCommand !== null) {
+    lines.push(`${slashCommand} ${launch.artifact_dir}`);
+  }
+  lines.push(
     `Stage: ${launch.stage}`,
     `Goal: ${launch.contract.stage_goal}`,
     `Instructions: ${launch.contract.stage_instructions.join(" | ")}`,
@@ -296,7 +303,8 @@ function buildStagePrompt(launch: WorkerLaunchPayload): string {
     "Write the stage result JSON to the path under `Stage result:` using the",
     "Write tool, conforming to the stage-result contract. Exit when the file",
     "is on disk.",
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 async function writeWorkerTrace(
