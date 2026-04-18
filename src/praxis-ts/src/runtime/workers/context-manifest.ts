@@ -11,21 +11,14 @@ const SURFACE_BLUEPRINTS: Omit<RepoInstructionSurface, "exists">[] = [
     description: "Repo-level shared worker instructions.",
   },
   {
-    path: ".codex/config.toml",
+    path: ".codex-plugin/config.toml",
     kind: "file",
     provider: "codex",
     authoritative: true,
     description: "Authoritative Codex runtime configuration.",
   },
   {
-    path: ".codex/hooks.json",
-    kind: "file",
-    provider: "codex",
-    authoritative: true,
-    description: "Authoritative Codex hook configuration.",
-  },
-  {
-    path: ".codex/agents",
+    path: ".codex-plugin/agents",
     kind: "directory",
     provider: "codex",
     authoritative: true,
@@ -39,18 +32,11 @@ const SURFACE_BLUEPRINTS: Omit<RepoInstructionSurface, "exists">[] = [
     description: "Repo-level Claude instructions.",
   },
   {
-    path: ".claude",
+    path: ".claude-plugin",
     kind: "directory",
     provider: "claude",
     authoritative: true,
-    description: "Claude repo runtime surfaces.",
-  },
-  {
-    path: ".codex-plugin",
-    kind: "directory",
-    provider: "codex",
-    authoritative: false,
-    description: "Compatibility mirror for Codex migration, not the source of truth.",
+    description: "Claude plugin runtime surfaces.",
   },
 ];
 

@@ -2,19 +2,13 @@
   "version": 1,
   "adapter": "claude",
   "instructions_path": "CLAUDE.md",
-  "project_config_path": ".claude/settings.json",
-  "hooks_path": ".claude/hooks",
-  "agents_path": ".claude/agents",
-  "worker_launch_command": "python3 -m praxis.runtime.workers.launcher --repo-root .",
+  "project_config_path": ".claude-plugin/settings.md",
+  "hooks_path": ".claude-plugin/hooks",
+  "agents_path": ".claude-plugin/agents",
   "extension_points": {
     "mcp_config_path": ".claude-plugin/extensions.md",
     "resources_path": null,
     "tool_overrides_path": null,
     "notes_path": ".claude-plugin/extensions.md"
-  },
-  "compatibility": {
-    "settings_path": ".claude-plugin/settings.md",
-    "hooks_path": ".claude-plugin/hooks",
-    "subagents_path": ".claude-plugin/subagents"
   }
 }

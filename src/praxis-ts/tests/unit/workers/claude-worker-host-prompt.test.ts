@@ -54,15 +54,15 @@ function makeLaunch(overrides: Partial<WorkerLaunchPayload> = {}): WorkerLaunchP
   return { ...base, ...overrides };
 }
 
-void test("AC-1: mapped stage — first line is /praxis:<stage> <artifact_dir>", () => {
+void test("AC-1: mapped stage — first line is /praxis:<stage> with no argument", () => {
   const prompt = buildStagePrompt(
     makeLaunch({ stage: "driving-tdd", artifact_dir: ".praxis/slices/S-042" }),
   );
   const firstLine = prompt.split("\n")[0];
-  assert.equal(firstLine, "/praxis:driving-tdd .praxis/slices/S-042");
+  assert.equal(firstLine, "/praxis:driving-tdd");
 });
 
-void test("AC-2: mapped stage — lines 2..N carry today's prompt block verbatim", () => {
+void test("AC-2: mapped stage — prompt carries the adapter-owned routing instructions", () => {
   const launch = makeLaunch({
     stage: "driving-tdd",
     artifact_dir: ".praxis/slices/S-042",
@@ -89,38 +89,43 @@ void test("AC-2: mapped stage — lines 2..N carry today's prompt block verbatim
   const prompt = buildStagePrompt(launch);
   const lines = prompt.split("\n");
 
-  assert.equal(lines[0], "/praxis:driving-tdd .praxis/slices/S-042");
+  assert.equal(lines[0], "/praxis:driving-tdd");
   assert.equal(lines[1], "Stage: driving-tdd");
-  assert.equal(lines[2], "Goal: Drive TDD to completion.");
-  assert.equal(lines[3], "Instructions: Red. | Green. | Refactor.");
+  assert.equal(lines[2], "Artifact dir: .praxis/slices/S-042");
+  assert.equal(lines[3], "Goal: Drive TDD to completion.");
+  assert.equal(lines[4], "Instructions: Red. | Green. | Refactor.");
   assert.equal(
-    lines[4],
-    "Required inputs: .praxis/slices/S-042/spec.md, .praxis/slices/S-042/sketch.md",
+    lines[5],
+    "Read inputs from: .praxis/slices/S-042/spec.md, .praxis/slices/S-042/sketch.md",
   );
-  assert.equal(lines[5], "Primary output: .praxis/slices/S-042/tdd.md");
-  assert.equal(lines[6], "Stage result: .praxis/slices/S-042/results/driving-tdd.json");
-  assert.equal(lines[7], "Dispatch: disp-xyz");
-  assert.equal(lines[8], "Run: run-xyz");
-  assert.equal(lines[9], "Worker mode: fresh_session");
-  assert.match(lines[10], /^Trace: [0-9a-f-]{36}$/);
-  assert.equal(lines[11], "");
+  assert.equal(lines[6], "Primary output: .praxis/slices/S-042/tdd.md");
   assert.equal(
-    lines[12],
-    "Write the stage result JSON to the path under `Stage result:` using the",
+    lines[7],
+    "Routing payload: write to .praxis/slices/S-042/results/driving-tdd.draft.json",
   );
-  assert.equal(lines[13], "Write tool, conforming to the stage-result contract. Exit when the file");
-  assert.equal(lines[14], "is on disk.");
-  assert.equal(lines.length, 15);
+  assert.equal(lines[8], "Dispatch: disp-xyz");
+  assert.equal(lines[9], "Run: run-xyz");
+  assert.equal(lines[10], "Worker mode: fresh_session");
+  assert.match(lines[11], /^Trace: [0-9a-f-]{36}$/);
+  assert.equal(lines[12], "");
+  assert.match(prompt, /Run the skill, produce the stage's primary output/);
+  assert.match(prompt, /outcome_code \(string\)/);
+  assert.match(
+    prompt,
+    /status \(completed\|blocked\|failed\|skipped\)/,
+  );
+  assert.match(prompt, /The host will translate it into the stage-result contract\./);
+  assert.equal(prompt.includes("Write the stage result JSON"), false);
 });
 
-void test("AC-2: mapped stage — Required inputs falls back to 'none' when empty", () => {
+void test("AC-2: mapped stage — Read inputs falls back to 'none' when empty", () => {
   const prompt = buildStagePrompt(
     makeLaunch({
       stage: "driving-tdd",
       inputs: { required_artifacts: [], boundary_handoff: null },
     }),
   );
-  assert.match(prompt, /\nRequired inputs: none\n/);
+  assert.match(prompt, /\nRead inputs from: none\n/);
 });
 
 void test("AC-2: mapped stage — Primary output falls back to 'none' when null", () => {
@@ -146,20 +151,27 @@ void test("AC-3: unmapped stage planning-remediation — first line is Stage:, n
   assert.equal(prompt.includes("/praxis:"), false);
 });
 
-void test("AC-4: slash line uses payload.artifact_dir verbatim (.praxis with no trailing slash)", () => {
+void test("AC-4: scratch path derives from stage_result_path by suffix replacement", () => {
   const prompt = buildStagePrompt(
-    makeLaunch({ stage: "clarifying-intent", artifact_dir: ".praxis" }),
+    makeLaunch({
+      stage: "clarifying-intent",
+      artifact_dir: ".praxis",
+      stage_result_path: ".praxis/results/clarifying-intent.json",
+    }),
   );
-  const firstLine = prompt.split("\n")[0];
-  assert.equal(firstLine, "/praxis:clarifying-intent .praxis");
+  assert.match(
+    prompt,
+    /Routing payload: write to \.praxis\/results\/clarifying-intent\.draft\.json/,
+  );
 });
 
-void test("AC-4: slash line preserves artifact_dir with trailing slash verbatim", () => {
+void test("AC-4: artifact_dir appears in the prompt body, not as slash-command arg", () => {
   const prompt = buildStagePrompt(
     makeLaunch({ stage: "clarifying-intent", artifact_dir: ".praxis/slices/S-007/" }),
   );
   const firstLine = prompt.split("\n")[0];
-  assert.equal(firstLine, "/praxis:clarifying-intent .praxis/slices/S-007/");
+  assert.equal(firstLine, "/praxis:clarifying-intent");
+  assert.match(prompt, /\nArtifact dir: \.praxis\/slices\/S-007\/\n/);
 });
 
 const AC5_MAPPED: readonly string[] = [
@@ -175,10 +187,10 @@ const AC5_MAPPED: readonly string[] = [
 const AC5_UNMAPPED: readonly string[] = ["assessing-gaps", "planning-remediation"];
 
 for (const stage of AC5_MAPPED) {
-  void test(`AC-5: buildStagePrompt prepends /praxis:${stage} for mapped stage ${stage}`, () => {
+  void test(`AC-5: buildStagePrompt prepends /praxis:${stage} (no argument) for mapped stage ${stage}`, () => {
     const prompt = buildStagePrompt(makeLaunch({ stage, artifact_dir: ".praxis/slices/S-1" }));
     const firstLine = prompt.split("\n")[0];
-    assert.equal(firstLine, `/praxis:${stage} .praxis/slices/S-1`);
+    assert.equal(firstLine, `/praxis:${stage}`);
   });
 }
 

@@ -2,19 +2,13 @@
   "version": 1,
   "adapter": "codex",
   "instructions_path": "AGENTS.md",
-  "project_config_path": ".codex/config.toml",
-  "hooks_path": ".codex/hooks.json",
-  "agents_path": ".codex/agents",
-  "worker_launch_command": "python3 -m praxis.runtime.workers.launcher --repo-root .",
+  "project_config_path": ".codex-plugin/config.toml",
+  "hooks_path": ".codex-plugin/hooks",
+  "agents_path": ".codex-plugin/agents",
   "extension_points": {
     "mcp_config_path": ".codex-plugin/extensions.md",
     "resources_path": null,
     "tool_overrides_path": null,
     "notes_path": ".codex-plugin/extensions.md"
-  },
-  "compatibility": {
-    "settings_path": ".codex-plugin/settings.md",
-    "hooks_path": ".codex-plugin/hooks",
-    "subagents_path": ".codex-plugin/subagents"
   }
 }

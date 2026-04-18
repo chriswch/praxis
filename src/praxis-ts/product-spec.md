@@ -150,7 +150,7 @@ workflow logic and no durable state logic beyond invoking lower services.
 
 ### Responsible for
 
-- Defining workflow graphs such as `craft` and `forge`.
+- Defining workflow graphs such as `craft`.
 - Defining stage order, stage purpose, and completion semantics.
 - Defining manual versus autopilot behavior.
 - Defining story or slice boundaries and boundary stop conditions.
@@ -265,9 +265,8 @@ interface it exposes upward.
 - Dispatch bundle from the run control plane.
 - Repo-scoped adapter configuration.
 - Repo-native instruction surfaces such as `AGENTS.md`,
-  `.codex/config.toml`, `.codex/hooks.json`, `.codex/agents/`,
-  `CLAUDE.md`, and `.claude/`. During migration, `.codex-plugin/` is a
-  compatibility mirror rather than the authoritative Codex runtime path.
+  `.codex-plugin/config.toml`, `.codex-plugin/agents/`,
+  `CLAUDE.md`, and `.claude-plugin/`.
 - Codex or Claude SDK capability and health information.
 
 ### Outputs
@@ -508,9 +507,8 @@ control:
 - workflow definitions
 - contract definitions and validators
 - adapter harness configuration
-- repo-native instruction surfaces and compatibility wrappers, including the
-  authoritative `.codex/` surfaces and any temporary `.codex-plugin/`
-  compatibility mirror
+- repo-native instruction surfaces, including the authoritative
+  `.codex-plugin/` and `.claude-plugin/` surfaces
 - operator documentation and debugging helpers
 - runtime version or migration markers when needed
 

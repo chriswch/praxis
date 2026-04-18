@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdir, unlink } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
@@ -10,6 +9,11 @@ import { PraxisStateRepository } from "../state/index.js";
 import { RunController } from "../control/index.js";
 import type { WorkerLaunchPayload } from "../control/types.js";
 import { resolveStageSkillCommand } from "./stage-skill-command.js";
+import {
+  composeStageResult,
+  readRoutingPayload,
+  routingScratchPathFor,
+} from "./stage-result-composer.js";
 import {
   buildWorkerLocator,
   parsePositiveInt,
@@ -202,7 +206,17 @@ export async function runClaudeWorkerHost(input: RunClaudeWorkerHostInput): Prom
   }
 
   const stageResultAbsolutePath = resolve(input.repoRoot, launch.stage_result_path);
-  if (!existsSync(stageResultAbsolutePath)) {
+  const scratchRelativePath = routingScratchPathFor(launch.stage_result_path);
+  const scratchAbsolutePath = resolve(input.repoRoot, scratchRelativePath);
+
+  try {
+    const routingPayload = await readRoutingPayload(scratchAbsolutePath);
+    const stageResult = composeStageResult(launch, spawned.sessionId, routingPayload);
+    await writeJsonFile(stageResultAbsolutePath, stageResult);
+    await unlink(scratchAbsolutePath).catch(() => {
+      /* scratch cleanup is best-effort */
+    });
+  } catch (error) {
     await writeWorkerTrace(input.repoRoot, input.workerId, {
       version: 1,
       type: "missing_stage_result",
@@ -210,7 +224,9 @@ export async function runClaudeWorkerHost(input: RunClaudeWorkerHostInput): Prom
       worker_id: input.workerId,
       session_id: spawned.sessionId,
       stage_result_path: launch.stage_result_path,
+      scratch_path: scratchRelativePath,
       recorded_at: nowIsoUtc(),
+      error: error instanceof Error ? error.message : String(error),
     });
     return;
   }
@@ -283,25 +299,33 @@ function buildClaudeCommand(
 
 export function buildStagePrompt(launch: WorkerLaunchPayload): string {
   const slashCommand = resolveStageSkillCommand(launch.stage);
-  const lines = [];
+  const lines: string[] = [];
   if (slashCommand !== null) {
-    lines.push(`${slashCommand} ${launch.artifact_dir}`);
+    lines.push(slashCommand);
   }
+  const scratchPath = routingScratchPathFor(launch.stage_result_path);
+  const inputList = launch.inputs.required_artifacts.length > 0
+    ? launch.inputs.required_artifacts.join(", ")
+    : "none";
   lines.push(
     `Stage: ${launch.stage}`,
+    `Artifact dir: ${launch.artifact_dir}`,
     `Goal: ${launch.contract.stage_goal}`,
     `Instructions: ${launch.contract.stage_instructions.join(" | ")}`,
-    `Required inputs: ${launch.inputs.required_artifacts.join(", ") || "none"}`,
+    `Read inputs from: ${inputList}`,
     `Primary output: ${launch.contract.primary_output ?? "none"}`,
-    `Stage result: ${launch.stage_result_path}`,
+    `Routing payload: write to ${scratchPath}`,
     `Dispatch: ${launch.dispatch_id}`,
     `Run: ${launch.run_id}`,
     `Worker mode: ${launch.worker.mode}`,
     `Trace: ${randomUUID()}`,
     "",
-    "Write the stage result JSON to the path under `Stage result:` using the",
-    "Write tool, conforming to the stage-result contract. Exit when the file",
-    "is on disk.",
+    "Run the skill, produce the stage's primary output, then use the Write",
+    "tool to write a JSON object to the `Routing payload` path with keys:",
+    "outcome_code (string), status (completed|blocked|failed|skipped),",
+    "summary_path (optional string), artifacts_written (optional string",
+    "array), data (optional object). Exit when the routing payload is on",
+    "disk. The host will translate it into the stage-result contract.",
   );
   return lines.join("\n");
 }
