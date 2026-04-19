@@ -25,8 +25,6 @@ praxis continue   # advance after a checkpoint
 praxis cancel     # stop the run
 ```
 
-See [docs/cli-reference.md](docs/cli-reference.md) for the full command surface.
-
 ## Getting Started
 
 ```bash
@@ -45,11 +43,8 @@ npm test
 
 ## Documentation
 
-- [Product Spec](docs/product-spec.md)
-- [Workflow](docs/workflow.md)
-- [Architecture](docs/architecture.md)
-- [CLI Reference](docs/cli-reference.md)
-- [Implementation Plan](docs/plan/objective-driven-remediation.md)
+- [Workflow](docs/workflow.md) — stage graph and converge loop.
+- [Architecture](docs/architecture.md) — layers, contracts, data flow, file structure.
 
 ## License
 

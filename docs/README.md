@@ -1,17 +1,17 @@
 # Praxis Documentation
 
-Feature, architecture, and system-level detail for Praxis. The top-level `README.md` stays focused on what Praxis is and how to run it; the longer material lives here.
+Praxis is a CLI agent. You give it an intent; it iterates against the repo until the code matches the intent or the loop exhausts its budget. Each pass derives a target spec, finds the gap, remediates through the `craft` workflow, and reassesses.
+
+Praxis owns the loop. Claude Code and Codex do the bounded work as CLI subprocesses.
 
 ## Contents
 
-- [Product Spec](product-spec.md) — product decisions, goals, non-goals, and core invariants.
-- [Workflow](workflow.md) — stage graph, execution policy, plugin entry points, stage map.
-- [Architecture](architecture.md) — runtime planes, module layout, durable state layout, how the CLI calls skills.
-- [CLI Reference](cli-reference.md) — public commands, internal control-plane commands, flags, worker lifecycle.
-- [Plan: Objective-Driven Remediation](plan/objective-driven-remediation.md) — gaps against the product spec and the implementation order to close them.
+- [Workflow](workflow.md) — the craft stage graph and the converge loop that drives it.
+- [Architecture](architecture.md) — layers, contracts, data flow, and file structure.
 
-## Conventions
+## Core Ideas
 
-- Durable artifact paths are rooted at `<repo-root>/.praxis/` and described in [Architecture](architecture.md#durable-state-layout).
-- Contract names (Workflow, Run, Dispatch, Session, Policy, Stage-result, Handoff, Gap-assessment, Observability) map to schemas under `src/praxis-ts/src/contracts/`.
-- Plugin surfaces (skills, slash commands) live at `skills/` and `commands/` and never read CLI state; see [Workflow](workflow.md#plugin-decoupling).
+- The CLI is the product. Plugin surfaces are thin wrappers over skills.
+- Praxis calls agents only through the `/praxis:<stage>` slash command. Skills never read CLI state.
+- Workflow truth lives under `.praxis/`. Transcripts explain what happened; they never advance the run.
+- Fresh context at every stage. Cross-story context passes only through the explicit handoff contract.
