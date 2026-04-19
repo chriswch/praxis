@@ -37,6 +37,7 @@ export const CAMPAIGN_STOP_REASON_CODES = [
   "needs_operator",
   "blocked",
   "stalled",
+  "no_new_findings",
   "budget_exhausted",
   "cancelled",
 ] as const;
@@ -423,6 +424,11 @@ export interface CampaignRecord {
   metrics: {
     last_unresolved_at_or_above_threshold: number | null;
     no_progress_passes: number;
+    // Fingerprints of findings from the most recent assessment, sorted ascending.
+    // Null when no assessment has run yet. Used by the stop policy to detect the
+    // "no new findings" idle-pass signal (G-07).
+    last_assessed_fingerprints?: string[] | null;
+    previous_assessed_fingerprints?: string[] | null;
   };
   timestamps: {
     created_at: string;
@@ -566,6 +572,12 @@ export interface PassSummaryRecord {
   completed_story_ids: string[];
   produced_commits: string[];
   unresolved_at_or_above_threshold: number;
-  outcome: "continue" | "converged" | "needs_operator" | "stalled" | "budget_exhausted";
+  outcome:
+    | "continue"
+    | "converged"
+    | "needs_operator"
+    | "stalled"
+    | "no_new_findings"
+    | "budget_exhausted";
   generated_at: string;
 }

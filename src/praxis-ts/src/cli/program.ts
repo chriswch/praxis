@@ -39,10 +39,20 @@ interface GlobalOptions {
 }
 
 type RunOptions = GlobalOptions & {
-  adapter: AdapterName;
+  adapter?: AdapterName;
   executionMode: ExecutionMode;
-  entryTask: string;
+  entryTask?: string;
   entrypoint?: string;
+  manual?: boolean;
+  autoContinue?: boolean;
+  profile?: ConvergeProfile;
+  severityThreshold?: FindingSeverity;
+  maxPasses?: string | number;
+  maxFindingsPerPass?: string | number;
+  maxStoriesPerPass?: string | number;
+  scope?: string[];
+  commitPerStory?: boolean;
+  allowWaive?: boolean;
 };
 
 type ConvergeRunOptions = GlobalOptions & {
@@ -71,34 +81,80 @@ function parsePositiveInt(raw: string): number {
   return value;
 }
 
+function toOptionalInt(raw: string | number | undefined): number | undefined {
+  if (raw === undefined || raw === "") {
+    return undefined;
+  }
+  const parsed = typeof raw === "number" ? raw : Number.parseInt(raw, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
 function registerLifecycleCommands(program: Command): void {
   program
     .command("run")
-    .description("Create and initialize a Praxis run")
-    .requiredOption("--entry-task <text>", "Entry task summary")
-    .addOption(
-      new Option("--adapter <adapter>", "Adapter name")
-        .choices([...ADAPTER_NAMES])
-        .default("codex"),
-    )
+    .argument("[intent]", "Positional intent text (starts the iterative convergence loop)")
+    .description("Run Praxis from a positional intent, or initialize a single-story run")
+    .option("--entry-task <text>", "[DEPRECATED] Single-story entry task summary (use positional intent instead)")
+    .addOption(new Option("--adapter <adapter>", "Adapter name").choices([...ADAPTER_NAMES]))
     .addOption(
       new Option("--execution-mode <mode>", "Execution mode")
         .choices([...EXECUTION_MODES])
         .default("manual"),
     )
     .option("--entrypoint <entrypoint>", "Runtime entrypoint")
-    .action(async (opts: RunOptions, cmd: Command) => {
+    .option("--manual", "Pause after every pass (disables auto-continue)", false)
+    .option("--no-auto-continue", "Equivalent to --manual")
+    .addOption(
+      new Option("--profile <profile>", "Converge profile for positional-intent runs").choices([
+        ...CONVERGE_PROFILES,
+      ]),
+    )
+    .addOption(
+      new Option(
+        "--severity-threshold <severity>",
+        "Severity threshold for positional-intent runs",
+      ).choices([...FINDING_SEVERITIES]),
+    )
+    .option("--max-passes <n>", "Maximum convergence passes for positional-intent runs")
+    .option("--max-findings-per-pass <n>", "Maximum findings per batch for positional-intent runs")
+    .option("--max-stories-per-pass <n>", "Maximum stories per batch for positional-intent runs")
+    .option("--scope <paths...>", "Scope path prefixes for positional-intent runs", [])
+    .option(
+      "--commit-per-story",
+      "Require remediation commits per story (positional-intent runs only)",
+      false,
+    )
+    .option(
+      "--allow-waive",
+      "Allow waiving low-confidence low-severity findings (positional-intent runs only)",
+      false,
+    )
+    .action(async (intent: string | undefined, opts: RunOptions, cmd: Command) => {
       const global = toGlobalOptions(cmd);
+      const { detectAdapterFromEnv } = await import("./commands/run.js");
+      const adapter = opts.adapter ?? detectAdapterFromEnv();
+      const executionMode = intent ? "autopilot" : opts.executionMode;
       process.exitCode = await runRunCommand(
         global.repoRoot,
         global.json,
         {
-          adapter: opts.adapter,
-          executionMode: opts.executionMode,
+          adapter,
+          executionMode,
           entryTask: opts.entryTask,
+          intent,
           entrypoint: opts.entrypoint,
+          manual: opts.manual,
+          autoContinue: opts.autoContinue,
+          profile: opts.profile,
+          severityThreshold: opts.severityThreshold,
+          maxPasses: toOptionalInt(opts.maxPasses),
+          maxFindingsPerPass: toOptionalInt(opts.maxFindingsPerPass),
+          maxStoriesPerPass: toOptionalInt(opts.maxStoriesPerPass),
+          scope: Array.isArray(opts.scope) ? opts.scope : [],
+          commitPerStory: opts.commitPerStory,
+          allowWaive: opts.allowWaive,
         },
-        { orchestrate: true },
+        { orchestrate: !intent },
       );
     });
 

@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
+
+// Fixture executors for pre-remediation stages so smoke tests don't invoke a
+// real adapter subprocess (claude/codex) for clarifying-intent or assessing-gaps.
+process.env.PRAXIS_CONVERGE_FIXTURE_EXECUTORS = "1";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

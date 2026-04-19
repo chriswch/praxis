@@ -27,6 +27,7 @@ type AssessCallback = (
   campaign: CampaignRecord;
   ledger: CampaignLedgerRecord;
   unresolvedAtThreshold: number;
+  fingerprints: string[];
 }>;
 
 interface PassArtifacts {
@@ -252,6 +253,7 @@ export class ChildRunReconciler {
     const postAssessmentDecision = this.stopPolicy.decidePostAssessment(
       campaign,
       reassessment.unresolvedAtThreshold,
+      reassessment.fingerprints,
     );
     const budgetExhausted =
       postAssessmentDecision === "continue" &&

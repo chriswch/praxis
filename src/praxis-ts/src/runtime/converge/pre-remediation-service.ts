@@ -5,53 +5,94 @@ import type {
   GapAssessmentResult,
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
-import { formatTargetSpecMarkdown, type TargetSpecDraft } from "./campaign-support.js";
 import { ClarificationStore } from "./clarification-store.js";
-import { LexicalGapAssessor, type GapAssessor } from "./gap-assessor.js";
-import { buildConvergeStageResult } from "./stage-runtime.js";
+import {
+  buildConvergePreRemediationDispatch,
+  toStageHistoryRecord,
+} from "./pre-remediation-dispatch.js";
+import type { ConvergeStageExecutorRegistry } from "./stage-executor.js";
 
+export interface ClarifyingIntentOutcome {
+  targetSpecText: string;
+  needsClarification: boolean;
+  clarificationIssues: string[];
+  stageResult: ConvergeStageResultRecord & { stage: "clarifying-intent" };
+}
+
+export interface AssessingGapsOutcome {
+  stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
+  gap: GapAssessmentResult;
+  findingsCount: number;
+}
+
+// Pre-remediation stages now route through the dispatch compiler and an
+// executor registry. Each stage emits a DispatchRecord (persisted under
+// .praxis/dispatches/) before execution and appends to stage-history.jsonl
+// on completion, so the audit trail matches the craft workflow.
 export class ConvergePreRemediationService {
   private readonly clarificationStore: ClarificationStore;
-  private readonly gapAssessor: GapAssessor;
 
   constructor(
     private readonly repo: PraxisStateRepository,
-    gapAssessor: GapAssessor = new LexicalGapAssessor(),
+    private readonly registry: ConvergeStageExecutorRegistry,
   ) {
     this.clarificationStore = new ClarificationStore(repo);
-    this.gapAssessor = gapAssessor;
   }
 
   async runClarifyingIntent(
     campaign: CampaignRecord,
     objectiveText: string,
-  ): Promise<{
-    targetSpecText: string;
-    draft: TargetSpecDraft;
-    stageResult: ConvergeStageResultRecord & { stage: "clarifying-intent" };
-  }> {
-    const draft = formatTargetSpecMarkdown(campaign, objectiveText);
-    const outcomeCode = draft.needsClarification ? "clarification_needed" : "target_spec_ready";
-    const stageResult = buildConvergeStageResult({
-      stage: "clarifying-intent",
-      profile: campaign.profile,
-      outcomeCode,
-      data: {
-        clarification_issues: draft.clarificationIssues,
-        acceptance_criteria_count: draft.acceptanceCriteriaCount,
-        clarification_approval_status: draft.clarificationRecord.approval.status,
-      },
+    options: { passNumber: number },
+  ): Promise<ClarifyingIntentOutcome> {
+    const dispatch = buildConvergePreRemediationDispatch(
+      campaign,
+      "clarifying-intent",
+      this.repo.paths.root,
+    );
+    await this.repo.saveDispatch(dispatch);
+
+    const executor = this.registry.resolve("clarifying-intent");
+    const output = await executor.execute({
+      campaign,
+      dispatch,
+      repo: this.repo,
+      repoRoot: this.repo.paths.root,
+      passNumber: options.passNumber,
+      reviewId: null,
+      generatedAt: nowIsoUtc(),
+      objectiveText,
+      targetSpecText: null,
     });
 
+    const stageResult = output.stageResult as ConvergeStageResultRecord & {
+      stage: "clarifying-intent";
+    };
+
+    // Persist the clarification snapshot + attempt bundle once per clarifying
+    // run. The executor produces the target spec text and clarification
+    // decision record; the store snapshots them into .praxis/clarifications/
+    // C-### and updates the durable .praxis/target-spec.md + clarification.json
+    // pointers. Agent executors emit .praxis/target-spec.md directly from the
+    // subprocess; we re-read that content here when the executor did not
+    // return it in-process.
+    const clarificationRecord =
+      output.clarificationRecord ?? (await this.loadClarificationRecord());
+    const targetSpecMarkdown =
+      output.targetSpecText ??
+      (await this.readDurableTargetSpec()) ??
+      "# Target Spec\n\n(target-spec produced by agent)\n";
     await this.clarificationStore.persistTargetSpec({
-      targetSpecMarkdown: draft.markdown,
-      clarificationRecord: draft.clarificationRecord as unknown as Record<string, unknown>,
+      targetSpecMarkdown,
+      clarificationRecord,
       stageResult,
     });
 
+    await this.appendStageHistory(stageResult, dispatch, output.artifactsWritten, campaign);
+
     return {
-      targetSpecText: draft.markdown,
-      draft,
+      targetSpecText: output.targetSpecText ?? "",
+      needsClarification: output.needsClarification ?? false,
+      clarificationIssues: output.clarificationIssues ?? [],
       stageResult,
     };
   }
@@ -60,37 +101,75 @@ export class ConvergePreRemediationService {
     campaign: CampaignRecord,
     targetSpecText: string,
     reviewId: string,
-  ): Promise<{
-    stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
-    gap: GapAssessmentResult;
-    findingsCount: number;
-  }> {
-    const generatedAt = nowIsoUtc();
-    const { gap, gapMarkdown } = await this.gapAssessor.assess({
+    options: { passNumber: number },
+  ): Promise<AssessingGapsOutcome> {
+    const dispatch = buildConvergePreRemediationDispatch(
+      campaign,
+      "assessing-gaps",
+      this.repo.paths.root,
+    );
+    await this.repo.saveDispatch(dispatch);
+
+    const executor = this.registry.resolve("assessing-gaps");
+    const output = await executor.execute({
+      campaign,
+      dispatch,
+      repo: this.repo,
       repoRoot: this.repo.paths.root,
-      profile: campaign.profile,
-      targetSpecPath: ".praxis/target-spec.md",
-      targetSpecText,
-      scope: campaign.objective.scope,
+      passNumber: options.passNumber,
       reviewId,
-      generatedAt,
+      generatedAt: nowIsoUtc(),
+      objectiveText: "",
+      targetSpecText,
     });
 
-    const stageResult = buildConvergeStageResult({
-      stage: "assessing-gaps",
-      profile: campaign.profile,
-      reviewId,
-      outcomeCode: gap.findings.length === 0 ? "no_gaps" : "findings_recorded",
-      data: {
-        findings_count: gap.findings.length,
-      },
-    });
-    await this.repo.saveGapArtifacts({ gapMarkdown, gap, stageResult });
+    if (!output.gap) {
+      throw new Error("Assessing-gaps executor returned no gap payload.");
+    }
+
+    const stageResult = output.stageResult as ConvergeStageResultRecord & {
+      stage: "assessing-gaps";
+    };
+
+    await this.appendStageHistory(stageResult, dispatch, output.artifactsWritten, campaign);
 
     return {
       stageResult,
-      gap,
-      findingsCount: gap.findings.length,
+      gap: output.gap,
+      findingsCount: output.gap.findings.length,
     };
+  }
+
+  private async loadClarificationRecord(): Promise<Record<string, unknown>> {
+    const { readJsonFileIfExists } = await import("../state/store.js");
+    const record = await readJsonFileIfExists<Record<string, unknown>>(
+      this.repo.paths.clarificationFile,
+    );
+    return record ?? {};
+  }
+
+  private async readDurableTargetSpec(): Promise<string | null> {
+    const { readFile } = await import("node:fs/promises");
+    try {
+      return await readFile(this.repo.paths.targetSpecFile, "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  private async appendStageHistory(
+    stageResult: ConvergeStageResultRecord,
+    dispatch: Awaited<ReturnType<typeof buildConvergePreRemediationDispatch>>,
+    artifactsWritten: string[],
+    campaign: CampaignRecord,
+  ): Promise<void> {
+    const record = toStageHistoryRecord(stageResult, dispatch, artifactsWritten, campaign);
+    try {
+      await this.repo.validateAndAppendStageResult(record);
+    } catch {
+      // Do not fail the pass on audit-trail write errors. The stage-history file
+      // is a best-effort audit trail; the authoritative converge stage result
+      // lives at .praxis/results/<stage>.json.
+    }
   }
 }

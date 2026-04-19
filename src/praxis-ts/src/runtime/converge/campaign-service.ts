@@ -35,13 +35,18 @@ import {
   parseReviewOrdinal,
 } from "./campaign-support.js";
 import { ConvergePassService } from "./pass-service.js";
-import type { GapAssessor } from "./gap-assessor.js";
+import type { ConvergeStageExecutorRegistry } from "./stage-executor.js";
+import { buildDefaultConvergeExecutorRegistry } from "./executors/index.js";
 import { getConvergeStageContract } from "./stage-runtime.js";
 import { ConvergePreRemediationService } from "./pre-remediation-service.js";
-import { CampaignStopPolicy } from "./stop-policy.js";
+import {
+  CampaignStopPolicy,
+  type PostAssessmentDecision,
+  type TerminalStopReason,
+} from "./stop-policy.js";
 
 export interface ConvergeCampaignServiceOptions {
-  gapAssessor?: GapAssessor;
+  executorRegistry?: ConvergeStageExecutorRegistry;
 }
 
 export class ConvergeCampaignService {
@@ -55,9 +60,10 @@ export class ConvergeCampaignService {
     private readonly repo: PraxisStateRepository,
     options: ConvergeCampaignServiceOptions = {},
   ) {
+    const registry = options.executorRegistry ?? buildDefaultConvergeExecutorRegistry();
     this.childRunSlot = new ChildRunSlotService(repo);
     this.passService = new ConvergePassService(repo, this.childRunSlot);
-    this.preRemediation = new ConvergePreRemediationService(repo, options.gapAssessor);
+    this.preRemediation = new ConvergePreRemediationService(repo, registry);
     this.stopPolicy = new CampaignStopPolicy();
     this.reconciler = new ChildRunReconciler(
       repo,
@@ -76,6 +82,7 @@ export class ConvergeCampaignService {
           campaign: result.campaign,
           ledger: result.ledger,
           unresolvedAtThreshold: result.unresolvedAtThreshold,
+          fingerprints: result.fingerprints,
         };
       },
     );
@@ -150,7 +157,13 @@ export class ConvergeCampaignService {
     const ledger = createEmptyCampaignLedger(campaign.campaign_id, campaign.profile, now);
     await this.repo.saveCampaign(campaign);
     await this.repo.saveCampaignLedger(ledger);
-    await this.repo.saveObjectiveMarkdown(formatObjectiveMarkdown(campaign));
+    // Only write the campaign TOC to .praxis/objective.md when it is a derived
+    // artifact, not when it IS the authoritative user intent (positional-intent
+    // runs). Overwriting the intent with campaign metadata would break G-04
+    // re-derivation and the clarifying-intent agent's source of truth.
+    if (campaign.objective.normalized_path !== ".praxis/objective.md") {
+      await this.repo.saveObjectiveMarkdown(formatObjectiveMarkdown(campaign));
+    }
     const targetSpec = await this.refreshTargetSpecFromObjective(campaign, objectiveText);
     if (targetSpec.needsClarification) {
       return this.markWaitingForClarification(
@@ -187,7 +200,11 @@ export class ConvergeCampaignService {
 
     const ledger = await this.requireCampaignLedger();
     let targetSpecText = await readFile(this.repo.paths.targetSpecFile, "utf8");
-    if (!campaign.current_review_id) {
+    // G-05: re-derive the target spec each pass by default, not only on
+    // initialization. Child remediation may have changed the repo or the
+    // objective, so the spec must be refreshed before each assessment.
+    const shouldReDerive = campaign.current_child_run_id === null;
+    if (shouldReDerive) {
       const targetSpec = await this.refreshTargetSpecFromObjective(campaign);
       targetSpecText = targetSpec.targetSpecText;
       if (targetSpec.needsClarification) {
@@ -351,6 +368,7 @@ export class ConvergeCampaignService {
         const decision = this.stopPolicy.decidePostAssessment(
           campaign,
           assessed.unresolvedAtThreshold,
+          assessed.fingerprints,
         );
         if (decision !== "continue") {
           this.applyTerminalStop(campaign, decision);
@@ -375,7 +393,7 @@ export class ConvergeCampaignService {
 
   private applyTerminalStop(
     campaign: CampaignRecord,
-    code: "converged" | "stalled" | "budget_exhausted",
+    code: Exclude<PostAssessmentDecision, "continue"> | TerminalStopReason,
   ): void {
     campaign.status = "completed";
     campaign.stop_reason_code = code;
@@ -394,12 +412,17 @@ export class ConvergeCampaignService {
     ledger: CampaignLedgerRecord;
     stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
     unresolvedAtThreshold: number;
+    fingerprints: string[];
   }> {
     const { gap, stageResult } = await this.preRemediation.runAssessingGaps(
       campaign,
       targetSpecText,
       reviewId,
+      { passNumber },
     );
+
+    const previousFingerprints = campaign.metrics.last_assessed_fingerprints ?? null;
+    const currentFingerprints = gap.findings.map((finding) => finding.fingerprint).sort();
 
     const merged = mergeAssessmentIntoLedger(ledger, gap, passNumber, nowIsoUtc());
     applyWaivePolicy(campaign, merged.ledger);
@@ -415,6 +438,8 @@ export class ConvergeCampaignService {
       campaign.metrics.no_progress_passes = 0;
     }
     campaign.metrics.last_unresolved_at_or_above_threshold = unresolvedAtThreshold;
+    campaign.metrics.previous_assessed_fingerprints = previousFingerprints;
+    campaign.metrics.last_assessed_fingerprints = currentFingerprints;
     campaign.current_review_id = reviewId;
     campaign.timestamps.updated_at = nowIsoUtc();
 
@@ -423,6 +448,7 @@ export class ConvergeCampaignService {
       ledger: merged.ledger,
       stageResult,
       unresolvedAtThreshold,
+      fingerprints: currentFingerprints,
     };
   }
 
@@ -482,12 +508,15 @@ export class ConvergeCampaignService {
     const objectiveText =
       objectiveTextOverride ??
       (await readFile(join(this.repo.paths.root, campaign.objective.normalized_path), "utf8"));
-    const clarifying = await this.preRemediation.runClarifyingIntent(campaign, objectiveText);
+    const passNumber = campaign.current_pass + 1;
+    const clarifying = await this.preRemediation.runClarifyingIntent(campaign, objectiveText, {
+      passNumber,
+    });
 
     return {
       targetSpecText: clarifying.targetSpecText,
-      needsClarification: clarifying.draft.needsClarification,
-      clarificationIssues: clarifying.draft.clarificationIssues,
+      needsClarification: clarifying.needsClarification,
+      clarificationIssues: clarifying.clarificationIssues,
     };
   }
 }

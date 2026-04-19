@@ -628,6 +628,24 @@ export function validateCampaignRecord(campaign: CampaignRecord): void {
   if (campaign.metrics.no_progress_passes < 0) {
     throw new ContractError("campaign.metrics.no_progress_passes must be >= 0");
   }
+  if (
+    campaign.metrics.last_assessed_fingerprints !== undefined &&
+    campaign.metrics.last_assessed_fingerprints !== null
+  ) {
+    assertStringArray(
+      campaign.metrics.last_assessed_fingerprints,
+      "campaign.metrics.last_assessed_fingerprints",
+    );
+  }
+  if (
+    campaign.metrics.previous_assessed_fingerprints !== undefined &&
+    campaign.metrics.previous_assessed_fingerprints !== null
+  ) {
+    assertStringArray(
+      campaign.metrics.previous_assessed_fingerprints,
+      "campaign.metrics.previous_assessed_fingerprints",
+    );
+  }
   assertRecord(campaign.objective, "campaign.objective");
   assertPlainString(campaign.objective.source_path, "campaign.objective.source_path");
   assertRepoRelativePath(campaign.objective.normalized_path, "campaign.objective.normalized_path");
@@ -883,7 +901,7 @@ export function validatePassSummaryRecord(summary: PassSummaryRecord): void {
   }
   assertEnum(
     summary.outcome,
-    ["continue", "converged", "needs_operator", "stalled", "budget_exhausted"],
+    ["continue", "converged", "needs_operator", "stalled", "no_new_findings", "budget_exhausted"],
     "pass summary outcome",
   );
 }

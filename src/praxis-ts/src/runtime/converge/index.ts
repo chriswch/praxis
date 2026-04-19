@@ -4,9 +4,18 @@ export { ChildRunSlotService } from "./child-run-slot.js";
 export { ClarificationStore } from "./clarification-store.js";
 export { CampaignStopPolicy } from "./stop-policy.js";
 export { ChildRunReconciler } from "./child-run-reconciler.js";
-export { LexicalGapAssessor } from "./gap-assessor.js";
-export type { GapAssessor, GapAssessorInput, GapAssessorOutput } from "./gap-assessor.js";
-export { assessGaps, assessObjective, DEFAULT_ASSESSMENT_SCOPE } from "./assessment.js";
+export {
+  ConvergeStageExecutorRegistry,
+  type ConvergeStageExecutor,
+  type ConvergeStageExecutorContext,
+  type ConvergeStageExecutorOutput,
+} from "./stage-executor.js";
+export {
+  buildDefaultConvergeExecutorRegistry,
+  AgentAssessingGapsExecutor,
+  AgentClarifyingIntentExecutor,
+  PlanningRemediationExecutor,
+} from "./executors/index.js";
 export { planRemediation, planPassBatch } from "./planner.js";
 export {
   buildConvergeStageResult,
