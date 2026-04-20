@@ -235,7 +235,7 @@ function registerConvergeCommands(program: Command): void {
     .addOption(
       new Option("--adapter <adapter>", "Adapter name")
         .choices([...ADAPTER_NAMES])
-        .default("codex"),
+        .default("claude"),
     )
     .addOption(
       new Option("--profile <profile>", "Assessment profile")

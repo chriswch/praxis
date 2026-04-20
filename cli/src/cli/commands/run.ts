@@ -138,8 +138,7 @@ async function runPositionalIntentCampaign(repoRoot: string, args: RunCommandArg
 }
 
 // G-01 helper: auto-detect the adapter from the environment. Prefers a
-// binary override env var if set, else defaults to codex (CLI's historical
-// default).
+// binary override env var if set, else defaults to claude.
 export function detectAdapterFromEnv(): AdapterName {
   if (process.env.PRAXIS_CLAUDE_BIN && process.env.PRAXIS_CLAUDE_BIN.trim().length > 0) {
     return "claude";
@@ -147,9 +146,8 @@ export function detectAdapterFromEnv(): AdapterName {
   if (process.env.PRAXIS_CODEX_BIN && process.env.PRAXIS_CODEX_BIN.trim().length > 0) {
     return "codex";
   }
-  // Claude Code currently exports CLAUDECODE=1 for sessions it owns.
   if (process.env.CLAUDECODE === "1") {
     return "claude";
   }
-  return "codex";
+  return "claude";
 }
