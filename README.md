@@ -4,10 +4,10 @@ Spec-driven software engineering workflows for Claude Code and Codex, plus an or
 
 Praxis has two layers:
 
-- **Plugin** — skills and slash commands an agent can run interactively. Delivers the shared clarify → slice → sketch → implement → review → improve → verify workflow.
-- **CLI** — a TypeScript orchestrator at `src/praxis-ts/` that drives the same workflow iteratively across stories. Useful for work too large to finish in one agent session.
+- **Plugin** — skills and slash commands an agent can run interactively. Lives at [`plugin/`](plugin/). Delivers the shared clarify → slice → sketch → implement → review → improve → verify workflow.
+- **CLI** — a TypeScript orchestrator at [`cli/`](cli/) that drives the same workflow iteratively across stories. Useful for work too large to finish in one agent session.
 
-The two layers stay decoupled: the CLI invokes skills through the plugin's slash command, and skills never read CLI state.
+The two layers stay decoupled: the CLI composes plugin-facing prompts through `cli/src/runtime/dispatch/`, and skills never read CLI state.
 
 ## Usage
 
@@ -28,7 +28,7 @@ praxis cancel     # stop the run
 ## Getting Started
 
 ```bash
-cd src/praxis-ts
+cd cli
 npm install
 npm run build
 npm test
@@ -36,10 +36,10 @@ npm test
 
 ## Development
 
-- Source of truth for workflow, contracts, and runtime: `src/praxis-ts/src/workflows/`, `src/praxis-ts/src/contracts/`, `src/praxis-ts/src/runtime/`.
-- Install and work from `src/praxis-ts/` (`npm install`, `npm run build`, `npm test`).
+- Source of truth for workflow, contracts, and runtime: `cli/src/workflows/`, `cli/src/contracts/`, `cli/src/runtime/`.
+- Install and work from `cli/` (`npm install`, `npm run build`, `npm test`).
 - Runtime state for each repo lives under `<repo-root>/.praxis/`; see [docs/architecture.md](docs/architecture.md#durable-state-layout).
-- Plugin surfaces live at `skills/` and `commands/`; new orchestration logic goes in `src/praxis-ts/` only.
+- Plugin surfaces live under `plugin/`; new orchestration logic goes in `cli/` only.
 
 ## Documentation
 
