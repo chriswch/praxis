@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { buildProgram } from "./cli/program.js";
 
 async function main(argv: string[]): Promise<void> {
