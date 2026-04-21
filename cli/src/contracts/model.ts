@@ -113,6 +113,9 @@ export type ToolKind = (typeof TOOL_KINDS)[number];
 export const TOOL_USE_STATUS = ["granted", "denied", "failed"] as const;
 export type ToolUseStatus = (typeof TOOL_USE_STATUS)[number];
 
+export const CLARIFICATION_APPROVAL_STATUS = ["approved", "needs_operator"] as const;
+export type ClarificationApprovalStatus = (typeof CLARIFICATION_APPROVAL_STATUS)[number];
+
 export const STAGE_NAMES = [
   "clarifying-intent",
   "assessing-gaps",

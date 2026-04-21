@@ -4,6 +4,7 @@ import {
   CAMPAIGN_STATUS,
   CAMPAIGN_STOP_REASON_CODES,
   CHILD_RUN_SLOT_STATUS,
+  CLARIFICATION_APPROVAL_STATUS,
   CONVERGE_STAGE_NAMES,
   CONVERGE_PROFILES,
   DISPATCH_WORKER_MODES,
@@ -403,6 +404,71 @@ export function validateStageResult(result: StageResultRecord): void {
 
   if (result.handoff !== undefined && result.handoff !== null) {
     assertRecord(result.handoff, "handoff");
+  }
+}
+
+// Shape of `.praxis/clarification.json` as consumed by the clarifying-intent
+// executor. All fields are optional because the agent may emit the payload
+// incrementally; what this validator enforces is that, when present, the
+// field has the expected shape.
+export interface ClarificationDecisionPayload {
+  approval?: {
+    status?: string;
+    reasons?: string[];
+  };
+  clarification_issues?: string[];
+  decisions?: {
+    acceptance_criteria?: {
+      items?: string[];
+    };
+  };
+}
+
+export function validateClarificationDecision(
+  payload: ClarificationDecisionPayload,
+): void {
+  assertRecord(payload, "clarification decision");
+
+  const approval = (payload as { approval?: unknown }).approval;
+  if (approval !== undefined) {
+    assertRecord(approval, "clarification decision approval");
+    const status = (approval as { status?: unknown }).status;
+    if (status !== undefined) {
+      assertPlainString(status, "clarification decision approval.status");
+      assertEnum(
+        status,
+        CLARIFICATION_APPROVAL_STATUS,
+        "clarification decision approval.status",
+      );
+    }
+    const reasons = (approval as { reasons?: unknown }).reasons;
+    if (reasons !== undefined) {
+      assertStringArray(reasons, "clarification decision approval.reasons");
+    }
+  }
+
+  const issues = (payload as { clarification_issues?: unknown }).clarification_issues;
+  if (issues !== undefined) {
+    assertStringArray(issues, "clarification decision clarification_issues");
+  }
+
+  const decisions = (payload as { decisions?: unknown }).decisions;
+  if (decisions !== undefined) {
+    assertRecord(decisions, "clarification decision decisions");
+    const acceptance = (decisions as { acceptance_criteria?: unknown }).acceptance_criteria;
+    if (acceptance !== undefined) {
+      assertRecord(
+        acceptance,
+        "clarification decision decisions.acceptance_criteria",
+      );
+      const items = (acceptance as { items?: unknown }).items;
+      if (items !== undefined) {
+        assertStringArray(
+          items,
+          "clarification decision decisions.acceptance_criteria.items",
+        );
+      }
+    }
   }
 }
 

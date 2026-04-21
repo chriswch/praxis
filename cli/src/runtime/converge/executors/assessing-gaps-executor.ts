@@ -18,6 +18,7 @@ import {
   runAdapterSubprocess,
 } from "./adapter-subprocess.js";
 import { buildDispatchPrompt, stageDispatchInput } from "../../dispatch/index.js";
+import { buildFindingFingerprint } from "../identity.js";
 
 // Inline JSON shape for gap.json, so the agent receives the schema in the
 // prompt instead of reading a SKILL.md file. Keep this narrow — the full
@@ -125,6 +126,7 @@ export class AgentAssessingGapsExecutor implements ConvergeStageExecutor {
     let gap: GapAssessmentResult;
     try {
       gap = await readJsonFile<GapAssessmentResult>(gapJsonPath);
+      backfillGapFingerprints(gap);
       validateGapAssessmentResult(gap);
     } catch (error) {
       throw new BlockedStateError(
@@ -174,4 +176,19 @@ export class AgentAssessingGapsExecutor implements ConvergeStageExecutor {
 
 function stringifyError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+// The agent is instructed to leave `fingerprint` empty because the host
+// owns the hashing scheme (`buildFindingFingerprint`). The generic validator
+// rejects empty strings, so we must fill them in before validation.
+export function backfillGapFingerprints(gap: GapAssessmentResult): void {
+  if (!Array.isArray(gap.findings)) {
+    return;
+  }
+  for (const finding of gap.findings) {
+    if (!finding || typeof finding !== "object") {
+      continue;
+    }
+    finding.fingerprint = buildFindingFingerprint(gap.profile, finding);
+  }
 }

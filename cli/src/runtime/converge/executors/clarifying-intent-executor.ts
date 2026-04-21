@@ -4,7 +4,11 @@ import type {
   ConvergeStageResultRecord,
   GapAssessmentResult,
 } from "../../../contracts/model.js";
-import { validateConvergeStageResult } from "../../../contracts/validators.js";
+import {
+  validateClarificationDecision,
+  validateConvergeStageResult,
+  type ClarificationDecisionPayload,
+} from "../../../contracts/validators.js";
 import { buildConvergeStageResult } from "../stage-runtime.js";
 import type {
   ConvergeStageExecutor,
@@ -13,24 +17,53 @@ import type {
 } from "../stage-executor.js";
 import {
   absolutePath,
-  buildAdapterPrompt,
   readJsonFile,
   runAdapterSubprocess,
 } from "./adapter-subprocess.js";
-import { stageDispatchInput } from "../../dispatch/index.js";
+import { buildDispatchPrompt, stageDispatchInput } from "../../dispatch/index.js";
 
-interface ClarificationDecisionPayload {
-  approval?: {
-    status?: string;
-    reasons?: string[];
-  };
-  clarification_issues?: string[];
-  decisions?: {
-    acceptance_criteria?: {
-      items?: string[];
-    };
-  };
+// Inline shapes for the two JSON artifacts the agent is expected to write.
+// Keeping the schemas here (not in a SKILL.md) means the worker sees the
+// exact contract at dispatch time — including the allowed status enum that
+// previously drifted (e.g. agents writing `status: "ok"`).
+export const CLARIFICATION_OUTPUT_SHAPE = `// .praxis/clarification.json
+{
+  "approval": {
+    "status": "approved | needs_operator",
+    "reasons": ["..."]
+  },
+  "clarification_issues": ["..."],
+  "decisions": {
+    "acceptance_criteria": { "items": ["..."] }
+  }
 }
+
+// .praxis/results/clarifying-intent.json
+{
+  "version": 1,
+  "stage": "clarifying-intent",
+  "status": "completed | blocked | failed | skipped",
+  "profile": "<campaign profile>",
+  "route": {
+    "kind": "proceed | ask_user | done | rework | escalate",
+    "next_stage": "assessing-gaps | null",
+    "next_slice_id": null
+  },
+  "data": {
+    "outcome_code": "target_spec_ready | clarification_needed",
+    "clarification_issues": ["..."],
+    "acceptance_criteria_count": 0,
+    "clarification_approval_status": "approved | needs_operator"
+  }
+}`;
+
+export const CLARIFYING_INTENT_INSTRUCTIONS: readonly string[] = [
+  "Write .praxis/target-spec.md as the authoritative, human-readable target.",
+  "Write .praxis/clarification.json with the exact keys shown below; approval.status must be one of: approved, needs_operator.",
+  "Write .praxis/results/clarifying-intent.json; status must be one of: completed, blocked, failed, skipped (not `ok`).",
+  "Use outcome_code=target_spec_ready with route.kind=proceed and data.next_stage=assessing-gaps when the spec is ready.",
+  "Use outcome_code=clarification_needed with route.kind=ask_user when blocking questions remain.",
+];
 
 // Dispatch clarifying-intent to the active adapter. The adapter reads
 // .praxis/objective.md, explores the repo, and writes target-spec.md +
@@ -52,12 +85,25 @@ export class AgentClarifyingIntentExecutor implements ConvergeStageExecutor {
       "clarifying-intent",
       envelope,
     );
-    const prompt = buildAdapterPrompt(
-      context.dispatch,
-      context.campaign.adapter,
-      envelope,
-      { inputEnvelopePath },
-    );
+
+    const contract = context.dispatch.contract;
+    const prompt = buildDispatchPrompt({
+      stage: "clarifying-intent",
+      workflow: context.dispatch.workflow,
+      stageGoal: contract.stage_goal,
+      stageInstructions: [...contract.stage_instructions, ...CLARIFYING_INTENT_INSTRUCTIONS],
+      inputs: {
+        requiredArtifacts: context.dispatch.inputs.required_artifacts,
+        inputEnvelopePath,
+      },
+      outputs: {
+        expectedArtifacts: contract.expected_output_artifacts,
+        primaryOutput: contract.primary_output,
+        outputEnvelopePath: null,
+      },
+      extraContext: envelope,
+      expectedOutputShape: CLARIFICATION_OUTPUT_SHAPE,
+    });
 
     const result = await runAdapterSubprocess({
       adapter: context.campaign.adapter,
@@ -90,9 +136,10 @@ export class AgentClarifyingIntentExecutor implements ConvergeStageExecutor {
     let clarificationPayload: ClarificationDecisionPayload;
     try {
       clarificationPayload = await readJsonFile<ClarificationDecisionPayload>(clarificationJsonPath);
+      validateClarificationDecision(clarificationPayload);
     } catch (error) {
       throw new BlockedStateError(
-        `Clarifying-intent adapter did not produce .praxis/clarification.json: ${stringifyError(error)}`,
+        `Clarifying-intent adapter produced invalid or missing .praxis/clarification.json: ${stringifyError(error)}`,
       );
     }
 
