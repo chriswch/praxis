@@ -57,11 +57,11 @@ void test("runAdapterSubprocess codex invocation uses non-interactive safe defau
 
   const argv = JSON.parse(await readFile(argvPath, "utf8")) as string[];
   assert.deepEqual(argv, [
+    "-a",
+    "never",
     "exec",
     "-C",
     repoRoot,
-    "-a",
-    "never",
     "-s",
     "workspace-write",
     "/how architecture",

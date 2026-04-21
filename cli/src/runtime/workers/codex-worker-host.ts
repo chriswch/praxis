@@ -248,7 +248,7 @@ export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promis
   }
 }
 
-function buildCodexCommand(
+export function buildCodexCommand(
   mode: WorkerHostMode,
   launch: WorkerLaunchPayload,
   expectedSessionId: string | null,
@@ -268,13 +268,16 @@ function buildCodexCommand(
     return {
       binary,
       args: [
-        "resume",
-        resumeSessionId,
-        "-C",
-        launch.execution.workspace_root,
         "-a",
         "never",
+        "exec",
+        "-C",
+        launch.execution.workspace_root,
+        "-s",
+        sandboxMode,
         "--json",
+        "resume",
+        resumeSessionId,
         prompt,
       ],
       cwd: launch.execution.workspace_root,
@@ -284,11 +287,11 @@ function buildCodexCommand(
   return {
     binary,
     args: [
+      "-a",
+      "never",
       "exec",
       "-C",
       launch.execution.workspace_root,
-      "-a",
-      "never",
       "-s",
       sandboxMode,
       "--json",

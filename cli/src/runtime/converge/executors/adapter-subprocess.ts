@@ -32,7 +32,9 @@ export async function runAdapterSubprocess(
     const child = spawn(binary, args, {
       cwd: options.repoRoot,
       env: { ...process.env, PRAXIS_CONVERGE_SUBPROCESS: "1" },
-      stdio: ["pipe", "pipe", "pipe"],
+      // Some adapter CLIs append piped stdin to the prompt; use ignore so they
+      // don't block waiting for EOF when we have no stdin payload to send.
+      stdio: ["ignore", "pipe", "pipe"],
     });
 
     let stdout = "";
@@ -92,7 +94,8 @@ function resolveAdapterInvocation(
     sandboxOverride && sandboxOverride.length > 0 ? sandboxOverride : "workspace-write";
   return {
     binary,
-    args: ["exec", "-C", repoRoot, "-a", "never", "-s", sandboxMode, prompt],
+    // `-a/--ask-for-approval` is a top-level Codex flag, not an `exec` subcommand flag.
+    args: ["-a", "never", "exec", "-C", repoRoot, "-s", sandboxMode, prompt],
   };
 }
 
