@@ -25,7 +25,7 @@ Shape and driving mode are independent:
 
 `praxis run "<intent>"` converges the repo against the intent over multiple passes. Each pass runs five stages — three in `converge-pre-remediation`, two in a child `craft` run.
 
-1. **Derive target spec.** If the intent contains a backtick-quoted slash command (e.g. `` `/how this system works` ``), Praxis runs that command and captures the output as the target spec. Otherwise Praxis dispatches `clarifying-intent` with the intent text.
+1. **Derive target spec.** If the intent contains a backtick-quoted slash command (e.g. `` `/how this system works` ``), Praxis runs that command and captures the output as derived context. A leading slash command intent (e.g. `/how this system works`) is treated as shorthand for the same derivation path. Otherwise Praxis dispatches `clarifying-intent` with the intent text.
 2. **Assess gap.** Praxis dispatches `assessing-gaps` with the target spec and repo scope. The adapter writes a `GapAssessmentResult`; Praxis merges findings into the campaign ledger.
 3. **Plan remediation.** The deterministic planner selects bounded slices from the ledger by severity, dependencies, and story budget. No agent call.
 4. **Remediate via `craft`.** Praxis spawns a child `craft` run scoped to the selected slices and waits for it to finish.

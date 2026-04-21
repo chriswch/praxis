@@ -23,7 +23,11 @@ export interface AdapterSubprocessResult {
 export async function runAdapterSubprocess(
   options: AdapterSubprocessOptions,
 ): Promise<AdapterSubprocessResult> {
-  const { binary, args } = resolveAdapterInvocation(options.adapter, options.prompt);
+  const { binary, args } = resolveAdapterInvocation(
+    options.adapter,
+    options.prompt,
+    options.repoRoot,
+  );
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
       cwd: options.repoRoot,
@@ -71,6 +75,7 @@ export async function runAdapterSubprocess(
 function resolveAdapterInvocation(
   adapter: AdapterName,
   prompt: string,
+  repoRoot: string,
 ): { binary: string; args: string[] } {
   if (adapter === "claude") {
     const override = process.env.PRAXIS_CLAUDE_BIN?.trim();
@@ -82,9 +87,12 @@ function resolveAdapterInvocation(
   }
   const override = process.env.PRAXIS_CODEX_BIN?.trim();
   const binary = override && override.length > 0 ? override : "codex";
+  const sandboxOverride = process.env.PRAXIS_CODEX_SANDBOX?.trim();
+  const sandboxMode =
+    sandboxOverride && sandboxOverride.length > 0 ? sandboxOverride : "workspace-write";
   return {
     binary,
-    args: ["exec", "--full-auto", prompt],
+    args: ["exec", "-C", repoRoot, "-a", "never", "-s", sandboxMode, prompt],
   };
 }
 

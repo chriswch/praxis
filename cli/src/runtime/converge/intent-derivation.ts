@@ -9,15 +9,34 @@ export interface DerivedIntent {
   derivedSections: { command: string; output: string }[];
 }
 
-// Detect backtick-quoted slash commands in an intent string. Matches one or
-// more occurrences of `` `/<command>...` ``. The returned commands preserve
-// intent ordering so callers can run them sequentially.
+const BACKTICK_SLASH_COMMAND = /`(\/[^`\r\n]+)`/g;
+const LEADING_SLASH_COMMAND = /^\/[A-Za-z][\w:-]*(?:\s+.+)?$/;
+
+// Detect slash commands in an intent string.
+//
+// Supported forms:
+// 1) Backtick-quoted commands anywhere in the text:
+//      ... use `/how this system works.`
+// 2) A single leading slash command as shorthand for command-only intents:
+//      /how this system works.
+//
+// The returned commands preserve ordering when multiple backtick commands are
+// present so callers can run them sequentially.
 export function extractEmbeddedSlashCommands(intent: string): string[] {
-  const pattern = /`(\/[A-Za-z][\w:\-\s]*)`/g;
+  const trimmed = intent.trim();
   const commands: string[] = [];
-  for (const match of intent.matchAll(pattern)) {
+  for (const match of trimmed.matchAll(BACKTICK_SLASH_COMMAND)) {
     commands.push(match[1].trim());
   }
+  if (commands.length > 0) {
+    return commands;
+  }
+
+  const firstLine = trimmed.split(/\r?\n/u, 1)[0]?.trim() ?? "";
+  if (LEADING_SLASH_COMMAND.test(firstLine)) {
+    return [firstLine];
+  }
+
   return commands;
 }
 
