@@ -45,6 +45,8 @@ const SESSION_ID_KEYS = [
   "conversation_id",
   "conversationId",
 ] as const;
+const DEFAULT_CODEX_MODEL = "gpt-5.3-codex";
+const DEFAULT_CODEX_REASONING_EFFORT = "high";
 
 export async function runCodexWorkerHost(input: RunCodexWorkerHostInput): Promise<void> {
   const repo = new PraxisStateRepository(input.repoRoot);
@@ -259,6 +261,13 @@ export function buildCodexCommand(
   const sandboxOverride = process.env.PRAXIS_CODEX_SANDBOX?.trim();
   const sandboxMode =
     sandboxOverride && sandboxOverride.length > 0 ? sandboxOverride : "workspace-write";
+  const modelOverride = process.env.PRAXIS_CODEX_MODEL?.trim();
+  const model = modelOverride && modelOverride.length > 0 ? modelOverride : DEFAULT_CODEX_MODEL;
+  const reasoningOverride = process.env.PRAXIS_CODEX_REASONING_EFFORT?.trim();
+  const reasoningEffort =
+    reasoningOverride && reasoningOverride.length > 0
+      ? reasoningOverride
+      : DEFAULT_CODEX_REASONING_EFFORT;
 
   if (mode === "resume") {
     const resumeSessionId = expectedSessionId ?? launch.worker.resume_session_id;
@@ -270,6 +279,10 @@ export function buildCodexCommand(
       args: [
         "-a",
         "never",
+        "-m",
+        model,
+        "-c",
+        `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`,
         "exec",
         "-C",
         launch.execution.workspace_root,
@@ -289,6 +302,10 @@ export function buildCodexCommand(
     args: [
       "-a",
       "never",
+      "-m",
+      model,
+      "-c",
+      `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`,
       "exec",
       "-C",
       launch.execution.workspace_root,

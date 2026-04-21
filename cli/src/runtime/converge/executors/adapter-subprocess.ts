@@ -17,6 +17,9 @@ export interface AdapterSubprocessResult {
   exitCode: number;
 }
 
+const DEFAULT_CODEX_MODEL = "gpt-5.3-codex";
+const DEFAULT_CODEX_REASONING_EFFORT = "high";
+
 // Spawn the adapter CLI (claude or codex) in non-interactive mode with a prompt
 // that invokes the /praxis:<stage> skill. The adapter writes the stage's
 // artifacts directly to .praxis/; this function just blocks on its exit.
@@ -92,10 +95,30 @@ function resolveAdapterInvocation(
   const sandboxOverride = process.env.PRAXIS_CODEX_SANDBOX?.trim();
   const sandboxMode =
     sandboxOverride && sandboxOverride.length > 0 ? sandboxOverride : "workspace-write";
+  const modelOverride = process.env.PRAXIS_CODEX_MODEL?.trim();
+  const model = modelOverride && modelOverride.length > 0 ? modelOverride : DEFAULT_CODEX_MODEL;
+  const reasoningOverride = process.env.PRAXIS_CODEX_REASONING_EFFORT?.trim();
+  const reasoningEffort =
+    reasoningOverride && reasoningOverride.length > 0
+      ? reasoningOverride
+      : DEFAULT_CODEX_REASONING_EFFORT;
   return {
     binary,
     // `-a/--ask-for-approval` is a top-level Codex flag, not an `exec` subcommand flag.
-    args: ["-a", "never", "exec", "-C", repoRoot, "-s", sandboxMode, prompt],
+    args: [
+      "-a",
+      "never",
+      "-m",
+      model,
+      "-c",
+      `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`,
+      "exec",
+      "-C",
+      repoRoot,
+      "-s",
+      sandboxMode,
+      prompt,
+    ],
   };
 }
 

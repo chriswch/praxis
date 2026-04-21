@@ -57,9 +57,13 @@ function makeLaunch(overrides: Partial<WorkerLaunchPayload> = {}): WorkerLaunchP
 void test("buildCodexCommand uses top-level approval flag for fresh exec sessions", () => {
   const command = buildCodexCommand("launch", makeLaunch(), null);
 
-  assert.deepEqual(command.args.slice(0, 8), [
+  assert.deepEqual(command.args.slice(0, 12), [
     "-a",
     "never",
+    "-m",
+    "gpt-5.3-codex",
+    "-c",
+    'model_reasoning_effort="high"',
     "exec",
     "-C",
     "/tmp/praxis-workspace",
@@ -81,9 +85,13 @@ void test("buildCodexCommand resumes through `codex exec resume` for JSON event 
 
   const command = buildCodexCommand("resume", launch, null);
 
-  assert.deepEqual(command.args.slice(0, 10), [
+  assert.deepEqual(command.args.slice(0, 14), [
     "-a",
     "never",
+    "-m",
+    "gpt-5.3-codex",
+    "-c",
+    'model_reasoning_effort="high"',
     "exec",
     "-C",
     "/tmp/praxis-workspace",
@@ -93,5 +101,5 @@ void test("buildCodexCommand resumes through `codex exec resume` for JSON event 
     "resume",
     "sess-123",
   ]);
-  assert.equal(command.args[10]?.startsWith("/praxis:driving-tdd\nStage: driving-tdd"), true);
+  assert.equal(command.args[14]?.startsWith("/praxis:driving-tdd\nStage: driving-tdd"), true);
 });

@@ -59,6 +59,10 @@ void test("runAdapterSubprocess codex invocation uses non-interactive safe defau
   assert.deepEqual(argv, [
     "-a",
     "never",
+    "-m",
+    "gpt-5.3-codex",
+    "-c",
+    'model_reasoning_effort="high"',
     "exec",
     "-C",
     repoRoot,
@@ -87,5 +91,31 @@ void test("runAdapterSubprocess codex invocation honors PRAXIS_CODEX_SANDBOX ove
   );
 
   const argv = JSON.parse(await readFile(argvPath, "utf8")) as string[];
-  assert.equal(argv[6], "danger-full-access");
+  const sandboxFlagIndex = argv.indexOf("-s");
+  assert.equal(sandboxFlagIndex >= 0, true);
+  assert.equal(argv[sandboxFlagIndex + 1], "danger-full-access");
+});
+
+void test("runAdapterSubprocess codex invocation honors model and reasoning overrides", async () => {
+  const repoRoot = await mkdtemp(join(tmpdir(), "praxis-codex-subprocess-"));
+  const argvPath = join(repoRoot, "argv.json");
+
+  await withEnv(
+    {
+      PRAXIS_CODEX_BIN: captureCodexCliPath,
+      PRAXIS_TEST_ARGV_PATH: argvPath,
+      PRAXIS_CODEX_MODEL: "gpt-5.4",
+      PRAXIS_CODEX_REASONING_EFFORT: "medium",
+    },
+    async () =>
+      runAdapterSubprocess({
+        adapter: "codex",
+        prompt: "Assess the gap",
+        repoRoot,
+      }),
+  );
+
+  const argv = JSON.parse(await readFile(argvPath, "utf8")) as string[];
+  assert.equal(argv[argv.indexOf("-m") + 1], "gpt-5.4");
+  assert.equal(argv[argv.indexOf("-c") + 1], 'model_reasoning_effort="medium"');
 });

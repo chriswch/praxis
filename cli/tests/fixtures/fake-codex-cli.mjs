@@ -4,8 +4,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 const args = process.argv.slice(2);
-const resumeCommand = args[0] === "resume";
-const resumeSessionId = resumeCommand ? args[1] : null;
+const resumeCommandIndex = args[0] === "resume" ? 0 : args.indexOf("resume");
+const resumeCommand = resumeCommandIndex >= 0;
+const resumeSessionId =
+  resumeCommand && resumeCommandIndex + 1 < args.length ? args[resumeCommandIndex + 1] : null;
 const outputPath = readFlagValue(args, "-o");
 const sessionId = resumeSessionId ?? `fake_codex_session_${String(Date.now())}`;
 
