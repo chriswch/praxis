@@ -1,5 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { readdir, readFile as fsReadFile, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type {
   ConvergeProfile,
@@ -16,7 +15,6 @@ import type {
   ConvergeStageExecutorOutput,
 } from "../stage-executor.js";
 import { ConvergeStageExecutorRegistry } from "../stage-executor.js";
-import { PlanningRemediationExecutor } from "./planning-executor.js";
 
 // Deterministic, in-process clarifying-intent executor for smoke tests and
 // other contexts where the adapter subprocess is not available. Uses the
@@ -87,7 +85,7 @@ export class FixtureAssessingGapsExecutor implements ConvergeStageExecutor {
       },
     });
 
-    await context.repo.saveGapArtifacts({
+    const artifactsWritten = await context.repo.saveGapArtifacts({
       gapMarkdown: fixtureFormatGapMarkdown(gap),
       gap,
       stageResult,
@@ -95,11 +93,7 @@ export class FixtureAssessingGapsExecutor implements ConvergeStageExecutor {
 
     return {
       stageResult,
-      artifactsWritten: [
-        ".praxis/gap.md",
-        ".praxis/gap.json",
-        ".praxis/results/assessing-gaps.json",
-      ],
+      artifactsWritten,
       gap,
     };
   }
@@ -244,7 +238,7 @@ async function indexRepoText(repoRoot: string, scope: string[]): Promise<string>
     }
     if (!allowed.has(extname(candidate).toLowerCase())) continue;
     try {
-      parts.push((await fsReadFile(candidate, "utf8")).toLowerCase());
+      parts.push((await readFile(candidate, "utf8")).toLowerCase());
     } catch {
       // ignore
     }
@@ -283,6 +277,5 @@ function fixtureFormatGapMarkdown(gap: GapAssessmentResult): string {
 export function buildFixtureConvergeExecutorRegistry(): ConvergeStageExecutorRegistry {
   return new ConvergeStageExecutorRegistry()
     .register(new FixtureClarifyingIntentExecutor())
-    .register(new FixtureAssessingGapsExecutor())
-    .register(new PlanningRemediationExecutor());
+    .register(new FixtureAssessingGapsExecutor());
 }

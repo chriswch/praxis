@@ -255,9 +255,12 @@ export class ChildRunReconciler {
       reassessment.unresolvedAtThreshold,
       reassessment.fingerprints,
     );
+    // The reassessment above advanced campaign.current_pass to the new pass
+    // number, so the just-reassessed pass — which is also the next pass to
+    // plan/launch — is current_pass, not current_pass + 1.
     const budgetExhausted =
       postAssessmentDecision === "continue" &&
-      this.stopPolicy.isBudgetExhausted(campaign, campaign.current_pass + 1);
+      this.stopPolicy.isBudgetExhausted(campaign, campaign.current_pass);
     const summaryOutcome = budgetExhausted ? "budget_exhausted" : postAssessmentDecision;
 
     const updatedSummary: PassSummaryRecord = {

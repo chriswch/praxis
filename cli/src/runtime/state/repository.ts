@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { unlink, writeFile, mkdir, rm } from "node:fs/promises";
 import type {
   CampaignLedgerRecord,
@@ -224,22 +224,51 @@ export class PraxisStateRepository {
     gapMarkdown: string;
     gap: GapAssessmentResult;
     stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
-  }): Promise<void> {
+  }): Promise<string[]> {
     canonicalizeGapFingerprints(payload.gap);
     validateGapAssessmentResult(payload.gap);
     validateConvergeStageResult(payload.stageResult);
-    const resultsDir = join(this.paths.praxisDir, "results");
-    await mkdir(resultsDir, { recursive: true });
-    await writeFile(this.paths.gapFile, `${payload.gapMarkdown.trimEnd()}\n`, "utf8");
-    await writeJsonFile(this.paths.gapDataFile, payload.gap);
-    await writeJsonFile(join(resultsDir, "assessing-gaps.json"), payload.stageResult);
 
+    // Materialise the review mirror under .praxis/reviews/<review_id>/ FIRST
+    // so a crash mid-flight cannot leave the discoverable root .praxis/gap.* /
+    // results/assessing-gaps.json out of sync with an empty review directory.
+    // Once the mirror is in place we copy through to the root paths.
+    //
+    // This is one-directional: a crash AFTER the mirror is on disk but BEFORE
+    // the root files are rewritten leaves the mirror "ahead" of the root. We
+    // tolerate that window because (a) loadGapAssessment reads only the root
+    // .praxis/gap.json — a stale root reflects the previous pass, not corrupt
+    // state — and (b) the mirror is the historical record per review_id, so a
+    // mirror that exists without a matching root is recoverable on next pass.
+    // See validateAndAppendStageResult for the audit-trail equivalent. If
+    // future readers cross the boundary, lift this to a transaction marker
+    // (cf. saveRunAndStoryLedger / recoverRunLedgerTransactionIfPresent).
+    const trimmedMarkdown = `${payload.gapMarkdown.trimEnd()}\n`;
     const reviewDir = join(this.paths.reviewsDir, payload.gap.review_id);
     const reviewResultsDir = join(reviewDir, "results");
     await mkdir(reviewResultsDir, { recursive: true });
-    await writeFile(join(reviewDir, "gap.md"), `${payload.gapMarkdown.trimEnd()}\n`, "utf8");
-    await writeJsonFile(join(reviewDir, "gap.json"), payload.gap);
-    await writeJsonFile(join(reviewResultsDir, "assessing-gaps.json"), payload.stageResult);
+    const reviewGapMd = join(reviewDir, "gap.md");
+    const reviewGapJson = join(reviewDir, "gap.json");
+    const reviewStageResult = join(reviewResultsDir, "assessing-gaps.json");
+    await writeFile(reviewGapMd, trimmedMarkdown, "utf8");
+    await writeJsonFile(reviewGapJson, payload.gap);
+    await writeJsonFile(reviewStageResult, payload.stageResult);
+
+    const resultsDir = join(this.paths.praxisDir, "results");
+    await mkdir(resultsDir, { recursive: true });
+    const rootStageResult = join(resultsDir, "assessing-gaps.json");
+    await writeFile(this.paths.gapFile, trimmedMarkdown, "utf8");
+    await writeJsonFile(this.paths.gapDataFile, payload.gap);
+    await writeJsonFile(rootStageResult, payload.stageResult);
+
+    return [
+      relative(this.paths.root, this.paths.gapFile),
+      relative(this.paths.root, this.paths.gapDataFile),
+      relative(this.paths.root, rootStageResult),
+      relative(this.paths.root, reviewGapMd),
+      relative(this.paths.root, reviewGapJson),
+      relative(this.paths.root, reviewStageResult),
+    ];
   }
 
   async loadGapAssessment(): Promise<GapAssessmentResult | null> {

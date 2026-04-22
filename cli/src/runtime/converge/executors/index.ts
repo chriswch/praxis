@@ -2,11 +2,10 @@ import { ConvergeStageExecutorRegistry } from "../stage-executor.js";
 import { AgentAssessingGapsExecutor } from "./assessing-gaps-executor.js";
 import { AgentClarifyingIntentExecutor } from "./clarifying-intent-executor.js";
 import { buildFixtureConvergeExecutorRegistry } from "./fixture-executors.js";
-import { PlanningRemediationExecutor } from "./planning-executor.js";
 
-// Default wiring. agent-backed executors for clarifying-intent and
-// assessing-gaps; in-process planner for planning-remediation. Swapping any of
-// them is a registration change — no campaign-service edit required.
+// Default wiring. Agent-backed executors for clarifying-intent and
+// assessing-gaps. Planning-remediation is dispatched in-process by
+// ConvergePassService and is not registered here.
 //
 // The `PRAXIS_CONVERGE_FIXTURE_EXECUTORS=1` env var swaps the full registry
 // for the deterministic fixture registry. This is how smoke tests exercise the
@@ -17,13 +16,11 @@ export function buildDefaultConvergeExecutorRegistry(): ConvergeStageExecutorReg
   }
   return new ConvergeStageExecutorRegistry()
     .register(new AgentClarifyingIntentExecutor())
-    .register(new AgentAssessingGapsExecutor())
-    .register(new PlanningRemediationExecutor());
+    .register(new AgentAssessingGapsExecutor());
 }
 
 export { AgentAssessingGapsExecutor } from "./assessing-gaps-executor.js";
 export { AgentClarifyingIntentExecutor } from "./clarifying-intent-executor.js";
-export { PlanningRemediationExecutor } from "./planning-executor.js";
 export {
   FixtureAssessingGapsExecutor,
   FixtureClarifyingIntentExecutor,

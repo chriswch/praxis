@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import { resolveConvergeWorkflowTransition } from "../workflows/index.js";
 import {
   ADAPTER_NAMES,
   CAMPAIGN_STATUS,
@@ -303,13 +304,11 @@ export function validateStageResult(result: StageResultRecord): void {
   assertEnum(result.route.kind, ROUTE_KINDS, "route.kind");
 
   if (result.route.next_stage !== null) {
-    assertEnum(result.route.next_stage, STAGE_NAMES, "route.next_stage");
     throw new ContractError(
       "route.next_stage must be null because next-stage routing is runtime-derived",
     );
   }
   if (result.route.next_slice_id !== null) {
-    assertPlainString(result.route.next_slice_id, "route.next_slice_id");
     throw new ContractError(
       "route.next_slice_id must be null because next-slice routing is runtime-derived",
     );
@@ -484,7 +483,15 @@ export function validateConvergeStageResult(result: ConvergeStageResultRecord): 
   if (result.profile !== undefined) {
     assertEnum(result.profile, CONVERGE_PROFILES, "converge stage result profile");
   }
-  if (result.review_id !== undefined) {
+  // assessing-gaps records are always written in the scope of a review; the
+  // executor BlockedStateErrors when context.reviewId is absent and
+  // saveGapArtifacts derives its mirror directory from review_id. Make the
+  // requirement explicit at the contract boundary so the field cannot be
+  // missing later (e.g. as a `join(..., undefined)` crash). Other converge
+  // stages do not have this requirement today.
+  if (result.stage === "assessing-gaps") {
+    assertPlainString(result.review_id, "converge stage result review_id");
+  } else if (result.review_id !== undefined) {
     assertPlainString(result.review_id, "converge stage result review_id");
   }
 
@@ -493,6 +500,37 @@ export function validateConvergeStageResult(result: ConvergeStageResultRecord): 
 
   assertRecord(result.data, "converge stage result data");
   assertPlainString(result.data.outcome_code, "converge stage result data.outcome_code");
+
+  // Cross-check (stage, outcome_code) → route.kind against the workflow graph.
+  // Without this an agent could write outcome_code="findings_recorded" with
+  // route.kind="done" and trick the orchestrator into terminal "converged" while
+  // findings still exist. This mirrors the in-process synthesis path in
+  // buildConvergeStageResult so agent-produced and host-produced records are
+  // validator-equivalent.
+  let transition: ReturnType<typeof resolveConvergeWorkflowTransition>;
+  try {
+    transition = resolveConvergeWorkflowTransition(result.stage, result.data.outcome_code);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new ContractError(
+      `converge stage result data.outcome_code is not valid for stage ${result.stage}: ${reason}`,
+    );
+  }
+  if (result.route.kind !== transition.routeKind) {
+    throw new ContractError(
+      `converge stage result route.kind ${result.route.kind} does not match workflow-graph route.kind ${transition.routeKind} for (${result.stage}, ${result.data.outcome_code}).`,
+    );
+  }
+  // data.next_stage must also match the transition. Treat undefined and null
+  // as the same "no next stage" value so agent-produced records that omit the
+  // field are not rejected when the transition itself is null.
+  const declaredNextStage =
+    result.data.next_stage === undefined ? null : result.data.next_stage;
+  if (declaredNextStage !== transition.nextStage) {
+    throw new ContractError(
+      `converge stage result data.next_stage ${String(declaredNextStage)} does not match workflow-graph next_stage ${String(transition.nextStage)} for (${result.stage}, ${result.data.outcome_code}).`,
+    );
+  }
 }
 
 export function validateDispatchRecord(dispatch: DispatchRecord): void {
@@ -841,6 +879,11 @@ export function validateGapAssessmentResult(result: GapAssessmentResult): void {
     );
     if (typeof finding.confidence !== "number" || Number.isNaN(finding.confidence)) {
       throw new ContractError(`gap finding ${String(index)}.confidence must be a number`);
+    }
+    if (finding.confidence < 0 || finding.confidence > 1) {
+      throw new ContractError(
+        `gap finding ${String(index)}.confidence must be between 0 and 1`,
+      );
     }
   }
 }

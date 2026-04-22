@@ -1,15 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { BlockedStateError } from "../../../contracts/errors.js";
-import type {
-  ConvergeStageResultRecord,
-  GapAssessmentResult,
-} from "../../../contracts/model.js";
+import type { ConvergeStageResultRecord } from "../../../contracts/model.js";
 import {
   validateClarificationDecision,
   validateConvergeStageResult,
   type ClarificationDecisionPayload,
 } from "../../../contracts/validators.js";
 import { buildConvergeStageResult } from "../stage-runtime.js";
+import { stringifyError } from "../campaign-support.js";
 import type {
   ConvergeStageExecutor,
   ConvergeStageExecutorContext,
@@ -45,12 +43,11 @@ export const CLARIFICATION_OUTPUT_SHAPE = `// .praxis/clarification.json
   "status": "completed | blocked | failed | skipped",
   "profile": "<campaign profile>",
   "route": {
-    "kind": "proceed | ask_user | done | rework | escalate",
-    "next_stage": "assessing-gaps | null",
-    "next_slice_id": null
+    "kind": "proceed | ask_user | done | rework | escalate"
   },
   "data": {
     "outcome_code": "target_spec_ready | clarification_needed",
+    "next_stage": "assessing-gaps | null",
     "clarification_issues": ["..."],
     "acceptance_criteria_count": 0,
     "clarification_approval_status": "approved | needs_operator"
@@ -188,6 +185,10 @@ export class AgentClarifyingIntentExecutor implements ConvergeStageExecutor {
       targetSpecText,
       needsClarification,
       clarificationIssues: issues,
+      // Mirror FixtureClarifyingIntentExecutor's contract so the consumer in
+      // ConvergePreRemediationService never has to fall back to re-reading
+      // .praxis/clarification.json from disk for the in-process record.
+      clarificationRecord: clarificationPayload as unknown as Record<string, unknown>,
     };
   }
 }
@@ -206,9 +207,3 @@ function extractIssues(
   return [];
 }
 
-function stringifyError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-// Re-export GapAssessmentResult so the file does not depend on unused imports.
-export type { GapAssessmentResult };

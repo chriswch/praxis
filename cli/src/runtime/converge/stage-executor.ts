@@ -8,8 +8,9 @@ import type {
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
 
-// Per-stage execution inputs. Both adapter-backed (clarifying-intent,
-// assessing-gaps) and in-process (planning-remediation) executors read these.
+// Per-stage execution inputs for adapter-backed executors (clarifying-intent
+// and assessing-gaps). Planning-remediation is dispatched in-process by
+// ConvergePassService and does not flow through this registry.
 export interface ConvergeStageExecutorContext {
   readonly campaign: CampaignRecord;
   readonly dispatch: DispatchRecord;

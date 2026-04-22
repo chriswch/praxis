@@ -14,7 +14,6 @@ export {
   buildDefaultConvergeExecutorRegistry,
   AgentAssessingGapsExecutor,
   AgentClarifyingIntentExecutor,
-  PlanningRemediationExecutor,
 } from "./executors/index.js";
 export { planRemediation, planPassBatch } from "./planner.js";
 export {

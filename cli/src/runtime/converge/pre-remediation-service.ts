@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { nowIsoUtc } from "../common/time.js";
 import type {
   CampaignRecord,
@@ -5,6 +6,8 @@ import type {
   GapAssessmentResult,
 } from "../../contracts/model.js";
 import type { PraxisStateRepository } from "../state/repository.js";
+import { readJsonFileIfExists } from "../state/store.js";
+import { stringifyError } from "./campaign-support.js";
 import { ClarificationStore } from "./clarification-store.js";
 import {
   buildConvergePreRemediationDispatch,
@@ -141,7 +144,6 @@ export class ConvergePreRemediationService {
   }
 
   private async loadClarificationRecord(): Promise<Record<string, unknown>> {
-    const { readJsonFileIfExists } = await import("../state/store.js");
     const record = await readJsonFileIfExists<Record<string, unknown>>(
       this.repo.paths.clarificationFile,
     );
@@ -149,7 +151,6 @@ export class ConvergePreRemediationService {
   }
 
   private async readDurableTargetSpec(): Promise<string | null> {
-    const { readFile } = await import("node:fs/promises");
     try {
       return await readFile(this.repo.paths.targetSpecFile, "utf8");
     } catch {
@@ -166,10 +167,23 @@ export class ConvergePreRemediationService {
     const record = toStageHistoryRecord(stageResult, dispatch, artifactsWritten, campaign);
     try {
       await this.repo.validateAndAppendStageResult(record);
-    } catch {
-      // Do not fail the pass on audit-trail write errors. The stage-history file
-      // is a best-effort audit trail; the authoritative converge stage result
-      // lives at .praxis/results/<stage>.json.
+    } catch (error) {
+      // Stage-history is a best-effort audit trail; the authoritative converge
+      // stage result lives at .praxis/results/<stage>.json. Surface the failure
+      // through audit-warnings so operators can see that the trail is degraded.
+      try {
+        await this.repo.appendAuditWarning({
+          source: "converge-pre-remediation-service",
+          campaign_id: campaign.campaign_id,
+          stage: stageResult.stage,
+          dispatch_id: dispatch.dispatch_id,
+          error: stringifyError(error),
+          recorded_at: nowIsoUtc(),
+        });
+      } catch {
+        // If even the audit-warning write fails, drop silently — we have already
+        // failed-open on the primary write and there is nothing left to escalate.
+      }
     }
   }
 }

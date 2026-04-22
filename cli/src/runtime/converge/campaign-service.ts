@@ -376,7 +376,9 @@ export class ConvergeCampaignService {
         }
       }
 
-      const nextPassNumber = campaign.current_pass + 1;
+      // assessAndMerge advances current_pass to the assessed pass number, so
+      // the next pass to plan/launch is current_pass — not current_pass + 1.
+      const nextPassNumber = campaign.current_pass;
       if (this.stopPolicy.isBudgetExhausted(campaign, nextPassNumber)) {
         this.applyTerminalStop(campaign, "budget_exhausted");
         return { campaign, ledger };
@@ -414,6 +416,15 @@ export class ConvergeCampaignService {
     unresolvedAtThreshold: number;
     fingerprints: string[];
   }> {
+    // Advance current_pass and persist before the assessing-gaps subprocess runs
+    // so the dispatch input envelope (pass_number = N) and the on-disk
+    // campaign.json (current_pass = N) agree from the assessor's point of view.
+    // Without this the assessor sees current_pass = N-1 alongside pass_number = N
+    // and reports a campaign-state inconsistency finding.
+    campaign.current_pass = passNumber;
+    campaign.timestamps.updated_at = nowIsoUtc();
+    await this.repo.saveCampaign(campaign);
+
     const { gap, stageResult } = await this.preRemediation.runAssessingGaps(
       campaign,
       targetSpecText,
