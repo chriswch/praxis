@@ -37,6 +37,7 @@ import {
   writeJsonFile,
 } from "./store.js";
 import { resolvePraxisPaths, type PraxisPathSet } from "./paths.js";
+import { canonicalizeGapFingerprints } from "../converge/gap-fingerprints.js";
 
 export class PraxisStateRepository {
   readonly paths: PraxisPathSet;
@@ -224,6 +225,7 @@ export class PraxisStateRepository {
     gap: GapAssessmentResult;
     stageResult: ConvergeStageResultRecord & { stage: "assessing-gaps" };
   }): Promise<void> {
+    canonicalizeGapFingerprints(payload.gap);
     validateGapAssessmentResult(payload.gap);
     validateConvergeStageResult(payload.stageResult);
     const resultsDir = join(this.paths.praxisDir, "results");
@@ -243,7 +245,11 @@ export class PraxisStateRepository {
   async loadGapAssessment(): Promise<GapAssessmentResult | null> {
     const gap = await readJsonFileIfExists<GapAssessmentResult>(this.paths.gapDataFile);
     if (gap) {
+      const changedFingerprints = canonicalizeGapFingerprints(gap);
       validateGapAssessmentResult(gap);
+      if (changedFingerprints) {
+        await writeJsonFile(this.paths.gapDataFile, gap);
+      }
     }
     return gap;
   }

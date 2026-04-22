@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { backfillGapFingerprints } from "../../../src/runtime/converge/executors/assessing-gaps-executor.js";
 import { buildFindingFingerprint } from "../../../src/runtime/converge/identity.js";
 import type { GapAssessmentResult, GapFinding } from "../../../src/contracts/model.js";
 import { validateGapAssessmentResult } from "../../../src/contracts/validators.js";
+import { PraxisStateRepository } from "../../../src/runtime/state/repository.js";
 
 function buildFinding(overrides: Partial<GapFinding> = {}): GapFinding {
   return {
@@ -82,4 +86,35 @@ void test("backfillGapFingerprints is a no-op when findings is not an array", ()
   assert.doesNotThrow(() => {
     backfillGapFingerprints(gap);
   });
+});
+
+void test("loadGapAssessment backfills empty fingerprints from persisted gap.json", async () => {
+  const repoRoot = await mkdtemp(join(tmpdir(), "praxis-gap-fingerprint-"));
+  try {
+    const repo = new PraxisStateRepository(repoRoot);
+    await repo.ensureLayout();
+
+    const gap = buildGap([buildFinding(), buildFinding({ finding_id: "G-002", title: "Other" })]);
+    await writeFile(
+      join(repoRoot, ".praxis", "gap.json"),
+      `${JSON.stringify(gap, null, 2)}\n`,
+      "utf8",
+    );
+
+    const loaded = await repo.loadGapAssessment();
+    assert.ok(loaded, "gap payload should load");
+    for (const finding of loaded.findings) {
+      assert.notEqual(finding.fingerprint, "");
+      assert.equal(finding.fingerprint, buildFindingFingerprint(loaded.profile, finding));
+    }
+
+    const persisted = JSON.parse(
+      await readFile(join(repoRoot, ".praxis", "gap.json"), "utf8"),
+    ) as GapAssessmentResult;
+    for (const finding of persisted.findings) {
+      assert.notEqual(finding.fingerprint, "");
+    }
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
 });

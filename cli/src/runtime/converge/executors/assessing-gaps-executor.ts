@@ -18,7 +18,8 @@ import {
   runAdapterSubprocess,
 } from "./adapter-subprocess.js";
 import { buildDispatchPrompt, stageDispatchInput } from "../../dispatch/index.js";
-import { buildFindingFingerprint } from "../identity.js";
+import { writeJsonFile } from "../../state/store.js";
+import { canonicalizeGapFingerprints } from "../gap-fingerprints.js";
 
 // Inline JSON shape for gap.json, so the agent receives the schema in the
 // prompt instead of reading a SKILL.md file. Keep this narrow — the full
@@ -126,8 +127,11 @@ export class AgentAssessingGapsExecutor implements ConvergeStageExecutor {
     let gap: GapAssessmentResult;
     try {
       gap = await readJsonFile<GapAssessmentResult>(gapJsonPath);
-      backfillGapFingerprints(gap);
+      const changedFingerprints = canonicalizeGapFingerprints(gap);
       validateGapAssessmentResult(gap);
+      if (changedFingerprints) {
+        await writeJsonFile(gapJsonPath, gap);
+      }
     } catch (error) {
       throw new BlockedStateError(
         `Assessing-gaps adapter produced invalid or missing .praxis/gap.json: ${stringifyError(error)}`,
@@ -182,13 +186,5 @@ function stringifyError(error: unknown): string {
 // owns the hashing scheme (`buildFindingFingerprint`). The generic validator
 // rejects empty strings, so we must fill them in before validation.
 export function backfillGapFingerprints(gap: GapAssessmentResult): void {
-  if (!Array.isArray(gap.findings)) {
-    return;
-  }
-  for (const finding of gap.findings) {
-    if (!finding || typeof finding !== "object") {
-      continue;
-    }
-    finding.fingerprint = buildFindingFingerprint(gap.profile, finding);
-  }
+  canonicalizeGapFingerprints(gap);
 }
