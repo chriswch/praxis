@@ -110,3 +110,71 @@ export function formatRunDone(runId: string, summary: RunSummary): string[] {
 function formatUsd(n: number): string {
   return `$${n.toFixed(4)}`;
 }
+
+/**
+ * AC-4 + AC-5: render assistant text as ` › <text>` wrapped to `cols` with
+ * 3-space-aligned continuation lines (no marker on continuation). When the
+ * input is over 200 chars (AC-5), summarize to the first sentence
+ * (`/[.!?](\s|$)/`); fall back to the first 200 chars + `…` when no boundary
+ * matches.
+ *
+ * The first-line content budget is `cols - 3` (the leading ` › `); continuation
+ * budgets are also `cols - 3` (the 3-space indent).
+ */
+const PREFIX = " › ";
+const CONT = "   ";
+const SUMMARIZE_THRESHOLD = 200;
+const SENTENCE_BOUNDARY = /[.!?](\s|$)/;
+
+export function formatAssistantText(text: string, cols: number): string[] {
+  const display = text.length > SUMMARIZE_THRESHOLD ? summarize(text) : text;
+  return wrap(display, cols);
+}
+
+function summarize(text: string): string {
+  const m = SENTENCE_BOUNDARY.exec(text);
+  if (m) {
+    const end = m.index + 1; // include the punctuation char
+    return text.slice(0, end);
+  }
+  return text.slice(0, SUMMARIZE_THRESHOLD) + "…";
+}
+
+function wrap(text: string, cols: number): string[] {
+  const budget = Math.max(1, cols - PREFIX.length);
+  if (text.length === 0) return [PREFIX];
+
+  const tokens = text.split(/\s+/).filter((t) => t.length > 0);
+  if (tokens.length === 0) return [PREFIX];
+
+  const wrappedRows: string[] = [];
+  let row = "";
+  for (const tok of tokens) {
+    if (tok.length > budget) {
+      // Flush current row, then break the long token across rows.
+      if (row.length > 0) {
+        wrappedRows.push(row);
+        row = "";
+      }
+      let i = 0;
+      while (i < tok.length) {
+        wrappedRows.push(tok.slice(i, i + budget));
+        i += budget;
+      }
+      // The last chunk might still have room for more — restart row with it.
+      row = wrappedRows.pop()!;
+      continue;
+    }
+    if (row.length === 0) {
+      row = tok;
+    } else if (row.length + 1 + tok.length <= budget) {
+      row += " " + tok;
+    } else {
+      wrappedRows.push(row);
+      row = tok;
+    }
+  }
+  if (row.length > 0) wrappedRows.push(row);
+
+  return wrappedRows.map((line, i) => (i === 0 ? PREFIX + line : CONT + line));
+}

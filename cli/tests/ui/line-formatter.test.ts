@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { StageConfig } from "../../src/config/schema.js";
 import {
+  formatAssistantText,
   formatError,
   formatPaused,
   formatRunDone,
@@ -169,5 +170,86 @@ describe("formatRunDone (AC-12)", () => {
     };
     const lines = formatRunDone("r", summary);
     expect(lines[0]).toMatch(/commit abcdef1/);
+  });
+});
+
+describe("formatAssistantText (AC-4) — wrap to terminal width", () => {
+  it("short text fits on a single ` › <text>` line", () => {
+    expect(formatAssistantText("hello", 80)).toEqual([" › hello"]);
+  });
+
+  it("wraps at word boundary; continuation lines indent 3 spaces, no marker", () => {
+    // cols=20 so " › " (3) + "the quick brown fox" (19) overflows
+    // first line content budget = 20-3 = 17 chars
+    // continuation budget = 20-3 = 17 chars
+    const text = "the quick brown fox jumps over the lazy dog";
+    const lines = formatAssistantText(text, 20);
+    expect(lines[0]).toBe(" › the quick brown");
+    for (const line of lines.slice(1)) {
+      expect(line.startsWith("   ")).toBe(true);
+      expect(line.startsWith("   ›")).toBe(false); // no marker on continuation
+      expect(line.length).toBeLessThanOrEqual(20);
+    }
+    // Round-trip: stripping prefix/indent and joining with spaces gives the input.
+    const reconstructed = lines
+      .map((l, i) => (i === 0 ? l.slice(3) : l.slice(3)))
+      .join(" ");
+    expect(reconstructed).toBe(text);
+  });
+
+  it("breaks an over-long word that exceeds the budget on its own line", () => {
+    const text = "x".repeat(40);
+    const lines = formatAssistantText(text, 20);
+    // Each continuation budget = 17. 40 = 17 + 17 + 6.
+    expect(lines).toEqual([
+      " › " + "x".repeat(17),
+      "   " + "x".repeat(17),
+      "   " + "x".repeat(6),
+    ]);
+  });
+
+  it("collapses an empty input to a single ` › ` line", () => {
+    expect(formatAssistantText("", 80)).toEqual([" › "]);
+  });
+});
+
+describe("formatAssistantText (AC-5) — first-sentence summarization > 200 chars", () => {
+  it("returns first sentence when text exceeds 200 chars and a `.! ?` ends a sentence", () => {
+    const head = "First sentence. ";
+    const tail = "x".repeat(250);
+    const text = head + tail;
+    const lines = formatAssistantText(text, 200);
+    // First sentence kept verbatim.
+    expect(lines[0]).toBe(" › First sentence.");
+    expect(lines.length).toBe(1);
+  });
+
+  it("with no sentence boundary, falls back to first 200 + …", () => {
+    const text = "y".repeat(300);
+    const lines = formatAssistantText(text, 1000);
+    expect(lines.length).toBe(1);
+    expect(lines[0]).toBe(" › " + "y".repeat(200) + "…");
+  });
+
+  it("matches sentence boundary at end-of-string too (no trailing space required)", () => {
+    const text = "Done." + "z".repeat(250);
+    const lines = formatAssistantText(text, 1000);
+    // The regex matches `.` followed by space OR end. After "Done." comes "z..."
+    // — that's no boundary. So fallback to 200 + …
+    expect(lines[0]).toBe(" › " + text.slice(0, 200) + "…");
+  });
+
+  it("sentence-end at end-of-text triggers boundary match", () => {
+    const head = "x".repeat(205) + ".";
+    expect(head.length).toBe(206);
+    const lines = formatAssistantText(head, 1000);
+    // Single sentence ending at EOS.
+    expect(lines[0]).toBe(" › " + head);
+  });
+
+  it("does not summarize at exactly 200 chars or below", () => {
+    const text = "z".repeat(200);
+    const lines = formatAssistantText(text, 1000);
+    expect(lines).toEqual([" › " + text]);
   });
 });
