@@ -16,8 +16,10 @@ Track planned work in [backlog.md](backlog.md). The product.md document remains 
 - Inputs: same `praxis run` surface plus optional `--no-pause`. Reporter is constructed once in `cli.ts` and threaded via `Deps.reporter`.
 - Outputs: structured stdout + stderr lines per §8; identical state.json and artifact behaviour.
 - Notable bounds:
-  - Reporter interface frozen at §8 — Stage 0 line is duck-typed via a `LineReporter.stage0Captured` side-channel rather than a new method.
-  - `runDone` is called on success, paused, and failed/cancelled paths uniformly.
+  - Reporter interface gains one §8-extension method: optional `stage0?(total, intentFilename)` so the runner can synthesise the stage-0 line without inventing a `StageConfig`.
+  - `RunSummary` carries an optional `status: "completed" | "paused" | "failed" | "cancelled"` so `runDone`'s headline reads "done" / "paused" / "failed" / "cancelled" (default "done" for back-compat). Tokens and USD always reflect actual spend regardless of status.
+  - `Deps.reporter` is required; `RunWorkflowContext.reporter` was removed. `runStage` reads the reporter from `ctx.reporter` only — `Pick<Deps, "createQueryFn">` narrowing on `runStage` is preserved.
+  - `runDone` is called on success, paused, and failed/cancelled paths uniformly with the matching `status`.
   - `EventBuffer.flush()` is invoked before stageStart, stageEnd, paused, runDone, and any non-text stageEvent so coalesced text always lands before the next structural line.
   - Tool-result name resolution uses a per-stage `tool_use_id → name` cache; unknown ids fall back to `Tool`.
   - Color is enabled only when stderr is a TTY and `NO_COLOR` is unset; e2e CLI runs set `NO_COLOR=1` so output stays plain.
