@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 /**
- * Auto-commit hand-off (product.md §5.4).
+ * Auto-commit hand-off.
  *
  * Runs `git status --porcelain` first: empty tree → return
  * `{ ok: true, skipped: true }` without touching the repo. Otherwise stage

@@ -1,7 +1,7 @@
 /**
  * Map a tool name + raw `input` blob (from the SDK's `tool_use` block) to a
  * short, single-line summary suitable for the `  › ToolName(brief)` line in
- * §8 LineReporter output. Returns `""` when the input shape isn't recognised
+ * LineReporter output. Returns `""` when the input shape isn't recognised
  * — the formatter falls back to `ToolName()`.
  *
  * Truncation: anything over 60 chars is cropped + ellipsis. Long bash commands

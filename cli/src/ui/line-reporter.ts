@@ -36,7 +36,7 @@ export interface LineReporterOptions {
 }
 
 /**
- * Stdout/stderr Reporter implementing product.md §8 formatting.
+ * Stdout/stderr Reporter.
  *
  * Composes the pure formatters (`./line-formatter.ts`) with an `EventBuffer`
  * that coalesces streaming `assistant_text` deltas for 100ms (AC-6). The
@@ -117,7 +117,7 @@ export class LineReporter implements Reporter {
   }
 
   /**
-   * Synthesize the §5.1 stage-0 line. Optional method on the Reporter
+   * Synthesize the stage-0 line. Optional method on the Reporter
    * interface (Stage 0 has no StageConfig); the runner invokes it via
    * `reporter.stage0?.(...)` so Reporters that don't care simply skip it.
    */
@@ -126,7 +126,7 @@ export class LineReporter implements Reporter {
   }
 
   /**
-   * S-004 AC-13: §11 resume / recover headline emitted by `praxis advance`.
+   * S-004 AC-13: resume / recover headline emitted by `praxis advance`.
    * Optional on the Reporter interface; runner calls it via
    * `reporter.resuming?.(...)` and skips when absent.
    */

@@ -85,7 +85,7 @@ export type StageContext = {
 /**
  * The seam exposed to tests. Returns an async iterable of `SdkMessage` (the
  * scripted shape) plus a `pushUserMessage` callback so the harness can send a
- * single corrective user prompt after a validator failure (product.md §5.2).
+ * single corrective user prompt after a validator failure.
  */
 export type CreateQueryFnInput = {
   systemPrompt: string;
@@ -196,7 +196,7 @@ export function buildUserPrompt(
  * Lifecycle:
  *   - Builds a stage-local AbortController linked to `ctx.signal`. SIGINT on
  *     the parent signal aborts here as `"sigint"`. If `config.timeoutMs` is
- *     set, a timer aborts as `"timeout"` after that many ms (product.md §7).
+ *     set, a timer aborts as `"timeout"` after that many ms.
  *   - Always aborts the local controller in `finally` so the SDK tears down
  *     even on the happy path — preventing stage process leaks.
  *
@@ -206,7 +206,7 @@ export function buildUserPrompt(
  *     session id, usage, and stop reason.
  *   - If the stage defines a `validate` and the first finalText fails, sends
  *     one corrective user message via `pushUserMessage` and waits for the
- *     next result (product.md §5.2). One retry only; second failure is
+ *     next result. One retry only; second failure is
  *     terminal and the partial text is returned with `stopReason:
  *     "validator_failed"` and `validatorReason` set.
  *   - tokens.input/output/cache* are summed across attempts; usd is summed.

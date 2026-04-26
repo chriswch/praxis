@@ -14,7 +14,7 @@ export function writeIntent(runDir: string, intent: string): string {
 /**
  * Write a stage's `finalText` artifact verbatim to disk. Returns the absolute
  * path written. The harness writes whatever the agent emitted — including
- * partial output on validator failure (product.md §5.2).
+ * partial output on validator failure.
  */
 export function writeArtifact(
   runDir: string,

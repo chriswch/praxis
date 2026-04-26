@@ -37,7 +37,7 @@ export interface Reporter {
    */
   stage0?(total: number, intentFilename: string): void;
   /**
-   * §11 resume / recover headline emitted by `praxis advance`. `kind` is
+   * Resume / recover headline emitted by `praxis advance`. `kind` is
    * `"approved"` for the paused → resume path (the user reviewed the artifact
    * and is letting the workflow continue) and `"recovering"` for the failed /
    * cancelled → recover path (the user hand-edited the artifact and wants the

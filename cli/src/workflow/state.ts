@@ -48,7 +48,7 @@ export interface InitialStateInput {
 }
 
 /**
- * Build the §9 state.json structure for a freshly-started run.
+ * Build the state.json structure for a freshly-started run.
  * Every stage is initialized as `{ status: "pending" }`.
  */
 export function buildInitialState(input: InitialStateInput): State {

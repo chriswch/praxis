@@ -1,5 +1,5 @@
 /**
- * Structural validator for `clarify-assess` artifacts (product.md §5.2).
+ * Structural validator for `clarify-assess` artifacts.
  *
  * Required: all five H2 headings present in this exact order, and the
  * Acceptance section contains at least one non-whitespace bullet.

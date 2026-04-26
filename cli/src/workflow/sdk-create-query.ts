@@ -8,7 +8,7 @@ import type {
 /**
  * Production `CreateQueryFn`: wraps `@anthropic-ai/claude-agent-sdk`'s
  * `query()` and exposes the push-based corrective-message channel that the
- * harness needs for validator retry (product.md §5.2).
+ * harness needs for validator retry.
  *
  * Only the subset of SDK message shapes Praxis actually consumes is mapped
  * into `SdkMessage`.
@@ -101,7 +101,7 @@ export const sdkCreateQueryFn: CreateQueryFn = (input) => {
           if (lite) yield lite;
           // Do NOT terminate on `result` — the consumer may push a corrective
           // user message and expect a follow-up `result` in the same stream
-          // (product.md §5.2 validator retry). Termination is signalled by the
+          // (validator retry). Termination is signalled by the
           // consumer aborting `input.signal`.
         }
       } finally {

@@ -27,7 +27,7 @@ describe("defaultWorkflow", () => {
     ).toBeDefined();
   });
 
-  it("pins the per-stage models from product.md §6", () => {
+  it("pins the per-stage models", () => {
     const byId = Object.fromEntries(
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
@@ -36,7 +36,7 @@ describe("defaultWorkflow", () => {
     expect(byId["auto-commit"].model).toBe("claude-haiku-4-5-20251001");
   });
 
-  it("pins per-stage outputArtifact filenames from §9", () => {
+  it("pins per-stage outputArtifact filenames", () => {
     const byId = Object.fromEntries(
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
@@ -128,7 +128,7 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
     return s;
   }
 
-  it("clarify-assess renders intent + runDir per spec §5.2", () => {
+  it("clarify-assess renders intent + runDir", () => {
     const rendered = buildUserPrompt(stageById("clarify-assess"), ctx());
     expect(rendered).toContain("Intent: add a logout button");
     expect(rendered).toContain("Run dir: /run/dir");
@@ -137,7 +137,7 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
     expect(rendered).not.toContain("Required artifact schema");
   });
 
-  it("implement references the clarify-assess artifact path per spec §5.3", () => {
+  it("implement references the clarify-assess artifact path", () => {
     const rendered = buildUserPrompt(
       stageById("implement"),
       ctx({
@@ -153,7 +153,7 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
     expect(rendered).not.toContain("User-prompt template");
   });
 
-  it("auto-commit asks for a Conventional-Commits message only per spec §5.4", () => {
+  it("auto-commit asks for a Conventional-Commits message only", () => {
     const rendered = buildUserPrompt(stageById("auto-commit"), ctx());
     expect(rendered.toLowerCase()).toContain("conventional");
     expect(rendered).toMatch(/git diff/);

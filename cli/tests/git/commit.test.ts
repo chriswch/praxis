@@ -7,7 +7,7 @@ import { commit } from "../../src/git/commit.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
 /**
- * S-006 — direct unit tests for the commit() seam (product.md §5.4).
+ * S-006 — direct unit tests for the commit() seam.
  *
  * Real git, real fs (per cross-cutting policy), inside a withTempRepo. The
  * runner-level integration is exercised separately in implement.test.ts and

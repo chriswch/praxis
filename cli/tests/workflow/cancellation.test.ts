@@ -39,7 +39,7 @@ function makeCtx(runDir: string, signal: AbortSignal): StageContext {
   };
 }
 
-describe("runStage timeoutMs (product.md §7)", () => {
+describe("runStage timeoutMs", () => {
   it("aborts with cancelReason 'timeout' when the stage exceeds timeoutMs", async () => {
     await withTmpDir(async (runDir) => {
       const ctl = new AbortController(); // never aborted by us
@@ -57,7 +57,7 @@ describe("runStage timeoutMs (product.md §7)", () => {
   });
 });
 
-describe("runStage SIGINT propagation (product.md §11)", () => {
+describe("runStage SIGINT propagation", () => {
   it("parent abort signal yields cancelReason 'sigint'", async () => {
     await withTmpDir(async (runDir) => {
       const ctl = new AbortController();
@@ -76,7 +76,7 @@ describe("runStage SIGINT propagation (product.md §11)", () => {
   });
 });
 
-describe("runWorkflow SIGINT (spec §11 — cancelled status)", () => {
+describe("runWorkflow SIGINT (cancelled status)", () => {
   it("an external abort during a stage marks it cancelled and returns ok:false", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const cfg: PraxisConfig = {

@@ -18,8 +18,8 @@ export default defineConfig({
   // Keep the SDK + zod external; users get them via `npm install`.
   // Bundling them would inflate the published artifact unnecessarily.
   deps: { skipNodeModulesBundle: true },
-  // Prompt files live as .md so iteration doesn't require a code recompile
-  // (per product.md §6). They must ship alongside the compiled loader because
+  // Prompt files live as .md so iteration doesn't require a code recompile.
+  // They must ship alongside the compiled loader because
   // src/workflow/stage.ts reads them at runtime via fs.readFileSync. tsdown's
   // copy step replaces the previous scripts/copy-prompts.mjs hack and is
   // covered by the build-smoke regression test in tests/e2e/build-smoke.test.ts.

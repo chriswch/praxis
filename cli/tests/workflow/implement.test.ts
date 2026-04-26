@@ -586,7 +586,7 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
         "## Files changed\n\n- src/Foo.tsx — added logout button\n";
       const commitMessage = "feat: add logout button";
       const recording = recordingScriptedQuery([
-        // clarify-assess: emit a valid §5.2 artifact so the validator passes.
+        // clarify-assess: emit a valid artifact so the validator passes.
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         // implement.
         [{ messages: stageMessages("sess_impl", implementLog) }],
@@ -778,7 +778,7 @@ describe("runStage implement option forwarding (AC-6)", () => {
       expect(input.model).toBe("claude-opus-4-7");
       expect(input.permissionMode).toBe("bypassPermissions");
       // implement deliberately omits allowedTools (config has no key) so the
-      // SDK defaults to all tools, per spec §5.3.
+      // SDK defaults to all tools.
       expect(input.allowedTools).toBeUndefined();
       expect(input.settingSources).toEqual(["user", "project"]);
       expect(input.signal).toBeInstanceOf(AbortSignal);

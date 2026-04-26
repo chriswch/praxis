@@ -22,7 +22,7 @@ export type RunWorkflowContext = {
   cwd: string;
   allowDirty?: boolean;
   /**
-   * Disable all pause gates (product.md §4 `--no-pause`). When set,
+   * Disable all pause gates (`--no-pause`). When set,
    * `pauseAfter: true` stages still run + commit their artifact but the
    * runner advances to the next stage instead of returning paused.
    */
@@ -31,7 +31,7 @@ export type RunWorkflowContext = {
   config?: PraxisConfig;
   /**
    * Parent abort signal — when fired, the in-flight stage is aborted as
-   * `sigint` per spec §11. The CLI wires this to a SIGINT listener; tests
+   * `sigint`. The CLI wires this to a SIGINT listener; tests
    * inject directly to exercise cancellation.
    */
   signal?: AbortSignal;
@@ -56,7 +56,7 @@ export type RunWorkflowFailure = {
   runId?: string;
   runDir?: string;
   failedStageId?: string;
-  /** "cancelled" when SIGINT aborted the run; "failed" otherwise (spec §11). */
+  /** "cancelled" when SIGINT aborted the run; "failed" otherwise. */
   status?: "failed" | "cancelled";
 };
 
@@ -214,7 +214,7 @@ async function runOneStage(
   state.currentStage = stage.id;
   state.stages[stage.id] = { status: "running" };
   writeState(runDir, state);
-  // 1-based index per §8 (`[1/3 ...]`).
+  // 1-based index (`[1/3 ...]`).
   reporter.stageStart(stage, index + 1, config.workflow.length);
 
   // S-006 AC-5: skip the auto-commit SDK call when the working tree is clean.
@@ -286,8 +286,8 @@ async function runOneStage(
   //     message is meaningless without a real commit) and the stage remains
   //     `completed`.
   //
-  // Non-auto-commit stages always write their finalText verbatim (product.md
-  // §5.2: partial output is still written even on validator failure).
+  // Non-auto-commit stages always write their finalText verbatim (partial
+  // output is still written even on validator failure).
 
   if (failed) {
     const artifactPath = writeArtifact(
@@ -412,10 +412,10 @@ function failStage(
 }
 
 /**
- * Translate the SDK / harness signals on `StageResult` into the §9 stage
- * status + a human-readable error message (when applicable).
+ * Translate the SDK / harness signals on `StageResult` into the persisted
+ * stage status + a human-readable error message (when applicable).
  *
- * Per spec §11:
+ * Mapping:
  *   - SIGINT (`cancelReason === "sigint"`) → `cancelled`
  *   - timeout (`cancelReason === "timeout"`) → `failed`
  *   - validator failure (`stopReason === "validator_failed"`) → `failed`
@@ -520,7 +520,7 @@ function isWorkingTreeClean(cwd: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Advance — product.md §11
+// Advance
 // ---------------------------------------------------------------------------
 
 export type AdvanceWorkflowContext = {
@@ -529,7 +529,7 @@ export type AdvanceWorkflowContext = {
   noPause?: boolean;
   /** Override the default 3-stage workflow (tests). */
   config?: PraxisConfig;
-  /** Parent abort signal — wired to SIGINT by the CLI (spec §11). */
+  /** Parent abort signal — wired to SIGINT by the CLI. */
   signal?: AbortSignal;
 };
 
@@ -565,7 +565,7 @@ export async function advanceWorkflow(
   const state = read.state;
 
   // M-2: resolve `intent` once at the advance boundary. The original run
-  // captured it in §9 state.json; downstream `runOneStage` reads it off the
+  // captured it in state.json; downstream `runOneStage` reads it off the
   // loop context unconditionally — no per-stage shape check.
   const loopCtx: LoopContext = {
     intent: state.intent,

@@ -21,17 +21,17 @@ const CLARIFY_ASSESS_USER_PROMPT = [
   "Survey the repository (read-only) and produce the markdown artifact described in your system prompt as your final assistant message.",
 ].join("\n");
 
-// Per product.md §5.3 — the implement stage reads the clarify-assess
-// artifact by path and edits files in cwd. Inline so the system prompt is
-// not accidentally re-served as the user prompt.
+// The implement stage reads the clarify-assess artifact by path and edits
+// files in cwd. Inline so the system prompt is not accidentally re-served as
+// the user prompt.
 const IMPLEMENT_USER_PROMPT = [
   "Read {{artifacts.clarify-assess.path}} and implement the plan.",
   "Edit files in the current working directory.",
   "Your final message must summarize files changed, what each change does, and anything skipped.",
 ].join("\n");
 
-// Per product.md §5.4 — auto-commit emits ONLY a Conventional Commits
-// message; the harness writes it to 03-commit.txt and runs git commit -m.
+// Auto-commit emits ONLY a Conventional Commits message; the harness writes
+// it to 03-commit.txt and runs git commit -m.
 const AUTO_COMMIT_USER_PROMPT = [
   "Use `git diff` and `git log -10 --oneline` to read the staged + unstaged changes from the implement stage.",
   "Generate a Conventional-Commits-style message (e.g. `feat:`, `fix:`, `chore:`) describing those changes.",
@@ -39,13 +39,13 @@ const AUTO_COMMIT_USER_PROMPT = [
 ].join("\n");
 
 /**
- * Built-in 3-stage workflow per product.md §5–§6.
+ * Built-in 3-stage workflow.
  *
- * - clarify-assess: read-only repo survey, validates §5.2 schema, pauses.
+ * - clarify-assess: read-only repo survey, validates the H2 schema, pauses.
  * - implement: bypassPermissions, all tools, no pause.
  * - auto-commit: Bash-only, default permissions, no pause.
  *
- * Models pinned per §6: Opus 4.7 for clarify-assess + implement,
+ * Models pinned: Opus 4.7 for clarify-assess + implement,
  * Haiku 4.5 for auto-commit.
  */
 export const defaultWorkflow: PraxisConfig = {

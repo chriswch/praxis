@@ -141,7 +141,7 @@ describe("formatStageEnd (AC-10)", () => {
 });
 
 describe("formatResuming (S-004 AC-13)", () => {
-  it("renders the §11 'resuming approved plan' headline for the paused path", async () => {
+  it("renders the 'resuming approved plan' headline for the paused path", async () => {
     const { formatResuming } = await import("../../src/ui/line-formatter.js");
     expect(
       formatResuming("approved", "2026-04-25-1430-7af2", "clarify-assess"),
@@ -150,7 +150,7 @@ describe("formatResuming (S-004 AC-13)", () => {
     ]);
   });
 
-  it("renders the §11 'recovering ... re-validating' headline for the recovery path", async () => {
+  it("renders the 'recovering ... re-validating' headline for the recovery path", async () => {
     const { formatResuming } = await import("../../src/ui/line-formatter.js");
     expect(
       formatResuming("recovering", "2026-04-25-1430-7af2", "clarify-assess"),

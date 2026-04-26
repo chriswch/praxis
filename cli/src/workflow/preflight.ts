@@ -11,7 +11,7 @@ export type PreflightResult =
   | { ok: false; reason: string; remediation?: string };
 
 /**
- * Pre-flight checks per product.md §10:
+ * Pre-flight checks:
  *
  *   1. Refuse to run outside a git work tree.
  *   2. Refuse a dirty tree unless `allowDirty` is set; list dirty files +

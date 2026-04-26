@@ -296,7 +296,7 @@ describe("advanceWorkflow paused happy path (AC-3)", () => {
       expect(persisted.stages.second.status).toBe("completed");
       expect(persisted.stages.second.sessionId).toBe("sess_second");
 
-      // Reporter saw the §11 paused-resume headline before the next stage start.
+      // Reporter saw the paused-resume headline before the next stage start.
       const stageStarts = reporter.calls.filter((c) => c.kind === "stageStart");
       expect(stageStarts.length).toBe(1);
       expect(
@@ -889,7 +889,7 @@ describe("advanceWorkflow recovery happy path (AC-4)", () => {
       expect(persisted.cost.totalTokens).toBe(150 + 15);
       expect(persisted.cost.totalUsd).toBeCloseTo(0.012 + 0.001, 5);
 
-      // Reporter saw the §11 recovering headline.
+      // Reporter saw the recovering headline.
       // (AC-13 wires this exactly — for now we only require the kind exists.)
     });
   });

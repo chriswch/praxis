@@ -112,7 +112,7 @@ async function main(argv: string[]): Promise<void> {
   const { intent, allowDirty, noPause } = parseRunArgs(rest);
 
   // SIGINT: abort the in-flight stage so it surfaces a `cancelled` status
-  // (spec §11) instead of leaving the SDK process running. The Node default
+  // instead of leaving the SDK process running. The Node default
   // is to exit immediately on second Ctrl+C — we intentionally let that
   // happen as the user's escape hatch.
   const sigintAbort = new AbortController();
@@ -149,7 +149,7 @@ async function runAdvance(rest: string[]): Promise<void> {
   const { runId, noPause } = parseAdvanceArgs(rest);
 
   // SIGINT mirrors `praxis run` — abort the in-flight stage so it surfaces a
-  // `cancelled` status (spec §11) rather than killing the SDK process orphan.
+  // `cancelled` status rather than killing the SDK process orphan.
   const sigintAbort = new AbortController();
   const onSigint = () => sigintAbort.abort("sigint");
   process.once("SIGINT", onSigint);

@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 /**
  * Verifies the production `sdkCreateQueryFn` does NOT terminate after the
- * first `result` SDK message. The validator-retry loop in `runStage`
- * (product.md §5.2) sends a corrective `pushUserMessage` after the first
- * result and expects a follow-up result in the same stream.
+ * first `result` SDK message. The validator-retry loop in `runStage` sends
+ * a corrective `pushUserMessage` after the first result and expects a
+ * follow-up result in the same stream.
  *
  * The previous wrapper short-circuited with `if (lite.type === "result")
  * return;` — that was correct for non-validator stages but silently broke

@@ -123,7 +123,7 @@ describe("LineReporter (AC-2/7/8/10/11/12)", () => {
     expect(out.text()).toBe("[0/3 intent] captured → 00-intent.txt\n");
   });
 
-  it("resuming(approved) prints the §11 headline (S-004 AC-13)", () => {
+  it("resuming(approved) prints the headline (S-004 AC-13)", () => {
     const { reporter, out } = makeReporter();
     reporter.resuming("approved", "2026-04-25-1430-7af2", "clarify-assess");
     expect(out.text()).toBe(
@@ -131,7 +131,7 @@ describe("LineReporter (AC-2/7/8/10/11/12)", () => {
     );
   });
 
-  it("resuming(recovering) prints the §11 recovery headline", () => {
+  it("resuming(recovering) prints the recovery headline", () => {
     const { reporter, out } = makeReporter();
     reporter.resuming("recovering", "2026-04-25-1430-7af2", "clarify-assess");
     expect(out.text()).toBe(

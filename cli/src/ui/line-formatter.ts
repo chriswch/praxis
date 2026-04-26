@@ -6,7 +6,7 @@ import type { RunSummary, StageEndResult } from "./reporter.js";
  * Pure formatters for `LineReporter` output. Each function returns the lines
  * to print as `string[]`; the reporter owns I/O, color, and terminal width.
  *
- * Splitting the formatting from the I/O makes every rule (§8 of product.md)
+ * Splitting the formatting from the I/O makes every formatting rule
  * unit-testable without touching stdout or fake timers.
  */
 
@@ -58,7 +58,7 @@ export function formatStage0(total: number, intentFilename: string): string[] {
 /**
  * AC-10: artifact path → session line (skipped when sessionId is empty) →
  * `done` / `failed: <reason>`. Artifact line is emitted on failure too because
- * partial output is still written to disk (product.md §5.2).
+ * partial output is still written to disk.
  */
 export function formatStageEnd(
   stage: StageConfig,
@@ -96,7 +96,7 @@ export function formatPaused(
 }
 
 /**
- * S-004 AC-13: §11 resume / recover headline emitted by `praxis advance`.
+ * S-004 AC-13: resume / recover headline emitted by `praxis advance`.
  *
  * Two kinds:
  *   - `"approved"`  → paused → resume path (user reviewed the artifact).
