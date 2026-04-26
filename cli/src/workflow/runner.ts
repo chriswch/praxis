@@ -6,6 +6,7 @@ import { formatRunId } from "./run-id.js";
 import { writeArtifact, writeIntent } from "./artifacts.js";
 import {
   buildInitialState,
+  readState,
   writeState,
   type State,
   type StageState,
@@ -106,7 +107,7 @@ export async function runWorkflow(
   // intent capture); Reporters that don't implement it simply skip it.
   reporter.stage0?.(config.workflow.length, basename(intentPath));
 
-  return executeStages(state, config, ctx, deps, reporter, runDir, runId);
+  return executeStages(state, config, ctx, deps, reporter, runDir, runId, 0);
 }
 
 type StepOutcome =
@@ -122,13 +123,14 @@ type StepOutcome =
 async function executeStages(
   state: State,
   config: PraxisConfig,
-  ctx: RunWorkflowContext,
+  ctx: RunWorkflowContext | AdvanceWorkflowContext,
   deps: Deps,
   reporter: Reporter,
   runDir: string,
   runId: string,
+  startIndex: number,
 ): Promise<RunWorkflowResult> {
-  for (let i = 0; i < config.workflow.length; i++) {
+  for (let i = startIndex; i < config.workflow.length; i++) {
     const outcome = await runOneStage(
       config.workflow[i],
       i,
@@ -174,7 +176,7 @@ async function runOneStage(
   index: number,
   config: PraxisConfig,
   state: State,
-  ctx: RunWorkflowContext,
+  ctx: RunWorkflowContext | AdvanceWorkflowContext,
   deps: Deps,
   reporter: Reporter,
   runDir: string,
@@ -186,8 +188,12 @@ async function runOneStage(
   // 1-based index per §8 (`[1/3 ...]`).
   reporter.stageStart(stage, index + 1, config.workflow.length);
 
+  // `intent` lives on RunWorkflowContext directly; on advance we read it back
+  // from state.json (the original run captured it in §9).
+  const intent = "intent" in ctx ? ctx.intent : state.intent;
+
   const stageCtx: StageContext = {
-    intent: ctx.intent,
+    intent,
     runDir,
     runId,
     reporter,
@@ -338,4 +344,128 @@ function summarize(state: State, status: RunStatus): RunSummary {
 /** ISO-8601 UTC string truncated to whole seconds, e.g. `2026-04-25T14:30:12Z`. */
 function toIsoSeconds(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+// ---------------------------------------------------------------------------
+// Advance — product.md §11
+// ---------------------------------------------------------------------------
+
+export type AdvanceWorkflowContext = {
+  cwd: string;
+  /** Disable pause gates (same semantics as `runWorkflow`'s `--no-pause`). */
+  noPause?: boolean;
+  /** Override the default 3-stage workflow (tests). */
+  config?: PraxisConfig;
+  /** Parent abort signal — wired to SIGINT by the CLI (spec §11). */
+  signal?: AbortSignal;
+};
+
+/**
+ * Resume a paused or recover a failed/cancelled run from disk.
+ *
+ * Distinct entry point from `runWorkflow` — does NOT run pre-flight, does NOT
+ * touch `.gitignore`, and reads its intent + cost + per-stage state straight
+ * from `<cwd>/.praxis/runs/<runId>/state.json`.
+ *
+ * Branches on the first non-completed stage's status:
+ *   - paused (prior stage completed with `pauseAfter: true`) → log
+ *     `resuming approved plan`, dispatch `executeStages` from there.
+ *   - failed or cancelled → log `recovering …; re-validating`, validate the
+ *     on-disk artifact, on success flip the entry to completed/recovered (no
+ *     SDK call) and dispatch `executeStages` from the next index.
+ *   - running → exit 1 "not in a resumable state".
+ *   - all completed → exit 1 "already complete".
+ */
+export async function advanceWorkflow(
+  runId: string,
+  ctx: AdvanceWorkflowContext,
+  deps: Deps,
+): Promise<RunWorkflowResult> {
+  const config = ctx.config ?? defaultWorkflow;
+  const reporter = deps.reporter;
+  const runDir = join(ctx.cwd, ".praxis", "runs", runId);
+
+  const read = readState(runDir);
+  if (!read.ok) {
+    return { ok: false, reason: read.reason, runId, runDir };
+  }
+  const state = read.state;
+
+  // Resume-point scan: first non-completed stage in workflow order. Hand-
+  // edited non-monotonic statuses are tolerated — we always pick the first
+  // non-completed entry.
+  const idx = config.workflow.findIndex(
+    (s) => state.stages[s.id]?.status !== "completed",
+  );
+  if (idx === -1) {
+    return {
+      ok: false,
+      reason: "run is already complete",
+      runId,
+      runDir,
+    };
+  }
+
+  const stage = config.workflow[idx];
+  const stageState = state.stages[stage.id];
+  const status = stageState?.status ?? "pending";
+
+  if (status === "running") {
+    return {
+      ok: false,
+      reason: `stage ${stage.id} is not in a resumable state (status=running)`,
+      runId,
+      runDir,
+      failedStageId: stage.id,
+    };
+  }
+
+  if (status === "pending") {
+    // Paused path requires the prior stage to be completed AND pauseAfter:true.
+    const prev = idx > 0 ? config.workflow[idx - 1] : undefined;
+    const prevState = prev ? state.stages[prev.id] : undefined;
+    if (
+      prev &&
+      prevState?.status === "completed" &&
+      prev.pauseAfter === true
+    ) {
+      // Falls into paused branch in subsequent ACs.
+      return paused(state, config, ctx, deps, reporter, runDir, runId, idx, prev.id);
+    }
+    return {
+      ok: false,
+      reason: `stage ${stage.id} is not in a resumable state (status=pending)`,
+      runId,
+      runDir,
+      failedStageId: stage.id,
+    };
+  }
+
+  // Recovery path lands in subsequent ACs (failed / cancelled).
+  return {
+    ok: false,
+    reason: `recovery for ${status} not yet implemented`,
+    runId,
+    runDir,
+    failedStageId: stage.id,
+  };
+}
+
+async function paused(
+  state: State,
+  config: PraxisConfig,
+  ctx: AdvanceWorkflowContext,
+  deps: Deps,
+  reporter: Reporter,
+  runDir: string,
+  runId: string,
+  startIndex: number,
+  prevStageId: string,
+): Promise<RunWorkflowResult> {
+  // Reporter §11 line lands in the AC-13 cycle. Still mark currentStage and
+  // dispatch — happy path covered in AC-3.
+  reporter.resuming?.("approved", runId, prevStageId);
+  state.currentStage = config.workflow[startIndex].id;
+  writeState(runDir, state);
+  return executeStages(state, config, ctx, deps, reporter, runDir, runId, startIndex);
 }

@@ -36,4 +36,17 @@ export interface Reporter {
    * so absent implementations simply skip the line.
    */
   stage0?(total: number, intentFilename: string): void;
+  /**
+   * §11 resume / recover headline emitted by `praxis advance`. `kind` is
+   * `"approved"` for the paused → resume path (the user reviewed the artifact
+   * and is letting the workflow continue) and `"recovering"` for the failed /
+   * cancelled → recover path (the user hand-edited the artifact and wants the
+   * validator to re-check it). Optional so non-CLI Reporters (tests) can skip
+   * it; the runner invokes via `reporter.resuming?.(...)`.
+   */
+  resuming?(
+    kind: "approved" | "recovering",
+    runId: string,
+    stageId: string,
+  ): void;
 }
