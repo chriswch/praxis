@@ -7,6 +7,8 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { hangingQuery } from "../support/scripted-query.js";
+import type { PraxisConfig } from "../../src/config/schema.js";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,6 +68,21 @@ function makeImplementCtx(runDir: string): StageContext {
 
 /** Default fixed runId used by advance-from-paused tests so paths are predictable. */
 const RUN_ID = "2026-04-25-1430-7af2";
+
+/**
+ * Build a workflow that mirrors `defaultWorkflow` shape but lets a test
+ * override per-stage `timeoutMs` to a unit-test budget. AC-4 and AC-5 use
+ * this to drive the implement stage to timeout/SIGINT without slowing the
+ * suite or pulling in fake timers.
+ */
+function workflowWithImplementTimeout(timeoutMs: number): PraxisConfig {
+  return {
+    version: 1,
+    workflow: defaultWorkflow.workflow.map((s) =>
+      s.id === "implement" ? { ...s, timeoutMs } : s,
+    ),
+  };
+}
 
 const VALID_CLARIFY_ARTIFACT = `## Intent\n\nadd a logout button.\n\n## Assumptions\n\n- auth ctx is present\n\n## Gaps\n\n- none\n\n## Plan\n\n1. wire — surfaces logout\n\n## Acceptance\n\n- posts /logout and redirects home\n`;
 
@@ -263,6 +280,66 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
         // Repos with a starting HEAD: the sha must be unchanged.
         expect(headAfter.stdout.toString()).toBe(headBefore.stdout.toString());
       }
+    });
+  });
+});
+
+describe("implement timeout (AC-4)", () => {
+  it("implement timeoutMs fires → status: failed, cancelReason: 'timeout' on StageResult, stopReason: 'timeout' in state.json, partial log written, auto-commit not executed, deps.commit not called", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Hybrid createQueryFn: clarify-assess gets a scripted happy path,
+      // implement gets a hanging stream that only ends on abort. Auto-commit
+      // never runs.
+      let call = 0;
+      const recording: import("../support/scripted-query.js").RecordingCreateQueryFn =
+        recordingScriptedQuery([
+          [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        ]);
+      const hanging = hangingQuery("sess_impl_hang");
+      const composedCreateQueryFn: CreateQueryFn = (input) => {
+        call++;
+        if (call === 1) return recording(input);
+        if (call === 2) return hanging(input);
+        throw new Error("auto-commit must not be reached on implement timeout");
+      };
+
+      const commit = recordingCommit();
+      const result = await runWorkflow(
+        {
+          intent: "x",
+          cwd,
+          allowDirty: true,
+          noPause: true,
+          config: workflowWithImplementTimeout(50),
+        },
+        buildDeps(composedCreateQueryFn, commit),
+      );
+
+      // Run failed at the implement stage.
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.status).toBe("failed");
+      expect(result.failedStageId).toBe("implement");
+
+      // state.json: implement marked failed, stopReason 'timeout'.
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir!, "state.json"), "utf8"),
+      );
+      expect(persisted.stages.implement.status).toBe("failed");
+      expect(persisted.stages.implement.stopReason).toBe("timeout");
+      // auto-commit untouched.
+      expect(persisted.stages["auto-commit"].status).toBe("pending");
+
+      // Partial log written (empty in this test, but the file exists).
+      expect(existsSync(join(result.runDir!, "02-implement-log.md"))).toBe(true);
+      // 03-commit.txt must NOT exist.
+      expect(existsSync(join(result.runDir!, "03-commit.txt"))).toBe(false);
+
+      // deps.commit was never invoked.
+      expect(commit.calls.length).toBe(0);
+
+      // Only two SDK calls: clarify-assess + implement. Auto-commit skipped.
+      expect(call).toBe(2);
     });
   });
 });
