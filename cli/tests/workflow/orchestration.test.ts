@@ -216,7 +216,7 @@ function deps(createQueryFn: CreateQueryFn, date: Date, bytes: Uint8Array): Deps
     reporter: new LineReporter(),
     // S-005: orchestration tests stop after clarify-assess pauses, so the
     // commit seam is never invoked — but include it for shape completeness.
-    commit: () => ({ ok: true }),
+    commit: () => ({ ok: true, skipped: true }),
   };
 }
 

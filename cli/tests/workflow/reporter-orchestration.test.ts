@@ -59,7 +59,7 @@ function deps(
     createQueryFn,
     reporter,
     // S-005: reporter tests don't reach the auto-commit stage; satisfy shape.
-    commit: () => ({ ok: true }),
+    commit: () => ({ ok: true, skipped: true }),
   };
 }
 

@@ -158,7 +158,10 @@ function stageMessages(sessionId: string, finalText: string): SdkMessage[] {
 }
 
 type CommitCall = { cwd: string; message: string };
-type CommitSpy = ((cwd: string, message: string) => { ok: true }) & {
+type CommitSpy = ((
+  cwd: string,
+  message: string,
+) => { ok: true; skipped: true }) & {
   calls: CommitCall[];
 };
 
@@ -166,7 +169,7 @@ function recordingCommit(): CommitSpy {
   const calls: CommitCall[] = [];
   const fn = (cwd: string, message: string) => {
     calls.push({ cwd, message });
-    return { ok: true } as const;
+    return { ok: true, skipped: true } as const;
   };
   const spy = fn as CommitSpy;
   spy.calls = calls;

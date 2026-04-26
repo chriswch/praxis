@@ -108,10 +108,17 @@ export type CreateQueryFn = (input: CreateQueryFnInput) => CreateQueryFnHandle;
  * Auto-commit hand-off seam (S-005). The runner calls this after the
  * `auto-commit` stage completes successfully, passing the commit message the
  * agent emitted as its `finalText`. The production wrapper is a stub that
- * prints a stderr notice but does not run `git commit` (real git lands in
- * S-006); tests inject a spy.
+ * prints a stderr notice and returns `{ ok: true, skipped: true }` (real git
+ * lands in S-006); tests inject a spy.
+ *
+ * The forward-compatible result union lets S-006 land `{ ok: true, sha }` for
+ * a real commit and `{ ok: false, reason }` for a git failure without another
+ * test-Deps churn.
  */
-export type CommitFn = (cwd: string, message: string) => { ok: true };
+export type CommitFn = (cwd: string, message: string) =>
+  | { ok: true; sha: string }
+  | { ok: true; skipped: true }
+  | { ok: false; reason: string };
 
 /** Dependencies threaded through the workflow for substitution in tests. */
 export type Deps = {

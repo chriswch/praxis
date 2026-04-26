@@ -154,7 +154,7 @@ function deps(
     reporter,
     // S-005: advance tests never reach the auto-commit stage, but we satisfy
     // the `Deps.commit` slot so the runner contract isn't lying about shape.
-    commit: () => ({ ok: true }),
+    commit: () => ({ ok: true, skipped: true }),
   };
 }
 

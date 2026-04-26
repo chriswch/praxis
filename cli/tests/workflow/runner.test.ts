@@ -70,7 +70,7 @@ function pinnedDeps(
     createQueryFn,
     reporter: new LineReporter(),
     // S-005: bootstrap-shape tests pause on the only stage; commit unused.
-    commit: () => ({ ok: true }),
+    commit: () => ({ ok: true, skipped: true }),
   };
 }
 

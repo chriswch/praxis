@@ -5,12 +5,16 @@
  * auto-commit stage produces its message) but defers the actual `git add -A`
  * + `git commit -m` invocation to S-006. For now this is a no-op stub that
  * prints a single stderr notice so users running the happy path see the
- * commit was prepared but not executed. Returns `{ ok: true }` so the runner
- * still classifies the stage as completed.
+ * commit was prepared but not executed. Returns `{ ok: true, skipped: true }`
+ * — honest about not having performed the commit, while still classifying
+ * the stage as completed.
  */
-export function commit(_cwd: string, _message: string): { ok: true } {
+export function commit(
+  _cwd: string,
+  _message: string,
+): { ok: true; skipped: true } {
   process.stderr.write(
     "praxis: auto-commit message ready; git commit not yet wired (lands in S-006)\n",
   );
-  return { ok: true };
+  return { ok: true, skipped: true };
 }
