@@ -2,40 +2,10 @@
 name: code-reviewing
 description: "Independent code quality review after implementation. Performs a sequential 5-layer analysis — data structures, special case elimination, complexity, breaking changes, and practicality — producing a severity-graded review report without modifying any code. Use after driving-tdd or rapid-implementing completes. Triggers on 'review the code', 'code review', 'check code quality', or when implementation is complete and code quality needs assessment before proceeding."
 context: fork
-allowed-tools: Read, Grep, Glob, Bash(git *), Write
+allowed-tools: Read, Grep, Glob, Bash(git *)
 ---
 
 # Code Review
-
-## Artifact Directory
-
-If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
-
-Read the spec from `{artifact-dir}/spec.md` for context.
-Read the implementation summary from `{artifact-dir}/tdd.md` or `{artifact-dir}/implementation.md` — whichever exists.
-Read the sketch from `{artifact-dir}/sketch.md` if it exists.
-Write the review report to `{artifact-dir}/review.md`.
-Ensure `{artifact-dir}/results/` exists and write the structured result to
-`{artifact-dir}/results/code-reviewing.json`.
-
-## Result Contract
-
-Follow `../../src/praxis/contracts/stage-result.schema.json`.
-
-The result JSON is the routing source of truth.
-Leave `route.next_stage = null`; the shared workflow resolves the canonical
-next stage from the workflow and outcome.
-
-Use these outcome codes:
-
-- `review_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`
-- `review_skipped` -> `status = skipped`, `route.kind = proceed`,
-  `route.next_stage = null`
-
-Use `{artifact-dir}/review.md` as `summary_path` when review output exists. If
-review is skipped, `summary_path` may be `null`. Even on skip outcomes, still
-write `results/code-reviewing.json`.
 
 ## Role
 
@@ -44,6 +14,20 @@ You are an independent code reviewer. You perform a systematic 5-layer analysis 
 You do NOT modify any code. You produce a review report. Period.
 
 You do NOT assess spec compliance or test coverage — that's a separate concern handled by `verifying-and-adapting`. You focus on whether the code is well-structured, simple, safe, and solves a real problem proportionally.
+
+## Input
+
+- The **spec** for context (from `clarifying-intent`).
+- The **implementation summary** from `driving-tdd` or `rapid-implementing` (whichever ran).
+- The **design sketch** if it exists (from `sketching-design`).
+
+Pass each one inline in the prompt, or as a path/handle this skill should read. The skill identifies the changed files via `git log --name-only` for recent commits.
+
+## Output
+
+Return the **review report** inline in the response, with severity-graded findings (Critical / High / Medium / Low) and actionable recommendations. If the change is trivial enough that formal review is wasted ceremony, say so and stop.
+
+The caller decides whether to persist the review and where.
 
 ## Premise Check
 
@@ -143,15 +127,13 @@ Flag these when they actually appear — don't go hunting for problems that aren
 
 Scale the review to the size of the change:
 
-- **Trivial** (one file, few-line change): Skip formal review and write
-  `{artifact-dir}/results/code-reviewing.json` with
-  `data.outcome_code = review_skipped`.
+- **Trivial** (one file, few-line change): Skip formal review. Say the review is skipped and why.
 - **Small** (1–2 files, straightforward logic): Quick review. Run through Layers 1–3. Skip Layers 4–5 unless something jumps out.
 - **Medium+** (multiple files, non-trivial logic): Full 5-layer review.
 
 ## Guardrails
 
-- **Do NOT modify any files** (except writing `review.md`). You produce a report. Nothing else.
+- **Do NOT modify any files.** You produce a report. Nothing else.
 - **Do NOT review test quality or coverage.** Tests are out of scope.
 - **Do NOT assess spec compliance.** That's `verifying-and-adapting`'s job.
 - **Do NOT recommend adding tests or features.** Not your concern.
@@ -161,10 +143,6 @@ Scale the review to the size of the change:
 - **Acknowledge good work.** If the code is clean and well-structured, say so. An empty review with no issues is a valid and good outcome.
 - **Do NOT recommend over-engineering.** If the current solution works and is understandable, don't suggest adding abstractions, interfaces, or patterns "for future flexibility." The simplest working solution is the best solution until proven otherwise.
 
-## Output
+## Output Reference
 
-Write the review report to `{artifact-dir}/review.md`.
-Write `{artifact-dir}/results/code-reviewing.json` with
-`data.outcome_code = review_ready` or `review_skipped`.
-
-Read `references/templates.md` when producing output.
+Read `references/templates.md` for the review report format.

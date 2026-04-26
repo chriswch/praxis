@@ -1,137 +1,68 @@
 # Praxis
 
-Spec-driven software engineering workflows for Claude Code and Codex.
+Spec-driven software engineering workflows for Claude Code and Codex, shipped as agent skills.
 
-Praxis keeps the shared workflow semantics in `src/praxis/` and keeps adapter
-wrappers thin. The project currently ships shared `craft` and `forge`
-workflows, an installed `praxis` CLI, durable `.praxis` runtime state,
-per-dispatch bundles, approval and policy evidence, provider-native resume
-bookkeeping, story-boundary handoffs, native adapter hooks, and a local eval
-pack.
+Praxis is a collection of skills that take a request through clarification, slicing, design, implementation, review, and verification — and two orchestrator entry points (`craft` and `forge`) that chain them.
 
-## How To Use
+## Install
 
-### Install
+### Claude Code
 
-Praxis currently supports `uv tool install` as its public install path.
+Add the Praxis plugin from your marketplace, or install this directory as a local plugin. The plugin manifest is at `.claude-plugin/plugin.json`.
 
-```bash
-uv tool install .
-```
+### Codex
 
-For local development:
+Add the Praxis plugin from your marketplace, or install this directory as a local plugin. The plugin manifest is at `.codex-plugin/plugin.json`.
 
-```bash
-uv tool install --editable .
-```
+## Entry points
 
-Wheel and direct `pip` installs remain compatibility paths, but they are not
-the supported user-facing install contract.
+- **Claude Code**: `/craft` and `/forge` slash commands (`commands/craft.md`, `commands/forge.md`).
+- **Codex**: `craft` and `forge` skills (`skills/craft/SKILL.md`, `skills/forge/SKILL.md`).
 
-### Native entry points
-
-- Claude: `/craft`, `/forge`
-- Codex: `skills/craft/SKILL.md`, `skills/forge/SKILL.md`
-
-### Runtime commands
-
-```bash
-praxis run \
-  --repo-root . \
-  --workflow forge \
-  --entry-task "Describe the change" \
-  --adapter codex \
-  --execution-mode manual \
-  --json
-
-praxis status --repo-root . --json
-praxis inspect --repo-root .
-praxis build-worker-launch --repo-root . --json
-praxis dispatch --repo-root . --json
-praxis submit-stage-result \
-  --repo-root . \
-  --stage-result-path .praxis/results/rapid-implementing.json \
-  --json
-python3 -m praxis.runtime.observability.eval_pack native-gate --fixtures-dir tests/evals/fixtures
-```
-
-For the operational runtime contract, use
-`src/praxis/workflows/reference/runtime-reference.md`.
+Both entry points orchestrate the same underlying skills.
 
 ## Workflows
 
 ### Craft
 
-```text
-clarifying-intent -> [slicing-stories] -> sketching-design -> driving-tdd
-  -> code-reviewing -> code-improving -> verifying-and-adapting
+Full TDD pipeline with user checkpoints between stages.
+
+```
+clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
+  → code-reviewing → code-improving → verifying-and-adapting
 ```
 
 ### Forge
 
-```text
-clarifying-intent -> [slicing-stories] -> sketching-design -> rapid-implementing
-  -> code-reviewing -> code-improving -> done
+Fast pipeline with one user checkpoint at the spec, then auto-advance.
+
+```
+clarifying-intent → [slicing-stories] → sketching-design → rapid-implementing
+  → code-reviewing → code-improving
 ```
 
-Execution policy stays separate from workflow shape:
+## Skills
 
-- `workflow`: `craft` or `forge`
-- `mode`: `single_story` or `multi_slice`
-- `run.execution.mode`: `manual` or `autopilot`
+| Skill | Purpose |
+| --- | --- |
+| `clarifying-intent` | Turn an underspecified request into a Feature Brief or Story-Level Behavioral Spec. |
+| `slicing-stories` | Split a Feature Brief into an ordered slice map of thin, vertical stories. |
+| `sketching-design` | Produce a lightweight design sketch — change map, pattern match, first test. |
+| `driving-tdd` | Drive Red → Green → Refactor cycles, one acceptance criterion at a time. |
+| `rapid-implementing` | Implement each acceptance criterion without writing new tests. |
+| `code-reviewing` | Independent five-layer review (data, special cases, complexity, breaking changes, practicality). |
+| `code-improving` | Apply fixes for critical/high/medium review findings. |
+| `verifying-and-adapting` | Reconcile spec vs. reality, update the spec, recommend the next action. |
+| `clear-writing` | Revise prose for clarity, precision, and concision. Reusable across skills. |
 
-## Core Features
+## Skill contract
 
-- Installed `praxis` CLI for run control, status, dispatch, checkpoints, and
-  harness inspection
-- Durable `.praxis` state for routing, recovery, and operator inspection
-- Dispatch bundles with launch payloads, dispatch records, context manifests,
-  and bounded tool manifests
-- Approval and policy records with stable reason codes
-- Provider-native resume bridges with durable launch, session, and resume
-  evidence
-- Story-boundary checkpoints with bounded `handoff.json` and `handoff.md`
-- Native Claude and Codex session-start hooks with launch and resume validation
-- Local eval coverage for routing, boundary, resume, trace, native harness, and
-  adapter parity
+Every skill follows the same prompt-in / prose-out contract:
 
-### Feature Docs
+- **Input**: pass the prior artifact (brief, spec, sketch, review, etc.) inline in the prompt, or as a path/handle the skill should read.
+- **Output**: the artifact is returned inline in the response. The caller decides whether to persist it and where.
 
-- `docs/features/cli.md`
-- `docs/features/workflows.md`
-- `docs/features/runtime.md`
-- `docs/features/adapters.md`
-- `docs/features/evals.md`
-
-## Architecture
-
-- `src/praxis/workflows/` defines the shared `craft` and `forge` workflow
-  shape.
-- `src/praxis/contracts/` defines machine-readable state, result, handoff, and
-  harness contracts.
-- `src/praxis/runtime/` implements the runtime control plane, context
-  compilation, dispatch, recovery, hooks, and eval tooling.
-- `.praxis/` is the runtime state area for run cursors, story ledgers, stage
-  results, dispatch bundles, approvals, policies, launch records, worker
-  records, session records, resume records, and traces.
-- Claude-native repo surfaces live in `CLAUDE.md` and `.claude/`.
-- Codex-native repo surfaces live in `AGENTS.md` and `.codex/`.
-
-## Developer References
-
-- Runtime reference: `src/praxis/workflows/reference/runtime-reference.md`
-- Claude wrapper reference: `src/praxis/workflows/reference/claude-wrapper.md`
-- Codex wrapper reference: `src/praxis/workflows/reference/codex-wrapper.md`
-- Shared workflows: `src/praxis/workflows/craft.md`,
-  `src/praxis/workflows/forge.md`
-- Shared contracts: `src/praxis/contracts/`
-- Shared runtime helpers: `src/praxis/runtime/`
-
-## Eval Pack
-
-```bash
-python3 -m praxis.runtime.observability.eval_pack run --fixtures-dir tests/evals/fixtures
-```
+There is no enforced artifact layout. Skills focus on what they resolve; the calling agent or user owns input and output handling.
 
 ## License
 

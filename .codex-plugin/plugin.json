@@ -1,7 +1,7 @@
 {
   "name": "praxis",
   "version": "1.0.0",
-  "description": "Spec-driven Praxis v3 workflows for clarified specs, implementation, review, verification, and autopilot multi-story execution.",
+  "description": "Spec-driven workflows: clarification, slicing, design, implementation, review, improvement, and verification — chained by craft (full TDD) or forge (fast delivery).",
   "author": {
     "name": "chriswch",
     "email": "chriswangwch@gmail.com",
@@ -20,8 +20,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Praxis",
-    "shortDescription": "Spec-driven workflows with manual and autopilot multi-story execution",
-    "longDescription": "Praxis brings its shared v3 workflow to Codex. It includes skills for clarification, slicing, design, implementation, review, improvement, and verification, plus craft and forge entrypoints that share the same run contract, story ledger, and story-boundary runtime helper.",
+    "shortDescription": "Spec-driven workflows from clarification through verification",
+    "longDescription": "Praxis is a collection of agent skills for spec-driven software engineering. Skills cover clarification, slicing, design, implementation, review, improvement, and verification. Two orchestrator skills — craft (full TDD) and forge (fast delivery) — chain them end-to-end.",
     "developerName": "chriswch",
     "category": "Coding",
     "capabilities": [

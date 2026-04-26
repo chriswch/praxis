@@ -1,4 +1,1 @@
 .praxis/
-build/
-dist/
-*.egg-info/

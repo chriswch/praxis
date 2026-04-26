@@ -2,7 +2,7 @@
 name: slicing-stories
 description: Splits a Feature Brief into an ordered slice map of thin, vertical story slices — each capturing scope and build order, while deferring detailed acceptance criteria to downstream `clarifying-intent`. Use after clarifying-intent produces a Feature Brief, when a feature is too large for one story. Triggers on "split this into stories", "slice this feature", "what should we build first", "create a slice map", or when a Feature Brief needs to be broken into deliverable increments.
 context: fork
-allowed-tools: Read, Grep, Glob, Bash(python3 *), Write, Edit
+allowed-tools: Read, Grep, Glob
 ---
 
 # Agile Story Slicer
@@ -13,9 +13,9 @@ Take a Feature Brief (produced by `clarifying-intent`) and split it into an orde
 
 Pipeline: `clarifying-intent [Feature Brief]` → **slicing-stories [slice map]** → `clarifying-intent [Story-Level Behavioral Spec per slice]` → design sketch → TDD.
 
-## Input Contract
+## Input
 
-Expects a **Feature Brief** from `clarifying-intent` containing:
+A **Feature Brief** from `clarifying-intent` containing:
 
 - Problem / why now
 - Goal & success criteria
@@ -23,52 +23,29 @@ Expects a **Feature Brief** from `clarifying-intent` containing:
 - Constraints & risks (if surfaced)
 - Open questions (blocking / deferrable)
 
-Read the Feature Brief from `.praxis/brief.md`.
-
-If the input is not a Feature Brief, stop and return a message asking the orchestrator to run `clarifying-intent` first.
+Pass the brief inline in the prompt, or as a path/handle this skill should read. If the input is not a Feature Brief, stop and recommend running `clarifying-intent` first.
 
 ## Output
 
-Produce two artifacts:
+Return both inline in the response:
 
 1. A human-readable **Slice Map (Markdown)** for reading/review.
-2. A canonical **Slice Map (JSON)** that conforms to `references/slice-map.spec.md`.
+2. A canonical **Slice Map (JSON)** that conforms to `references/slice-map.spec.md` (in a fenced `json` block).
 
-- Put the Markdown first, and the JSON last (in a fenced `json` block).
-- Treat the JSON as the source of truth; ensure the Markdown is derivable from the JSON.
-- Write the JSON to `.praxis/slice-map.json` and optionally render Markdown with:
-  - `python3 scripts/render_slice_map_markdown.py .praxis/slice-map.json > .praxis/slice-map.md`
-- If producing JSON, validate with `python3 scripts/validate_slice_map.py .praxis/slice-map.json`.
+Treat the JSON as the source of truth; the Markdown should be derivable from the JSON.
 
-Also write the structured result file to `.praxis/results/slicing-stories.json`.
+If blocking open questions prevent slicing, return them under a `## Blocking Questions` heading and stop.
 
-## Result Contract
+The caller decides whether to persist the artifact and where. If the JSON is persisted to a path, optional helpers are available:
 
-Follow `../../src/praxis/contracts/stage-result.schema.json`.
-
-The result JSON is the routing source of truth. If you also include a human
-section such as `## Blocking Questions`, keep it consistent with the JSON
-result.
-Leave `route.next_stage = null`; the shared workflow resolves the canonical
-next stage from the workflow and outcome.
-
-Use these outcome codes:
-
-- `slice_map_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`, `route.next_slice_id = <first-slice-id if known>`,
-  `needs_user_input = false`, `needs_confirmation = false`
-- `blocking_questions` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = null`, `needs_user_input = true`
-
-Use `.praxis/slice-map.md` as `summary_path` when it exists; otherwise
-`.praxis/slice-map.json` is acceptable. Even on blocker outcomes, still write
-`.praxis/results/slicing-stories.json`.
+- `python3 scripts/validate_slice_map.py <path>` — validate the JSON against the spec.
+- `python3 scripts/render_slice_map_markdown.py <path>` — render Markdown from the JSON.
 
 ## Workflow
 
 1. **Accept the Feature Brief.**
-   - Read the brief from `.praxis/brief.md`. Do not re-interview the requester — trust the brief's scope, constraints, and open questions.
-   - If there are blocking open questions that prevent slicing, write them clearly in your output under a `## Blocking Questions` heading if helpful, but always write `.praxis/results/slicing-stories.json` with `data.outcome_code = blocking_questions` and stop. The orchestrator will resolve them with the user and re-invoke this skill.
+   - Trust the brief's scope, constraints, and open questions. Do not re-interview the requester.
+   - If there are blocking open questions that prevent slicing, list them under `## Blocking Questions` and stop. The caller resolves them with the user and re-invokes this skill.
 
 2. **Identify seam lines.**
    - Find natural boundaries where the feature can be split into independently deliverable, testable behaviors.
@@ -107,7 +84,6 @@ Use `.praxis/slice-map.md` as `summary_path` when it exists; otherwise
      - Are `scope_in` boundaries clear enough that `clarifying-intent` can spec the slice without asking "what are we building?"
      - Do `scope_out` boundaries prevent overlap between slices?
      - Is anything in the slice map actually a spike (technology validation, integration proof) rather than a user story? If so, extract it as a spike in `clarifying-intent` and remove it from the slice map.
-   - If producing JSON, run `python3 scripts/validate_slice_map.py .praxis/slice-map.json`.
 
 ## Downstream Handoff
 
@@ -126,6 +102,5 @@ When updating, re-validate (step 5) and re-confirm with the requester. Don't tre
 
 - Templates and slicing heuristics: `references/templates.md`
 - Output schema: `references/slice-map.spec.md`
-- Validator: `python3 scripts/validate_slice_map.py .praxis/slice-map.json`
-- Markdown renderer: `python3 scripts/render_slice_map_markdown.py .praxis/slice-map.json`
-- Result schema: `../../src/praxis/contracts/stage-result.schema.json`
+- Optional validator (run on a persisted JSON path): `python3 scripts/validate_slice_map.py <path>`
+- Optional Markdown renderer (run on a persisted JSON path): `python3 scripts/render_slice_map_markdown.py <path>`

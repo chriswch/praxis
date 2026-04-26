@@ -1,7 +1,7 @@
 ---
 name: clarifying-intent
 description: Clarifies ambiguous ideas, features, tasks, user stories, or problems by eliciting intent, constraints, unknowns, risks, and success criteria; asks focused questions; then produces a structured Feature Brief or Story-Level Behavioral Spec with testable acceptance criteria. Use when a request is vague or underspecified, when scoping work, when a user says "I have a rough idea", "help me scope this", "what should we build", "spec this out", or before planning and coding.
-allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Bash(find)
+allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(find)
 ---
 
 # Clarify Intent
@@ -10,62 +10,22 @@ allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Bash(find)
 
 Turn an underspecified request into an actionable, shared understanding. Triage by size: large inputs produce a Feature Brief and get split into stories; small inputs produce a Story-Level Behavioral Spec with testable acceptance criteria ready for TDD.
 
-## Artifact Directory
+## Input
 
-If `$ARGUMENTS` is provided, use it as the artifact directory (for example,
-`.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
+The request to clarify, plus any prior context (a Feature Brief, a story-boundary handoff from a previous slice, an earlier spec). Pass it inline in the prompt, or as a path/handle this skill should read.
 
-- For feature-level clarification, always write the brief to `.praxis/brief.md`.
-  Do not write feature briefs into slice directories.
-- For story-level clarification, write the spec to `{artifact-dir}/spec.md`.
-- Ensure `{artifact-dir}/results/` exists before writing the structured result.
-- Write the structured result to `{artifact-dir}/results/clarifying-intent.json`.
+When a prior story-boundary handoff is supplied (summary, carry-forward context, changed paths, commit metadata), treat it as bounded seed for the new story. Do not let the handoff widen scope — it informs the next clarification pass; it does not replace the new request.
 
-## Result Contract
+## Output
 
-Follow `../../src/praxis/contracts/stage-result.schema.json`.
+Return one of these inline in the response:
 
-The result JSON is the routing source of truth. Human-readable artifacts such as
-`brief.md` and `spec.md` remain for people; the orchestrator should route from
-`results/clarifying-intent.json`.
-Leave `route.next_stage = null`; the shared workflow resolves the canonical
-next stage from the workflow and outcome.
+- **Trivial change**: a one-sentence statement of the change. No spec needed.
+- **Feature Brief**: when the input is feature-sized.
+- **Story-Level Behavioral Spec**: when the input is story-sized (or for a single slice picked from a Feature Brief).
+- **Open questions**: when blocking unknowns remain — list them, ask the user, and stop.
 
-Use these outcome codes:
-
-- `trivial_change` -> `status = skipped`, `route.kind = done`,
-  `route.next_stage = null`
-- `bug_fix_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`, `needs_confirmation = true`
-- `story_spec_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`, `needs_confirmation = true`
-- `feature_brief_ready` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`, `needs_confirmation = true`
-- `clarification_needed` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = null`, `needs_user_input = true`
-
-For feature-level output, use `.praxis/brief.md` as `summary_path`. For
-story-level output, use `{artifact-dir}/spec.md` as `summary_path`. For trivial
-changes, `summary_path` may be `null`.
-
-Even if the stage stops early, is skipped, or needs user clarification, still
-write the result JSON.
-
-## Story-Boundary Handoff Input
-
-When this skill runs for a slice that just started from a story boundary, the
-orchestrator should provide the handoff artifact referenced by
-`run.routing.boundary_handoff_path` as explicit input.
-
-- Read that handoff first.
-- Use its `summary`, `carry_forward_context`, `changed_paths`, and
-  `commit_meta` fields as bounded carry-forward context for the new story.
-- Treat the handoff as the canonical cross-story seed. Do not rely on old
-  transcript history from the previous story.
-- Do not let the handoff widen the new story's scope. It informs the next
-  clarification pass; it does not replace the new story request.
-- If clarification loops back to `clarifying-intent` after user input, reuse the
-  same handoff until the story advances to another stage.
+The caller decides whether to persist the artifact and where.
 
 ## Workflow
 
@@ -73,7 +33,7 @@ orchestrator should provide the handoff artifact referenced by
    - **Trivial** (< half day, obvious change — typo, rename, config tweak): state the change in one sentence and skip to implementation. No spec needed.
    - **Small** (1–2 days, single behavior): go directly to step 4 → produce a Story-Level Behavioral Spec.
    - **Medium** (3–5 days, a few behaviors): clarify at story level → produce a Story-Level Behavioral Spec.
-   - **Large / Epic** (many stories, cross-cutting): clarify at feature level → produce a Feature Brief → split into stories (hand off to `slicing-stories`) → pick one slice → produce a Story-Level Behavioral Spec for that slice.
+   - **Large / Epic** (many stories, cross-cutting): clarify at feature level → produce a Feature Brief → recommend splitting into stories via `slicing-stories` → pick one slice → produce a Story-Level Behavioral Spec for that slice.
    - If unclear, default to feature-level and let the clarification reveal the true size.
 
 2. For technical tasks: understand current behavior from the codebase.
@@ -107,7 +67,7 @@ orchestrator should provide the handoff artifact referenced by
    - Note constraints and decisions as they become clear.
 
 7. Produce the appropriate output.
-   - **Feature-level input** → Feature Brief (goals, scope, constraints, success criteria). Then suggest splitting into vertical slices via `slicing-stories`.
+   - **Feature-level input** → Feature Brief (goals, scope, constraints, success criteria). Then recommend splitting into vertical slices via `slicing-stories`.
    - **Story-level input** → Story-Level Behavioral Spec with Given/When/Then acceptance criteria as the primary artifact. These AC become test cases in the downstream TDD step.
    - While drafting, self-check:
      - Can a developer write failing tests from the acceptance criteria alone?
@@ -121,8 +81,8 @@ orchestrator should provide the handoff artifact referenced by
    - If the requester flags gaps, iterate (return to step 5 or adjust the spec directly).
 
 9. Downstream handoff.
-   - **From Feature Brief** → split into stories via `slicing-stories`, then pick one slice and produce a Story-Level Behavioral Spec.
-   - **From Story-Level Behavioral Spec** → proceed to lightweight design sketch (identify which files/modules the change lives in, pick the approach that fits existing patterns), then TDD (Red → Green → Refactor).
+   - **From Feature Brief** → recommend splitting into stories via `slicing-stories`, then pick one slice and produce a Story-Level Behavioral Spec.
+   - **From Story-Level Behavioral Spec** → recommend proceeding to lightweight design sketch (identify which files/modules the change lives in, pick the approach that fits existing patterns), then TDD (Red → Green → Refactor).
    - **Feedback loop**: If implementation reveals the spec was wrong or incomplete, return here and update the spec before continuing. The spec is a living artifact, not a contract.
    - See `references/templates.md` for handoff details per template.
 
@@ -139,30 +99,7 @@ The full pipeline (`clarifying-intent` → `slicing-stories` → `sketching-desi
 
 ## Default Output
 
-### Trivial
-
-- No spec artifact is required.
-- Still write `{artifact-dir}/results/clarifying-intent.json` with
-  `data.outcome_code = trivial_change`.
-
-### Feature-level (large input)
-
-Use the **Feature Brief** template from `references/templates.md`:
-
-- Problem/why now, goal & success criteria, scope boundaries, constraints & risks (if surfaced), open questions, downstream handoff (split into stories).
-- Write to `.praxis/brief.md`.
-- Write `.praxis/results/clarifying-intent.json` with
-  `data.outcome_code = feature_brief_ready`.
-
-### Story-level (small/medium input)
-
-Use the **Story-Level Behavioral Spec** template from `references/templates.md`:
-
-- Problem (1–2 sentences), acceptance criteria (Given/When/Then — this is the primary artifact), scope boundaries, what must not break, open unknowns, downstream handoff.
-- Write to `.praxis/spec.md` (single-story) or `.praxis/slices/{slice-id}/spec.md` (multi-slice).
-- Write `{artifact-dir}/results/clarifying-intent.json` with
-  `data.outcome_code = story_spec_ready` or `bug_fix_ready`, depending on the
-  route.
+Use the **Feature Brief** template (feature-level) or **Story-Level Behavioral Spec** template (story-level) from `references/templates.md`. For trivial changes, no artifact is required.
 
 For full templates, question sets, and worked examples, read:
 

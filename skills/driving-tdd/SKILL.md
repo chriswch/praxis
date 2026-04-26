@@ -7,32 +7,6 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 
 # TDD Loop
 
-## Artifact Directory
-
-If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
-
-Read the spec from `{artifact-dir}/spec.md`. Read the sketch (if it exists) from `{artifact-dir}/sketch.md`. Write the TDD session summary to `{artifact-dir}/tdd.md`.
-Ensure `{artifact-dir}/results/` exists and write the structured result to
-`{artifact-dir}/results/driving-tdd.json`.
-
-## Result Contract
-
-Follow `../../src/praxis/contracts/stage-result.schema.json`.
-
-The result JSON is the routing source of truth.
-Leave `route.next_stage = null`; the shared workflow resolves the canonical
-next stage from the workflow and outcome.
-
-Use these outcome codes:
-
-- `tdd_complete` -> `status = completed`, `route.kind = proceed`,
-  `route.next_stage = null`
-- `spec_feedback` -> `status = blocked`, `route.kind = ask_user`,
-  `route.next_stage = null`, `needs_user_input = true`
-
-Use `{artifact-dir}/tdd.md` as `summary_path`. Even if the stage stops for
-feedback, still write both `tdd.md` and `results/driving-tdd.json`.
-
 ## Overview
 
 Turn acceptance criteria into working, tested code through strict Red → Green → Refactor cycles. Each cycle converts one acceptance criterion into a failing test, writes the minimum code to pass it, then refactors to let clean design emerge.
@@ -46,6 +20,21 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 - **Story-Level Behavioral Spec** (from `clarifying-intent`) — required. Provides acceptance criteria in Given/When/Then format.
 - **Design Sketch** (from `sketching-design`) — optional. Provides the change map, first test, and approach direction. If absent, derive file locations from codebase exploration.
 
+Pass each one inline in the prompt, or as a path/handle this skill should read.
+
+## Output
+
+Return inline in the response:
+
+- **AC checklist** showing completion status of each acceptance criterion.
+- **Feedback log** — discoveries made during implementation (gaps, contradictions, slice-map impact).
+- **Session summary** (medium+ tasks) — design decisions and notes for downstream stages.
+- If the spec needs revisiting, surface a `## Feedback` section describing the gap and recommend returning to `clarifying-intent`.
+
+Test files and source code are committed directly to the repository as part of each Red → Green → Refactor cycle.
+
+The caller decides whether to persist the AC checklist, feedback log, and session summary, and where.
+
 ## Workflow
 
 1. **Triage and set up.**
@@ -53,7 +42,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
      - **Trivial** (rename, one-liner): Write the test, make it pass, done. Skip the AC checklist and summary.
      - **Small** (1–2 ACs, single file): Full Red → Green → Refactor per AC. Lightweight tracking.
      - **Medium** (3+ ACs, multiple files): Full workflow with AC checklist, feedback log, and session summary.
-     - **Large**: Should have been sliced first. Stop and return a message indicating `slicing-stories` should be run first.
+     - **Large**: Should have been sliced first. Stop and recommend `slicing-stories`.
    - Read the behavioral spec. List every acceptance criterion.
    - If a design sketch exists, read it for the change map and first test.
    - If no sketch, explore the codebase: test framework, file conventions, existing patterns. Just enough to place the first test.
@@ -96,9 +85,9 @@ This is where the real design happens. The design sketch gave a direction; TDD's
    - Note any missing coverage — it goes through the feedback loop, not silently into tests.
 
 8. **Feedback loop.**
-   - Ambiguous or contradictory AC -> document it under a `## Feedback` heading in the TDD session summary, write `{artifact-dir}/results/driving-tdd.json` with `data.outcome_code = spec_feedback`, then stop. The orchestrator will run `clarifying-intent` to resolve the issue and re-invoke TDD.
-   - Missing behavior discovered -> note it. After existing ACs, document it under `## Feedback` and write `data.outcome_code = spec_feedback` for the orchestrator to handle.
-   - Impossible constraint -> flag it under `## Feedback`, write `data.outcome_code = spec_feedback`, and stop.
+   - Ambiguous or contradictory AC → document it under a `## Feedback` heading, recommend returning to `clarifying-intent` to resolve, then stop.
+   - Missing behavior discovered → note it. After existing ACs, document it under `## Feedback` and recommend returning to `clarifying-intent`.
+   - Impossible constraint → flag it under `## Feedback` and stop.
    - Design sketch was wrong → discard or update. Expected and normal. No need to stop for this.
    - Slice map affected → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 9).
    - Track discoveries in the **feedback log**. See `references/templates.md`.
@@ -109,19 +98,16 @@ This is where the real design happens. The design sketch gave a direction; TDD's
      - Did implementation reveal anything that changes the slice map? (new slices, reordering, merging, splitting)
      - Are the remaining slices still the right slices, or has the feature understanding shifted?
      - Is the next slice in the sequence still the right one to pick up?
-   - The orchestrator reads these notes and decides whether to update the slice map before starting the next slice.
+   - The caller reads these notes and decides whether to update the slice map before starting the next slice.
    - Skip this step if the current task is a standalone story (no slice map).
 
 ## Default Output
 
-- Test files covering every acceptance criterion.
-- Source code passing all tests.
-- AC checklist showing completion status.
-- Feedback log (if any discoveries).
-- Session summary (for medium+ tasks). See `references/templates.md`.
-- Write AC checklist, feedback log, and session summary to `{artifact-dir}/tdd.md`.
-- Write `{artifact-dir}/results/driving-tdd.json` with
-  `data.outcome_code = tdd_complete` or `spec_feedback`.
+- Test files covering every acceptance criterion (committed).
+- Source code passing all tests (committed).
+- AC checklist showing completion status (returned inline).
+- Feedback log (returned inline; may be empty).
+- Session summary (medium+ tasks; returned inline). See `references/templates.md`.
 
 ## Guardrails
 
@@ -136,10 +122,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 - **Names are documentation.** `rejects expired tokens` beats `test_token_validation_3`.
 - **No gold-plating.** When all ACs are green and the suite passes, stop. Missing coverage goes through `clarifying-intent`, not into speculative tests.
 - **Commit per AC.** Each Red → Green → Refactor cycle ends with a commit. The reviewer sees a progression where each commit adds one behavior with its test. Don't batch multiple ACs into one commit. Don't commit at Red — a failing test in history breaks bisect and CI.
-- **Feedback is a feature.** Discovering the spec was wrong is the system
-  working. Surface gaps under `## Feedback`, emit
-  `data.outcome_code = spec_feedback`, and stop; don't silently patch around
-  them.
+- **Feedback is a feature.** Discovering the spec was wrong is the system working. Surface gaps under `## Feedback` and recommend returning to `clarifying-intent`; don't silently patch around them.
 
 ## References
 

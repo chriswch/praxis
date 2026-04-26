@@ -2,45 +2,14 @@
 name: verifying-and-adapting
 description: Closes the loop after TDD by verifying the implementation holistically against the behavioral spec, reconciling spec-vs-reality divergences, capturing emerged design knowledge, and routing to the next slice or done. Use after driving-tdd completes. Triggers on "verify this", "are we done?", "check against the spec", "close out this story", "what's next?", "wrap up", or when all TDD acceptance criteria are green and the developer needs to confirm completion and decide the next step.
 context: fork
-allowed-tools: Read, Grep, Glob, Bash, Write, Edit
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Verify and Adapt
 
-## Artifact Directory
-
-If `$ARGUMENTS` is provided, use it as the artifact directory (e.g., `.praxis/slices/S-001/`). Otherwise, default to `.praxis/`.
-
-Read the spec from `{artifact-dir}/spec.md`. Read the TDD session summary from `{artifact-dir}/tdd.md`. Read the sketch (if it exists) from `{artifact-dir}/sketch.md`. Read the slice map (if it exists) from `.praxis/slice-map.json`. Write the verification summary to `{artifact-dir}/verification.md`.
-Ensure `{artifact-dir}/results/` exists and write the structured result to
-`{artifact-dir}/results/verifying-and-adapting.json`.
-
-## Result Contract
-
-Follow `../../src/praxis/contracts/stage-result.schema.json`.
-
-The result JSON is the routing source of truth.
-Leave `route.next_stage = null`; the shared workflow resolves the canonical
-next stage from the workflow and outcome.
-
-Use these outcome codes:
-
-- `done` -> `status = completed`, `route.kind = done`,
-  `route.next_stage = null`
-- `next_slice` -> `status = completed`, `route.kind = next_slice`,
-  `route.next_stage = null`, `route.next_slice_id = <slice-id>`
-- `rework` -> `status = blocked`, `route.kind = rework`,
-  `route.next_stage = null`
-- `escalate` -> `status = blocked`, `route.kind = escalate`,
-  `route.next_stage = null`
-
-Use `{artifact-dir}/verification.md` as `summary_path` when you write it. For
-trivial verification, `summary_path` may be `null`. Even on trivial, blocker,
-or escalation outcomes, still write `results/verifying-and-adapting.json`.
-
 ## Overview
 
-Close out a completed TDD cycle by stepping back from individual tests to check the whole story. Verify that what was built matches what was specified, update the spec where reality diverged, capture what was learned, and route to the next action — next slice, done, or rework.
+Close out a completed TDD cycle by stepping back from individual tests to check the whole story. Verify that what was built matches what was specified, update the spec where reality diverged, capture what was learned, and recommend the next action — next slice, done, or rework.
 
 This is Scrum's "inspect and adapt" applied at the story level, not the sprint level. It's the hinge between "I finished this slice" and "what do I do next."
 
@@ -55,15 +24,28 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
 - **Design Sketch** (from `sketching-design`) — optional. May have been skipped or discarded during TDD.
 - **Slice Map** (from `slicing-stories`) — optional. Only exists for multi-slice features.
 
+Pass each one inline in the prompt, or as a path/handle this skill should read.
+
+## Output
+
+Return inline in the response:
+
+- **Verification summary** (medium+ tasks).
+- **Updated spec** (if any ACs were refined or diverged) — return the revised spec text.
+- **Slice impact notes** (multi-slice only, when downstream slices are affected).
+- **Routing recommendation** — one of: done, next slice (which slice), rework (which gaps), or escalate (feature-level rethink). State the recommendation in plain prose.
+
+The caller decides whether to persist the verification summary and updated spec, and where.
+
 ## Workflow
 
 1. **Validate inputs and triage.**
-   - Gather: behavioral spec, AC checklist, feedback log, session summary (if medium+). If any required input is missing or TDD is incomplete (AC checklist has pending items, suite is not green), stop and return a message indicating `driving-tdd` should finish first.
+   - Gather: behavioral spec, AC checklist, feedback log, session summary (if medium+). If any required input is missing or TDD is incomplete (AC checklist has pending items, suite is not green), stop and recommend that `driving-tdd` finish first.
    - Scale ceremony to task size:
-     - **Trivial** (one AC, one file, obvious change): Skip the full artifact. TDD passed, suite is green, you're done. Still write `{artifact-dir}/results/verifying-and-adapting.json` with `data.outcome_code = done`.
+     - **Trivial** (one AC, one file, obvious change): Skip the full artifact. TDD passed, suite is green, you're done. Recommend done.
      - **Small** (1–2 ACs, single file): Quick sanity check — re-read the spec, confirm all ACs are covered, note if anything changed. No formal artifact.
-     - **Medium** (3+ ACs, multiple files): Full workflow. Produce a verification summary. Update spec if needed.
-     - **Large**: You shouldn't be here — should have been sliced. Stop and return a message indicating `slicing-stories` should be run first.
+     - **Medium** (3+ ACs, multiple files): Full workflow. Produce a verification summary. Return an updated spec if needed.
+     - **Large**: You shouldn't be here — should have been sliced. Stop and recommend `slicing-stories`.
 
 2. **Holistic acceptance check.**
    - Walk through every AC in the _original spec_ (not just the test names). For each one:
@@ -105,43 +87,25 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
    - Emerged design knowledge is actionable for future slices, not a retrospective narrative.
    - Slice impact notes (if any) name specific slice IDs, not general concerns.
 
-7. **Route.**
+7. **Recommend next action.**
    - All ACs verified, spec reconciled, no gaps → **Done** (or **Next slice** if slices remain).
-   - **Last slice of a multi-slice feature** → before routing to Done, run a feature-level completion check. Re-read the Feature Brief's goal and success criteria. Confirm the end-to-end user flow works across all slices. If a success criterion isn't met, identify what's missing — it may be a new slice (return to `slicing-stories`) or a gap in an existing slice (return to `driving-tdd` for that slice).
-   - Spec diverged but implementation is correct → **Update spec** (do it now, inline), then done/next.
-   - Gaps found (missing behavior, AC not fully covered) → **Rework** — log what's missing, return to `driving-tdd` for the specific gaps. After rework, return here to re-verify.
-   - Feature-level rethink needed (scope was wrong, core assumption invalidated) → **Escalate** — return to `clarifying-intent` at the feature level, potentially update the slice map.
-
-Record the routing decision in
-`{artifact-dir}/results/verifying-and-adapting.json`.
-
-If you also mirror the decision in `verification.md`, keep it consistent with
-the JSON result, but treat the JSON as authoritative:
-
-- `data.outcome_code = done` -> story or feature complete
-- `data.outcome_code = next_slice` -> proceed to the next slice and set
-  `route.next_slice_id`
-- `data.outcome_code = rework` -> gaps found, return to TDD
-- `data.outcome_code = escalate` -> feature-level rethink needed
+   - **Last slice of a multi-slice feature** → before recommending Done, run a feature-level completion check. Re-read the Feature Brief's goal and success criteria. Confirm the end-to-end user flow works across all slices. If a success criterion isn't met, identify what's missing — it may be a new slice (return to `slicing-stories`) or a gap in an existing slice (return to `driving-tdd` for that slice).
+   - Spec diverged but implementation is correct → **Update spec** (return the revised text), then done/next.
+   - Gaps found (missing behavior, AC not fully covered) → **Rework** — list what's missing, recommend returning to `driving-tdd` for the specific gaps. After rework, return here to re-verify.
+   - Feature-level rethink needed (scope was wrong, core assumption invalidated) → **Escalate** — recommend returning to `clarifying-intent` at the feature level, potentially updating the slice map.
 
 ## Default Output
 
-- **Verification summary** (for medium+ tasks). See `references/templates.md`.
-- **Updated spec** (if any ACs were refined or diverged — update inline, don't create a separate document).
-- **Slice impact notes** (if multi-slice and any downstream slices are affected).
-- **Routing decision** with rationale.
-- Write `{artifact-dir}/results/verifying-and-adapting.json` with one of:
-  `done`, `next_slice`, `rework`, or `escalate`.
-
-Read `references/templates.md` when producing output.
-Read `references/examples.md` for style reference.
-Write to `{artifact-dir}/verification.md`.
+- **Verification summary** (medium+ tasks). See `references/templates.md`.
+- **Updated spec** (if any ACs were refined or diverged) — returned inline.
+- **Slice impact notes** (multi-slice only, when any downstream slices are affected).
+- **Routing recommendation** with rationale.
 
 ## Downstream Handoff
 
 - **Done (single-slice)**: Story is complete. The updated spec (if changed) and test suite are the deliverables.
 - **Done (last slice of multi-slice)**: Feature is complete. The Feature Brief's success criteria are met across all slices. All updated slice specs and test suites are the deliverables.
-- **Next slice (multi-slice)**: Pick the next slice from the slice map. Return to `clarifying-intent` to produce a Story-Level Behavioral Spec for that slice. Carry forward emerged design knowledge — it informs the next sketch and TDD cycle.
+- **Next slice (multi-slice)**: The caller picks the next slice from the slice map and returns to `clarifying-intent` to produce a Story-Level Behavioral Spec for that slice. Carry forward emerged design knowledge — it informs the next sketch and TDD cycle.
 - **Rework**: Return to `driving-tdd` with the specific gaps. After gaps are closed, return here to re-verify. This is a tight inner loop, not a full pipeline restart.
 - **Escalate**: Return to `clarifying-intent` at feature or story level. May trigger slice map updates via `slicing-stories`. This is the system catching an incorrect assumption before it compounds.
 
@@ -152,9 +116,9 @@ Write to `{artifact-dir}/verification.md`.
 - **Verify behavior, not code.** Check "does this do what the spec said?" not "is this code clean?" Code quality is driving-tdd's refactor step and code-reviewing's job.
 - **Update the spec, don't archive it.** The spec is a living artifact. If reality diverged, the spec should reflect reality. Version control has the history.
 - **Don't re-plan future slices.** Flag impact, don't redesign. Last Responsible Moment — the next slice gets clarified when it's picked up.
-- **Don't add tests here.** If gaps are found, route back to driving-tdd. This step verifies; it doesn't implement.
+- **Don't add tests here.** If gaps are found, recommend returning to driving-tdd. This step verifies; it doesn't implement.
 - **Proportional ceremony.** A 20-minute TDD session doesn't need a 30-minute verification. Scale with complexity.
-- **No gold-plating disguised as verification.** "We should also add logging" is a new requirement, not a verification finding. Route it through clarifying-intent.
+- **No gold-plating disguised as verification.** "We should also add logging" is a new requirement, not a verification finding. Recommend running it through clarifying-intent.
 - **Feedback is forward-looking.** Capture what matters for the next slice, not a retrospective on what went wrong.
 
 ## References
