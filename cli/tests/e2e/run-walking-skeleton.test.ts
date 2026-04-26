@@ -47,4 +47,13 @@ describe("praxis run (CLI surface)", () => {
       expect(existsSync(join(dir, ".praxis"))).toBe(false);
     });
   });
+
+  it("rejects unknown flags (e.g. typo of --no-pause) before any disk write", async () => {
+    await withTempRepo(async ({ dir }) => {
+      const result = runCli(["run", "--nopause", "x"], dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/unknown flag: --nopause/);
+      expect(existsSync(join(dir, ".praxis"))).toBe(false);
+    });
+  });
 });
