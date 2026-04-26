@@ -619,6 +619,50 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
   });
 });
 
+describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
+  it("deps.commit returns {ok:false, reason} → state.json shows status:failed, stopReason:commit_failed, error:reason; 03-commit.txt is the agent message only", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const commitMessage = "feat: nope";
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+        [{ messages: stageMessages("sess_commit", commitMessage) }],
+      ]);
+      const reason = "git commit failed: pre-commit hook rejected";
+      const commit = recordingCommit({ ok: false, reason });
+
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, commit),
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.status).toBe("failed");
+      expect(result.failedStageId).toBe("auto-commit");
+      expect(result.reason).toBe(reason);
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir!, "state.json"), "utf8"),
+      );
+      const ac = persisted.stages["auto-commit"];
+      expect(ac.status).toBe("failed");
+      expect(ac.stopReason).toBe("commit_failed");
+      expect(ac.error).toBe(reason);
+      // No SHA captured on failure.
+      expect(ac.commitSha).toBeUndefined();
+
+      // 03-commit.txt holds the agent message only — no SHA prefix.
+      expect(readFileSync(join(result.runDir!, "03-commit.txt"), "utf8")).toBe(
+        commitMessage,
+      );
+
+      // commit was attempted exactly once.
+      expect(commit.calls.length).toBe(1);
+    });
+  });
+});
+
 describe("runner skips auto-commit SDK call when tree is clean (S-006 AC-5)", () => {
   it("clean tree before auto-commit → no SDK call, no deps.commit, state shows completed/skipped, no 03-commit.txt", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
