@@ -59,12 +59,7 @@ export function buildInitialState(input: InitialStateInput): State {
   };
 }
 
-/** Write `state.json` (pretty-printed, trailing newline) to the run dir. */
-export function writeInitialState(runDir: string, state: State): void {
-  writeState(runDir, state);
-}
-
-/** Persist the current `state.json` (pretty-printed, trailing newline). */
+/** Persist `state.json` (pretty-printed, trailing newline) to the run dir. */
 export function writeState(runDir: string, state: State): void {
   writeFileSync(
     join(runDir, "state.json"),

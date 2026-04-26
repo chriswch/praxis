@@ -59,6 +59,8 @@ export type StageResult = {
   turns: number;
   stopReason: string;
   cancelReason?: "timeout" | "sigint";
+  /** When stopReason === "validator_failed", the validator's reason. */
+  validatorReason?: string;
   sessionId: string;
   tokens: {
     input: number;
@@ -107,9 +109,6 @@ export type Deps = {
   rng: (n: number) => Uint8Array;
   createQueryFn: CreateQueryFn;
 };
-
-/** Backwards-compat alias kept so any older external import keeps compiling. */
-export type AgentQuery = AsyncIterable<SdkMessage> & { sessionId?: string };
 
 const PROMPTS_DIR = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -235,7 +234,7 @@ export async function runStage(
     let turns = 0;
     const tokens = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
     let usd = 0;
-    let lastValidationReason: string | undefined;
+    let validatorReason: string | undefined;
 
     let pendingText = "";
     for await (const msg of handle.stream) {
@@ -272,10 +271,10 @@ export async function runStage(
           attempt++;
           if (attempt >= 2) {
             stopReason = "validator_failed";
-            lastValidationReason = verdict.reason;
+            validatorReason = verdict.reason;
             break;
           }
-          lastValidationReason = verdict.reason;
+          validatorReason = verdict.reason;
           handle.pushUserMessage(
             `Your previous output did not match the required schema: ${verdict.reason}. Re-emit only the markdown artifact.`,
           );
@@ -286,16 +285,12 @@ export async function runStage(
       }
     }
 
-    // `lastValidationReason` is captured to support a future `state.error`
-    // field once the orchestrator wires per-stage state updates (S-002 next
-    // cycle). We void it here so an unused-binding lint won't trip.
-    void lastValidationReason;
-
     return {
       finalText,
       turns,
       stopReason,
       cancelReason,
+      validatorReason,
       sessionId,
       tokens,
       usd,

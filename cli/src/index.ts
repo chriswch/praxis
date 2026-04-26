@@ -8,17 +8,13 @@ export type {
 export { runStage } from "./workflow/stage.js";
 export type {
   AgentEvent,
-  AgentQuery,
   CreateQueryFn,
   Deps,
   StageContext,
   StageResult,
 } from "./workflow/stage.js";
 export { formatRunId } from "./workflow/run-id.js";
-export {
-  buildInitialState,
-  writeInitialState,
-} from "./workflow/state.js";
+export { buildInitialState, writeState } from "./workflow/state.js";
 export type { State, StageState, StageStatus } from "./workflow/state.js";
 export { writeIntent } from "./workflow/artifacts.js";
 export type {

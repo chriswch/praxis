@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { Deps, StageContext } from "./stage.js";
+import type { Deps, StageContext, StageResult } from "./stage.js";
 import { runStage } from "./stage.js";
 import { formatRunId } from "./run-id.js";
 import { writeArtifact, writeIntent } from "./artifacts.js";
@@ -101,6 +101,16 @@ export async function runWorkflow(
   return executeStages(state, config, ctx, deps, reporter, runDir, runId);
 }
 
+type StepOutcome =
+  | { kind: "continue" }
+  | { kind: "paused"; stageId: string; artifactPath: string }
+  | {
+      kind: "failed";
+      stageId: string;
+      reason: string;
+      status: "failed" | "cancelled";
+    };
+
 async function executeStages(
   state: State,
   config: PraxisConfig,
@@ -110,123 +120,182 @@ async function executeStages(
   runDir: string,
   runId: string,
 ): Promise<RunWorkflowResult> {
-  const artifactPaths: Record<string, string> = {};
-  const parentSignal = ctx.signal ?? new AbortController().signal;
-
   for (let i = 0; i < config.workflow.length; i++) {
-    const stage = config.workflow[i];
-    state.currentStage = stage.id;
-    state.stages[stage.id] = { status: "running" };
-    writeState(runDir, state);
-    reporter.stageStart(stage, i, config.workflow.length);
-
-    const stageCtx: StageContext = {
-      intent: ctx.intent,
+    const outcome = await runOneStage(
+      config.workflow[i],
+      i,
+      config,
+      state,
+      ctx,
+      deps,
+      reporter,
       runDir,
       runId,
-      reporter,
-      signal: parentSignal,
-      artifactPaths: { ...artifactPaths },
-    };
-
-    const result = await runStage(stage, stageCtx, {
-      createQueryFn: deps.createQueryFn,
-    });
-
-    // Always write whatever the agent emitted — even on validator failure
-    // (product.md §5.2 "partial output is still written").
-    const artifactPath = writeArtifact(
-      runDir,
-      stage.outputArtifact,
-      result.finalText,
     );
-    artifactPaths[stage.id] = artifactPath;
-
-    const endedAt = toIsoSeconds(deps.clock());
-    // §11: SIGINT → cancelled; timeoutMs / validator_failed → failed.
-    let stageStatus: StageState["status"] = "completed";
-    let errorMessage: string | undefined;
-    if (result.cancelReason === "sigint") {
-      stageStatus = "cancelled";
-      errorMessage = "cancelled by user (SIGINT)";
-    } else if (result.cancelReason === "timeout") {
-      stageStatus = "failed";
-      errorMessage = "stage timed out";
-    } else if (result.stopReason === "validator_failed") {
-      stageStatus = "failed";
-      errorMessage = describeValidatorFailure(stage, result.finalText);
-    }
-    const failed = stageStatus !== "completed";
-
-    const stageState: StageState = {
-      status: stageStatus,
-      endedAt,
-      stopReason: result.stopReason,
-      sessionId: result.sessionId,
-      tokens: result.tokens,
-      usd: result.usd,
-    };
-    if (errorMessage) stageState.error = errorMessage;
-    state.stages[stage.id] = stageState;
-    state.cost.totalTokens += result.tokens.input + result.tokens.output;
-    state.cost.totalUsd += result.usd;
-    writeState(runDir, state);
-
-    reporter.stageEnd(stage, {
-      ok: !failed,
-      artifactPath,
-      sessionId: result.sessionId,
-      error: failed ? errorMessage : undefined,
-    });
-
-    if (failed) {
-      return {
-        ok: false,
-        reason: errorMessage ?? "stage failed",
-        runId,
-        runDir,
-        failedStageId: stage.id,
-        status: stageStatus === "cancelled" ? "cancelled" : "failed",
-      };
-    }
-
-    if (stage.pauseAfter) {
-      const nextStage = config.workflow[i + 1];
-      if (nextStage) {
-        state.currentStage = nextStage.id;
-        writeState(runDir, state);
-      }
-      reporter.paused(runId, stage.id, artifactPath);
-      // Pause hint to stdout — surfaces independently of the Reporter so the
-      // CLI shell can print the canonical hint even with a no-op reporter.
-      process.stdout.write(
-        `praxis: paused after ${stage.id}. Review ${artifactPath} then run: praxis advance ${runId}\n`,
-      );
+    if (outcome.kind === "paused") {
       return {
         ok: true,
         runId,
         runDir,
         paused: true,
-        pausedStageId: stage.id,
-        artifactPath,
+        pausedStageId: outcome.stageId,
+        artifactPath: outcome.artifactPath,
+      };
+    }
+    if (outcome.kind === "failed") {
+      return {
+        ok: false,
+        reason: outcome.reason,
+        runId,
+        runDir,
+        failedStageId: outcome.stageId,
+        status: outcome.status,
       };
     }
   }
 
-  return {
-    ok: true,
-    runId,
-    runDir,
-    paused: false,
-  };
+  return { ok: true, runId, runDir, paused: false };
 }
 
-/** Re-run the stage's validator against the partial text to surface a reason. */
-function describeValidatorFailure(stage: StageConfig, text: string): string {
-  if (!stage.validate) return "stage failed";
-  const v = stage.validate(text);
-  if (!v.ok) return v.reason;
-  return "stage failed";
+async function runOneStage(
+  stage: StageConfig,
+  index: number,
+  config: PraxisConfig,
+  state: State,
+  ctx: RunWorkflowContext,
+  deps: Deps,
+  reporter: Reporter,
+  runDir: string,
+  runId: string,
+): Promise<StepOutcome> {
+  state.currentStage = stage.id;
+  state.stages[stage.id] = { status: "running" };
+  writeState(runDir, state);
+  reporter.stageStart(stage, index, config.workflow.length);
+
+  const stageCtx: StageContext = {
+    intent: ctx.intent,
+    runDir,
+    runId,
+    reporter,
+    signal: ctx.signal ?? new AbortController().signal,
+    artifactPaths: collectArtifactPaths(state, config, runDir, stage.id),
+  };
+
+  const result = await runStage(stage, stageCtx, {
+    createQueryFn: deps.createQueryFn,
+  });
+
+  // Always write whatever the agent emitted — even on validator failure
+  // (product.md §5.2 "partial output is still written").
+  const artifactPath = writeArtifact(
+    runDir,
+    stage.outputArtifact,
+    result.finalText,
+  );
+
+  const { stageStatus, errorMessage } = classifyOutcome(result);
+  const failed = stageStatus !== "completed";
+
+  const stageState: StageState = {
+    status: stageStatus,
+    endedAt: toIsoSeconds(deps.clock()),
+    stopReason: result.stopReason,
+    sessionId: result.sessionId,
+    tokens: result.tokens,
+    usd: result.usd,
+  };
+  if (errorMessage) stageState.error = errorMessage;
+  state.stages[stage.id] = stageState;
+  state.cost.totalTokens += result.tokens.input + result.tokens.output;
+  state.cost.totalUsd += result.usd;
+  writeState(runDir, state);
+
+  reporter.stageEnd(stage, {
+    ok: !failed,
+    artifactPath,
+    sessionId: result.sessionId,
+    error: errorMessage,
+  });
+
+  if (failed) {
+    return {
+      kind: "failed",
+      stageId: stage.id,
+      reason: errorMessage ?? "stage failed",
+      status: stageStatus === "cancelled" ? "cancelled" : "failed",
+    };
+  }
+
+  if (stage.pauseAfter) {
+    const nextStage = config.workflow[index + 1];
+    if (nextStage) {
+      state.currentStage = nextStage.id;
+      writeState(runDir, state);
+    }
+    reporter.paused(runId, stage.id, artifactPath);
+    // Pause hint to stdout — surfaces independently of the Reporter so the
+    // CLI shell can print the canonical hint even with a no-op reporter.
+    process.stdout.write(
+      `praxis: paused after ${stage.id}. Review ${artifactPath} then run: praxis advance ${runId}\n`,
+    );
+    return { kind: "paused", stageId: stage.id, artifactPath };
+  }
+
+  return { kind: "continue" };
+}
+
+/**
+ * Translate the SDK / harness signals on `StageResult` into the §9 stage
+ * status + a human-readable error message (when applicable).
+ *
+ * Per spec §11:
+ *   - SIGINT (`cancelReason === "sigint"`) → `cancelled`
+ *   - timeout (`cancelReason === "timeout"`) → `failed`
+ *   - validator failure (`stopReason === "validator_failed"`) → `failed`
+ *   - otherwise → `completed`
+ *
+ * Validator failure messages are taken straight off `result.validatorReason`
+ * — runStage already ran the validator and captured the verdict, so the
+ * runner does not re-run it here.
+ */
+function classifyOutcome(
+  result: StageResult,
+): { stageStatus: StageState["status"]; errorMessage?: string } {
+  if (result.cancelReason === "sigint") {
+    return { stageStatus: "cancelled", errorMessage: "cancelled by user (SIGINT)" };
+  }
+  if (result.cancelReason === "timeout") {
+    return { stageStatus: "failed", errorMessage: "stage timed out" };
+  }
+  if (result.stopReason === "validator_failed") {
+    return {
+      stageStatus: "failed",
+      errorMessage: result.validatorReason ?? "stage failed",
+    };
+  }
+  return { stageStatus: "completed" };
+}
+
+/**
+ * Resolve artifact paths for stages already completed in this run. Derived
+ * straight from `state.stages[id].status === "completed"` plus the on-disk
+ * filename so the runner doesn't keep a parallel cache.
+ */
+function collectArtifactPaths(
+  state: State,
+  config: PraxisConfig,
+  runDir: string,
+  currentStageId: string,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const s of config.workflow) {
+    if (s.id === currentStageId) break;
+    if (state.stages[s.id]?.status === "completed") {
+      out[s.id] = join(runDir, s.outputArtifact);
+    }
+  }
+  return out;
 }
 
 /** ISO-8601 UTC string truncated to whole seconds, e.g. `2026-04-25T14:30:12Z`. */
