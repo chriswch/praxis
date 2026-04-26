@@ -121,6 +121,40 @@ describe("commit() empty tree (AC-2)", () => {
   });
 });
 
+describe("commit() preserves multi-line Conventional-Commits bodies (L-1)", () => {
+  it("subject + blank line + multi-paragraph body round-trip verbatim through git log -1 --pretty=%B", async () => {
+    await withTempRepo(async ({ dir }) => {
+      writeFileSync(join(dir, "feature.txt"), "feature\n", "utf8");
+
+      const message = [
+        "feat: add multi-paragraph body",
+        "",
+        "First paragraph explains why this change is needed and what",
+        "problem it solves for the caller.",
+        "",
+        "Second paragraph notes a follow-up the reviewer should know",
+        "about before approving.",
+      ].join("\n");
+
+      const result = commit(dir, message);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("unreachable");
+      if (!("sha" in result)) throw new Error("expected sha on result");
+
+      // %B is the raw commit message body (subject + body, no trailers
+      // mangling). git appends trailing newlines after the body; strip them
+      // for the verbatim comparison so the load-bearing assertion is on the
+      // multi-paragraph content, not git's terminator policy.
+      const body = spawnSync("git", ["log", "-1", "--pretty=%B"], {
+        cwd: dir,
+        encoding: "utf8",
+      });
+      expect(body.status).toBe(0);
+      expect(body.stdout.replace(/\n+$/, "")).toBe(message);
+    });
+  });
+});
+
 describe("commit() happy path (AC-1)", () => {
   it("runs git add -A and git commit -m and returns {ok:true, sha} matching git rev-parse HEAD", async () => {
     await withTempRepo(async ({ dir }) => {
