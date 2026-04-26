@@ -421,7 +421,10 @@ export async function advanceWorkflow(
   }
 
   if (status === "pending") {
-    // Paused path requires the prior stage to be completed AND pauseAfter:true.
+    // Paused path: the prior stage must be `completed` AND have `pauseAfter:
+    // true`. A bare-pending current stage with no paused predecessor is the
+    // same shape as a freshly-bootstrapped run that never started — not
+    // something `advance` should kick off.
     const prev = idx > 0 ? config.workflow[idx - 1] : undefined;
     const prevState = prev ? state.stages[prev.id] : undefined;
     if (
@@ -429,8 +432,10 @@ export async function advanceWorkflow(
       prevState?.status === "completed" &&
       prev.pauseAfter === true
     ) {
-      // Falls into paused branch in subsequent ACs.
-      return paused(state, config, ctx, deps, reporter, runDir, runId, idx, prev.id);
+      reporter.resuming?.("approved", runId, prev.id);
+      state.currentStage = stage.id;
+      writeState(runDir, state);
+      return executeStages(state, config, ctx, deps, reporter, runDir, runId, idx);
     }
     return {
       ok: false,
@@ -517,21 +522,3 @@ function recoverFailedStage(
   return { ok: true };
 }
 
-async function paused(
-  state: State,
-  config: PraxisConfig,
-  ctx: AdvanceWorkflowContext,
-  deps: Deps,
-  reporter: Reporter,
-  runDir: string,
-  runId: string,
-  startIndex: number,
-  prevStageId: string,
-): Promise<RunWorkflowResult> {
-  // Reporter §11 line lands in the AC-13 cycle. Still mark currentStage and
-  // dispatch — happy path covered in AC-3.
-  reporter.resuming?.("approved", runId, prevStageId);
-  state.currentStage = config.workflow[startIndex].id;
-  writeState(runDir, state);
-  return executeStages(state, config, ctx, deps, reporter, runDir, runId, startIndex);
-}
