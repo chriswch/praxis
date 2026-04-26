@@ -2,7 +2,7 @@
 
 A CLI that drives an AI coding agent through a deterministic, resumable workflow. State your intent in one line; Praxis handles clarification, implementation, and commit.
 
-> **Status: clarify-assess shipped.** `praxis run "<intent>"` runs pre-flight (git repo + dirty-tree gates, `.gitignore` touch-up), executes the `clarify-assess` stage against the Claude Agent SDK, validates the artifact's H2 schema with one corrective retry, writes the artifact + per-stage state, and pauses with an `advance` hint. `implement` and `auto-commit` execution lands in S-005/S-006. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for the rest of the v0.1 build plan and v0.2 roadmap.
+> **Status: clarify-assess shipped + line reporter wired.** `praxis run "<intent>"` runs pre-flight (git repo + dirty-tree gates, `.gitignore` touch-up), executes the `clarify-assess` stage against the Claude Agent SDK, validates the artifact's H2 schema with one corrective retry, writes the artifact + per-stage state, and pauses with an `advance` hint. The `LineReporter` (product.md §8) now formats stage start / streamed assistant text / tool calls / errors / stage end / pause / run-done lines, with 100ms delta coalescing. `--no-pause` (full autopilot) is wired through. `implement` and `auto-commit` execution lands in S-005/S-006. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for the rest of the v0.1 build plan and v0.2 roadmap.
 
 ## What it does
 
@@ -24,7 +24,7 @@ praxis advance <run-id>      # resume after a paused or failed stage
 Flags on `run`:
 
 - `--allow-dirty` — proceed even if the working tree has uncommitted changes. Pre-existing dirt will be bundled into the run's commit once the auto-commit stage lands. Without this flag the run aborts with the dirty file list and remediation hints — pre-flight runs before any disk write so a refused run leaves no orphan `.praxis/`.
-- `--no-pause` — disable all pause gates (full autopilot). Not yet wired; today the run always pauses after `clarify-assess`.
+- `--no-pause` — disable all pause gates (full autopilot). Stages still run + commit their artifacts; the runner just advances through `pauseAfter: true` stages instead of stopping.
 
 The run-id is printed to stdout at the start of every run.
 

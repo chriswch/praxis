@@ -8,7 +8,7 @@ Items are organized by phase, then grouped by surface area. Mark items done by m
 
 ## v0.1 (MVP) — to build
 
-S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<intent>"` writes `00-intent.txt` + `state.json`, run-id format pinned, DI seams (clock, RNG, `createQueryFn`) threaded through `runStage`. S-002 shipped on 2026-04-26: pre-flight, zod schemas, default 3-stage workflow, `clarify-assess` execution + validator + retry through the SDK seam, artifact write, per-stage state updates, pause hint, `--allow-dirty` flag. The list below is the rest of the v0.1 build, sequenced so each chunk is testable on its own.
+S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<intent>"` writes `00-intent.txt` + `state.json`, run-id format pinned, DI seams (clock, RNG, `createQueryFn`) threaded through `runStage`. S-002 shipped on 2026-04-26: pre-flight, zod schemas, default 3-stage workflow, `clarify-assess` execution + validator + retry through the SDK seam, artifact write, per-stage state updates, pause hint, `--allow-dirty` flag. S-003 shipped on 2026-04-26: full §8 LineReporter (stage start/text/tool/error/stage end/paused/runDone) with 100ms streaming coalesce, tool-input briefs, Stage 0 synthesised line, `--no-pause` autopilot, Reporter on `Deps`, runner emits AgentEvents per assistant block. The list below is the rest of the v0.1 build, sequenced so each chunk is testable on its own.
 
 ### 1. Project bootstrap
 
@@ -42,7 +42,7 @@ S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<
 
 ### 5. Workflow orchestration
 
-- [x] `src/workflow/runner.ts` — sequential stage loop honoring `pauseAfter` and `--no-pause`. (§5) — `pauseAfter` honored in S-002; `--no-pause` flag still pending
+- [x] `src/workflow/runner.ts` — sequential stage loop honoring `pauseAfter` and `--no-pause`. (§5) — `pauseAfter` honored in S-002; `--no-pause` shipped in S-003
 - [x] Stage 0 intent capture writes `00-intent.txt` with the raw arg, no agent. (§5.1) — S-001
 - [x] Stage 1 `clarify-assess`: `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash]`, `timeoutMs: 900_000`, no `maxTurns`, `pauseAfter: true`. (§5.2) — S-002
 - [ ] Stage 2 `implement`: `bypassPermissions`, all tools, `timeoutMs: 1_800_000`, no `maxTurns`, prompt references the clarify-assess artifact by path so the agent reads it itself. (§5.3) — config landed in S-002; execution pending
@@ -52,7 +52,7 @@ S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<
 ### 6. CLI surface
 
 - [ ] `praxis run "<intent>"` and `praxis advance <run-id>` via commander. (§4) — manual `run` parsing shipped in S-001/S-002; commander adoption + `advance` pending
-- [x] Flags: `--allow-dirty`. (§4) — S-002 (`--no-pause` still pending)
+- [x] Flags: `--allow-dirty` (S-002), `--no-pause` (S-003). (§4)
 - [x] Print run-id to stdout at start of every `run`. (§4) — S-001
 - [ ] Surface the implement-stage risk warning in `praxis run --help` and the README. (§4) — README warning shipped in S-001; `--help` text pending the commander adoption
 
@@ -74,12 +74,12 @@ S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<
 ### 9. Reporter / UI
 
 - [x] `Reporter` interface in `src/ui/reporter.ts` with the §8 method set. — S-001 (no-op `LineReporter` skeleton in place)
-- [ ] `LineReporter` (stdout) implementation matching the §8 formatting rules:
-  - assistant text wrapped to terminal width, prefixed ` ›`, summarized to first sentence if > 200 chars, deltas coalesced for 100ms before printing.
-  - `tool_use` rendered as `  › ToolName(brief)`; never print tool input/output bodies.
-  - `tool_result` silent on success, `  ✗ ToolName failed` on failure.
-  - errors rendered in red, multi-line OK.
-- [ ] `runDone` prints total tokens + USD plus a per-stage breakdown with each stage's `sessionId`. (§8)
+- [x] `LineReporter` (stdout) implementation matching the §8 formatting rules:
+  - assistant text wrapped to terminal width, prefixed ` ›`, summarized to first sentence if > 200 chars, deltas coalesced for 100ms before printing. — S-003
+  - `tool_use` rendered as `  › ToolName(brief)`; never print tool input/output bodies. — S-003
+  - `tool_result` silent on success, `  ✗ ToolName failed` on failure. — S-003
+  - errors rendered in red, multi-line OK. — S-003
+- [x] `runDone` prints total tokens + USD plus a per-stage breakdown with each stage's `sessionId`. (§8) — S-003
 
 ### 10. Documentation
 

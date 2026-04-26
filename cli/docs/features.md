@@ -6,6 +6,30 @@ Track planned work in [backlog.md](backlog.md). The product.md document remains 
 
 ## Shipped
 
+### S-003 LineReporter + `--no-pause`
+
+**Shipped:** 2026-04-26
+**Spec reference:** product.md §4, §5.1, §8
+
+`LineReporter` (stdout/stderr) now formats every §8 line: stage start as `[N/total stage-id] starting…`, streaming assistant text wrapped to terminal width with a ` ›` prefix and 3-space-aligned continuations, tool use as `  › ToolName(brief)` with input-aware briefs (Read/Edit/Write → file_path, Glob/Grep → pattern, Bash/Task → truncated command/description), tool results silent on success and `  ✗ ToolName failed` on failure, errors written to stderr (red when stderr is a TTY and `NO_COLOR` is unset), stage end as artifact + session + done/failed lines, paused replacing the legacy direct stdout hint, and `runDone` printing totals + per-stage breakdown on every terminal path. Streaming text deltas are coalesced for 100ms via `EventBuffer` and force-flushed before every structural boundary line. Stage 0 (intent capture) is synthesised by the runner as `[0/N intent] captured → 00-intent.txt` without a Reporter interface change. `--no-pause` is parsed by `cli.ts` and threaded through `RunWorkflowContext.noPause` so autopilot runs through every `pauseAfter: true` stage. Long assistant bodies (> 200 chars) are summarised to the first sentence (`/[.!?](\s|$)/`) and fall back to the first 200 chars + `…` when no boundary matches.
+
+- Inputs: same `praxis run` surface plus optional `--no-pause`. Reporter is constructed once in `cli.ts` and threaded via `Deps.reporter`.
+- Outputs: structured stdout + stderr lines per §8; identical state.json and artifact behaviour.
+- Notable bounds:
+  - Reporter interface frozen at §8 — Stage 0 line is duck-typed via a `LineReporter.stage0Captured` side-channel rather than a new method.
+  - `runDone` is called on success, paused, and failed/cancelled paths uniformly.
+  - `EventBuffer.flush()` is invoked before stageStart, stageEnd, paused, runDone, and any non-text stageEvent so coalesced text always lands before the next structural line.
+  - Tool-result name resolution uses a per-stage `tool_use_id → name` cache; unknown ids fall back to `Tool`.
+  - Color is enabled only when stderr is a TTY and `NO_COLOR` is unset; e2e CLI runs set `NO_COLOR=1` so output stays plain.
+- Verified by:
+  - `cli/tests/ui/line-formatter.test.ts` — every formatter rule (AC-2/4/5/7/8/9/10/11/12 + AC-3 stage 0 helper).
+  - `cli/tests/ui/brief.test.ts` — AC-16 input-mapper table + truncation.
+  - `cli/tests/ui/event-buffer.test.ts` — AC-6 100ms coalesce window with `vi.useFakeTimers` and the injectable scheduler.
+  - `cli/tests/ui/line-reporter.test.ts` — composer behaviour, color toggle, structural-boundary flush ordering.
+  - `cli/tests/workflow/reporter-orchestration.test.ts` — runner uses `Deps.reporter` (AC-15), drops the legacy stdout pause line (AC-11), calls `runDone` on every terminal path (AC-12), `--no-pause` overrides `pauseAfter` (AC-13), Stage 0 line lands before stage 1 (AC-3).
+  - `cli/tests/workflow/stage-events.test.ts` — `runStage` emits `assistant_text`/`tool_use`/`tool_result` AgentEvents with the `id`-cached tool name and `is_error` translation.
+  - `cli/tests/e2e/run-walking-skeleton.test.ts` — manual flag parser still rejects unknown flags (AC-14 negative case) before any disk write.
+
 ### S-002 pre-flight + clarify-assess via SDK seam
 
 **Shipped:** 2026-04-26
