@@ -1,54 +1,72 @@
 import { describe, it, expect } from "vitest";
 import { scriptedQuery } from "./scripted-query.js";
-import type { AgentEvent } from "../../src/workflow/stage.js";
+import type { SdkMessage } from "../../src/workflow/stage.js";
+
+const initMsg: SdkMessage = {
+  type: "system",
+  subtype: "init",
+  session_id: "s-1",
+  model: "claude-opus-4-7",
+};
+const resultMsg: SdkMessage = {
+  type: "result",
+  subtype: "success",
+  stop_reason: "end_turn",
+  total_cost_usd: 0,
+  usage: {
+    input_tokens: 1,
+    output_tokens: 2,
+    cache_read_input_tokens: 0,
+    cache_creation_input_tokens: 0,
+  },
+  num_turns: 1,
+  session_id: "s-1",
+};
 
 describe("scriptedQuery", () => {
   it("returns one pre-recorded turn-stream per call, in order", async () => {
-    const events1: AgentEvent[] = [{ type: "assistant_text", text: "hi" }];
-    const events2: AgentEvent[] = [
-      { type: "tool_use", name: "Read", brief: "x.ts" },
-      { type: "assistant_text", text: "done" },
-    ];
     const factory = scriptedQuery([
-      { events: events1, sessionId: "s-1" },
-      { events: events2, sessionId: "s-2" },
+      { messages: [initMsg, resultMsg] },
+      { messages: [{ ...initMsg, session_id: "s-2" }, { ...resultMsg, session_id: "s-2" }] },
     ]);
 
     const stream1 = factory({
       systemPrompt: "",
-      userPrompt: "",
+      settingSources: ["user", "project"],
       signal: new AbortController().signal,
+      initialUserPrompt: "",
     });
-    expect(stream1.sessionId).toBe("s-1");
-    const collected1: AgentEvent[] = [];
-    for await (const e of stream1) collected1.push(e);
-    expect(collected1).toEqual(events1);
+    const collected1: SdkMessage[] = [];
+    for await (const m of stream1.stream) collected1.push(m);
+    expect(collected1.length).toBe(2);
+    expect(collected1[0].type).toBe("system");
 
     const stream2 = factory({
       systemPrompt: "",
-      userPrompt: "",
+      settingSources: ["user", "project"],
       signal: new AbortController().signal,
+      initialUserPrompt: "",
     });
-    expect(stream2.sessionId).toBe("s-2");
-    const collected2: AgentEvent[] = [];
-    for await (const e of stream2) collected2.push(e);
-    expect(collected2).toEqual(events2);
+    const collected2: SdkMessage[] = [];
+    for await (const m of stream2.stream) collected2.push(m);
+    expect(collected2.length).toBe(2);
+    expect(collected2[1]).toMatchObject({ session_id: "s-2" });
   });
 
   it("throws once scripts are exhausted", () => {
-    const factory = scriptedQuery([
-      { events: [{ type: "assistant_text", text: "only" }] },
-    ]);
+    const factory = scriptedQuery([{ messages: [initMsg, resultMsg] }]);
     factory({
       systemPrompt: "",
-      userPrompt: "",
+      settingSources: ["user", "project"],
       signal: new AbortController().signal,
+      initialUserPrompt: "",
     });
     expect(() =>
       factory({
         systemPrompt: "",
-        userPrompt: "",
+        settingSources: ["user", "project"],
         signal: new AbortController().signal,
+        initialUserPrompt: "",
       }),
     ).toThrow(/ran out of scripted turns/);
   });
