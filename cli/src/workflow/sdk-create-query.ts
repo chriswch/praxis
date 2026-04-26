@@ -67,6 +67,12 @@ export const sdkCreateQueryFn: CreateQueryFn = (input) => {
   }
   if (input.allowedTools) options.allowedTools = input.allowedTools;
   if (input.permissionMode) options.permissionMode = input.permissionMode;
+  // bypassPermissions is the only mode where the SDK requires the explicit
+  // `allowDangerouslySkipPermissions: true` flag (sdk.d.ts). Mirror the
+  // permissionMode branch so the two stay paired.
+  if (input.permissionMode === "bypassPermissions") {
+    options.allowDangerouslySkipPermissions = true;
+  }
   if (input.model) options.model = input.model;
 
   const sdkStream = query({
