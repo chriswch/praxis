@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PermissionMode, StageConfig } from "../config/schema.js";
@@ -131,12 +131,18 @@ export type Deps = {
   commit: CommitFn;
 };
 
-const PROMPTS_DIR = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "config",
-  "prompts",
-);
+// Two layouts to support:
+//   bundle (dist/cli.js)            → prompts at <here>/config/prompts/
+//   source via tsx (src/workflow/…) → prompts at <here>/../config/prompts/
+// Pick whichever directory actually exists at module load. tsdown's `copy`
+// step is what populates the bundle layout; the build-smoke regression test
+// (tests/e2e/build-smoke.test.ts) locks the dist location.
+const PROMPTS_DIR = (() => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const sibling = resolve(here, "config", "prompts");
+  if (existsSync(sibling)) return sibling;
+  return resolve(here, "..", "config", "prompts");
+})();
 
 /**
  * Resolve and load the system prompt for a stage. Filenames in

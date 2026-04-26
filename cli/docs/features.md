@@ -125,11 +125,16 @@ Each stage runs in a fresh SDK session (distinct `session_id`s persisted) and a 
 ## Tooling
 
 - TypeScript ≥ 5, strict mode + `verbatimModuleSyntax`, ESM (`"type": "module"`), Node ≥ 20.
-- Build via `tsc -p .` → `dist/`. The `praxis` bin entry is `dist/cli.js` with `#!/usr/bin/env node` preserved from source.
+- Build via `tsdown` (rolldown + oxc) → single `dist/cli.js` with sourcemaps. The `praxis` bin entry is `dist/cli.js` with `#!/usr/bin/env node` preserved from source. `tsc --noEmit` is the typecheck; tsdown does the actual emit. Build runs in ~15ms.
+- Runtime deps (`@anthropic-ai/claude-agent-sdk`, `zod`) are kept external — users get them via `npm install`, not bundled into the CLI artifact.
+- Prompt `.md` files in `src/config/prompts/` are copied into `dist/config/prompts/` by tsdown's `copy` step; the runtime loader resolves them via a layout-detection helper that handles both the bundled (dist) and source-via-tsx (src) directory shapes. Locked by a build-smoke regression test.
 - Tests run on Vitest. Layout: `tests/` mirrors `src/`, plus `tests/e2e/`. Real fs and real git in `mkdtemp` temp dirs (cleaned per-test). The SDK is the only seam stubbed — every test scripts SDK message streams via `tests/support/scripted-query.ts`, so the suite makes no real API calls and incurs no cost. Suite size: 193 tests across 25 files, all green.
-- Runtime deps: `@anthropic-ai/claude-agent-sdk`, `zod`. (`commander` and `simple-git` are declared but not yet wired — see backlog.)
-- The build copies `src/config/prompts/*.md` into `dist/config/prompts/` after `tsc`; the `praxis` bin's runtime prompt loader resolves files relative to the compiled loader, so prompts must ship alongside the `.js` output. Locked by a build-smoke regression test.
 
 ## End-to-end validation
 
-The full pipeline has been exercised against the real `@anthropic-ai/claude-agent-sdk` once: `praxis run --no-pause "add a top-level CONTRIBUTING.md with three sentences explaining how to file an issue"` against a throwaway repo produced one real commit (run-id `2026-04-26-1413-dc71`, ~3.8K tokens, $0.36). All three stages completed with distinct session ids, the SHA-prefixed `03-commit.txt` matched the new HEAD, and `state.json` aggregated cost correctly. See [`../README.md`](../README.md#smoke-run-against-the-real-sdk) for the smoke procedure and checklist.
+The full pipeline has been exercised against the real `@anthropic-ai/claude-agent-sdk` against the tsdown bundle:
+
+- Run `2026-04-26-1413-dc71` — `add a top-level CONTRIBUTING.md` against a throwaway repo, ~3.8K tokens, $0.36. All three stages completed with distinct session ids; SHA-prefixed `03-commit.txt` matched the new HEAD.
+- Run `2026-04-26-1521-4b4e` — `add PRAXIS_SMOKE.txt`, post-tsdown-migration verification, ~4.4K tokens, $0.36. Same shape; confirmed the bundled-layout path resolution works end-to-end against the real SDK.
+
+See [`../README.md`](../README.md#smoke-run-against-the-real-sdk) for the smoke procedure and checklist.
