@@ -1,12 +1,12 @@
 # Backlog
 
-Open work, known gaps, and the v0.2 roadmap. Authoritative spec is [`../product.md`](../product.md). Shipped behavior is described in [`features.md`](features.md).
+Open work, known gaps, and the future roadmap. Authoritative spec is [`../product.md`](../product.md). Shipped behavior is described in [`features.md`](features.md).
 
 When an item lands, remove it from this file (don't strike-through) — `features.md` is where shipped behavior is described.
 
 ---
 
-## v0.1 — pending
+## Pending
 
 ### CLI surface (commander adoption)
 
@@ -24,9 +24,9 @@ When an item lands, remove it from this file (don't strike-through) — `feature
 
 ---
 
-## Known gaps and trade-offs (carried from spec)
+## Known gaps and trade-offs
 
-These are deliberate v0.1 decisions documented for awareness; promote any of them only when a specific need lands.
+These are deliberate current-scope decisions documented for awareness; promote any of them only when a specific need lands.
 
 - **No worktree / sandbox for `implement`.** Runs against `process.cwd()` with `bypassPermissions`. Mitigation is the README warning. (§2, §5.3)
 - **`--allow-dirty` bundles pre-existing dirt into the auto-commit.** `git add -A` covers everything. (§5.4, §10)
@@ -39,8 +39,8 @@ These are deliberate v0.1 decisions documented for awareness; promote any of the
 - **No per-stage / per-run USD cap.** (§2)
 - **No per-stage model or thinking-effort knobs exposed.** `model` is in the internal schema but not user-facing. (§2, §6)
 - **No TUI.** `Reporter` is abstracted so a TUI can be added without touching the runner. (§2, §8)
-- **No PR creation, no verification stage, no MCP server, no Codex adapter in v0.1.** (§2)
-- **Stage hand-off is keyed on `stage.id === AUTO_COMMIT_ID`** in the runner (a constant exported from `defaults.ts`, locked by a regression test). When v0.2 introduces user-supplied workflow config, promote this to a typed `postStage` field on `StageConfig`. (Carried from S-005/S-006 reviews.)
+- **No PR creation, no verification stage, no MCP server, no Codex adapter.** (§2)
+- **Stage hand-off is keyed on `stage.id === AUTO_COMMIT_ID`** in the runner (a constant exported from `defaults.ts`, locked by a regression test). When user-supplied workflow config arrives, promote this to a typed `postStage` field on `StageConfig`. (Carried from S-005/S-006 reviews.)
 
 ---
 
@@ -76,7 +76,7 @@ Plus an ambient `*.md` module declaration so TypeScript resolves the imports.
 **Trigger condition for the refactor:** any of —
 
 - A second asset type joins prompts (SQL migrations, HTML templates, localization JSON, etc.).
-- The Ink/TUI work in v0.2 introduces JSX templates or static React components that have the same shape problem.
+- TUI work introduces JSX templates or static React components that have the same shape problem.
 - Praxis ships a second distribution channel (Bun `--compile` binary, Docker image with relocated layout) and the `existsSync` fallback breaks.
 - A user reports the prompts not loading on a non-standard install layout.
 
@@ -84,14 +84,14 @@ Until one of those triggers, the existing helper is small (~5 lines), tested, an
 
 ---
 
-## v0.2 roadmap (from spec §13)
+## Roadmap (future)
 
 ### Likely-first
 
 - **Verify stage** between `implement` and `auto-commit`. Auto-detect a verification command from project files (`package.json` scripts, `Cargo.toml`, `pyproject.toml`, `Makefile`); allow `--verify <cmd>` override. Non-zero exit fails the run.
 - **Expose `model` and `thinkingEffort` per stage** via config. Default `thinkingEffort` to elevated for `implement`.
 
-### Other v0.2
+### Other
 
 - `AgentAdapter` interface, shape informed by both Claude Agent SDK and Codex Agent SDK.
 - Codex adapter implementation.
