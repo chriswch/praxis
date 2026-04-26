@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Deps, StageContext, StageResult } from "./stage.js";
 import { runStage } from "./stage.js";
@@ -271,14 +271,13 @@ async function runOneStage(
   state.cost.totalUsd += result.usd;
   writeState(runDir, state);
 
-  reporter.stageEnd(stage, {
-    ok: !failed,
-    artifactPath,
-    sessionId: result.sessionId,
-    error: errorMessage,
-  });
-
   if (failed) {
+    reporter.stageEnd(stage, {
+      ok: false,
+      artifactPath,
+      sessionId: result.sessionId,
+      error: errorMessage,
+    });
     return {
       kind: "failed",
       stageId: stage.id,
@@ -287,15 +286,54 @@ async function runOneStage(
     };
   }
 
-  // S-005 AC-2: after the auto-commit stage completes successfully, hand the
-  // commit message (the agent's verbatim finalText) off to the git seam. The
-  // S-005 production stub is a stderr-notice no-op (see src/git/commit.ts);
-  // S-006 lands the real `git add -A` + `git commit -m` body. On
-  // timeout/cancel/validator failure (the `failed` branch above) we never
-  // reach here — commit only fires on success.
+  // S-006 AC-4/AC-6: after the auto-commit stage completes successfully, hand
+  // the message (verbatim finalText) to the git seam. On a real commit, the
+  // returned SHA is prepended onto 03-commit.txt and stamped on the stage
+  // state so the reporter can surface it. On {ok:false}, the stage is flipped
+  // to failed/commit_failed; 03-commit.txt keeps the agent message only (no
+  // SHA prefix). Skip path (clean tree) is handled at the top of this fn.
   if (stage.id === "auto-commit") {
-    deps.commit(ctx.cwd, result.finalText);
+    const commitOutcome = deps.commit(ctx.cwd, result.finalText);
+    if (!commitOutcome.ok) {
+      stageState.status = "failed";
+      stageState.stopReason = "commit_failed";
+      stageState.error = commitOutcome.reason;
+      state.stages[stage.id] = stageState;
+      writeState(runDir, state);
+      reporter.stageEnd(stage, {
+        ok: false,
+        artifactPath,
+        sessionId: result.sessionId,
+        error: commitOutcome.reason,
+      });
+      return {
+        kind: "failed",
+        stageId: stage.id,
+        reason: commitOutcome.reason,
+        status: "failed",
+      };
+    }
+    if ("sha" in commitOutcome) {
+      const sha = commitOutcome.sha;
+      writeFileSync(
+        join(runDir, stage.outputArtifact),
+        `${sha}\n\n${result.finalText}\n`,
+        "utf8",
+      );
+      stageState.commitSha = sha;
+      state.stages[stage.id] = stageState;
+      writeState(runDir, state);
+    }
+    // commitOutcome.skipped === true (commit() saw a clean tree): no SHA, no
+    // rewrite. Stage stays completed.
   }
+
+  reporter.stageEnd(stage, {
+    ok: true,
+    artifactPath,
+    sessionId: result.sessionId,
+    error: errorMessage,
+  });
 
   // AC-13: --no-pause overrides every `pauseAfter` so autopilot runs end-
   // to-end. The stage's artifact + state still land identically; we just

@@ -21,6 +21,13 @@ export interface StageState {
   };
   usd?: number;
   error?: string;
+  /**
+   * S-006 AC-4: SHA of the commit produced by the auto-commit stage. Only
+   * populated for the `auto-commit` stage on a successful real commit; absent
+   * when the stage was skipped (clean tree) or failed. Surfaced by
+   * `summarize()` onto `RunSummary.commitSha` for the run-done line.
+   */
+  commitSha?: string;
 }
 
 export interface State {

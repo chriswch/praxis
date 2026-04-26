@@ -158,18 +158,26 @@ function stageMessages(sessionId: string, finalText: string): SdkMessage[] {
 }
 
 type CommitCall = { cwd: string; message: string };
-type CommitSpy = ((
-  cwd: string,
-  message: string,
-) => { ok: true; skipped: true }) & {
+type CommitResult =
+  | { ok: true; sha: string }
+  | { ok: true; skipped: true }
+  | { ok: false; reason: string };
+type CommitSpy = ((cwd: string, message: string) => CommitResult) & {
   calls: CommitCall[];
 };
 
-function recordingCommit(): CommitSpy {
+/**
+ * Recording spy for the auto-commit hand-off seam (Deps.commit). Defaults to
+ * a successful real-commit shape `{ ok: true, sha }` (S-006); callers can
+ * inject `result` to drive the runner down the skip / failure branches.
+ */
+function recordingCommit(
+  result: CommitResult = { ok: true, sha: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" },
+): CommitSpy {
   const calls: CommitCall[] = [];
-  const fn = (cwd: string, message: string) => {
+  const fn = (cwd: string, message: string): CommitResult => {
     calls.push({ cwd, message });
-    return { ok: true, skipped: true } as const;
+    return result;
   };
   const spy = fn as CommitSpy;
   spy.calls = calls;
@@ -223,7 +231,7 @@ function happyImplementMessages(sessionId = "sess_impl"): SdkMessage[] {
 }
 
 describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)", () => {
-  it("writes 02-implement-log.md verbatim and 03-commit.txt verbatim, transitions both stages to completed, calls deps.commit with (cwd, finalText), no real git commit lands", async () => {
+  it("writes 02-implement-log.md verbatim, rewrites 03-commit.txt with the SHA prepended, captures commitSha in state, calls deps.commit with (cwd, finalText)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const runDir = seedPausedRun(cwd);
 
@@ -233,15 +241,8 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
         [{ messages: stageMessages("sess_impl", implementLog) }],
         [{ messages: stageMessages("sess_commit", commitMessage) }],
       ]);
-      const commit = recordingCommit();
-
-      // Capture the HEAD sha BEFORE advance so we can prove no real commit
-      // landed even when the spy is invoked.
-      const headBefore = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
-        cwd,
-      });
-      // Fresh repo has no HEAD yet — the absence-of-HEAD itself is the proof.
-      const noPriorCommit = headBefore.status !== 0;
+      const fakeSha = "abcdef0123456789abcdef0123456789abcdef01";
+      const commit = recordingCommit({ ok: true, sha: fakeSha });
 
       const result = await advanceWorkflow(
         RUN_ID,
@@ -250,12 +251,13 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // Both stages produced their artifact, verbatim.
+      // 02-implement-log.md verbatim.
       expect(readFileSync(join(runDir, "02-implement-log.md"), "utf8")).toBe(
         implementLog,
       );
+      // S-006 AC-4: 03-commit.txt rewritten with `<sha>\n\n<message>\n`.
       expect(readFileSync(join(runDir, "03-commit.txt"), "utf8")).toBe(
-        commitMessage,
+        `${fakeSha}\n\n${commitMessage}\n`,
       );
 
       // state.json transitions for both stages.
@@ -266,23 +268,13 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
       expect(persisted.stages["auto-commit"].status).toBe("completed");
       expect(persisted.stages.implement.sessionId).toBe("sess_impl");
       expect(persisted.stages["auto-commit"].sessionId).toBe("sess_commit");
+      // S-006 AC-4: commitSha plumbed onto the auto-commit stage state.
+      expect(persisted.stages["auto-commit"].commitSha).toBe(fakeSha);
 
       // Deps.commit invoked exactly once with (cwd, finalText).
       expect(commit.calls.length).toBe(1);
       expect(commit.calls[0].cwd).toBe(cwd);
       expect(commit.calls[0].message).toBe(commitMessage);
-
-      // No real git commit landed — the production wrapper is stubbed in S-005.
-      const headAfter = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
-        cwd,
-      });
-      if (noPriorCommit) {
-        // Fresh repo: HEAD must still not exist.
-        expect(headAfter.status).not.toBe(0);
-      } else {
-        // Repos with a starting HEAD: the sha must be unchanged.
-        expect(headAfter.stdout.toString()).toBe(headBefore.stdout.toString());
-      }
     });
   });
 });
@@ -609,13 +601,16 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
       expect(persisted.stages.implement.status).toBe("completed");
       expect(persisted.stages["auto-commit"].status).toBe("completed");
 
-      // Artifacts written verbatim.
+      // Artifacts written verbatim — except 03-commit.txt which the runner
+      // rewrites with the SHA prepended (S-006 AC-4).
       expect(readFileSync(join(result.runDir, "01-clarify-assess.md"), "utf8"))
         .toBe(VALID_CLARIFY_ARTIFACT);
       expect(readFileSync(join(result.runDir, "02-implement-log.md"), "utf8"))
         .toBe(implementLog);
+      const expectedSha = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
       expect(readFileSync(join(result.runDir, "03-commit.txt"), "utf8"))
-        .toBe(commitMessage);
+        .toBe(`${expectedSha}\n\n${commitMessage}\n`);
+      expect(persisted.stages["auto-commit"].commitSha).toBe(expectedSha);
 
       // commit fired exactly once with the auto-commit final text.
       expect(commit.calls.length).toBe(1);
