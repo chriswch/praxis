@@ -8,16 +8,16 @@ Praxis is a collection of skills that take a request through clarification, slic
 
 ### Claude Code
 
-Add the Praxis plugin from your marketplace, or install this directory as a local plugin. The plugin manifest is at `.claude-plugin/plugin.json`.
+Add the Praxis plugin from your marketplace, or install the `plugin/` directory as a local plugin. The plugin manifest is at `plugin/.claude-plugin/plugin.json`.
 
 ### Codex
 
-Add the Praxis plugin from your marketplace, or install this directory as a local plugin. The plugin manifest is at `.codex-plugin/plugin.json`.
+Add the Praxis plugin from your marketplace, or install the `plugin/` directory as a local plugin. The plugin manifest is at `plugin/.codex-plugin/plugin.json`.
 
 ## Entry points
 
-- **Claude Code**: `/craft` and `/forge` slash commands (`commands/craft.md`, `commands/forge.md`).
-- **Codex**: `craft` and `forge` skills (`skills/craft/SKILL.md`, `skills/forge/SKILL.md`).
+- **Claude Code**: `/craft` and `/forge` slash commands (`plugin/commands/craft.md`, `plugin/commands/forge.md`).
+- **Codex**: `craft` and `forge` skills (`plugin/skills/craft/SKILL.md`, `plugin/skills/forge/SKILL.md`).
 
 Both entry points orchestrate the same underlying skills.
 
