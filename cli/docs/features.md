@@ -6,6 +6,27 @@ Track planned work in [backlog.md](backlog.md). The product.md document remains 
 
 ## Shipped
 
+### S-005 implement stage end-to-end (commit hand-off stubbed)
+
+**Shipped:** 2026-04-26
+**Spec reference:** product.md §5.3, §5.4, §7, §11
+
+A `praxis run "<intent>" --no-pause` (or `praxis advance <run-id>` from a paused clarify-assess) now drives the implement and auto-commit stages through the same SDK seam clarify-assess uses. `sdkCreateQueryFn` forwards `allowDangerouslySkipPermissions: true` whenever `permissionMode === "bypassPermissions"` (and only then), satisfying the SDK's documented gate for the implement stage. The runner writes `02-implement-log.md` verbatim from the agent's `finalText` (no validator, no trailing newline added) and `03-commit.txt` verbatim from the auto-commit stage's `finalText`; both stages transition through `running → completed` in `state.json` with their own session id, tokens, usd, and `endedAt`. Each stage opens a fresh SDK session (distinct `session_id`s persisted) and a fresh `AbortController` linked to the shared parent signal. The `Deps` interface gains a `commit(cwd, message)` slot the runner invokes once after auto-commit completes successfully; the production wrapper is a no-op-with-warning stub that prints `praxis: auto-commit message ready; git commit not yet wired (lands in S-006)` to stderr (real `git add -A && git commit -m` body lands in S-006). On implement timeout or SIGINT, `runStage` now mirrors the cancel reason into `stopReason` (so `state.json` reads `stopReason: "timeout"` / `"sigint"` instead of an empty string), the partial `02-implement-log.md` is still written, the stage is marked `failed`/`cancelled`, and the auto-commit stage is skipped — `deps.commit` never fires.
+
+- Inputs: same `praxis run` / `praxis advance` surface, plus `--no-pause` for autopilot through implement + auto-commit.
+- Outputs: `02-implement-log.md` (verbatim agent finalText), `03-commit.txt` (verbatim commit message), updated `state.json`. Stderr notice from the production commit stub on the happy path.
+- Notable bounds:
+  - `Deps.commit` is required by the type but defaulted to a no-op-with-warning in the CLI wiring; tests inject spies for assertion.
+  - The auto-commit hand-off triggers strictly on `stage.id === "auto-commit"` in v0.1 (no per-stage flag) — the workflow is locked, so the magic string is the simplest correct trigger.
+  - Implement timeout / SIGINT: `cancelReason` overrides any prior SDK `stopReason` UNLESS the prior value is a Praxis-specific token (`validator_failed` or `recovered`) — those take precedence so the harness never clobbers them.
+  - Implement deliberately omits `allowedTools` so the SDK defaults to all tools; `bypassPermissions` is the gate that opens write/exec.
+  - Each stage gets its own `AbortSignal` via the per-stage `stageAbort` controller — verified across all three stages in a `--no-pause` run.
+  - Real `git add -A && git commit -m` is NOT performed in S-005. The stub prints a notice and returns `{ ok: true }` so the runner classifies the stage as completed.
+- Verified by:
+  - `cli/tests/workflow/sdk-create-query.test.ts` — AC-1 `allowDangerouslySkipPermissions` paired with `bypassPermissions`; omitted for `default` and unset modes.
+  - `cli/tests/workflow/implement.test.ts` — AC-2 advance-from-paused happy path with commit spy, AC-3 `--no-pause` 3-stage flow, AC-4 implement timeout, AC-5 implement SIGINT, AC-6 SDK option forwarding for implement, AC-7 tool_use/tool_result event translation with Read/Edit briefs, AC-8 verbatim implement log, AC-10 fresh sessionId + AbortSignal per stage.
+  - `cli/tests/workflow/implement-fs-mutation.test.ts` — AC-9 sociable test where the seam writes a real file and the runner observes via `existsSync`.
+
 ### S-004 `praxis advance` + SIGINT-safe recovery
 
 **Shipped:** 2026-04-26
