@@ -344,6 +344,58 @@ describe("implement timeout (AC-4)", () => {
   });
 });
 
+describe("implement SIGINT (AC-5)", () => {
+  it("external abort during implement → status: cancelled, stopReason: 'sigint' in state.json, partial log written, auto-commit not executed, deps.commit not called", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      let call = 0;
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+      ]);
+      const hanging = hangingQuery("sess_impl_sigint");
+      const composedCreateQueryFn: CreateQueryFn = (input) => {
+        call++;
+        if (call === 1) return recording(input);
+        if (call === 2) return hanging(input);
+        throw new Error("auto-commit must not be reached on implement SIGINT");
+      };
+
+      const ctl = new AbortController();
+      // Abort just after implement starts spinning.
+      setTimeout(() => ctl.abort(), 30);
+
+      const commit = recordingCommit();
+      const result = await runWorkflow(
+        {
+          intent: "x",
+          cwd,
+          allowDirty: true,
+          noPause: true,
+          // No implement timeout — only the SIGINT can end the hang.
+          signal: ctl.signal,
+        },
+        buildDeps(composedCreateQueryFn, commit),
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.status).toBe("cancelled");
+      expect(result.failedStageId).toBe("implement");
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir!, "state.json"), "utf8"),
+      );
+      expect(persisted.stages.implement.status).toBe("cancelled");
+      expect(persisted.stages.implement.stopReason).toBe("sigint");
+      expect(persisted.stages["auto-commit"].status).toBe("pending");
+
+      expect(existsSync(join(result.runDir!, "02-implement-log.md"))).toBe(true);
+      expect(existsSync(join(result.runDir!, "03-commit.txt"))).toBe(false);
+      expect(commit.calls.length).toBe(0);
+      expect(call).toBe(2);
+    });
+  });
+});
+
 describe("fresh SDK session per stage (AC-10)", () => {
   it("clarify-assess sessionId is not reused for implement; each stage call gets its own AbortSignal", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
