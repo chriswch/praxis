@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Deps, StageContext, StageResult } from "./stage.js";
 import { runStage } from "./stage.js";
@@ -441,14 +441,80 @@ export async function advanceWorkflow(
     };
   }
 
-  // Recovery path lands in subsequent ACs (failed / cancelled).
+  // failed / cancelled → recovery path. AC-7: cancelled is treated identically.
+  if (status === "failed" || status === "cancelled") {
+    reporter.resuming?.("recovering", runId, stage.id);
+    const recovery = recoverFailedStage(stage, state, runDir, deps);
+    if (!recovery.ok) {
+      // Status is intentionally NOT mutated on recovery failure (AC-5/6).
+      reporter.runDone(runId, summarize(state, "failed"));
+      return {
+        ok: false,
+        reason: recovery.reason,
+        runId,
+        runDir,
+        failedStageId: stage.id,
+        status: "failed",
+      };
+    }
+    return executeStages(state, config, ctx, deps, reporter, runDir, runId, idx + 1);
+  }
+
+  // Unreachable: every StageStatus is handled above.
   return {
     ok: false,
-    reason: `recovery for ${status} not yet implemented`,
+    reason: `unhandled stage status: ${status}`,
     runId,
     runDir,
     failedStageId: stage.id,
   };
+}
+
+/**
+ * Recovery sub-routine for `advanceWorkflow`. Mirrors the state-mutation
+ * block of `runOneStage` but skips the SDK call: the prior run already
+ * captured `sessionId`, `tokens`, and `usd`, and the user has hand-edited
+ * the on-disk artifact. We only flip `status` → `completed`, set
+ * `stopReason: "recovered"`, and refresh `endedAt`. Cost totals are NOT
+ * incremented — recovery does not spend tokens (AC-14).
+ *
+ * Returns `{ ok: false, reason }` when the artifact is missing (AC-6) or the
+ * stage's optional `validate` rejects the file (AC-5). On both failures,
+ * `state.json` is left untouched so the user can re-edit and retry.
+ */
+function recoverFailedStage(
+  stage: StageConfig,
+  state: State,
+  runDir: string,
+  deps: Deps,
+): { ok: true } | { ok: false; reason: string } {
+  const artifactPath = join(runDir, stage.outputArtifact);
+  if (!existsSync(artifactPath)) {
+    return {
+      ok: false,
+      reason: `artifact missing for stage ${stage.id}: ${artifactPath}`,
+    };
+  }
+  if (stage.validate) {
+    const text = readFileSync(artifactPath, "utf8");
+    const verdict = stage.validate(text);
+    if (!verdict.ok) {
+      return {
+        ok: false,
+        reason: `validator rejected ${stage.id} artifact: ${verdict.reason}`,
+      };
+    }
+  }
+  const prior = state.stages[stage.id] ?? {};
+  state.stages[stage.id] = {
+    ...prior,
+    status: "completed",
+    stopReason: "recovered",
+    endedAt: toIsoSeconds(deps.clock()),
+  };
+  delete state.stages[stage.id].error;
+  writeState(runDir, state);
+  return { ok: true };
 }
 
 async function paused(
