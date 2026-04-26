@@ -355,6 +355,135 @@ describe("advanceWorkflow paused happy path (AC-3)", () => {
   });
 });
 
+describe("advanceWorkflow recovery on cancelled (AC-7)", () => {
+  it("cancelled stage with valid artifact recovers exactly like failed", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "ship it",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "first",
+        cost: { totalTokens: 150, totalUsd: 0.012 },
+        stages: {
+          first: cancelledStage(),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": VALID_FIRST_ARTIFACT });
+      const recording = recordingScriptedQuery([
+        [{ messages: noopMessages("sess_second") }],
+      ]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: VALIDATED_CONFIG },
+        deps(recording),
+      );
+      if (!result.ok) throw new Error(result.reason);
+      expect(recording.calls.length).toBe(1);
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages.first.status).toBe("completed");
+      expect(persisted.stages.first.stopReason).toBe("recovered");
+    });
+  });
+
+  it("cancelled stage with missing artifact errors exactly like failed", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "ship it",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "first",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          first: cancelledStage(),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: VALIDATED_CONFIG },
+        deps(scriptedQuery([])),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.reason.toLowerCase()).toMatch(/missing|not found/);
+    });
+  });
+});
+
+describe("advanceWorkflow recovery missing artifact (AC-6)", () => {
+  it("artifact file does not exist: exit 1 with the missing path named", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "ship it",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "first",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          first: failedStage(),
+          second: { status: "pending" },
+        },
+      };
+      // Note: NO first.md on disk.
+      seedRun(cwd, state);
+      const recording = recordingScriptedQuery([]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: VALIDATED_CONFIG },
+        deps(recording),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      const expectedPath = join(cwd, ".praxis", "runs", RUN_ID, "first.md");
+      expect(result.reason).toContain(expectedPath);
+      expect(result.reason.toLowerCase()).toMatch(/missing|not found/);
+      expect(recording.calls.length).toBe(0);
+    });
+  });
+});
+
+describe("advanceWorkflow recovery validator failure (AC-5)", () => {
+  it("validator rejects edited artifact: exit 1, state untouched, no SDK call", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "ship it",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "first",
+        cost: { totalTokens: 150, totalUsd: 0.012 },
+        stages: {
+          first: failedStage("missing required H2: Assumptions"),
+          second: { status: "pending" },
+        },
+      };
+      // Edit still missing required headings.
+      seedRun(cwd, state, { "first.md": "## Intent\n\nx\n" });
+      const recording = recordingScriptedQuery([]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: VALIDATED_CONFIG },
+        deps(recording),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.reason).toMatch(/validator rejected first/);
+      expect(recording.calls.length).toBe(0);
+
+      // state.json unchanged for the failed stage.
+      const persisted = JSON.parse(
+        readFileSync(join(cwd, ".praxis", "runs", RUN_ID, "state.json"), "utf8"),
+      );
+      expect(persisted.stages.first.status).toBe("failed");
+      expect(persisted.stages.first.sessionId).toBe("sess_failed");
+      expect(persisted.cost.totalTokens).toBe(150);
+    });
+  });
+});
+
 describe("advanceWorkflow recovery happy path (AC-4)", () => {
   it("validator passes on hand-edited artifact: stage flips to completed/recovered, sessionId+tokens preserved, no SDK call, next stage runs", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
