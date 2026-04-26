@@ -14,6 +14,33 @@ import { withTempRepo } from "../support/tmp-repo.js";
  * the e2e suites.
  */
 
+describe("commit() emits no stderr notice on the happy path (AC-12)", () => {
+  it("does not write the S-005 'not yet wired' notice to stderr after the real implementation lands", async () => {
+    await withTempRepo(async ({ dir }) => {
+      writeFileSync(join(dir, "x.txt"), "x\n", "utf8");
+
+      const original = process.stderr.write.bind(process.stderr);
+      const captured: string[] = [];
+      process.stderr.write = ((chunk: string | Uint8Array) => {
+        captured.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
+        return true;
+      }) as typeof process.stderr.write;
+      try {
+        commit(dir, "feat: x");
+      } finally {
+        process.stderr.write = original;
+      }
+      // The S-005 stub printed exactly one line containing "not yet wired" —
+      // the post-S-006 implementation must be silent on stderr in the happy
+      // path. (Real git invocations capture their own stderr via spawnSync;
+      // they do not bleed onto the parent fd.)
+      const joined = captured.join("");
+      expect(joined).not.toContain("not yet wired");
+      expect(joined).not.toContain("auto-commit message ready");
+    });
+  });
+});
+
 describe("commit() failure (AC-3)", () => {
   it("returns {ok:false, reason} carrying git's stderr when invoked outside a work tree", () => {
     const dir = mkdtempSync(join(tmpdir(), "praxis-commit-fail-"));
