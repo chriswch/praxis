@@ -190,7 +190,7 @@ export function buildUserPrompt(
 export async function runStage(
   config: StageConfig,
   ctx: StageContext,
-  deps: Pick<Deps, "createQueryFn" | "reporter">,
+  deps: Pick<Deps, "createQueryFn">,
 ): Promise<StageResult> {
   const systemPrompt = loadSystemPrompt(config);
   const initialUserPrompt = buildUserPrompt(config, ctx);

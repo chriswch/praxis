@@ -197,7 +197,6 @@ async function runOneStage(
 
   const result = await runStage(stage, stageCtx, {
     createQueryFn: deps.createQueryFn,
-    reporter,
   });
 
   // Always write whatever the agent emitted — even on validator failure
