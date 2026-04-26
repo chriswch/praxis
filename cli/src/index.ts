@@ -2,6 +2,8 @@ export { runWorkflow } from "./workflow/runner.js";
 export type {
   RunWorkflowContext,
   RunWorkflowResult,
+  RunWorkflowSuccess,
+  RunWorkflowFailure,
 } from "./workflow/runner.js";
 export { runStage } from "./workflow/stage.js";
 export type {
@@ -25,5 +27,11 @@ export type {
   PermissionMode,
 } from "./config/schema.js";
 export { defaultWorkflow } from "./config/defaults.js";
+export { validateClarifyAssessArtifact } from "./workflow/validator.js";
+export {
+  runPreflight,
+  appendPraxisToGitignore,
+} from "./workflow/preflight.js";
+export type { PreflightOptions, PreflightResult } from "./workflow/preflight.js";
 export type { Reporter, RunSummary, StageEndResult } from "./ui/reporter.js";
 export { LineReporter } from "./ui/line-reporter.js";
