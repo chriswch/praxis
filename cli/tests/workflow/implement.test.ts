@@ -267,6 +267,37 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
   });
 });
 
+describe("02-implement-log.md is verbatim finalText (AC-8)", () => {
+  it("writes the agent's finalText byte-for-byte — no validator, no trailing newline added", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const runDir = seedPausedRun(cwd);
+      // finalText with NO trailing newline and a leading multi-line body —
+      // the artifact write must preserve it exactly.
+      const implementLog = "## Files changed\n\n- a.ts\n- b.ts";
+      expect(implementLog.endsWith("\n")).toBe(false);
+
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_impl", implementLog) }],
+        [{ messages: stageMessages("sess_commit", "chore: noop") }],
+      ]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd },
+        buildDeps(recording, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      const raw = readFileSync(join(runDir, "02-implement-log.md"));
+      expect(raw.toString("utf8")).toBe(implementLog);
+      // Last byte must NOT be the newline we never added.
+      expect(raw[raw.length - 1]).not.toBe(0x0a);
+
+      // implement stage in the default workflow has no validator.
+      expect(implementConfig().validate).toBeUndefined();
+    });
+  });
+});
+
 describe("runStage translates implement tool_use/tool_result blocks to AgentEvents (AC-7)", () => {
   it("Read → tool_use with file_path brief; Edit → tool_use with file_path brief; tool_result resolves name from tool_use_id and reports ok=true", async () => {
     await withTmpDir(async (runDir) => {
