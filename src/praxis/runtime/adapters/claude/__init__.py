@@ -1,1 +1,0 @@
-"""Claude adapter bridge hooks."""
