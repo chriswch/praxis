@@ -22,6 +22,22 @@ export async function withTempRepo<T>(
       `git init failed in ${dir}: ${init.stderr?.toString() ?? "unknown"}`,
     );
   }
+  // S-006 AC-11 — local-scope git identity so `git commit -m` works without
+  // any global user.* config (CI, fresh containers, contributor laptops).
+  // Local scope keeps these inside `dir`'s .git/config; they vanish with the
+  // rmSync below.
+  for (const [key, value] of [
+    ["user.email", "praxis-test@example.com"],
+    ["user.name", "Praxis Test"],
+  ] as const) {
+    const cfg = spawnSync("git", ["config", "--local", key, value], { cwd: dir });
+    if (cfg.status !== 0) {
+      rmSync(dir, { recursive: true, force: true });
+      throw new Error(
+        `git config --local ${key} failed in ${dir}: ${cfg.stderr?.toString() ?? "unknown"}`,
+      );
+    }
+  }
   try {
     return await fn({ dir });
   } finally {
