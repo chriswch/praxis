@@ -8,18 +8,18 @@ Items are organized by phase, then grouped by surface area. Mark items done by m
 
 ## v0.1 (MVP) — to build
 
-Nothing in the CLI subpackage is implemented yet. The list below is the full v0.1 build, sequenced so each chunk is testable on its own.
+S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<intent>"` writes `00-intent.txt` + `state.json`, run-id format pinned, DI seams (clock, RNG, `createQueryFn`) threaded through `runStage`. The list below is the rest of the v0.1 build, sequenced so each chunk is testable on its own.
 
 ### 1. Project bootstrap
 
-- [ ] Initialize `package.json` with the `praxis` bin entry and Node ≥ 20 engine constraint. (§3)
-- [ ] Add TypeScript config targeting Node ≥ 20, no bundler. (§3)
-- [ ] Add runtime deps: `@anthropic-ai/claude-agent-sdk`, `commander`, `zod`, `simple-git`. (§3)
-- [ ] Scaffold the module layout from §12 (`src/cli.ts`, `src/config/`, `src/workflow/`, `src/git/`, `src/ui/`, `src/index.ts`).
+- [x] Initialize `package.json` with the `praxis` bin entry and Node ≥ 20 engine constraint. (§3) — S-001
+- [x] Add TypeScript config targeting Node ≥ 20, no bundler. (§3) — S-001
+- [ ] Add runtime deps: `@anthropic-ai/claude-agent-sdk`, `commander`, `zod`, `simple-git`. (§3) — deferred to the slices that need them
+- [x] Scaffold the module layout from §12 (`src/cli.ts`, `src/config/`, `src/workflow/`, `src/git/`, `src/ui/`, `src/index.ts`). (§12) — S-001
 
 ### 2. Configuration & defaults
 
-- [ ] Implement `StageConfig` and `PraxisConfig` zod schemas in `src/config/schema.ts`. (§6)
+- [ ] Implement `StageConfig` and `PraxisConfig` zod schemas in `src/config/schema.ts`. (§6) — hand-written interfaces landed in S-001; zod still pending
 - [ ] Implement default 3-stage workflow in `src/config/defaults.ts` with pinned models: Opus 4.7 for `clarify-assess` and `implement`, Haiku 4.5 for `auto-commit`. (§6)
 - [ ] Author stage system prompts as separate markdown files under `src/config/prompts/` so prompt iteration does not require recompile. (§6, §12)
 - [ ] Implement template interpolation for `{{intent}}`, `{{runDir}}`, `{{artifacts.<id>.path}}`. (§6)
@@ -35,15 +35,15 @@ Nothing in the CLI subpackage is implemented yet. The list below is the full v0.
 
 ### 4. Artifact + state plumbing
 
-- [ ] `src/workflow/artifacts.ts` — write `finalText` verbatim to `<run-dir>/<outputArtifact>`; run optional validator. (§5, §6, §12)
-- [ ] `src/workflow/state.ts` — read/write `state.json` per the §9 schema, including per-stage `sessionId`, `tokens`, `usd`, `stopReason`, `endedAt`.
-- [ ] Run-dir layout under `<cwd>/.praxis/runs/<UTC-timestamp>-<short-id>/`. (§9)
+- [ ] `src/workflow/artifacts.ts` — write `finalText` verbatim to `<run-dir>/<outputArtifact>`; run optional validator. (§5, §6, §12) — `writeIntent` shipped in S-001; remaining stage artifacts pending
+- [ ] `src/workflow/state.ts` — read/write `state.json` per the §9 schema, including per-stage `sessionId`, `tokens`, `usd`, `stopReason`, `endedAt`. — initial-write path shipped in S-001; read + per-stage updates pending
+- [x] Run-dir layout under `<cwd>/.praxis/runs/<UTC-timestamp>-<short-id>/`. (§9) — S-001
 - [ ] Append `.praxis/` to `.gitignore` on first run; do not overwrite. (§9, §10)
 
 ### 5. Workflow orchestration
 
-- [ ] `src/workflow/runner.ts` — sequential stage loop honoring `pauseAfter` and `--no-pause`. (§5)
-- [ ] Stage 0 intent capture writes `00-intent.txt` with the raw arg, no agent. (§5.1)
+- [ ] `src/workflow/runner.ts` — sequential stage loop honoring `pauseAfter` and `--no-pause`. (§5) — bootstrap path shipped in S-001; stage loop pending
+- [x] Stage 0 intent capture writes `00-intent.txt` with the raw arg, no agent. (§5.1) — S-001
 - [ ] Stage 1 `clarify-assess`: `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash]`, `timeoutMs: 900_000`, no `maxTurns`, `pauseAfter: true`. (§5.2)
 - [ ] Stage 2 `implement`: `bypassPermissions`, all tools, `timeoutMs: 1_800_000`, no `maxTurns`, prompt references the clarify-assess artifact by path so the agent reads it itself. (§5.3)
 - [ ] Stage 3 `auto-commit`: `permissionMode: "default"`, allowlist `[Bash]`, `timeoutMs: 300_000`. Skip with notice if `git status --porcelain` is empty. (§5.4)
@@ -51,9 +51,9 @@ Nothing in the CLI subpackage is implemented yet. The list below is the full v0.
 
 ### 6. CLI surface
 
-- [ ] `praxis run "<intent>"` and `praxis advance <run-id>` via commander. (§4)
+- [ ] `praxis run "<intent>"` and `praxis advance <run-id>` via commander. (§4) — manual `run` parsing shipped in S-001; commander adoption + `advance` pending
 - [ ] Flags: `--no-pause`, `--allow-dirty`. (§4)
-- [ ] Print run-id to stdout at start of every `run`. (§4)
+- [x] Print run-id to stdout at start of every `run`. (§4) — S-001
 - [ ] Surface the implement-stage risk warning in `praxis run --help` and the README. (§4)
 
 ### 7. Pre-flight checks
@@ -73,7 +73,7 @@ Nothing in the CLI subpackage is implemented yet. The list below is the full v0.
 
 ### 9. Reporter / UI
 
-- [ ] `Reporter` interface in `src/ui/reporter.ts` with the §8 method set.
+- [x] `Reporter` interface in `src/ui/reporter.ts` with the §8 method set. — S-001 (no-op `LineReporter` skeleton in place)
 - [ ] `LineReporter` (stdout) implementation matching the §8 formatting rules:
   - assistant text wrapped to terminal width, prefixed ` ›`, summarized to first sentence if > 200 chars, deltas coalesced for 100ms before printing.
   - `tool_use` rendered as `  › ToolName(brief)`; never print tool input/output bodies.
@@ -83,7 +83,7 @@ Nothing in the CLI subpackage is implemented yet. The list below is the full v0.
 
 ### 10. Documentation
 
-- [ ] README usage section reflects shipped flags and stages once each lands.
+- [ ] README usage section reflects shipped flags and stages once each lands. — S-001 status banner + Develop snippet shipped; flag/stage docs pending
 - [ ] Move each completed item from this file into `features.md` with a Shipped date and a behavior summary.
 
 ---

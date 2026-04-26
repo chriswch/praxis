@@ -2,7 +2,7 @@
 
 A CLI that drives an AI coding agent through a deterministic, resumable workflow. State your intent in one line; Praxis handles clarification, implementation, and commit.
 
-> **Status: pre-implementation.** Only the spec exists today. See [docs/features.md](docs/features.md) for what currently ships, and [docs/backlog.md](docs/backlog.md) for the v0.1 build plan and v0.2 roadmap.
+> **Status: walking skeleton.** The package is initialized and `praxis run "<intent>"` materializes a fresh `.praxis/runs/<run-id>/` with `00-intent.txt` + `state.json`. Stage execution is still stubbed. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for the rest of the v0.1 build plan and v0.2 roadmap.
 
 ## What it does
 
@@ -48,8 +48,15 @@ Each stage's SDK session id is captured in `state.json` and printed on stage end
 This package targets:
 
 - TypeScript, Node ≥ 20
-- `@anthropic-ai/claude-agent-sdk`, `commander`, `zod`, `simple-git`
+- `@anthropic-ai/claude-agent-sdk`, `commander`, `zod`, `simple-git` (deferred until the slices that need them land)
 - No bundler; published as the `praxis` bin
+
+```bash
+npm install         # devDeps only today (typescript, vitest, tsx)
+npm test            # vitest run — unit, in-process workflow, e2e
+npm run typecheck   # tsc --noEmit
+npm run build       # emits dist/
+```
 
 The planned module layout (per spec §12):
 
@@ -72,7 +79,7 @@ src/
   index.ts
 ```
 
-Until the package is initialized, treat `product.md` as the source of truth and pick work off `docs/backlog.md`.
+Treat `product.md` as the source of truth and pick the next slice off `docs/backlog.md`.
 
 ## Docs
 
