@@ -624,6 +624,63 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
   });
 });
 
+describe("runner skips auto-commit SDK call when tree is clean (S-006 AC-5)", () => {
+  it("clean tree before auto-commit → no SDK call, no deps.commit, state shows completed/skipped, no 03-commit.txt", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Pre-commit a baseline .gitignore so runWorkflow's
+      // appendPraxisToGitignore is a no-op AND there is a HEAD already; the
+      // .praxis/ run dir is then ignored, so git status --porcelain is empty
+      // by the time auto-commit's pre-check fires.
+      writeFileSync(join(cwd, ".gitignore"), ".praxis/\n", "utf8");
+      spawnSync("git", ["add", ".gitignore"], { cwd });
+      spawnSync("git", ["commit", "-m", "baseline"], { cwd });
+      const headBefore = spawnSync("git", ["rev-parse", "HEAD"], {
+        cwd,
+        encoding: "utf8",
+      }).stdout.trim();
+
+      // Only TWO scripts — clarify-assess and implement. Auto-commit's SDK
+      // call must NOT happen (the recording would throw "ran out of scripts").
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+      ]);
+      const commit = recordingCommit();
+
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, commit),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // Only two SDK invocations — auto-commit was short-circuited.
+      expect(recording.calls.length).toBe(2);
+      // deps.commit must not be called when we skip the stage.
+      expect(commit.calls.length).toBe(0);
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      const ac = persisted.stages["auto-commit"];
+      expect(ac.status).toBe("completed");
+      expect(ac.stopReason).toBe("skipped");
+      expect(ac.sessionId).toBeUndefined();
+      expect(ac.tokens).toBeUndefined();
+      expect(ac.usd).toBeUndefined();
+
+      // No 03-commit.txt — we never produced an agent message.
+      expect(existsSync(join(result.runDir, "03-commit.txt"))).toBe(false);
+
+      // HEAD did not move.
+      const headAfter = spawnSync("git", ["rev-parse", "HEAD"], {
+        cwd,
+        encoding: "utf8",
+      }).stdout.trim();
+      expect(headAfter).toBe(headBefore);
+    });
+  });
+});
+
 describe("runStage implement option forwarding (AC-6)", () => {
   it("forwards model, permissionMode 'bypassPermissions', settingSources, signal, interpolated initialUserPrompt, and the implement system prompt; allowedTools omitted", async () => {
     await withTmpDir(async (runDir) => {

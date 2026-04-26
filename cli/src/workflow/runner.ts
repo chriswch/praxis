@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Deps, StageContext, StageResult } from "./stage.js";
@@ -207,6 +208,23 @@ async function runOneStage(
   // 1-based index per §8 (`[1/3 ...]`).
   reporter.stageStart(stage, index + 1, config.workflow.length);
 
+  // S-006 AC-5: skip the auto-commit SDK call when the working tree is clean.
+  // Implement may have made no edits, or recovered to baseline; either way,
+  // there is nothing to commit and no message to draft. Synthesize a
+  // completed stage with stopReason "skipped" — no sessionId/tokens/usd, no
+  // 03-commit.txt, no deps.commit hand-off.
+  if (stage.id === "auto-commit" && isWorkingTreeClean(ctx.cwd)) {
+    const skipped: StageState = {
+      status: "completed",
+      endedAt: toIsoSeconds(deps.clock()),
+      stopReason: "skipped",
+    };
+    state.stages[stage.id] = skipped;
+    writeState(runDir, state);
+    reporter.stageEnd(stage, { ok: true });
+    return { kind: "continue" };
+  }
+
   const stageCtx: StageContext = {
     intent: ctx.intent,
     runDir,
@@ -377,6 +395,21 @@ function summarize(state: State, status: RunStatus): RunSummary {
 /** ISO-8601 UTC string truncated to whole seconds, e.g. `2026-04-25T14:30:12Z`. */
 function toIsoSeconds(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/**
+ * S-006 AC-5 pre-check: returns true when `git status --porcelain` is empty
+ * inside `cwd`. A non-zero git exit conservatively returns false so the
+ * normal auto-commit path runs and surfaces the underlying error through the
+ * commit() result rather than a silent skip.
+ */
+function isWorkingTreeClean(cwd: string): boolean {
+  const status = spawnSync("git", ["status", "--porcelain"], {
+    cwd,
+    encoding: "utf8",
+  });
+  if (status.status !== 0) return false;
+  return status.stdout.trim() === "";
 }
 
 // ---------------------------------------------------------------------------
