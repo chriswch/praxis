@@ -39,4 +39,14 @@ describe("praxis (built)", () => {
       rmSync(cwd, { recursive: true, force: true });
     }
   });
+
+  it("ships every stage's system prompt next to the compiled loader", () => {
+    // src/workflow/stage.ts resolves PROMPTS_DIR relative to the .js file;
+    // tsc emits no .md, so the build script must copy them or runStage
+    // crashes with ENOENT on the very first stage. Locks against regression.
+    const promptsDir = join(repoRoot, "dist", "config", "prompts");
+    expect(existsSync(join(promptsDir, "clarify-assess.md"))).toBe(true);
+    expect(existsSync(join(promptsDir, "implement.md"))).toBe(true);
+    expect(existsSync(join(promptsDir, "auto-commit.md"))).toBe(true);
+  });
 });
