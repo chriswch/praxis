@@ -44,6 +44,46 @@ These are deliberate v0.1 decisions documented for awareness; promote any of the
 
 ---
 
+## Tech debt (no scheduled milestone — refactor when triggered)
+
+### Two-path prompt loading via `existsSync`
+
+**Where:** `src/workflow/stage.ts` — `PROMPTS_DIR` is computed by trying `<here>/config/prompts` first (the tsdown-bundled layout, where `<here>` is `dist/`) and falling back to `<here>/../config/prompts` (the source-via-tsx layout, where `<here>` is `src/workflow/`). The fallback exists because the bundle collapses `src/workflow/stage.js` (depth 2) into `dist/cli.js` (depth 1).
+
+**Why it's debt:** A workaround, not a best practice. Works today because we have exactly two known layouts; rots the day a third arrives (e.g., Bun `--compile` standalone binary, vendored as a sub-dep, or a different bundler output structure). Code reviews call this out as "the build system has the wrong shape."
+
+**Modern (2026/04) best practice:** Inline assets via the bundler's text loader. Make prompts string constants in the bundle so there's no runtime fs at all and no path resolution.
+
+```ts
+// Source: import the .md as a text constant
+import clarifyAssessSystemPrompt from "../config/prompts/clarify-assess.md";
+
+// tsdown.config.ts
+export default defineConfig({
+  loader: { ".md": "text" },
+  // ... drop the `copy` block
+});
+```
+
+Three runtimes have to align for this to work end-to-end:
+
+- **tsdown** (production bundle): `loader: { ".md": "text" }` (already in the API).
+- **vitest** (test runner, vite-based): use `?raw` import suffix or a tiny inline plugin to map `.md` → text export.
+- **tsx** (the e2e tests that spawn `src/cli.ts` directly): a Node loader hook OR `?raw` suffix.
+
+Plus an ambient `*.md` module declaration so TypeScript resolves the imports.
+
+**Trigger condition for the refactor:** any of —
+
+- A second asset type joins prompts (SQL migrations, HTML templates, localization JSON, etc.).
+- The Ink/TUI work in v0.2 introduces JSX templates or static React components that have the same shape problem.
+- Praxis ships a second distribution channel (Bun `--compile` binary, Docker image with relocated layout) and the `existsSync` fallback breaks.
+- A user reports the prompts not loading on a non-standard install layout.
+
+Until one of those triggers, the existing helper is small (~5 lines), tested, and honest about the two layouts. Defer.
+
+---
+
 ## v0.2 roadmap (from spec §13)
 
 ### Likely-first
