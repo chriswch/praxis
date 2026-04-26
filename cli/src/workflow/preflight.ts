@@ -81,13 +81,21 @@ function parseDirtyPaths(stdout: string): string[] {
 }
 
 /**
- * Idempotently append an exact `.praxis/` line to the repo's `.gitignore`.
- * Real behavior is TDD'd in AC-4; this stub leaves an existing entry alone so
- * AC-1 can integrate the runner without dragging the gitignore work in.
+ * Idempotently ensure `<cwd>/.gitignore` contains an exact `.praxis/` line.
+ *
+ * - Creates the file with `.praxis/\n` when it does not exist.
+ * - Leaves the file untouched when an exact `.praxis/` line is already present
+ *   anywhere in the file (matching is line-exact: `.praxis/foo` does not
+ *   satisfy).
+ * - Otherwise appends `.praxis/\n`, prefixing a `\n` first when the existing
+ *   file does not end in one so the appended entry sits on its own line.
  */
 export function appendPraxisToGitignore(cwd: string): void {
   const path = join(cwd, ".gitignore");
-  if (!existsSync(path)) return;
+  if (!existsSync(path)) {
+    writeFileSync(path, ".praxis/\n", "utf8");
+    return;
+  }
   const current = readFileSync(path, "utf8");
   if (current.split("\n").some((line) => line === ".praxis/")) return;
   const needsLeadingNewline = current.length > 0 && !current.endsWith("\n");

@@ -1,9 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withTempRepo } from "../support/tmp-repo.js";
-import { runPreflight } from "../../src/workflow/preflight.js";
+import {
+  runPreflight,
+  appendPraxisToGitignore,
+} from "../../src/workflow/preflight.js";
 import { runWorkflow } from "../../src/workflow/runner.js";
 import { scriptedQuery } from "../support/scripted-query.js";
 import type { Deps } from "../../src/workflow/stage.js";
@@ -101,5 +110,66 @@ describe("runPreflight", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
+  });
+});
+
+describe("appendPraxisToGitignore (AC-4)", () => {
+  it("creates .gitignore with `.praxis/` plus trailing newline when missing", () => {
+    withTmpDir((cwd) => {
+      appendPraxisToGitignore(cwd);
+      const path = join(cwd, ".gitignore");
+      expect(existsSync(path)).toBe(true);
+      expect(readFileSync(path, "utf8")).toBe(".praxis/\n");
+    });
+  });
+
+  it("appends with no extra newline when existing file ends in `\\n`", () => {
+    withTmpDir((cwd) => {
+      const path = join(cwd, ".gitignore");
+      writeFileSync(path, "node_modules\n", "utf8");
+      appendPraxisToGitignore(cwd);
+      expect(readFileSync(path, "utf8")).toBe("node_modules\n.praxis/\n");
+    });
+  });
+
+  it("inserts a missing newline before appending when file lacks trailing `\\n`", () => {
+    withTmpDir((cwd) => {
+      const path = join(cwd, ".gitignore");
+      writeFileSync(path, "node_modules", "utf8");
+      appendPraxisToGitignore(cwd);
+      expect(readFileSync(path, "utf8")).toBe("node_modules\n.praxis/\n");
+    });
+  });
+
+  it("is idempotent — second invocation leaves the file untouched", () => {
+    withTmpDir((cwd) => {
+      const path = join(cwd, ".gitignore");
+      writeFileSync(path, "node_modules\n", "utf8");
+      appendPraxisToGitignore(cwd);
+      const after1 = readFileSync(path, "utf8");
+      appendPraxisToGitignore(cwd);
+      const after2 = readFileSync(path, "utf8");
+      expect(after2).toBe(after1);
+    });
+  });
+
+  it("matches the entry by exact line — `.praxis/foo` does not satisfy", () => {
+    withTmpDir((cwd) => {
+      const path = join(cwd, ".gitignore");
+      writeFileSync(path, ".praxis/foo\n", "utf8");
+      appendPraxisToGitignore(cwd);
+      expect(readFileSync(path, "utf8")).toBe(".praxis/foo\n.praxis/\n");
+    });
+  });
+
+  it("treats an existing `.praxis/` line in the middle of the file as a hit", () => {
+    withTmpDir((cwd) => {
+      const path = join(cwd, ".gitignore");
+      writeFileSync(path, "node_modules\n.praxis/\ndist\n", "utf8");
+      appendPraxisToGitignore(cwd);
+      expect(readFileSync(path, "utf8")).toBe(
+        "node_modules\n.praxis/\ndist\n",
+      );
+    });
   });
 });
