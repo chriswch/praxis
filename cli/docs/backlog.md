@@ -86,6 +86,11 @@ S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<
 - [ ] README usage section reflects shipped flags and stages once each lands. — S-001 status banner + Develop snippet shipped; flag/stage docs pending
 - [ ] Move each completed item from this file into `features.md` with a Shipped date and a behavior summary.
 
+### 11. Real-SDK smoke (S-007)
+
+- [x] Document the smoke procedure in README (prerequisites, one-time setup, smoke procedure, what-to-verify checklist, smoke variants). — S-007 (docs only; awaiting one real-SDK run by the maintainer to close the slice and ship v0.1).
+- [ ] Execute the smoke against the real SDK (one happy-path run + at least one variant). Record run-ids and USD spent in the v0.1 release notes. — requires API credit; pending maintainer.
+
 ---
 
 ## Known gaps and trade-offs (carried from spec)

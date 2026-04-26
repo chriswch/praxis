@@ -91,6 +91,74 @@ src/
 
 Treat `product.md` as the source of truth and pick the next slice off `docs/backlog.md`.
 
+## Smoke run against the real SDK
+
+The full test suite uses a scripted SDK seam — no API calls, no spend. Before tagging a release, run one end-to-end smoke against the live `@anthropic-ai/claude-agent-sdk` to confirm the wiring holds against a real model. This costs real money (a few cents per smoke).
+
+### Prerequisites
+
+- `ANTHROPIC_API_KEY` exported in the shell (the SDK reads it directly; Praxis does not pre-check).
+- `git config user.email` and `git config user.name` set (globally or per-repo) — required by the auto-commit stage.
+- A throwaway git repo you are willing to commit to. Do NOT smoke against a repo that holds work you cannot roll back; `implement` runs with `bypassPermissions`.
+- A green `npm test`, `npm run typecheck`, and `npm run build` from this package.
+
+### One-time setup
+
+```bash
+cd <praxis-cli-checkout>
+npm install
+npm run build
+npm link                        # exposes `praxis` on $PATH from dist/cli.js
+```
+
+### Smoke procedure
+
+```bash
+mkdir -p /tmp/praxis-smoke && cd /tmp/praxis-smoke
+git init && git commit --allow-empty -m "baseline"
+export ANTHROPIC_API_KEY=sk-ant-...
+praxis run "add a top-level CONTRIBUTING.md with three sentences explaining how to file an issue"
+# clarify-assess pauses; inspect .praxis/runs/<run-id>/01-clarify-assess.md, then:
+praxis advance <run-id>
+```
+
+Or, for a single-shot autopilot smoke:
+
+```bash
+praxis run --no-pause "add a top-level CONTRIBUTING.md with three sentences explaining how to file an issue"
+```
+
+### What to verify (smoke checklist)
+
+After the run completes, check each:
+
+- [ ] `praxis run` printed a `<run-id>` matching `^\d{4}-\d{2}-\d{2}-\d{4}-[0-9a-f]{4}$` on stdout (§4).
+- [ ] `.praxis/runs/<run-id>/00-intent.txt` is the raw intent verbatim (no trailing newline added).
+- [ ] `.praxis/runs/<run-id>/01-clarify-assess.md` has the five H2 headings in order: `Intent`, `Assumptions`, `Gaps`, `Plan`, `Acceptance`, with at least one non-empty bullet under `Acceptance` (§5.2).
+- [ ] `.praxis/runs/<run-id>/02-implement-log.md` is the agent's verbatim implement-stage finalText (§5.3).
+- [ ] `.praxis/runs/<run-id>/03-commit.txt` starts with a 40-char SHA followed by `\n\n` and the commit message (§5.4).
+- [ ] `git log -1 --pretty=%H` matches the SHA in `03-commit.txt` and `state.json`'s `stages["auto-commit"].commitSha`.
+- [ ] `git log -1 --pretty=%s` is a Conventional-Commits style subject (e.g. `feat: …`, `docs: …`).
+- [ ] The new commit's tree contains the file the intent asked for (here, `CONTRIBUTING.md`).
+- [ ] `state.json` shows every stage `status: "completed"`, each with a populated `sessionId`, `tokens`, `usd`, and `endedAt`; `cost.totalTokens` and `cost.totalUsd` aggregate.
+- [ ] The reporter printed: `[0/3 intent] captured → 00-intent.txt`, `[1/3 clarify-assess] starting…`, `[2/3 implement] starting…`, `[3/3 auto-commit] starting…`, and `[run <run-id>] done — commit <sha>, <tokens> tokens, $<usd>`.
+- [ ] `.gitignore` contains a single `.praxis/` line (idempotent on re-run).
+- [ ] `claude --resume <session-id>` (one of the printed ids) loads a real transcript, confirming session ids are valid.
+
+### Smoke variants worth running once
+
+Run each in a fresh throwaway repo. They exercise paths the scripted suite covers in unit form but not against the real SDK.
+
+- **Clean-tree skip:** Run `--no-pause` against a repo where the implement stage produces no changes (e.g. an intent like "list the files in src/ and explain each"). Expect: auto-commit stage `completed`/`stopReason: "skipped"`, no `03-commit.txt`, no new commit.
+- **Recovery from validator failure:** During the paused review of `01-clarify-assess.md`, hand-edit the file to violate the H2 schema (e.g. delete the `## Acceptance` heading), then `praxis advance <run-id>`. Expect: exit 1 with the validator reason; restore the file; advance again succeeds with `stopReason: "recovered"` and zero new spend on that stage.
+- **`--allow-dirty` bundling:** In a repo with one pre-existing untracked file, run `praxis run --allow-dirty --no-pause "<intent>"`. Expect: the auto-commit's `git show --name-only HEAD` lists the pre-existing file alongside the intent's new files (documented §5.4 trade-off).
+- **SIGINT during implement:** Start `praxis run --no-pause "<long intent>"`, Ctrl-C while implement is mid-stream. Expect: `state.stages["implement"].status === "cancelled"`, `stopReason: "sigint"`, partial `02-implement-log.md` written, auto-commit not executed.
+
+### After the smoke
+
+- Note the run-ids and total USD spent in the release notes.
+- `cd <praxis-cli-checkout> && npm unlink -g praxis` to detach the global symlink if you do not want it permanently.
+
 ## Docs
 
 - [`product.md`](product.md) — full product spec. Authoritative for behavior, schemas, error modes, and roadmap.
