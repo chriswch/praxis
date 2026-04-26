@@ -29,4 +29,11 @@ export interface Reporter {
   stageEnd(stage: StageConfig, result: StageEndResult): void;
   paused(runId: string, stageId: string, artifactPath: string): void;
   runDone(runId: string, summary: RunSummary): void;
+  /**
+   * Synthesised pre-stage line for the agentless intent capture (`[0/N intent]
+   * captured → 00-intent.txt`). Optional because Stage 0 has no `StageConfig`
+   * and not every Reporter cares about it — runner calls `reporter.stage0?.()`
+   * so absent implementations simply skip the line.
+   */
+  stage0?(total: number, intentFilename: string): void;
 }

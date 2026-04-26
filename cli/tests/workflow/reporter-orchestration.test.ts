@@ -75,9 +75,10 @@ describe("runWorkflow reporter wiring (AC-15)", () => {
       );
       if (!result.ok) throw new Error(result.reason);
 
-      // Stage 0 came in via the runner's stage0Captured side-channel
-      // (not part of the Reporter interface), so we don't assert it here.
-      // The first Reporter call must be stageStart for the real stage.
+      // Stage 0 lands via the runner's optional `reporter.stage0?.()` call;
+      // RecordingReporter doesn't implement it, so the spy never sees it. The
+      // first recorded Reporter call must therefore be stageStart for the
+      // real stage.
       expect(reporter.calls[0]).toMatchObject({
         kind: "stageStart",
         stageId: "a",
@@ -273,8 +274,8 @@ describe("runWorkflow --no-pause overrides pauseAfter (AC-13)", () => {
 
 describe("runWorkflow stage 0 reporting (AC-3)", () => {
   it("a synthetic stage-0 line lands before the real stage start", async () => {
-    // Captured via stdout because stage0Captured is on LineReporter, not the
-    // generic Reporter interface. We use a real LineReporter here with a
+    // Captured via stdout because `stage0` is an optional Reporter method
+    // only LineReporter implements; we use a real LineReporter here with a
     // captured stream.
     const { Writable } = await import("node:stream");
     const { LineReporter } = await import("../../src/ui/line-reporter.js");

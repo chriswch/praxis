@@ -109,7 +109,7 @@ describe("LineReporter (AC-2/7/8/10/11/12)", () => {
 
   it("stage 0 helper prints the synthesized intent line", () => {
     const { reporter, out } = makeReporter();
-    reporter.stage0Captured(3, "00-intent.txt");
+    reporter.stage0(3, "00-intent.txt");
     expect(out.text()).toBe("[0/3 intent] captured → 00-intent.txt\n");
   });
 });

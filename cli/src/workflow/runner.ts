@@ -14,7 +14,6 @@ import { runPreflight, appendPraxisToGitignore } from "./preflight.js";
 import { defaultWorkflow } from "../config/defaults.js";
 import type { PraxisConfig, StageConfig } from "../config/schema.js";
 import type { Reporter, RunStatus, RunSummary } from "../ui/reporter.js";
-import { LineReporter } from "../ui/line-reporter.js";
 
 export type RunWorkflowContext = {
   intent: string;
@@ -103,11 +102,9 @@ export async function runWorkflow(
   writeState(runDir, state);
 
   // AC-3: synthetic stage-0 line `[0/N intent] captured → 00-intent.txt`.
-  // Not part of the Reporter interface (no StageConfig for the agentless
-  // intent capture), so we duck-type the LineReporter helper.
-  if (isLineReporter(reporter)) {
-    reporter.stage0Captured(config.workflow.length, basename(intentPath));
-  }
+  // Optional on the Reporter interface (no StageConfig for the agentless
+  // intent capture); Reporters that don't implement it simply skip it.
+  reporter.stage0?.(config.workflow.length, basename(intentPath));
 
   return executeStages(state, config, ctx, deps, reporter, runDir, runId);
 }
@@ -342,13 +339,4 @@ function summarize(state: State, status: RunStatus): RunSummary {
 /** ISO-8601 UTC string truncated to whole seconds, e.g. `2026-04-25T14:30:12Z`. */
 function toIsoSeconds(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
-}
-
-/**
- * Duck-type a Reporter as a LineReporter so the runner can call
- * `stage0Captured`. Future Reporters that don't implement it simply skip the
- * synthesised line — keeping the Reporter interface frozen at §8.
- */
-function isLineReporter(r: Reporter): r is LineReporter {
-  return typeof (r as { stage0Captured?: unknown }).stage0Captured === "function";
 }

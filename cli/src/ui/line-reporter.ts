@@ -115,17 +115,12 @@ export class LineReporter implements Reporter {
   }
 
   /**
-   * Synthesize the §5.1 stage-0 line. Not part of the Reporter interface
-   * (Stage 0 has no StageConfig); the runner calls this directly after
-   * writing the intent file.
+   * Synthesize the §5.1 stage-0 line. Optional method on the Reporter
+   * interface (Stage 0 has no StageConfig); the runner invokes it via
+   * `reporter.stage0?.(...)` so Reporters that don't care simply skip it.
    */
-  stage0Captured(total: number, intentFilename: string): void {
+  stage0(total: number, intentFilename: string): void {
     this.writeAll(this.stdout, formatStage0(total, intentFilename));
-  }
-
-  /** Flush + dispose — call from the runner after the last terminal line. */
-  dispose(): void {
-    this.buffer.dispose();
   }
 
   private writeAll(stream: Writable, lines: string[]): void {
