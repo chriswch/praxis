@@ -92,14 +92,27 @@ export function formatPaused(
 }
 
 /**
- * AC-12: end-of-run summary printed on every terminal path (success, paused,
- * failed). Per-stage rows are emitted in object insertion order — the runner
- * always populates `perStage` in workflow order.
+ * AC-12: end-of-run summary printed on every terminal path (completed,
+ * paused, failed, cancelled). The headline verb branches on `summary.status`
+ * so a failed/cancelled run does not misleadingly print "done" (H-1). Cost
+ * totals are reported regardless of outcome — tokens are spent either way.
+ *
+ * Per-stage rows are emitted in object insertion order — the runner always
+ * populates `perStage` in workflow order.
  */
+const STATUS_WORD: Record<NonNullable<RunSummary["status"]>, string> = {
+  completed: "done",
+  paused: "paused",
+  failed: "failed",
+  cancelled: "cancelled",
+};
+
 export function formatRunDone(runId: string, summary: RunSummary): string[] {
+  const word = STATUS_WORD[summary.status ?? "completed"];
+  const tail = `${summary.cost.totalTokens} tokens, ${formatUsd(summary.cost.totalUsd)}`;
   const head = summary.commitSha
-    ? `[run ${runId}] done — commit ${summary.commitSha}, ${summary.cost.totalTokens} tokens, ${formatUsd(summary.cost.totalUsd)}`
-    : `[run ${runId}] done — ${summary.cost.totalTokens} tokens, ${formatUsd(summary.cost.totalUsd)}`;
+    ? `[run ${runId}] ${word} — commit ${summary.commitSha}, ${tail}`
+    : `[run ${runId}] ${word} — ${tail}`;
   const lines = [head];
   for (const [id, row] of Object.entries(summary.perStage)) {
     lines.push(`  ${id}: ${row.tokens} tokens, ${formatUsd(row.usd)} (${row.sessionId})`);

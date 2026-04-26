@@ -13,7 +13,7 @@ import {
 import { runPreflight, appendPraxisToGitignore } from "./preflight.js";
 import { defaultWorkflow } from "../config/defaults.js";
 import type { PraxisConfig, StageConfig } from "../config/schema.js";
-import type { Reporter, RunSummary } from "../ui/reporter.js";
+import type { Reporter, RunStatus, RunSummary } from "../ui/reporter.js";
 import { LineReporter } from "../ui/line-reporter.js";
 
 export type RunWorkflowContext = {
@@ -145,7 +145,7 @@ async function executeStages(
     );
     if (outcome.kind === "paused") {
       reporter.paused(runId, outcome.stageId, outcome.artifactPath);
-      reporter.runDone(runId, summarize(state));
+      reporter.runDone(runId, summarize(state, "paused"));
       return {
         ok: true,
         runId,
@@ -156,7 +156,7 @@ async function executeStages(
       };
     }
     if (outcome.kind === "failed") {
-      reporter.runDone(runId, summarize(state));
+      reporter.runDone(runId, summarize(state, outcome.status));
       return {
         ok: false,
         reason: outcome.reason,
@@ -168,7 +168,7 @@ async function executeStages(
     }
   }
 
-  reporter.runDone(runId, summarize(state));
+  reporter.runDone(runId, summarize(state, "completed"));
   return { ok: true, runId, runDir, paused: false };
 }
 
@@ -315,8 +315,12 @@ function collectArtifactPaths(
 /**
  * Build the `RunSummary` from the current `state.json` shape so `runDone`
  * has the totals + per-stage rows to print. Unstarted stages are skipped.
+ *
+ * `status` is the run's terminal outcome — passed straight through to the
+ * formatter so the headline reads "done" / "paused" / "failed" / "cancelled"
+ * (H-1).
  */
-function summarize(state: State): RunSummary {
+function summarize(state: State, status: RunStatus): RunSummary {
   const perStage: RunSummary["perStage"] = {};
   for (const [id, s] of Object.entries(state.stages)) {
     if (!s.tokens) continue;
@@ -327,8 +331,11 @@ function summarize(state: State): RunSummary {
     };
   }
   return {
+    // state.cost.totalTokens excludes cache tokens by design (S-002, M-2);
+    // input + output only, matching what we accumulate per stage.
     cost: { ...state.cost },
     perStage,
+    status,
   };
 }
 

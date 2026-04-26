@@ -173,6 +173,45 @@ describe("formatRunDone (AC-12)", () => {
   });
 });
 
+describe("formatRunDone (H-1) — headline verb branches on status", () => {
+  function summary(status?: RunSummary["status"]): RunSummary {
+    return {
+      cost: { totalTokens: 100, totalUsd: 0.005 },
+      perStage: { foo: { tokens: 100, usd: 0.005, sessionId: "sess_a" } },
+      status,
+    };
+  }
+
+  it("status='completed' renders as `done` (also the back-compat default)", () => {
+    expect(formatRunDone("r-1", summary("completed"))[0]).toBe(
+      "[run r-1] done — 100 tokens, $0.0050",
+    );
+    // Omitted status falls back to "completed" so existing callers keep working.
+    expect(formatRunDone("r-1", summary(undefined))[0]).toBe(
+      "[run r-1] done — 100 tokens, $0.0050",
+    );
+  });
+
+  it("status='paused' renders as `paused`", () => {
+    expect(formatRunDone("r-1", summary("paused"))[0]).toBe(
+      "[run r-1] paused — 100 tokens, $0.0050",
+    );
+  });
+
+  it("status='failed' renders as `failed`; cost line is still accurate", () => {
+    const lines = formatRunDone("r-1", summary("failed"));
+    expect(lines[0]).toBe("[run r-1] failed — 100 tokens, $0.0050");
+    // Per-stage breakdown is preserved on the failed path.
+    expect(lines[1]).toBe("  foo: 100 tokens, $0.0050 (sess_a)");
+  });
+
+  it("status='cancelled' renders as `cancelled`", () => {
+    expect(formatRunDone("r-1", summary("cancelled"))[0]).toBe(
+      "[run r-1] cancelled — 100 tokens, $0.0050",
+    );
+  });
+});
+
 describe("formatAssistantText (AC-4) — wrap to terminal width", () => {
   it("short text fits on a single ` › <text>` line", () => {
     expect(formatAssistantText("hello", 80)).toEqual([" › hello"]);
