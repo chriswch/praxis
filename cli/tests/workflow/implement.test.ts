@@ -267,6 +267,114 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
   });
 });
 
+describe("runStage translates implement tool_use/tool_result blocks to AgentEvents (AC-7)", () => {
+  it("Read → tool_use with file_path brief; Edit → tool_use with file_path brief; tool_result resolves name from tool_use_id and reports ok=true", async () => {
+    await withTmpDir(async (runDir) => {
+      const events: import("../../src/workflow/stage.js").AgentEvent[] = [];
+      const reporter: import("../../src/ui/reporter.js").Reporter = {
+        stageStart() {},
+        stageEvent(e) {
+          events.push(e);
+        },
+        stageEnd() {},
+        paused() {},
+        runDone() {},
+      };
+
+      const messages: SdkMessage[] = [
+        {
+          type: "system",
+          subtype: "init",
+          session_id: "sess_impl_tools",
+          model: "claude-opus-4-7",
+        },
+        {
+          type: "assistant",
+          session_id: "sess_impl_tools",
+          message: {
+            content: [
+              { type: "text", text: "investigating" },
+              {
+                type: "tool_use",
+                id: "tu_read",
+                name: "Read",
+                input: { file_path: "/repo/src/auth.ts" },
+              },
+              {
+                type: "tool_result",
+                tool_use_id: "tu_read",
+                content: "ok",
+                is_error: false,
+              },
+              {
+                type: "tool_use",
+                id: "tu_edit",
+                name: "Edit",
+                input: {
+                  file_path: "/repo/src/Logout.tsx",
+                  old_string: "x",
+                  new_string: "y",
+                },
+              },
+              {
+                type: "tool_result",
+                tool_use_id: "tu_edit",
+                content: "ok",
+                is_error: false,
+              },
+            ],
+          },
+        },
+        {
+          type: "result",
+          subtype: "success",
+          stop_reason: "end_turn",
+          total_cost_usd: 0,
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+          num_turns: 1,
+          session_id: "sess_impl_tools",
+        },
+      ];
+
+      const ctx: StageContext = {
+        intent: "x",
+        runDir,
+        runId: RUN_ID,
+        reporter,
+        signal: new AbortController().signal,
+        artifactPaths: { "clarify-assess": join(runDir, "01-clarify-assess.md") },
+      };
+      const recording = recordingScriptedQuery([[{ messages }]]);
+      await runStage(implementConfig(), ctx, { createQueryFn: recording });
+
+      const toolUses = events.filter((e) => e.type === "tool_use");
+      expect(toolUses.map((e) => e.type === "tool_use" && e.name)).toEqual([
+        "Read",
+        "Edit",
+      ]);
+      expect(
+        toolUses.map((e) => (e.type === "tool_use" ? e.brief : "")),
+      ).toEqual(["/repo/src/auth.ts", "/repo/src/Logout.tsx"]);
+
+      const toolResults = events.filter((e) => e.type === "tool_result");
+      expect(toolResults.length).toBe(2);
+      // Tool name resolved through the tool_use_id cache (AC-7 expectation).
+      expect(toolResults.map((e) => e.type === "tool_result" && e.name)).toEqual([
+        "Read",
+        "Edit",
+      ]);
+      expect(
+        toolResults.every((e) => e.type === "tool_result" && e.ok === true),
+      ).toBe(true);
+    });
+  });
+});
+
 describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
   it("noPause: true drives clarify-assess → implement → auto-commit; commit fires once with the auto-commit finalText", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
