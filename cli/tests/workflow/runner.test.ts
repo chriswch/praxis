@@ -69,6 +69,8 @@ function pinnedDeps(
     rng: (n) => bytes.slice(0, n),
     createQueryFn,
     reporter: new LineReporter(),
+    // S-005: bootstrap-shape tests pause on the only stage; commit unused.
+    commit: () => ({ ok: true }),
   };
 }
 

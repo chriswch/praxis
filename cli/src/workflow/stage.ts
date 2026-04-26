@@ -104,6 +104,15 @@ export type CreateQueryFnHandle = {
 
 export type CreateQueryFn = (input: CreateQueryFnInput) => CreateQueryFnHandle;
 
+/**
+ * Auto-commit hand-off seam (S-005). The runner calls this after the
+ * `auto-commit` stage completes successfully, passing the commit message the
+ * agent emitted as its `finalText`. The production wrapper is a stub that
+ * prints a stderr notice but does not run `git commit` (real git lands in
+ * S-006); tests inject a spy.
+ */
+export type CommitFn = (cwd: string, message: string) => { ok: true };
+
 /** Dependencies threaded through the workflow for substitution in tests. */
 export type Deps = {
   clock: () => Date;
@@ -111,6 +120,8 @@ export type Deps = {
   createQueryFn: CreateQueryFn;
   /** Stdout/stderr Reporter; the CLI passes a LineReporter here (S-003). */
   reporter: Reporter;
+  /** Auto-commit hand-off (S-005). Called only on auto-commit success. */
+  commit: CommitFn;
 };
 
 const PROMPTS_DIR = resolve(

@@ -58,6 +58,8 @@ function deps(
     rng: (n) => new Uint8Array([0x7a, 0xf2]).slice(0, n),
     createQueryFn,
     reporter,
+    // S-005: reporter tests don't reach the auto-commit stage; satisfy shape.
+    commit: () => ({ ok: true }),
   };
 }
 

@@ -214,6 +214,9 @@ function deps(createQueryFn: CreateQueryFn, date: Date, bytes: Uint8Array): Deps
     rng: (n) => bytes.slice(0, n),
     createQueryFn,
     reporter: new LineReporter(),
+    // S-005: orchestration tests stop after clarify-assess pauses, so the
+    // commit seam is never invoked — but include it for shape completeness.
+    commit: () => ({ ok: true }),
   };
 }
 

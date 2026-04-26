@@ -152,6 +152,9 @@ function deps(
     rng: (n) => new Uint8Array([0x00, 0x01]).slice(0, n),
     createQueryFn,
     reporter,
+    // S-005: advance tests never reach the auto-commit stage, but we satisfy
+    // the `Deps.commit` slot so the runner contract isn't lying about shape.
+    commit: () => ({ ok: true }),
   };
 }
 

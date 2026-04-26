@@ -109,6 +109,7 @@ export async function runWorkflow(
 
   const loopCtx: LoopContext = {
     intent: ctx.intent,
+    cwd: ctx.cwd,
     noPause: ctx.noPause,
     signal: ctx.signal,
   };
@@ -133,6 +134,7 @@ type StepOutcome =
  */
 type LoopContext = {
   intent: string;
+  cwd: string;
   noPause?: boolean;
   signal?: AbortSignal;
 };
@@ -257,6 +259,16 @@ async function runOneStage(
       reason: errorMessage ?? "stage failed",
       status: stageStatus === "cancelled" ? "cancelled" : "failed",
     };
+  }
+
+  // S-005 AC-2: after the auto-commit stage completes successfully, hand the
+  // commit message (the agent's verbatim finalText) off to the git seam. The
+  // S-005 production stub is a stderr-notice no-op (see src/git/commit.ts);
+  // S-006 lands the real `git add -A` + `git commit -m` body. On
+  // timeout/cancel/validator failure (the `failed` branch above) we never
+  // reach here — commit only fires on success.
+  if (stage.id === "auto-commit") {
+    deps.commit(ctx.cwd, result.finalText);
   }
 
   // AC-13: --no-pause overrides every `pauseAfter` so autopilot runs end-
@@ -409,6 +421,7 @@ export async function advanceWorkflow(
   // loop context unconditionally — no per-stage shape check.
   const loopCtx: LoopContext = {
     intent: state.intent,
+    cwd: ctx.cwd,
     noPause: ctx.noPause,
     signal: ctx.signal,
   };

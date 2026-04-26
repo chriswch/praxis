@@ -5,6 +5,7 @@ import type { Deps } from "./workflow/stage.js";
 import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
 import { LineReporter } from "./ui/line-reporter.js";
 import { isRunId } from "./workflow/run-id.js";
+import { commit } from "./git/commit.js";
 
 function buildDefaultDeps(): Deps {
   // Color when stderr is a TTY and NO_COLOR is unset (the de facto convention).
@@ -21,6 +22,7 @@ function buildDefaultDeps(): Deps {
     rng: (n: number) => new Uint8Array(randomBytes(n)),
     createQueryFn: sdkCreateQueryFn,
     reporter: new LineReporter({ color, cols }),
+    commit,
   };
 }
 

@@ -1,7 +1,16 @@
 /**
- * Stub for the auto-commit harness wrapper. Real implementation lands when
- * the auto-commit stage is wired (product.md §5.4).
+ * Auto-commit hand-off (product.md §5.4).
+ *
+ * S-005 ships the call wiring (runner → `commit(cwd, message)` after the
+ * auto-commit stage produces its message) but defers the actual `git add -A`
+ * + `git commit -m` invocation to S-006. For now this is a no-op stub that
+ * prints a single stderr notice so users running the happy path see the
+ * commit was prepared but not executed. Returns `{ ok: true }` so the runner
+ * still classifies the stage as completed.
  */
-export function commit(_cwd: string, _message: string): never {
-  throw new Error("commit: not implemented in S-001");
+export function commit(_cwd: string, _message: string): { ok: true } {
+  process.stderr.write(
+    "praxis: auto-commit message ready; git commit not yet wired (lands in S-006)\n",
+  );
+  return { ok: true };
 }
