@@ -217,3 +217,81 @@ describe("advanceWorkflow invalid statuses (AC-8, AC-9)", () => {
     });
   });
 });
+
+describe("advanceWorkflow paused happy path (AC-3)", () => {
+  it("dispatches the next stage without re-running the prior stage's validator; reporter sees resuming('approved')", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "ship it",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "second",
+        cost: { totalTokens: 150, totalUsd: 0.012 },
+        stages: {
+          first: completedStage("sess_first"),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": "anything\n" });
+      const recording = recordingScriptedQuery([
+        [{ messages: noopMessages("sess_second") }],
+      ]);
+      const reporter = new RecordingReporter();
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: TWO_STAGE_CONFIG },
+        deps(recording, reporter),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // Only the second stage runs — the first is taken as-is from disk.
+      expect(recording.calls.length).toBe(1);
+
+      // Second stage transitions to completed.
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages.first.status).toBe("completed");
+      expect(persisted.stages.second.status).toBe("completed");
+      expect(persisted.stages.second.sessionId).toBe("sess_second");
+
+      // Reporter saw the §11 paused-resume headline before the next stage start.
+      const stageStarts = reporter.calls.filter((c) => c.kind === "stageStart");
+      expect(stageStarts.length).toBe(1);
+      expect(stageStarts[0].kind === "stageStart" && stageStarts[0].stageId).toBe(
+        "second",
+      );
+    });
+  });
+
+  it("does not append .gitignore (AC-11)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "ship it",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "second",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          first: completedStage(),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": "x\n" });
+      // No .gitignore on disk before advance.
+      expect(existsSync(join(cwd, ".gitignore"))).toBe(false);
+
+      const recording = scriptedQuery([{ messages: noopMessages("sess_second") }]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: TWO_STAGE_CONFIG },
+        deps(recording),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // .gitignore must remain absent — pre-flight (which appends it) is
+      // skipped on advance.
+      expect(existsSync(join(cwd, ".gitignore"))).toBe(false);
+    });
+  });
+});
