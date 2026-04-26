@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export type StageStatus =
@@ -66,4 +66,105 @@ export function writeState(runDir: string, state: State): void {
     JSON.stringify(state, null, 2) + "\n",
     "utf8",
   );
+}
+
+export type ReadStateResult =
+  | { ok: true; state: State }
+  | { ok: false; reason: string };
+
+const VALID_STAGE_STATUSES: ReadonlySet<string> = new Set<StageStatus>([
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+/**
+ * Hand-written structural validator for `<runDir>/state.json` (S-004 AC-2).
+ *
+ * Used by `praxis advance` to fail fast on missing/corrupt/schema-bad state
+ * before any downstream logic runs. Returns `{ ok, reason }` to mirror
+ * `runPreflight` so callers can render a single-line CLI error.
+ *
+ * Checks performed:
+ *   - file exists and parses as JSON;
+ *   - top-level shape (string/object fields) matches `State`;
+ *   - every entry in `stages` carries a known `StageStatus` string.
+ *
+ * Deeper field validation (e.g. token shape) is intentionally light — the
+ * runner that wrote the file owns its full schema; advance only needs enough
+ * to navigate the resume-point algorithm safely.
+ */
+export function readState(runDir: string): ReadStateResult {
+  const path = join(runDir, "state.json");
+  if (!existsSync(path)) {
+    return { ok: false, reason: `state.json not found at ${path}` };
+  }
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch (err) {
+    return { ok: false, reason: `failed to read state.json: ${errMsg(err)}` };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return { ok: false, reason: `state.json is not valid JSON: ${errMsg(err)}` };
+  }
+  if (!isObject(parsed)) {
+    return { ok: false, reason: "state.json is not an object" };
+  }
+  const requiredStrings: Array<keyof State> = [
+    "runId",
+    "intent",
+    "startedAt",
+    "currentStage",
+  ];
+  for (const key of requiredStrings) {
+    if (typeof parsed[key] !== "string") {
+      return {
+        ok: false,
+        reason: `state.json is missing or invalid field: ${String(key)}`,
+      };
+    }
+  }
+  const cost = parsed.cost;
+  if (
+    !isObject(cost) ||
+    typeof cost.totalTokens !== "number" ||
+    typeof cost.totalUsd !== "number"
+  ) {
+    return { ok: false, reason: "state.json is missing or invalid field: cost" };
+  }
+  const stages = parsed.stages;
+  if (!isObject(stages)) {
+    return { ok: false, reason: "state.json field stages is not an object" };
+  }
+  for (const [id, entry] of Object.entries(stages)) {
+    if (!isObject(entry)) {
+      return {
+        ok: false,
+        reason: `state.json stage entry ${id} is not an object`,
+      };
+    }
+    if (typeof entry.status !== "string" || !VALID_STAGE_STATUSES.has(entry.status)) {
+      return {
+        ok: false,
+        reason: `state.json stage entry ${id} has invalid status: ${String(
+          entry.status,
+        )}`,
+      };
+    }
+  }
+  return { ok: true, state: parsed as unknown as State };
+}
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
