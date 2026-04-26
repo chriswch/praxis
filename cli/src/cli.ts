@@ -4,6 +4,7 @@ import { runWorkflow } from "./workflow/runner.js";
 import type { Deps } from "./workflow/stage.js";
 import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
 import { LineReporter } from "./ui/line-reporter.js";
+import { isRunId } from "./workflow/run-id.js";
 
 function buildDefaultDeps(): Deps {
   // Color when stderr is a TTY and NO_COLOR is unset (the de facto convention).
@@ -59,12 +60,45 @@ function parseRunArgs(rest: string[]): ParsedArgs {
   return { intent, allowDirty, noPause };
 }
 
+type ParsedAdvanceArgs = {
+  runId: string;
+  noPause: boolean;
+};
+
+function parseAdvanceArgs(rest: string[]): ParsedAdvanceArgs {
+  let noPause = false;
+  const positional: string[] = [];
+  for (const arg of rest) {
+    if (arg === "--no-pause") {
+      noPause = true;
+    } else if (arg.startsWith("--")) {
+      fail(`unknown flag: ${arg}`);
+    } else {
+      positional.push(arg);
+    }
+  }
+  const runId = positional[0];
+  if (runId === undefined) {
+    fail("missing run-id. Usage: praxis advance [--no-pause] <run-id>");
+  }
+  if (!isRunId(runId)) {
+    fail(
+      `invalid run-id: ${runId}. Expected shape YYYY-MM-DD-HHMM-xxxx (4 hex chars).`,
+    );
+  }
+  return { runId, noPause };
+}
+
 async function main(argv: string[]): Promise<void> {
   const args = argv.slice(2);
   const [command, ...rest] = args;
+  if (command === "advance") {
+    await runAdvance(rest);
+    return;
+  }
   if (command !== "run") {
     fail(
-      `unknown command: ${command ?? "(missing)"}. Usage: praxis run [--allow-dirty] [--no-pause] "<intent>"`,
+      `unknown command: ${command ?? "(missing)"}. Usage: praxis run [--allow-dirty] [--no-pause] "<intent>" | praxis advance [--no-pause] <run-id>`,
     );
   }
   const { intent, allowDirty, noPause } = parseRunArgs(rest);
@@ -100,6 +134,15 @@ async function main(argv: string[]): Promise<void> {
     process.exit(1);
   }
   process.stdout.write(`${result.runId}\n`);
+}
+
+async function runAdvance(rest: string[]): Promise<void> {
+  // Parse first so unknown flags / bad run-ids surface before any disk I/O.
+  parseAdvanceArgs(rest);
+  // The full advance workflow lands in subsequent ACs; today, the parsed-
+  // success path falls through to a not-implemented stub so AC-1 can ship
+  // independently.
+  fail("advance is not yet implemented");
 }
 
 main(process.argv).catch((err) => {
