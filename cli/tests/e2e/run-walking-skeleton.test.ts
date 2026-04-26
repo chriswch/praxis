@@ -49,8 +49,11 @@ describe("praxis run (walking skeleton)", () => {
 
   it("produces distinct run-dirs across consecutive runs", async () => {
     await withTempRepo(async ({ dir }) => {
-      const a = runCli(["run", "first intent"], dir);
-      const b = runCli(["run", "second intent"], dir);
+      // Second run sees the first run's `.gitignore` append, so it would
+      // otherwise be blocked by the dirty-tree pre-flight; --allow-dirty
+      // makes the runs independent for this distinctness check.
+      const a = runCli(["run", "--allow-dirty", "first intent"], dir);
+      const b = runCli(["run", "--allow-dirty", "second intent"], dir);
       expect(a.status).toBe(0);
       expect(b.status).toBe(0);
       const runIdA = a.stdout.trim();

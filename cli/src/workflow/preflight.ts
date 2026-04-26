@@ -23,7 +23,7 @@ export type PreflightResult =
  */
 export function runPreflight(
   cwd: string,
-  _options: PreflightOptions,
+  options: PreflightOptions,
 ): PreflightResult {
   const isRepo = spawnSync(
     "git",
@@ -38,7 +38,46 @@ export function runPreflight(
     };
   }
 
+  if (!options.allowDirty) {
+    const status = spawnSync("git", ["status", "--porcelain"], {
+      cwd,
+      encoding: "utf8",
+    });
+    if (status.status !== 0) {
+      return {
+        ok: false,
+        reason: `git status failed: ${(status.stderr || "").trim()}`,
+      };
+    }
+    const dirty = parseDirtyPaths(status.stdout);
+    if (dirty.length > 0) {
+      return {
+        ok: false,
+        reason:
+          `working tree has uncommitted changes:\n  ${dirty.join("\n  ")}`,
+        remediation:
+          "Commit or stash these changes, or rerun with --allow-dirty (the auto-commit stage will then bundle them into this run's commit).",
+      };
+    }
+  }
+
   return { ok: true };
+}
+
+/**
+ * Parse `git status --porcelain` output into the dirty path list. Each line
+ * is `XY <path>` (or `XY <path> -> <new>` for renames); we report the first
+ * path so the user can find the file.
+ */
+function parseDirtyPaths(stdout: string): string[] {
+  const out: string[] = [];
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue;
+    const path = line.slice(3);
+    const arrow = path.indexOf(" -> ");
+    out.push(arrow >= 0 ? path.slice(0, arrow) : path);
+  }
+  return out;
 }
 
 /**

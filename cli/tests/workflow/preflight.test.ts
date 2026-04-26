@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withTempRepo } from "../support/tmp-repo.js";
@@ -47,6 +47,40 @@ describe("runPreflight", () => {
   it("passes pre-flight on a clean git repo", async () => {
     await withTempRepo(({ dir }) => {
       const result = runPreflight(dir, { allowDirty: false });
+      expect(result.ok).toBe(true);
+    });
+  });
+
+  it("blocks a dirty tree without --allow-dirty (AC-2)", async () => {
+    await withTempRepo(({ dir }) => {
+      // Make the tree dirty.
+      writeFileSync(join(dir, "dirty.txt"), "uncommitted\n", "utf8");
+      const result = runPreflight(dir, { allowDirty: false });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toMatch(/dirty.txt/);
+        expect(result.remediation ?? "").toMatch(/--allow-dirty/);
+      }
+    });
+  });
+
+  it("lists multiple dirty paths in the failure reason", async () => {
+    await withTempRepo(({ dir }) => {
+      writeFileSync(join(dir, "a.txt"), "x", "utf8");
+      writeFileSync(join(dir, "b.txt"), "y", "utf8");
+      const result = runPreflight(dir, { allowDirty: false });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toMatch(/a\.txt/);
+        expect(result.reason).toMatch(/b\.txt/);
+      }
+    });
+  });
+
+  it("--allow-dirty overrides the dirty-tree block (AC-3 setup)", async () => {
+    await withTempRepo(({ dir }) => {
+      writeFileSync(join(dir, "dirty.txt"), "uncommitted\n", "utf8");
+      const result = runPreflight(dir, { allowDirty: true });
       expect(result.ok).toBe(true);
     });
   });
