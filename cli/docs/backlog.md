@@ -15,7 +15,7 @@ When an item lands, remove it from this file (don't strike-through) — `feature
 
 ### Real-SDK smoke
 
-- [ ] Execute the smoke run against the real `@anthropic-ai/claude-agent-sdk` (one happy-path run + at least one variant from the README's smoke-variants list). The full test suite uses a scripted SDK seam — no real model has yet driven the workflow end-to-end. Procedure: see [`../README.md`](../README.md#smoke-run-against-the-real-sdk). Record run-ids and total USD spent in the v0.1 release notes when done.
+- [ ] Run at least one of the README's [smoke variants](../README.md#smoke-variants-worth-running-once) — clean-tree skip, validator-failure recovery, `--allow-dirty` bundling, or SIGINT during implement — to exercise the paths the happy-path smoke did not. The happy path is already validated (see `features.md` "End-to-end validation").
 
 ### Polish (deferred from review)
 
