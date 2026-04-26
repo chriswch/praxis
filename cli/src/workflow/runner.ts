@@ -107,7 +107,12 @@ export async function runWorkflow(
   // intent capture); Reporters that don't implement it simply skip it.
   reporter.stage0?.(config.workflow.length, basename(intentPath));
 
-  return executeStages(state, config, ctx, deps, reporter, runDir, runId, 0);
+  const loopCtx: LoopContext = {
+    intent: ctx.intent,
+    noPause: ctx.noPause,
+    signal: ctx.signal,
+  };
+  return executeStages(state, config, loopCtx, deps, reporter, runDir, runId, 0);
 }
 
 type StepOutcome =
@@ -120,10 +125,22 @@ type StepOutcome =
       status: "failed" | "cancelled";
     };
 
+/**
+ * Internal loop context shared by `executeStages` / `runOneStage`. Both entry
+ * points (`runWorkflow`, `advanceWorkflow`) resolve `intent` at their own
+ * boundary so the per-stage code reads `ctx.intent` unconditionally — no
+ * runtime shape check inside the loop.
+ */
+type LoopContext = {
+  intent: string;
+  noPause?: boolean;
+  signal?: AbortSignal;
+};
+
 async function executeStages(
   state: State,
   config: PraxisConfig,
-  ctx: RunWorkflowContext | AdvanceWorkflowContext,
+  ctx: LoopContext,
   deps: Deps,
   reporter: Reporter,
   runDir: string,
@@ -176,7 +193,7 @@ async function runOneStage(
   index: number,
   config: PraxisConfig,
   state: State,
-  ctx: RunWorkflowContext | AdvanceWorkflowContext,
+  ctx: LoopContext,
   deps: Deps,
   reporter: Reporter,
   runDir: string,
@@ -188,12 +205,8 @@ async function runOneStage(
   // 1-based index per §8 (`[1/3 ...]`).
   reporter.stageStart(stage, index + 1, config.workflow.length);
 
-  // `intent` lives on RunWorkflowContext directly; on advance we read it back
-  // from state.json (the original run captured it in §9).
-  const intent = "intent" in ctx ? ctx.intent : state.intent;
-
   const stageCtx: StageContext = {
-    intent,
+    intent: ctx.intent,
     runDir,
     runId,
     reporter,
@@ -391,6 +404,15 @@ export async function advanceWorkflow(
   }
   const state = read.state;
 
+  // M-2: resolve `intent` once at the advance boundary. The original run
+  // captured it in §9 state.json; downstream `runOneStage` reads it off the
+  // loop context unconditionally — no per-stage shape check.
+  const loopCtx: LoopContext = {
+    intent: state.intent,
+    noPause: ctx.noPause,
+    signal: ctx.signal,
+  };
+
   // Resume-point scan: first non-completed stage in workflow order. Hand-
   // edited non-monotonic statuses are tolerated — we always pick the first
   // non-completed entry.
@@ -408,7 +430,19 @@ export async function advanceWorkflow(
 
   const stage = config.workflow[idx];
   const stageState = state.stages[stage.id];
-  const status = stageState?.status ?? "pending";
+  const rawStatus = stageState?.status ?? "pending";
+  // The `findIndex` above guaranteed `rawStatus !== "completed"`, but TS
+  // can't see across the boundary. Narrow here so the `assertNever` at the
+  // bottom catches genuine future StageStatus additions, not this case.
+  if (rawStatus === "completed") {
+    return {
+      ok: false,
+      reason: "run is already complete",
+      runId,
+      runDir,
+    };
+  }
+  const status: Exclude<typeof rawStatus, "completed"> = rawStatus;
 
   if (status === "running") {
     return {
@@ -433,9 +467,10 @@ export async function advanceWorkflow(
       prev.pauseAfter === true
     ) {
       reporter.resuming?.("approved", runId, prev.id);
-      state.currentStage = stage.id;
-      writeState(runDir, state);
-      return executeStages(state, config, ctx, deps, reporter, runDir, runId, idx);
+      // L-1: do NOT pre-write `currentStage` here — `runOneStage` rewrites it
+      // on entry (line ~185), and the recovery branch below skips this same
+      // pre-write. Harmonize both branches.
+      return executeStages(state, config, loopCtx, deps, reporter, runDir, runId, idx);
     }
     return {
       ok: false,
@@ -462,17 +497,17 @@ export async function advanceWorkflow(
         status: "failed",
       };
     }
-    return executeStages(state, config, ctx, deps, reporter, runDir, runId, idx + 1);
+    return executeStages(state, config, loopCtx, deps, reporter, runDir, runId, idx + 1);
   }
 
-  // Unreachable: every StageStatus is handled above.
-  return {
-    ok: false,
-    reason: `unhandled stage status: ${status}`,
-    runId,
-    runDir,
-    failedStageId: stage.id,
-  };
+  // L-2: exhaustiveness guard — TS narrows `status` to `never` here when every
+  // StageStatus union member is handled above. If the union grows, the call
+  // becomes a compile error pointing at this site.
+  return assertNever(status);
+}
+
+function assertNever(x: never): never {
+  throw new Error(`unreachable stage status: ${String(x)}`);
 }
 
 /**
@@ -518,6 +553,10 @@ function recoverFailedStage(
     endedAt: toIsoSeconds(deps.clock()),
   };
   delete state.stages[stage.id].error;
+  // M-1 invariant: cost.totalTokens / totalUsd already include this stage's
+  // spend from the original failed run; do NOT re-add — recovery is a no-op
+  // for cost (AC-14). The per-stage `tokens` / `usd` on `prior` are likewise
+  // preserved via the spread.
   writeState(runDir, state);
   return { ok: true };
 }
