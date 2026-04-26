@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { withTempRepo } from "../support/tmp-repo.js";
+import { tmpdir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -25,29 +25,18 @@ describe("praxis (built)", () => {
     }
   }, 60_000);
 
-  it("emits a run-id and writes intent + state when invoked from dist", async () => {
-    await withTempRepo(async ({ dir }) => {
+  it("blocks pre-flight outside a git repo (no SDK call needed)", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "praxis-build-smoke-"));
+    try {
       const result = spawnSync("node", [distEntry, "run", "smoke"], {
-        cwd: dir,
+        cwd,
         encoding: "utf8",
       });
-      expect(result.stderr).toBe("");
-      expect(result.status).toBe(0);
-
-      const runId = result.stdout.trim();
-      expect(runId).toMatch(
-        /^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4}-[0-9a-f]{4}$/,
-      );
-
-      const runDir = join(dir, ".praxis", "runs", runId);
-      expect(readFileSync(join(runDir, "00-intent.txt"), "utf8")).toBe(
-        "smoke",
-      );
-      const state = JSON.parse(
-        readFileSync(join(runDir, "state.json"), "utf8"),
-      );
-      expect(state.runId).toBe(runId);
-      expect(state.intent).toBe("smoke");
-    });
+      expect(result.status).toBe(1);
+      expect(result.stderr.toLowerCase()).toMatch(/git/);
+      expect(existsSync(join(cwd, ".praxis"))).toBe(false);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 });

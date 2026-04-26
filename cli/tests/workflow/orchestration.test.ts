@@ -1,12 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runStage } from "../../src/workflow/stage.js";
-import type { SdkMessage, StageContext } from "../../src/workflow/stage.js";
+import type {
+  CreateQueryFn,
+  Deps,
+  SdkMessage,
+  StageContext,
+} from "../../src/workflow/stage.js";
 import { defaultWorkflow } from "../../src/config/defaults.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
 import { recordingScriptedQuery } from "../support/scripted-query.js";
+import { runWorkflow } from "../../src/workflow/runner.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 function withTmpDir<T>(fn: (dir: string) => T): T {
   const dir = mkdtempSync(join(tmpdir(), "praxis-orchestration-"));
@@ -197,6 +204,157 @@ describe("runStage validator retry (AC-6)", () => {
       expect(recording.calls[0].pushedUserMessages[0]).toMatch(
         /did not match the required schema/,
       );
+    });
+  });
+});
+
+function deps(createQueryFn: CreateQueryFn, date: Date, bytes: Uint8Array): Deps {
+  return {
+    clock: () => date,
+    rng: (n) => bytes.slice(0, n),
+    createQueryFn,
+  };
+}
+
+describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
+  it("writes artifact verbatim, marks clarify-assess completed, pauses without running implement/auto-commit", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const recording = recordingScriptedQuery([
+        [{ messages: happyPathScript() }],
+      ]);
+      const result = await runWorkflow(
+        { intent: "add a logout button", cwd, allowDirty: true },
+        deps(
+          recording,
+          new Date("2026-04-25T14:30:12Z"),
+          new Uint8Array([0x7a, 0xf2]),
+        ),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // Artifact written verbatim.
+      const artifactPath = join(result.runDir, "01-clarify-assess.md");
+      expect(readFileSync(artifactPath, "utf8")).toBe(clarifyArtifact);
+
+      // state.json reflects completed for clarify-assess + pending for the rest.
+      const state = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(state.stages["clarify-assess"].status).toBe("completed");
+      expect(state.stages["clarify-assess"].sessionId).toBe("sess_happy");
+      expect(state.stages["clarify-assess"].stopReason).toBe("end_turn");
+      expect(state.stages["clarify-assess"].tokens).toEqual({
+        input: 100,
+        output: 50,
+        cacheRead: 0,
+        cacheCreate: 0,
+      });
+      expect(state.stages["clarify-assess"].usd).toBeCloseTo(0.012, 5);
+      expect(state.stages["implement"].status).toBe("pending");
+      expect(state.stages["auto-commit"].status).toBe("pending");
+      expect(state.cost.totalTokens).toBe(150); // input + output only
+      expect(state.cost.totalUsd).toBeCloseTo(0.012, 5);
+      expect(state.currentStage).toBe("implement");
+
+      // implement/auto-commit NOT executed: createQueryFn called exactly once.
+      expect(recording.calls.length).toBe(1);
+
+      // Pause hint surfaced.
+      expect(result.paused).toBe(true);
+      expect(result.pausedStageId).toBe("clarify-assess");
+      expect(result.artifactPath).toBe(artifactPath);
+
+      // Implement / auto-commit artifacts not written.
+      expect(existsSync(join(result.runDir, "02-implement-log.md"))).toBe(false);
+      expect(existsSync(join(result.runDir, "03-commit.txt"))).toBe(false);
+    });
+  });
+});
+
+describe("runWorkflow validator terminal failure (AC-7 runner)", () => {
+  it("writes partial artifact, marks stage failed, returns ok:false", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const badArtifact = "## Intent\n\nfoo\n";
+      const firstAttempt: SdkMessage[] = [
+        {
+          type: "system",
+          subtype: "init",
+          session_id: "sess_first",
+          model: "claude-opus-4-7",
+        },
+        {
+          type: "assistant",
+          session_id: "sess_first",
+          message: { content: [{ type: "text", text: badArtifact }] },
+        },
+        {
+          type: "result",
+          subtype: "success",
+          stop_reason: "end_turn",
+          total_cost_usd: 0.005,
+          usage: {
+            input_tokens: 60,
+            output_tokens: 20,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+          num_turns: 1,
+          session_id: "sess_first",
+        },
+      ];
+      const retryAttempt: SdkMessage[] = [
+        {
+          type: "assistant",
+          session_id: "sess_retry",
+          message: { content: [{ type: "text", text: badArtifact }] },
+        },
+        {
+          type: "result",
+          subtype: "success",
+          stop_reason: "end_turn",
+          total_cost_usd: 0.004,
+          usage: {
+            input_tokens: 40,
+            output_tokens: 15,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+          num_turns: 2,
+          session_id: "sess_retry",
+        },
+      ];
+      const recording = recordingScriptedQuery([
+        [{ messages: firstAttempt }, { messages: retryAttempt }],
+      ]);
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true },
+        deps(
+          recording,
+          new Date("2026-04-25T14:30:12Z"),
+          new Uint8Array([0x01, 0x02]),
+        ),
+      );
+      expect(result.ok).toBe(false);
+
+      // Find the run dir by listing.
+      const { readdirSync } = await import("node:fs");
+      const runs = readdirSync(join(cwd, ".praxis", "runs"));
+      expect(runs.length).toBe(1);
+      const runDir = join(cwd, ".praxis", "runs", runs[0]);
+
+      // Partial artifact written.
+      expect(readFileSync(join(runDir, "01-clarify-assess.md"), "utf8")).toBe(
+        badArtifact,
+      );
+      // state shows failed.
+      const state = JSON.parse(
+        readFileSync(join(runDir, "state.json"), "utf8"),
+      );
+      expect(state.stages["clarify-assess"].status).toBe("failed");
+      expect(state.stages["clarify-assess"].stopReason).toBe(
+        "validator_failed",
+      );
+      expect(state.stages["clarify-assess"].error).toMatch(/Acceptance|H2|order/);
     });
   });
 });

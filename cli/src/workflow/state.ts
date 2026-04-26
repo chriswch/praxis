@@ -61,6 +61,14 @@ export function buildInitialState(input: InitialStateInput): State {
 
 /** Write `state.json` (pretty-printed, trailing newline) to the run dir. */
 export function writeInitialState(runDir: string, state: State): void {
-  const path = join(runDir, "state.json");
-  writeFileSync(path, JSON.stringify(state, null, 2) + "\n", "utf8");
+  writeState(runDir, state);
+}
+
+/** Persist the current `state.json` (pretty-printed, trailing newline). */
+export function writeState(runDir: string, state: State): void {
+  writeFileSync(
+    join(runDir, "state.json"),
+    JSON.stringify(state, null, 2) + "\n",
+    "utf8",
+  );
 }

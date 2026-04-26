@@ -10,14 +10,16 @@ export function writeIntent(runDir: string, intent: string): void {
 }
 
 /**
- * Write a stage's `finalText` artifact verbatim to disk.
- *
- * Implementation deferred to a later slice; the signature anchors the contract.
+ * Write a stage's `finalText` artifact verbatim to disk. Returns the absolute
+ * path written. The harness writes whatever the agent emitted — including
+ * partial output on validator failure (product.md §5.2).
  */
 export function writeArtifact(
-  _runDir: string,
-  _filename: string,
-  _finalText: string,
+  runDir: string,
+  filename: string,
+  finalText: string,
 ): string {
-  throw new Error("writeArtifact: not implemented in S-001");
+  const path = join(runDir, filename);
+  writeFileSync(path, finalText, "utf8");
+  return path;
 }
