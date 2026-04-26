@@ -619,6 +619,33 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
   });
 });
 
+describe("RunSummary.commitSha plumbed from auto-commit state (S-006 AC-7)", () => {
+  it("summarize() reads state.stages['auto-commit'].commitSha and surfaces it on runDone's RunSummary", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const sha = "1234567890abcdef1234567890abcdef12345678";
+      const commit = recordingCommit({ ok: true, sha });
+      const reporter = new RecordingReporter();
+
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        { ...buildDeps(recording, commit), reporter },
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      const runDone = reporter.calls.find((c) => c.kind === "runDone");
+      if (!runDone || runDone.kind !== "runDone") {
+        throw new Error("runDone never fired");
+      }
+      expect(runDone.summary.commitSha).toBe(sha);
+    });
+  });
+});
+
 describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
   it("deps.commit returns {ok:false, reason} → state.json shows status:failed, stopReason:commit_failed, error:reason; 03-commit.txt is the agent message only", async () => {
     await withTempRepo(async ({ dir: cwd }) => {

@@ -427,6 +427,10 @@ function summarize(state: State, status: RunStatus): RunSummary {
     cost: { ...state.cost },
     perStage,
     status,
+    // S-006 AC-7: surface the auto-commit SHA onto RunSummary so the reporter
+    // can print it on the run-done line. Undefined when the stage was skipped
+    // (clean tree) or failed (commit_failed) — the formatter handles both.
+    commitSha: state.stages["auto-commit"]?.commitSha,
   };
 }
 
