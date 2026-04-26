@@ -2,7 +2,7 @@
 
 A CLI that drives an AI coding agent through a deterministic, resumable workflow. State your intent in one line; Praxis handles clarification, implementation, and commit.
 
-> **Status: walking skeleton.** The package is initialized and `praxis run "<intent>"` materializes a fresh `.praxis/runs/<run-id>/` with `00-intent.txt` + `state.json`. Stage execution is still stubbed. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for the rest of the v0.1 build plan and v0.2 roadmap.
+> **Status: clarify-assess shipped.** `praxis run "<intent>"` runs pre-flight (git repo + dirty-tree gates, `.gitignore` touch-up), executes the `clarify-assess` stage against the Claude Agent SDK, validates the artifact's H2 schema with one corrective retry, writes the artifact + per-stage state, and pauses with an `advance` hint. `implement` and `auto-commit` execution lands in S-005/S-006. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for the rest of the v0.1 build plan and v0.2 roadmap.
 
 ## What it does
 
@@ -23,8 +23,8 @@ praxis advance <run-id>      # resume after a paused or failed stage
 
 Flags on `run`:
 
-- `--no-pause` — disable all pause gates (full autopilot).
-- `--allow-dirty` — proceed even if the working tree has uncommitted changes. Pre-existing dirt gets bundled into the run's commit.
+- `--allow-dirty` — proceed even if the working tree has uncommitted changes. Pre-existing dirt will be bundled into the run's commit once the auto-commit stage lands. Without this flag the run aborts with the dirty file list and remediation hints — pre-flight runs before any disk write so a refused run leaves no orphan `.praxis/`.
+- `--no-pause` — disable all pause gates (full autopilot). Not yet wired; today the run always pauses after `clarify-assess`.
 
 The run-id is printed to stdout at the start of every run.
 
@@ -48,7 +48,7 @@ Each stage's SDK session id is captured in `state.json` and printed on stage end
 This package targets:
 
 - TypeScript, Node ≥ 20
-- `@anthropic-ai/claude-agent-sdk`, `commander`, `zod`, `simple-git` (deferred until the slices that need them land)
+- `@anthropic-ai/claude-agent-sdk`, `zod` (shipped); `commander`, `simple-git` (deferred until the slices that need them land)
 - No bundler; published as the `praxis` bin
 
 ```bash
