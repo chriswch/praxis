@@ -231,10 +231,18 @@ async function runOneStage(
   const { stageStatus, errorMessage } = classifyOutcome(result);
   const failed = stageStatus !== "completed";
 
+  // AC-4/5: when a stage was cancelled by timeout or SIGINT, the SDK's own
+  // stop_reason is meaningless — surface the harness's cancelReason as the
+  // canonical persisted token. Validator-failed already wins because runStage
+  // sets stopReason to "validator_failed" before returning, and the validator
+  // path doesn't set cancelReason. Recovered is set in recoverFailedStage,
+  // not here. One place owns the precedence.
+  const persistedStopReason = result.cancelReason ?? result.stopReason;
+
   const stageState: StageState = {
     status: stageStatus,
     endedAt: toIsoSeconds(deps.clock()),
-    stopReason: result.stopReason,
+    stopReason: persistedStopReason,
     sessionId: result.sessionId,
     tokens: result.tokens,
     usd: result.usd,

@@ -319,16 +319,9 @@ export async function runStage(
       }
     }
 
-    // S-005 AC-4/5: when the stage was cancelled by timeout or SIGINT, the
-    // SDK's own stop_reason (or absence of one) is meaningless to downstream
-    // consumers — surface the harness's cancelReason as the canonical
-    // stopReason. Praxis-specific tokens already set by the harness
-    // (validator_failed, recovered) take precedence so we never clobber
-    // them.
-    if (cancelReason && stopReason !== "validator_failed" && stopReason !== "recovered") {
-      stopReason = cancelReason;
-    }
-
+    // runStage returns the SDK's stop_reason as-is (or "validator_failed" from
+    // the validator path). The runner derives the persisted stopReason token
+    // from `cancelReason ?? stopReason` in one place — see runOneStage.
     return {
       finalText,
       turns,
