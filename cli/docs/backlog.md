@@ -8,7 +8,7 @@ Items are organized by phase, then grouped by surface area. Mark items done by m
 
 ## v0.1 (MVP) — to build
 
-S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<intent>"` writes `00-intent.txt` + `state.json`, run-id format pinned, DI seams (clock, RNG, `createQueryFn`) threaded through `runStage`. S-002 shipped on 2026-04-26: pre-flight, zod schemas, default 3-stage workflow, `clarify-assess` execution + validator + retry through the SDK seam, artifact write, per-stage state updates, pause hint, `--allow-dirty` flag. S-003 shipped on 2026-04-26: full §8 LineReporter (stage start/text/tool/error/stage end/paused/runDone) with 100ms streaming coalesce, tool-input briefs, Stage 0 synthesised line, `--no-pause` autopilot, Reporter on `Deps`, runner emits AgentEvents per assistant block. The list below is the rest of the v0.1 build, sequenced so each chunk is testable on its own.
+S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<intent>"` writes `00-intent.txt` + `state.json`, run-id format pinned, DI seams (clock, RNG, `createQueryFn`) threaded through `runStage`. S-002 shipped on 2026-04-26: pre-flight, zod schemas, default 3-stage workflow, `clarify-assess` execution + validator + retry through the SDK seam, artifact write, per-stage state updates, pause hint, `--allow-dirty` flag. S-003 shipped on 2026-04-26: full §8 LineReporter (stage start/text/tool/error/stage end/paused/runDone) with 100ms streaming coalesce, tool-input briefs, Stage 0 synthesised line, `--no-pause` autopilot, Reporter on `Deps`, runner emits AgentEvents per assistant block. S-004 shipped on 2026-04-26: `praxis advance <run-id>` resumes paused runs and recovers failed/cancelled stages from on-disk artifacts (validator re-check, no token spend on the recovered stage, `stopReason: "recovered"`), `readState` structural validator, `Reporter.resuming?` + LineReporter §11 headlines, SIGINT-on-advance support, `--no-pause` honored on advance. The list below is the rest of the v0.1 build, sequenced so each chunk is testable on its own.
 
 ### 1. Project bootstrap
 
@@ -36,7 +36,7 @@ S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<
 ### 4. Artifact + state plumbing
 
 - [x] `src/workflow/artifacts.ts` — write `finalText` verbatim to `<run-dir>/<outputArtifact>`; run optional validator. (§5, §6, §12) — S-002
-- [x] `src/workflow/state.ts` — read/write `state.json` per the §9 schema, including per-stage `sessionId`, `tokens`, `usd`, `stopReason`, `endedAt`. — write path shipped in S-002; read path still pending (`praxis advance` will need it)
+- [x] `src/workflow/state.ts` — read/write `state.json` per the §9 schema, including per-stage `sessionId`, `tokens`, `usd`, `stopReason`, `endedAt`. — write path shipped in S-002; read path (`readState`) shipped in S-004
 - [x] Run-dir layout under `<cwd>/.praxis/runs/<UTC-timestamp>-<short-id>/`. (§9) — S-001
 - [x] Append `.praxis/` to `.gitignore` on first run; do not overwrite. (§9, §10) — S-002
 
@@ -51,7 +51,7 @@ S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<
 
 ### 6. CLI surface
 
-- [ ] `praxis run "<intent>"` and `praxis advance <run-id>` via commander. (§4) — manual `run` parsing shipped in S-001/S-002; commander adoption + `advance` pending
+- [ ] `praxis run "<intent>"` and `praxis advance <run-id>` via commander. (§4) — manual `run` parsing shipped in S-001/S-002; manual `advance` parsing shipped in S-004; commander adoption still pending
 - [x] Flags: `--allow-dirty` (S-002), `--no-pause` (S-003). (§4)
 - [x] Print run-id to stdout at start of every `run`. (§4) — S-001
 - [ ] Surface the implement-stage risk warning in `praxis run --help` and the README. (§4) — README warning shipped in S-001; `--help` text pending the commander adoption
@@ -65,11 +65,11 @@ S-001 (walking skeleton) shipped on 2026-04-26: package scaffold, `praxis run "<
 
 ### 8. Resume / advance
 
-- [ ] `advance` distinguishes the **paused** path (no validator re-check, log `resuming approved plan`) from the **failed/cancelled** path (re-runs validator, log `recovering <stage-id> from on-disk artifact; re-validating`). (§11)
-- [ ] `advance` requires the failed stage's `outputArtifact` to exist; on validator fail, abort with the validator's reason. (§11)
-- [ ] On successful artifact re-validation, mark the stage `completed` using the file's contents as `finalText`; no token spend, no new sessionId. (§11)
-- [ ] `advance` is a no-op or error from `pending`, `running`, or `completed`. (§11)
-- [ ] SIGINT marks the in-flight stage `cancelled` (distinct from `failed`); `cancelled` is treated like `failed` by `advance`. (§11)
+- [x] `advance` distinguishes the **paused** path (no validator re-check, log `resuming approved plan`) from the **failed/cancelled** path (re-runs validator, log `recovering <stage-id> from on-disk artifact; re-validating`). (§11) — S-004
+- [x] `advance` requires the failed stage's `outputArtifact` to exist; on validator fail, abort with the validator's reason. (§11) — S-004
+- [x] On successful artifact re-validation, mark the stage `completed` using the file's contents as `finalText`; no token spend, no new sessionId. (§11) — S-004 (`stopReason: "recovered"`; sessionId/tokens/usd preserved from prior run)
+- [x] `advance` is a no-op or error from `pending`, `running`, or `completed`. (§11) — S-004 (`pending` with no paused predecessor and `running` → exit 1 "not in a resumable state"; fully `completed` → exit 1 "already complete")
+- [x] SIGINT marks the in-flight stage `cancelled` (distinct from `failed`); `cancelled` is treated like `failed` by `advance`. (§11) — S-004 (SIGINT during a resumed stage marks it cancelled and runDone fires with status=cancelled; AC-7 cancelled-as-failed coverage)
 
 ### 9. Reporter / UI
 

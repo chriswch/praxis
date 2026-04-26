@@ -6,6 +6,29 @@ Track planned work in [backlog.md](backlog.md). The product.md document remains 
 
 ## Shipped
 
+### S-004 `praxis advance` + SIGINT-safe recovery
+
+**Shipped:** 2026-04-26
+**Spec reference:** product.md §4, §11
+
+`praxis advance <run-id>` resumes a paused run or recovers a failed/cancelled stage from the on-disk artifact, without ever re-running pre-flight or touching `.gitignore`. The CLI parses `<run-id>` against the canonical `YYYY-MM-DD-HHMM-xxxx` shape and rejects unknown flags before any disk read; `--no-pause` is the one accepted flag and carries the same autopilot semantics as on `run`. A new `readState(runDir)` does structural validation of `state.json` (top-level fields, stage map, status enum) and fails fast on missing/corrupt/schema-bad files. The runner branches on the first non-`completed` stage's status: a `pending` stage whose predecessor is `completed` and `pauseAfter: true` takes the paused path (no validator re-check, dispatch the next stage); `failed` or `cancelled` takes the recovery path (validate the on-disk artifact if the stage has a `validate`, on success flip status to `completed`/`stopReason: "recovered"` with `endedAt` refreshed and prior `sessionId`/`tokens`/`usd` preserved, then dispatch the rest of the workflow). Missing artifact and validator-rejection both surface a single-line stderr message and exit 1 without mutating state.json. `pending` with no paused predecessor and `running` exit 1 with `not in a resumable state`; an already-fully-completed run exits 1 with `already complete`. SIGINT during a resumed stage marks it `cancelled` exactly like in `run`, and `runDone` fires once on every terminal path with cumulative cost = prior totals + only the newly-executed stages' spend. The `Reporter` interface gains an optional `resuming?(kind, runId, stageId)` method; `LineReporter` implements both `("approved", …)` → `praxis: resuming approved plan after <stage-id> (run <run-id>)` and `("recovering", …)` → `praxis: recovering <stage-id> from on-disk artifact; re-validating (run <run-id>)` per spec §11.
+
+- Inputs: `praxis advance [--no-pause] <run-id>`. Run-id must match `YYYY-MM-DD-HHMM-xxxx` (4 hex chars).
+- Outputs: same artifact / state.json / line-reporter shape as `run`, plus the §11 resuming/recovering headline. Exit 0 on success (whether the workflow completes or pauses again); exit 1 on any non-resumable state, missing artifact, or validator rejection.
+- Notable bounds:
+  - Pre-flight is intentionally skipped — `.gitignore` is not appended on advance, and dirty trees do not block.
+  - Recovery preserves `sessionId`, `tokens`, and `usd` from the prior failed run; it does NOT increment `cost.totalTokens`/`cost.totalUsd`. Newly-executed stages still add their own spend.
+  - Validator failure during recovery leaves `state.json` untouched (status stays `failed`/`cancelled`) so the user can edit and retry. Missing artifact errors include the absolute file path.
+  - `cancelled` is treated identically to `failed` by the recovery path (AC-7), including the validator re-check.
+  - The resume-point scanner picks the FIRST non-completed stage in workflow order; hand-edited non-monotonic statuses are tolerated.
+  - `executeStages` was refactored to take a `startIndex` so the resumed stage's existing `sessionId`/cost rows survive untouched.
+  - `Reporter.resuming?` is optional — `RecordingReporter` and other test spies simply skip the §11 line; the runner invokes via `reporter.resuming?.(...)`.
+- Verified by:
+  - `cli/tests/workflow/state-read.test.ts` — AC-2 readState structural validation (missing, bad JSON, missing fields, bad stages map, unknown status, well-formed).
+  - `cli/tests/workflow/advance.test.ts` — invalid statuses (AC-8/9), paused happy path + currentStage advance + no-gitignore (AC-3/10/11), recovery happy/missing-artifact/validator-fail/cancelled (AC-4/5/6/7), SIGINT (AC-12), Reporter.resuming wiring on both paths (AC-13), runDone-once + cost preservation across success/failure (AC-14), `--no-pause` honored on advance (AC-15).
+  - `cli/tests/ui/line-formatter.test.ts` + `cli/tests/ui/line-reporter.test.ts` — `formatResuming` and `LineReporter.resuming` for both kinds (AC-13).
+  - `cli/tests/e2e/advance-cli.test.ts` — argv parsing, run-id format check, unknown flag rejection (AC-1) plus end-to-end CLI surface for missing state.json (AC-2) and already-complete run (AC-9).
+
 ### S-003 LineReporter + `--no-pause`
 
 **Shipped:** 2026-04-26

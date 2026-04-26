@@ -2,7 +2,7 @@
 
 A CLI that drives an AI coding agent through a deterministic, resumable workflow. State your intent in one line; Praxis handles clarification, implementation, and commit.
 
-> **Status: clarify-assess shipped + line reporter wired.** `praxis run "<intent>"` runs pre-flight (git repo + dirty-tree gates, `.gitignore` touch-up), executes the `clarify-assess` stage against the Claude Agent SDK, validates the artifact's H2 schema with one corrective retry, writes the artifact + per-stage state, and pauses with an `advance` hint. The `LineReporter` (product.md §8) now formats stage start / streamed assistant text / tool calls / errors / stage end / pause / run-done lines, with 100ms delta coalescing. `--no-pause` (full autopilot) is wired through. `implement` and `auto-commit` execution lands in S-005/S-006. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for the rest of the v0.1 build plan and v0.2 roadmap.
+> **Status: clarify-assess + line reporter + advance shipped.** `praxis run "<intent>"` runs pre-flight (git repo + dirty-tree gates, `.gitignore` touch-up), executes the `clarify-assess` stage against the Claude Agent SDK, validates the artifact's H2 schema with one corrective retry, writes the artifact + per-stage state, and pauses with an `advance` hint. `praxis advance <run-id>` resumes a paused run or recovers a failed/cancelled stage from its on-disk artifact (re-validating where applicable, no token spend on the recovered stage). The `LineReporter` (product.md §8) formats stage start / streamed assistant text / tool calls / errors / stage end / pause / run-done lines, with 100ms delta coalescing, plus the §11 `resuming approved plan` / `recovering …; re-validating` headlines. `--no-pause` (full autopilot) is wired through both `run` and `advance`. `implement` and `auto-commit` execution lands in S-005/S-006. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for the rest of the v0.1 build plan and v0.2 roadmap.
 
 ## What it does
 
@@ -17,14 +17,20 @@ Stages communicate by writing artifact files to `.praxis/runs/<run-id>/`; downst
 ## Usage
 
 ```bash
-praxis run "<intent>"        # start a new run
-praxis advance <run-id>      # resume after a paused or failed stage
+praxis run "<intent>"            # start a new run
+praxis advance <run-id>          # resume after a paused or failed stage
 ```
 
 Flags on `run`:
 
 - `--allow-dirty` — proceed even if the working tree has uncommitted changes. Pre-existing dirt will be bundled into the run's commit once the auto-commit stage lands. Without this flag the run aborts with the dirty file list and remediation hints — pre-flight runs before any disk write so a refused run leaves no orphan `.praxis/`.
 - `--no-pause` — disable all pause gates (full autopilot). Stages still run + commit their artifacts; the runner just advances through `pauseAfter: true` stages instead of stopping.
+
+Flags on `advance`:
+
+- `--no-pause` — same semantics as on `run`: drive any downstream `pauseAfter: true` stage straight through.
+
+Pre-flight does NOT run on `advance` — the run-dir is already initialized and `.gitignore` was already touched up by the original `praxis run`.
 
 The run-id is printed to stdout at the start of every run.
 
@@ -34,8 +40,10 @@ The run-id is printed to stdout at the start of every run.
 
 Failed stages are terminal. Two recovery paths:
 
-1. `praxis advance <run-id>` — uses the on-disk artifact (re-validates if the stage has a validator). For `clarify-assess` schema failures: hand-edit `01-clarify-assess.md`, then advance.
+1. `praxis advance <run-id>` — uses the on-disk artifact (re-validates if the stage has a validator). For `clarify-assess` schema failures: hand-edit `01-clarify-assess.md`, then advance. The recovered stage flips to `completed` with `stopReason: "recovered"`; the prior run's `sessionId`, `tokens`, and `usd` are preserved and recovery itself contributes zero new spend. The advance log line is `praxis: recovering <stage-id> from on-disk artifact; re-validating (run <run-id>)`.
 2. Fresh `praxis run "<intent>"` — for `implement` failures where the tree is in a partial state. Reset the tree first.
+
+`SIGINT` (Ctrl-C) marks the in-flight stage `cancelled` (distinct from `failed`); recovery via `advance` treats `cancelled` exactly like `failed`. From a paused run, `advance` skips the validator entirely and emits `praxis: resuming approved plan after <stage-id> (run <run-id>)`. From a still-`pending` or `running` state, or a fully completed run, `advance` exits 1 instead of doing anything.
 
 There is no `praxis retry`. The harness never re-runs a stage automatically.
 
