@@ -1,16 +1,13 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
 import { runWorkflow } from "./workflow/runner.js";
-import type { CreateQueryFn, Deps } from "./workflow/stage.js";
-
-const notWiredQuery: CreateQueryFn = () => {
-  throw new Error("createQueryFn: not wired in S-001");
-};
+import type { Deps } from "./workflow/stage.js";
+import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
 
 const defaultDeps: Deps = {
   clock: () => new Date(),
   rng: (n: number) => new Uint8Array(randomBytes(n)),
-  createQueryFn: notWiredQuery,
+  createQueryFn: sdkCreateQueryFn,
 };
 
 function fail(message: string): never {

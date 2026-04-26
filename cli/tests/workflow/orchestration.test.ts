@@ -271,6 +271,52 @@ describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
   });
 });
 
+describe("runWorkflow --allow-dirty override (AC-3)", () => {
+  it("dirty tree + allowDirty=true proceeds through clarify-assess", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(join(cwd, "dirty.txt"), "uncommitted\n", "utf8");
+
+      const recording = recordingScriptedQuery([
+        [{ messages: happyPathScript() }],
+      ]);
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true },
+        deps(
+          recording,
+          new Date("2026-04-25T14:30:12Z"),
+          new Uint8Array([0x7a, 0xf2]),
+        ),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+      expect(result.paused).toBe(true);
+      expect(existsSync(join(result.runDir, "01-clarify-assess.md"))).toBe(true);
+    });
+  });
+
+  it("dirty tree + allowDirty=false blocks before any disk write", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(join(cwd, "dirty.txt"), "uncommitted\n", "utf8");
+
+      const recording = recordingScriptedQuery([
+        [{ messages: happyPathScript() }],
+      ]);
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: false },
+        deps(
+          recording,
+          new Date("2026-04-25T14:30:12Z"),
+          new Uint8Array([0x7a, 0xf2]),
+        ),
+      );
+      expect(result.ok).toBe(false);
+      expect(existsSync(join(cwd, ".praxis"))).toBe(false);
+      expect(recording.calls.length).toBe(0);
+    });
+  });
+});
+
 describe("runWorkflow validator terminal failure (AC-7 runner)", () => {
   it("writes partial artifact, marks stage failed, returns ok:false", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
