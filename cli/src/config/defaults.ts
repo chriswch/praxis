@@ -1,6 +1,18 @@
 import type { PraxisConfig } from "./schema.js";
 import { validateClarifyAssessArtifact } from "../workflow/validator.js";
 
+/**
+ * Stable id for the built-in auto-commit stage. The runner dispatches the
+ * commit hand-off by checking `stage.id === AUTO_COMMIT_ID`, so a rename of
+ * the default stage id MUST happen via this constant — otherwise the dispatch
+ * silently no-ops. A regression test in `tests/config/defaults.test.ts` pins
+ * the literal value so renames also fail loudly there.
+ *
+ * (Reviewer alternative: introduce a `postStage?: "commit"` discriminator on
+ * `StageConfig` — deferred to v0.2.)
+ */
+export const AUTO_COMMIT_ID = "auto-commit";
+
 const CLARIFY_ASSESS_USER_PROMPT = [
   "Intent: {{intent}}",
   "",
@@ -61,7 +73,7 @@ export const defaultWorkflow: PraxisConfig = {
       outputArtifact: "02-implement-log.md",
     },
     {
-      id: "auto-commit",
+      id: AUTO_COMMIT_ID,
       systemPrompt: { file: "auto-commit.md" },
       userPromptTemplate: AUTO_COMMIT_USER_PROMPT,
       allowedTools: ["Bash"],

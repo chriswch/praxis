@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Deps, StageContext, StageResult } from "./stage.js";
 import { runStage } from "./stage.js";
@@ -13,7 +13,7 @@ import {
   type StageState,
 } from "./state.js";
 import { runPreflight, appendPraxisToGitignore } from "./preflight.js";
-import { defaultWorkflow } from "../config/defaults.js";
+import { AUTO_COMMIT_ID, defaultWorkflow } from "../config/defaults.js";
 import type { PraxisConfig, StageConfig } from "../config/schema.js";
 import type { Reporter, RunStatus, RunSummary } from "../ui/reporter.js";
 
@@ -213,7 +213,7 @@ async function runOneStage(
   // there is nothing to commit and no message to draft. Synthesize a
   // completed stage with stopReason "skipped" — no sessionId/tokens/usd, no
   // 03-commit.txt, no deps.commit hand-off.
-  if (stage.id === "auto-commit" && isWorkingTreeClean(ctx.cwd)) {
+  if (stage.id === AUTO_COMMIT_ID && isWorkingTreeClean(ctx.cwd)) {
     const skipped: StageState = {
       status: "completed",
       endedAt: toIsoSeconds(deps.clock()),
@@ -238,14 +238,6 @@ async function runOneStage(
     createQueryFn: deps.createQueryFn,
   });
 
-  // Always write whatever the agent emitted — even on validator failure
-  // (product.md §5.2 "partial output is still written").
-  const artifactPath = writeArtifact(
-    runDir,
-    stage.outputArtifact,
-    result.finalText,
-  );
-
   const { stageStatus, errorMessage } = classifyOutcome(result);
   const failed = stageStatus !== "completed";
 
@@ -266,66 +258,87 @@ async function runOneStage(
     usd: result.usd,
   };
   if (errorMessage) stageState.error = errorMessage;
-  state.stages[stage.id] = stageState;
   state.cost.totalTokens += result.tokens.input + result.tokens.output;
   state.cost.totalUsd += result.usd;
-  writeState(runDir, state);
+
+  // M-2: compose the artifact's final content BEFORE the first write so each
+  // terminal path performs at most one writeFileSync. The auto-commit stage
+  // is special — its final 03-commit.txt is the SHA-prefixed form ONLY when
+  // the commit lands; we therefore defer the write past `deps.commit()` and
+  // pass through one of three branches:
+  //
+  //   - validator/timeout/cancel failed → write verbatim agent message (AC-6
+  //     for partial output);
+  //   - commit_failed → write verbatim agent message (so the user can inspect
+  //     what the agent emitted), then failStage();
+  //   - commit succeeded with sha → write `${sha}\n\n${message}\n`, stamp
+  //     commitSha onto the stage, write state, emit stageEnd, return continue;
+  //   - commit returned `skipped:true` → no artifact written (the agent's
+  //     message is meaningless without a real commit) and the stage remains
+  //     `completed`.
+  //
+  // Non-auto-commit stages always write their finalText verbatim (product.md
+  // §5.2: partial output is still written even on validator failure).
 
   if (failed) {
-    reporter.stageEnd(stage, {
-      ok: false,
+    const artifactPath = writeArtifact(
+      runDir,
+      stage.outputArtifact,
+      result.finalText,
+    );
+    return failStage(state, runDir, stage, stageState, reporter, {
       artifactPath,
       sessionId: result.sessionId,
-      error: errorMessage,
-    });
-    return {
-      kind: "failed",
-      stageId: stage.id,
       reason: errorMessage ?? "stage failed",
       status: stageStatus === "cancelled" ? "cancelled" : "failed",
-    };
+    });
   }
 
-  // S-006 AC-4/AC-6: after the auto-commit stage completes successfully, hand
-  // the message (verbatim finalText) to the git seam. On a real commit, the
-  // returned SHA is prepended onto 03-commit.txt and stamped on the stage
-  // state so the reporter can surface it. On {ok:false}, the stage is flipped
-  // to failed/commit_failed; 03-commit.txt keeps the agent message only (no
-  // SHA prefix). Skip path (clean tree) is handled at the top of this fn.
-  if (stage.id === "auto-commit") {
+  // S-006 AC-4/AC-6: hand the message (verbatim finalText) to the git seam.
+  // On {ok:true, sha}, the SHA is prepended onto 03-commit.txt and stamped on
+  // the stage state. On {ok:false}, the stage is flipped to failed/
+  // commit_failed; 03-commit.txt keeps the agent message only (no SHA prefix).
+  // Skip path (clean tree pre-stage) is handled at the top of this fn.
+  let artifactPath: string;
+  if (stage.id === AUTO_COMMIT_ID) {
     const commitOutcome = deps.commit(ctx.cwd, result.finalText);
     if (!commitOutcome.ok) {
+      const verbatimPath = writeArtifact(
+        runDir,
+        stage.outputArtifact,
+        result.finalText,
+      );
       stageState.status = "failed";
       stageState.stopReason = "commit_failed";
       stageState.error = commitOutcome.reason;
-      state.stages[stage.id] = stageState;
-      writeState(runDir, state);
-      reporter.stageEnd(stage, {
-        ok: false,
-        artifactPath,
+      return failStage(state, runDir, stage, stageState, reporter, {
+        artifactPath: verbatimPath,
         sessionId: result.sessionId,
-        error: commitOutcome.reason,
-      });
-      return {
-        kind: "failed",
-        stageId: stage.id,
         reason: commitOutcome.reason,
         status: "failed",
-      };
+      });
     }
     if ("sha" in commitOutcome) {
       const sha = commitOutcome.sha;
-      writeFileSync(
-        join(runDir, stage.outputArtifact),
+      artifactPath = writeArtifact(
+        runDir,
+        stage.outputArtifact,
         `${sha}\n\n${result.finalText}\n`,
-        "utf8",
       );
       stageState.commitSha = sha;
-      state.stages[stage.id] = stageState;
-      writeState(runDir, state);
+    } else {
+      // commitOutcome.skipped === true: commit() saw a clean tree mid-stage.
+      // No SHA, no artifact — the agent's message is meaningless without a
+      // real commit, and there is no path through which a downstream consumer
+      // expects 03-commit.txt to exist in this state.
+      artifactPath = join(runDir, stage.outputArtifact);
     }
-    // commitOutcome.skipped === true (commit() saw a clean tree): no SHA, no
-    // rewrite. Stage stays completed.
+    state.stages[stage.id] = stageState;
+    writeState(runDir, state);
+  } else {
+    artifactPath = writeArtifact(runDir, stage.outputArtifact, result.finalText);
+    state.stages[stage.id] = stageState;
+    writeState(runDir, state);
   }
 
   reporter.stageEnd(stage, {
@@ -348,6 +361,41 @@ async function runOneStage(
   }
 
   return { kind: "continue" };
+}
+
+/**
+ * M-3: shared exit shape for any stage that ends in failure (validator,
+ * timeout, SIGINT, commit_failed). Owns the strict order — set state, persist
+ * state.json, emit stageEnd, return — so the validator and commit_failed
+ * branches can no longer drift apart on operation order.
+ */
+function failStage(
+  state: State,
+  runDir: string,
+  stage: StageConfig,
+  stageState: StageState,
+  reporter: Reporter,
+  fail: {
+    artifactPath: string;
+    sessionId?: string;
+    reason: string;
+    status: "failed" | "cancelled";
+  },
+): StepOutcome {
+  state.stages[stage.id] = stageState;
+  writeState(runDir, state);
+  reporter.stageEnd(stage, {
+    ok: false,
+    artifactPath: fail.artifactPath,
+    sessionId: fail.sessionId,
+    error: fail.reason,
+  });
+  return {
+    kind: "failed",
+    stageId: stage.id,
+    reason: fail.reason,
+    status: fail.status,
+  };
 }
 
 /**
@@ -430,7 +478,7 @@ function summarize(state: State, status: RunStatus): RunSummary {
     // S-006 AC-7: surface the auto-commit SHA onto RunSummary so the reporter
     // can print it on the run-done line. Undefined when the stage was skipped
     // (clean tree) or failed (commit_failed) — the formatter handles both.
-    commitSha: state.stages["auto-commit"]?.commitSha,
+    commitSha: state.stages[AUTO_COMMIT_ID]?.commitSha,
   };
 }
 
