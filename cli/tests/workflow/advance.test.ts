@@ -356,6 +356,208 @@ describe("advanceWorkflow paused happy path (AC-3)", () => {
   });
 });
 
+describe("advanceWorkflow --no-pause (AC-15)", () => {
+  it("noPause=true on advance overrides a downstream pauseAfter", async () => {
+    const cfg: PraxisConfig = {
+      version: 1,
+      workflow: [
+        {
+          id: "first",
+          systemPrompt: { file: "clarify-assess.md" },
+          userPromptTemplate: "{{intent}}",
+          outputArtifact: "first.md",
+          pauseAfter: true,
+        },
+        {
+          id: "second",
+          systemPrompt: { file: "clarify-assess.md" },
+          userPromptTemplate: "{{intent}}",
+          outputArtifact: "second.md",
+          pauseAfter: true,
+        },
+      ],
+    };
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "x",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "second",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          first: completedStage(),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": "x\n" });
+      const reporter = new RecordingReporter();
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: cfg, noPause: true },
+        deps(scriptedQuery([{ messages: noopMessages("sess_b") }]), reporter),
+      );
+      if (!result.ok) throw new Error(result.reason);
+      // With --no-pause, second.pauseAfter is ignored; the run completes.
+      expect(result.paused).toBe(false);
+      expect(reporter.countOf("paused")).toBe(0);
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages.second.status).toBe("completed");
+    });
+  });
+
+  it("noPause=false (default) on advance honors downstream pauseAfter", async () => {
+    const cfg: PraxisConfig = {
+      version: 1,
+      workflow: [
+        {
+          id: "first",
+          systemPrompt: { file: "clarify-assess.md" },
+          userPromptTemplate: "{{intent}}",
+          outputArtifact: "first.md",
+          pauseAfter: true,
+        },
+        {
+          id: "second",
+          systemPrompt: { file: "clarify-assess.md" },
+          userPromptTemplate: "{{intent}}",
+          outputArtifact: "second.md",
+          pauseAfter: true,
+        },
+        {
+          id: "third",
+          systemPrompt: { file: "clarify-assess.md" },
+          userPromptTemplate: "{{intent}}",
+          outputArtifact: "third.md",
+        },
+      ],
+    };
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "x",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "second",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          first: completedStage(),
+          second: { status: "pending" },
+          third: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": "x\n" });
+      const recording = recordingScriptedQuery([
+        [{ messages: noopMessages("sess_b") }],
+      ]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: cfg },
+        deps(recording),
+      );
+      if (!result.ok) throw new Error(result.reason);
+      // Pause kicks in after second; third never ran.
+      expect(result.paused).toBe(true);
+      expect(result.pausedStageId).toBe("second");
+      expect(recording.calls.length).toBe(1);
+    });
+  });
+});
+
+describe("advanceWorkflow runDone + cost (AC-14)", () => {
+  it("paused happy path: runDone fires exactly once and cumulative cost = prior + new stage", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "x",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "second",
+        cost: { totalTokens: 150, totalUsd: 0.012 },
+        stages: {
+          first: completedStage(),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": "x\n" });
+      const reporter = new RecordingReporter();
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: TWO_STAGE_CONFIG },
+        deps(scriptedQuery([{ messages: noopMessages("sess_b") }]), reporter),
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      const runDone = reporter.calls.filter((c) => c.kind === "runDone");
+      expect(runDone.length).toBe(1);
+      const summary = runDone[0].kind === "runDone" ? runDone[0].summary : null;
+      expect(summary?.cost.totalTokens).toBe(150 + 15);
+      expect(summary?.cost.totalUsd).toBeCloseTo(0.012 + 0.001, 5);
+      expect(summary?.status).toBe("completed");
+    });
+  });
+
+  it("recovery happy path: recovery contributes zero spend; only the next stage adds cost", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "x",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "first",
+        cost: { totalTokens: 150, totalUsd: 0.012 },
+        stages: {
+          first: failedStage(),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": VALID_FIRST_ARTIFACT });
+      const reporter = new RecordingReporter();
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: VALIDATED_CONFIG },
+        deps(scriptedQuery([{ messages: noopMessages("sess_b") }]), reporter),
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      const runDone = reporter.calls.filter((c) => c.kind === "runDone");
+      expect(runDone.length).toBe(1);
+      const summary = runDone[0].kind === "runDone" ? runDone[0].summary : null;
+      // Prior 150 + only the second stage's 15.
+      expect(summary?.cost.totalTokens).toBe(150 + 15);
+      expect(summary?.cost.totalUsd).toBeCloseTo(0.012 + 0.001, 5);
+    });
+  });
+
+  it("recovery failure: runDone still fires once with status=failed", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "x",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "first",
+        cost: { totalTokens: 150, totalUsd: 0.012 },
+        stages: {
+          first: failedStage(),
+          second: { status: "pending" },
+        },
+      };
+      // Edit too short to satisfy the validator.
+      seedRun(cwd, state, { "first.md": "## Intent\n\nx\n" });
+      const reporter = new RecordingReporter();
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: VALIDATED_CONFIG },
+        deps(scriptedQuery([]), reporter),
+      );
+      expect(result.ok).toBe(false);
+      const runDone = reporter.calls.filter((c) => c.kind === "runDone");
+      expect(runDone.length).toBe(1);
+      expect(runDone[0].kind === "runDone" && runDone[0].summary.status).toBe(
+        "failed",
+      );
+    });
+  });
+});
+
 describe("advanceWorkflow Reporter resuming line (AC-13)", () => {
   it("paused path calls reporter.resuming('approved', runId, prevStageId) before the next stageStart", async () => {
     await withTempRepo(async ({ dir: cwd }) => {

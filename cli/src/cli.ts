@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
-import { runWorkflow } from "./workflow/runner.js";
+import { advanceWorkflow, runWorkflow } from "./workflow/runner.js";
 import type { Deps } from "./workflow/stage.js";
 import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
 import { LineReporter } from "./ui/line-reporter.js";
@@ -138,11 +138,36 @@ async function main(argv: string[]): Promise<void> {
 
 async function runAdvance(rest: string[]): Promise<void> {
   // Parse first so unknown flags / bad run-ids surface before any disk I/O.
-  parseAdvanceArgs(rest);
-  // The full advance workflow lands in subsequent ACs; today, the parsed-
-  // success path falls through to a not-implemented stub so AC-1 can ship
-  // independently.
-  fail("advance is not yet implemented");
+  const { runId, noPause } = parseAdvanceArgs(rest);
+
+  // SIGINT mirrors `praxis run` — abort the in-flight stage so it surfaces a
+  // `cancelled` status (spec §11) rather than killing the SDK process orphan.
+  const sigintAbort = new AbortController();
+  const onSigint = () => sigintAbort.abort("sigint");
+  process.once("SIGINT", onSigint);
+
+  let result;
+  try {
+    result = await advanceWorkflow(
+      runId,
+      {
+        cwd: process.cwd(),
+        noPause,
+        signal: sigintAbort.signal,
+      },
+      buildDefaultDeps(),
+    );
+  } finally {
+    process.removeListener("SIGINT", onSigint);
+  }
+  if (!result.ok) {
+    process.stderr.write(`praxis: ${result.reason}\n`);
+    if (result.remediation) {
+      process.stderr.write(`${result.remediation}\n`);
+    }
+    process.exit(1);
+  }
+  process.stdout.write(`${result.runId}\n`);
 }
 
 main(process.argv).catch((err) => {
