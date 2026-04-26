@@ -1,20 +1,58 @@
+import { spawnSync } from "node:child_process";
+
 /**
  * Auto-commit hand-off (product.md §5.4).
  *
- * S-005 ships the call wiring (runner → `commit(cwd, message)` after the
- * auto-commit stage produces its message) but defers the actual `git add -A`
- * + `git commit -m` invocation to S-006. For now this is a no-op stub that
- * prints a single stderr notice so users running the happy path see the
- * commit was prepared but not executed. Returns `{ ok: true, skipped: true }`
- * — honest about not having performed the commit, while still classifying
- * the stage as completed.
+ * Runs `git status --porcelain` first: empty tree → return
+ * `{ ok: true, skipped: true }` without touching the repo. Otherwise stage
+ * everything (`git add -A`), commit with the agent's verbatim message
+ * (`git commit -m`), and read back the new HEAD via `git rev-parse HEAD`.
+ *
+ * Failure of any git invocation collapses to `{ ok: false, reason }` carrying
+ * stderr, so the runner can persist it as `stopReason: "commit_failed"` and
+ * the user sees the actual git error (no auth, hook rejection, missing
+ * identity, etc.).
+ *
+ * Multi-line commit messages are preserved natively because `spawnSync`
+ * passes argv as a single string — no shell quoting / re-parsing.
  */
-export function commit(
-  _cwd: string,
-  _message: string,
-): { ok: true; skipped: true } {
-  process.stderr.write(
-    "praxis: auto-commit message ready; git commit not yet wired (lands in S-006)\n",
-  );
-  return { ok: true, skipped: true };
+export type CommitResult =
+  | { ok: true; sha: string }
+  | { ok: true; skipped: true }
+  | { ok: false; reason: string };
+
+export function commit(cwd: string, message: string): CommitResult {
+  const status = spawnSync("git", ["status", "--porcelain"], {
+    cwd,
+    encoding: "utf8",
+  });
+  if (status.status !== 0) {
+    return { ok: false, reason: `git status failed: ${(status.stderr || "").trim()}` };
+  }
+  if (status.stdout.trim() === "") {
+    return { ok: true, skipped: true };
+  }
+
+  const add = spawnSync("git", ["add", "-A"], { cwd, encoding: "utf8" });
+  if (add.status !== 0) {
+    return { ok: false, reason: (add.stderr || "git add -A failed").trim() };
+  }
+
+  const commitRes = spawnSync("git", ["commit", "-m", message], {
+    cwd,
+    encoding: "utf8",
+  });
+  if (commitRes.status !== 0) {
+    return { ok: false, reason: (commitRes.stderr || "git commit failed").trim() };
+  }
+
+  const head = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd,
+    encoding: "utf8",
+  });
+  if (head.status !== 0) {
+    return { ok: false, reason: `git rev-parse HEAD failed: ${(head.stderr || "").trim()}` };
+  }
+
+  return { ok: true, sha: head.stdout.trim() };
 }
