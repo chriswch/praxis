@@ -17,6 +17,16 @@ describe("defaultWorkflow", () => {
     ]);
   });
 
+  // M-2 regression: runner.ts dispatches the commit hand-off with a
+  // magic-string check on `stage.id === "auto-commit"`. A silent rename of
+  // the default stage id would skip the commit hand-off without any other
+  // test failing. Lock the id here.
+  it("contains a stage with id 'auto-commit' (runner dispatch lock)", () => {
+    expect(
+      defaultWorkflow.workflow.find((s) => s.id === "auto-commit"),
+    ).toBeDefined();
+  });
+
   it("pins the per-stage models from product.md §6", () => {
     const byId = Object.fromEntries(
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
