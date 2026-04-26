@@ -6,6 +6,27 @@ Track planned work in [backlog.md](backlog.md). The product.md document remains 
 
 ## Shipped
 
+### S-006 auto-commit produces a real commit
+
+**Shipped:** 2026-04-26
+**Spec reference:** product.md §5.4, §9, §10, §11
+
+The auto-commit stage now lands a real `git commit` rather than a stubbed no-op. `commit(cwd, message)` (in `src/git/commit.ts`) runs `git status --porcelain` first; an empty tree returns `{ ok: true, skipped: true }` without touching the repo, otherwise it stages everything (`git add -A`), commits with the agent's verbatim message (`git commit -m`), and reads back the new HEAD via `git rev-parse HEAD` to return `{ ok: true, sha }`. Any non-zero git invocation collapses to `{ ok: false, reason: <stderr.trim()> }`. The runner adds a pre-check: when the working tree is clean before auto-commit's `runStage`, the SDK call is skipped entirely and the stage is synthesised as `completed` with `stopReason: "skipped"` (no sessionId/tokens/usd, no `03-commit.txt`, no `deps.commit` invocation). On commit success, the runner overwrites `03-commit.txt` with `<sha>\n\n<message>\n` and stamps `state.stages["auto-commit"].commitSha = sha`; `summarize()` reads that field onto `RunSummary.commitSha` so `LineReporter.formatRunDone` (already wired in S-003) prints the SHA on the final line. On commit failure the stage flips to `status: "failed"`, `stopReason: "commit_failed"`, `error: <reason>`, while `03-commit.txt` keeps the agent message only (no SHA prefix). The S-005 stub stderr notice (`praxis: auto-commit message ready; git commit not yet wired (lands in S-006)`) is gone. `withTempRepo` now configures local-scope `user.email`/`user.name` after `git init` so tests work on machines without a global git identity (CI, fresh containers).
+
+- Inputs: same `praxis run` / `praxis advance` surface; no new flags. Requires `user.email` and `user.name` configured (globally or locally) for `git commit -m` to succeed.
+- Outputs: a real commit on every run that produced any change. `03-commit.txt` rewritten with the SHA prefix (`<sha>\n\n<message>\n`); `state.stages["auto-commit"].commitSha` populated; run-done line surfaces `commit <sha>`. Skipped runs (clean tree) leave HEAD untouched and emit no `03-commit.txt`.
+- Notable bounds:
+  - The pre-check runs after `reporter.stageStart` so users still see the `[3/3 auto-commit]` line for the skipped path; only the SDK call and `deps.commit` are short-circuited.
+  - `--allow-dirty` bundles pre-existing dirty (tracked + untracked) into the same commit because `git add -A` captures everything; documented per §5.4 trade-off.
+  - Multi-line commit messages preserve newlines natively — `spawnSync` receives argv as a single string, no shell quoting.
+  - Pre-commit hook side effects surface through `{ ok: false, reason }` and become `stopReason: "commit_failed"`; the SHA is not captured.
+  - `commitSha` is undefined on skipped and failed paths; the formatter handles both.
+- Verified by:
+  - `cli/tests/git/commit.test.ts` — AC-1 happy path with `git rev-parse HEAD`/`git log -1 --pretty=%s` cross-check; AC-2 empty-tree skip with no HEAD created; AC-3 stderr-as-reason on non-git directory; AC-10 `--allow-dirty` bundles modified + untracked + run-produced files into one commit; AC-12 absence of the S-005 stub stderr notice.
+  - `cli/tests/workflow/implement.test.ts` — AC-2 advance-from-paused asserts SHA-prefixed `03-commit.txt` and `commitSha` in state; AC-3 `--no-pause` 3-stage flow asserts SHA prefix; AC-5 clean-tree skip path (no SDK call, no `deps.commit`, no `03-commit.txt`); AC-6 commit-failure path; AC-7 `RunSummary.commitSha` plumbing onto `runDone`.
+  - `cli/tests/support/tmp-repo.test.ts` — AC-11 local-scope `user.email`/`user.name` set after `git init`.
+  - `cli/tests/e2e/auto-commit.test.ts` — AC-8 `runWorkflow --no-pause` end-to-end: HEAD advances by exactly one commit with the agent's message as subject and `state.commitSha === git rev-parse HEAD`; AC-9 same outcome via `advanceWorkflow` from a paused-after-clarify-assess run.
+
 ### S-005 implement stage end-to-end (commit hand-off stubbed)
 
 **Shipped:** 2026-04-26
