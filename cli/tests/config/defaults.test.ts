@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { defaultWorkflow } from "../../src/config/defaults.js";
 import { praxisConfigSchema } from "../../src/config/schema.js";
+import { buildUserPrompt, loadSystemPrompt } from "../../src/workflow/stage.js";
 
 describe("defaultWorkflow", () => {
   it("conforms to praxisConfigSchema", () => {
@@ -91,5 +92,62 @@ describe("defaultWorkflow", () => {
       workflow: defaultWorkflow.workflow,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+/**
+ * H-1 regression: implement and auto-commit used to share the same .md file
+ * for both the system prompt AND the user prompt template — meaning the
+ * agent received its own system prompt (with explanatory code-fenced blocks)
+ * verbatim as the user prompt. Pin the rendered user prompt for each stage
+ * to the spec's exact instructions and prove no system-prompt content leaks
+ * into the user prompt.
+ */
+describe("defaultWorkflow user prompts (H-1 regression)", () => {
+  function ctx(extras?: { artifactPaths?: Record<string, string> }) {
+    return {
+      intent: "add a logout button",
+      runDir: "/run/dir",
+      artifactPaths: extras?.artifactPaths ?? {},
+    };
+  }
+
+  function stageById(id: string) {
+    const s = defaultWorkflow.workflow.find((s) => s.id === id);
+    if (!s) throw new Error(`stage ${id} not found`);
+    return s;
+  }
+
+  it("clarify-assess renders intent + runDir per spec §5.2", () => {
+    const rendered = buildUserPrompt(stageById("clarify-assess"), ctx());
+    expect(rendered).toContain("Intent: add a logout button");
+    expect(rendered).toContain("Run dir: /run/dir");
+    // System prompt content (e.g. the H2 schema fence) must not appear in
+    // the user prompt.
+    expect(rendered).not.toContain("Required artifact schema");
+  });
+
+  it("implement references the clarify-assess artifact path per spec §5.3", () => {
+    const rendered = buildUserPrompt(
+      stageById("implement"),
+      ctx({ artifactPaths: { "clarify-assess": "/run/dir/01-clarify-assess.md" } }),
+    );
+    expect(rendered).toContain("Read /run/dir/01-clarify-assess.md");
+    expect(rendered).toContain("implement the plan");
+    expect(rendered).toContain("Edit files in the current working directory");
+    // System prompt content must NOT leak into the user prompt.
+    const sys = loadSystemPrompt(stageById("implement"));
+    expect(rendered).not.toBe(sys);
+    expect(rendered).not.toContain("User-prompt template");
+  });
+
+  it("auto-commit asks for a Conventional-Commits message only per spec §5.4", () => {
+    const rendered = buildUserPrompt(stageById("auto-commit"), ctx());
+    expect(rendered.toLowerCase()).toContain("conventional");
+    expect(rendered).toMatch(/git diff/);
+    // System prompt content must NOT leak into the user prompt.
+    const sys = loadSystemPrompt(stageById("auto-commit"));
+    expect(rendered).not.toBe(sys);
+    expect(rendered).not.toContain("`permissionMode`");
   });
 });
