@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit } from "../../src/git/commit.js";
 import { withTempRepo } from "../support/tmp-repo.js";
@@ -12,6 +13,23 @@ import { withTempRepo } from "../support/tmp-repo.js";
  * runner-level integration is exercised separately in implement.test.ts and
  * the e2e suites.
  */
+
+describe("commit() failure (AC-3)", () => {
+  it("returns {ok:false, reason} carrying git's stderr when invoked outside a work tree", () => {
+    const dir = mkdtempSync(join(tmpdir(), "praxis-commit-fail-"));
+    try {
+      const result = commit(dir, "feat: nope");
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.reason.length).toBeGreaterThan(0);
+      // git emits "not a git repository" (or similar phrasing) — assert the
+      // signal, not exact wording, since git versions vary.
+      expect(result.reason.toLowerCase()).toContain("not a git repository");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("commit() empty tree (AC-2)", () => {
   it("returns {ok:true, skipped:true} and creates no commit when nothing is staged or modified", async () => {
