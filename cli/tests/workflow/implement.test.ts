@@ -267,6 +267,44 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
   });
 });
 
+describe("fresh SDK session per stage (AC-10)", () => {
+  it("clarify-assess sessionId is not reused for implement; each stage call gets its own AbortSignal", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "implement log\n") }],
+        [{ messages: stageMessages("sess_commit", "chore: noop") }],
+      ]);
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      // Three distinct SDK invocations.
+      expect(recording.calls.length).toBe(3);
+
+      // Each invocation got its own AbortSignal (not shared).
+      const sigs = recording.calls.map((c) => c.input.signal);
+      expect(new Set(sigs).size).toBe(3);
+
+      // Distinct sessionIds persisted.
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      const sessionIds = [
+        persisted.stages["clarify-assess"].sessionId,
+        persisted.stages.implement.sessionId,
+        persisted.stages["auto-commit"].sessionId,
+      ];
+      expect(new Set(sessionIds).size).toBe(3);
+      expect(persisted.stages["clarify-assess"].sessionId).toBe("sess_clarify");
+      expect(persisted.stages.implement.sessionId).toBe("sess_impl");
+      expect(persisted.stages["auto-commit"].sessionId).toBe("sess_commit");
+    });
+  });
+});
+
 describe("02-implement-log.md is verbatim finalText (AC-8)", () => {
   it("writes the agent's finalText byte-for-byte — no validator, no trailing newline added", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
