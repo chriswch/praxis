@@ -93,3 +93,35 @@ export function recordingScriptedQuery(
   recording.calls = calls;
   return recording;
 }
+
+/**
+ * Build a `createQueryFn` whose stream emits an `init` message and then
+ * blocks forever — used to exercise abort paths (timeoutMs, SIGINT) in
+ * `runStage` without racing on real I/O. The stream resolves only when the
+ * stage-local AbortSignal fires; on abort the iterator returns cleanly so the
+ * `for await` loop in `runStage` exits.
+ */
+export function hangingQuery(initSessionId = "sess_hang"): CreateQueryFn {
+  return (input) => {
+    const handle: CreateQueryFnHandle = {
+      pushUserMessage() {},
+      stream: (async function* () {
+        yield {
+          type: "system",
+          subtype: "init",
+          session_id: initSessionId,
+          model: "claude-test",
+        } satisfies SdkMessage;
+        // Wait until the stage aborts us.
+        await new Promise<void>((resolve) => {
+          if (input.signal.aborted) return resolve();
+          input.signal.addEventListener("abort", () => resolve(), {
+            once: true,
+          });
+        });
+        return;
+      })(),
+    };
+    return handle;
+  };
+}

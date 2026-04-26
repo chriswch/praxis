@@ -52,10 +52,23 @@ async function main(argv: string[]): Promise<void> {
   }
   const { intent, allowDirty } = parseRunArgs(rest);
 
-  const result = await runWorkflow(
-    { intent, cwd: process.cwd(), allowDirty },
-    defaultDeps,
-  );
+  // SIGINT: abort the in-flight stage so it surfaces a `cancelled` status
+  // (spec §11) instead of leaving the SDK process running. The Node default
+  // is to exit immediately on second Ctrl+C — we intentionally let that
+  // happen as the user's escape hatch.
+  const sigintAbort = new AbortController();
+  const onSigint = () => sigintAbort.abort("sigint");
+  process.once("SIGINT", onSigint);
+
+  let result;
+  try {
+    result = await runWorkflow(
+      { intent, cwd: process.cwd(), allowDirty, signal: sigintAbort.signal },
+      defaultDeps,
+    );
+  } finally {
+    process.removeListener("SIGINT", onSigint);
+  }
   if (!result.ok) {
     process.stderr.write(`praxis: ${result.reason}\n`);
     if (result.remediation) {

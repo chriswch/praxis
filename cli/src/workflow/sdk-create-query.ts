@@ -12,22 +12,48 @@ import type {
  *
  * Only the subset of SDK message shapes Praxis actually consumes is mapped
  * into `SdkMessage`.
+ *
+ * Lifecycle: the consumer (`runStage`) decides when the stage is over and
+ * aborts the signal that's threaded into the SDK. This wrapper does NOT
+ * terminate after the first `result` message — validator retry expects a
+ * second `result` from the same stream after `pushUserMessage`.
  */
 export const sdkCreateQueryFn: CreateQueryFn = (input) => {
-  const userQueue: { resolve: (msg: SdkUserMessageLite) => void }[] = [];
+  const userQueue: { resolve: (msg: SdkUserMessageLite | null) => void }[] = [];
   const pending: SdkUserMessageLite[] = [
     { type: "user", message: { role: "user", content: input.initialUserPrompt } },
   ];
+  let closed = false;
+
+  function closeUserPrompts(): void {
+    if (closed) return;
+    closed = true;
+    while (userQueue.length > 0) {
+      userQueue.shift()!.resolve(null);
+    }
+  }
+
+  // When the consumer aborts, wake up any awaiting userPrompts() iterator and
+  // let it terminate so the SDK tears down its own loop cleanly.
+  const onAbort = () => closeUserPrompts();
+  if (input.signal.aborted) {
+    closeUserPrompts();
+  } else {
+    input.signal.addEventListener("abort", onAbort, { once: true });
+  }
 
   async function* userPrompts(): AsyncIterable<SdkUserMessageLite> {
     while (true) {
+      if (closed) return;
       if (pending.length > 0) {
         yield pending.shift()!;
         continue;
       }
-      yield await new Promise<SdkUserMessageLite>((resolve) => {
+      const next = await new Promise<SdkUserMessageLite | null>((resolve) => {
         userQueue.push({ resolve });
       });
+      if (next === null) return;
+      yield next;
     }
   }
 
@@ -59,12 +85,19 @@ export const sdkCreateQueryFn: CreateQueryFn = (input) => {
       else pending.push(msg);
     },
     stream: (async function* () {
-      for await (const msg of sdkStream) {
-        const lite = adapt(msg);
-        if (lite) yield lite;
-        // Stop iterating after a result message so the SDK's prompt iterable
-        // is allowed to be closed by the consumer ending the loop.
-        if (lite && lite.type === "result") return;
+      try {
+        for await (const msg of sdkStream) {
+          const lite = adapt(msg);
+          if (lite) yield lite;
+          // Do NOT terminate on `result` — the consumer may push a corrective
+          // user message and expect a follow-up `result` in the same stream
+          // (product.md §5.2 validator retry). Termination is signalled by the
+          // consumer aborting `input.signal`.
+        }
+      } finally {
+        // SDK iterator finished or threw — make sure the user-prompt async
+        // iterable also wakes up so its surrounding promise is collectable.
+        closeUserPrompts();
       }
     })(),
   };

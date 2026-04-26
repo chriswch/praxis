@@ -165,6 +165,13 @@ export function buildUserPrompt(
 /**
  * Execute a single stage end-to-end against the SDK seam.
  *
+ * Lifecycle:
+ *   - Builds a stage-local AbortController linked to `ctx.signal`. SIGINT on
+ *     the parent signal aborts here as `"sigint"`. If `config.timeoutMs` is
+ *     set, a timer aborts as `"timeout"` after that many ms (product.md §7).
+ *   - Always aborts the local controller in `finally` so the SDK tears down
+ *     even on the happy path — preventing stage process leaks.
+ *
  * Behavior:
  *   - Opens one `createQueryFn` call with the configured prompts + options.
  *   - Drains the SdkMessage stream, capturing assistant text per turn,
@@ -173,7 +180,7 @@ export function buildUserPrompt(
  *     one corrective user message via `pushUserMessage` and waits for the
  *     next result (product.md §5.2). One retry only; second failure is
  *     terminal and the partial text is returned with `stopReason:
- *     "validator_failed"`.
+ *     "validator_failed"` and `validatorReason` set.
  *   - tokens.input/output/cache* are summed across attempts; usd is summed.
  *   - sessionId reflects the last attempt (so on retry success it's the
  *     retry's id).
@@ -186,85 +193,117 @@ export async function runStage(
   const systemPrompt = loadSystemPrompt(config);
   const initialUserPrompt = buildUserPrompt(config, ctx);
 
-  const handle = deps.createQueryFn({
-    systemPrompt,
-    allowedTools: config.allowedTools,
-    permissionMode: config.permissionMode,
-    model: config.model,
-    settingSources: ["user", "project"],
-    signal: ctx.signal,
-    initialUserPrompt,
-  });
+  // Stage-local controller: aborts on (a) parent ctx.signal, (b) timeoutMs,
+  // (c) when the stage decides it's done (in finally). The reason recorded
+  // here is the first to fire and is surfaced as StageResult.cancelReason.
+  const stageAbort = new AbortController();
+  let cancelReason: StageResult["cancelReason"];
 
-  let attempt = 0;
-  let finalText = "";
-  let sessionId = "";
-  let stopReason = "";
-  let turns = 0;
-  const tokens = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
-  let usd = 0;
-  let lastValidationReason: string | undefined;
-
-  let pendingText = "";
-  for await (const msg of handle.stream) {
-    if (msg.type === "system" && msg.subtype === "init") {
-      sessionId = msg.session_id;
-      continue;
-    }
-    if (msg.type === "assistant") {
-      sessionId = msg.session_id;
-      for (const block of msg.message.content) {
-        if (block.type === "text") {
-          pendingText += block.text;
-        }
-      }
-      continue;
-    }
-    if (msg.type === "result") {
-      sessionId = msg.session_id;
-      stopReason = msg.stop_reason ?? "";
-      turns = msg.num_turns;
-      tokens.input += msg.usage.input_tokens;
-      tokens.output += msg.usage.output_tokens;
-      tokens.cacheRead += msg.usage.cache_read_input_tokens;
-      tokens.cacheCreate += msg.usage.cache_creation_input_tokens;
-      usd += msg.total_cost_usd;
-      finalText = pendingText;
-      pendingText = "";
-
-      if (config.validate) {
-        const verdict = config.validate(finalText);
-        if (verdict.ok) {
-          break;
-        }
-        attempt++;
-        if (attempt >= 2) {
-          stopReason = "validator_failed";
-          lastValidationReason = verdict.reason;
-          break;
-        }
-        lastValidationReason = verdict.reason;
-        handle.pushUserMessage(
-          `Your previous output did not match the required schema: ${verdict.reason}. Re-emit only the markdown artifact.`,
-        );
-        continue;
-      }
-
-      break;
-    }
+  const onParentAbort = () => {
+    if (!cancelReason) cancelReason = "sigint";
+    stageAbort.abort("sigint");
+  };
+  if (ctx.signal.aborted) {
+    onParentAbort();
+  } else {
+    ctx.signal.addEventListener("abort", onParentAbort, { once: true });
   }
 
-  // `lastValidationReason` is captured to support a future `state.error`
-  // field once the orchestrator wires per-stage state updates (S-002 next
-  // cycle). We void it here so an unused-binding lint won't trip.
-  void lastValidationReason;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  if (config.timeoutMs && !stageAbort.signal.aborted) {
+    timeoutHandle = setTimeout(() => {
+      if (!cancelReason) cancelReason = "timeout";
+      stageAbort.abort("timeout");
+    }, config.timeoutMs);
+  }
 
-  return {
-    finalText,
-    turns,
-    stopReason,
-    sessionId,
-    tokens,
-    usd,
-  };
+  try {
+    const handle = deps.createQueryFn({
+      systemPrompt,
+      allowedTools: config.allowedTools,
+      permissionMode: config.permissionMode,
+      model: config.model,
+      settingSources: ["user", "project"],
+      signal: stageAbort.signal,
+      initialUserPrompt,
+    });
+
+    let attempt = 0;
+    let finalText = "";
+    let sessionId = "";
+    let stopReason = "";
+    let turns = 0;
+    const tokens = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
+    let usd = 0;
+    let lastValidationReason: string | undefined;
+
+    let pendingText = "";
+    for await (const msg of handle.stream) {
+      if (msg.type === "system" && msg.subtype === "init") {
+        sessionId = msg.session_id;
+        continue;
+      }
+      if (msg.type === "assistant") {
+        sessionId = msg.session_id;
+        for (const block of msg.message.content) {
+          if (block.type === "text") {
+            pendingText += block.text;
+          }
+        }
+        continue;
+      }
+      if (msg.type === "result") {
+        sessionId = msg.session_id;
+        stopReason = msg.stop_reason ?? "";
+        turns = msg.num_turns;
+        tokens.input += msg.usage.input_tokens;
+        tokens.output += msg.usage.output_tokens;
+        tokens.cacheRead += msg.usage.cache_read_input_tokens;
+        tokens.cacheCreate += msg.usage.cache_creation_input_tokens;
+        usd += msg.total_cost_usd;
+        finalText = pendingText;
+        pendingText = "";
+
+        if (config.validate) {
+          const verdict = config.validate(finalText);
+          if (verdict.ok) {
+            break;
+          }
+          attempt++;
+          if (attempt >= 2) {
+            stopReason = "validator_failed";
+            lastValidationReason = verdict.reason;
+            break;
+          }
+          lastValidationReason = verdict.reason;
+          handle.pushUserMessage(
+            `Your previous output did not match the required schema: ${verdict.reason}. Re-emit only the markdown artifact.`,
+          );
+          continue;
+        }
+
+        break;
+      }
+    }
+
+    // `lastValidationReason` is captured to support a future `state.error`
+    // field once the orchestrator wires per-stage state updates (S-002 next
+    // cycle). We void it here so an unused-binding lint won't trip.
+    void lastValidationReason;
+
+    return {
+      finalText,
+      turns,
+      stopReason,
+      cancelReason,
+      sessionId,
+      tokens,
+      usd,
+    };
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    ctx.signal.removeEventListener("abort", onParentAbort);
+    // Tear down the SDK side even on the happy path — H-4.
+    if (!stageAbort.signal.aborted) stageAbort.abort();
+  }
 }

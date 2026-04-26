@@ -24,6 +24,12 @@ export type RunWorkflowContext = {
   config?: PraxisConfig;
   /** Override the default LineReporter (tests). */
   reporter?: Reporter;
+  /**
+   * Parent abort signal — when fired, the in-flight stage is aborted as
+   * `sigint` per spec §11. The CLI wires this to a SIGINT listener; tests
+   * inject directly to exercise cancellation.
+   */
+  signal?: AbortSignal;
 };
 
 export type RunWorkflowSuccess = {
@@ -45,6 +51,8 @@ export type RunWorkflowFailure = {
   runId?: string;
   runDir?: string;
   failedStageId?: string;
+  /** "cancelled" when SIGINT aborted the run; "failed" otherwise (spec §11). */
+  status?: "failed" | "cancelled";
 };
 
 export type RunWorkflowResult = RunWorkflowSuccess | RunWorkflowFailure;
@@ -103,7 +111,7 @@ async function executeStages(
   runId: string,
 ): Promise<RunWorkflowResult> {
   const artifactPaths: Record<string, string> = {};
-  const abort = new AbortController();
+  const parentSignal = ctx.signal ?? new AbortController().signal;
 
   for (let i = 0; i < config.workflow.length; i++) {
     const stage = config.workflow[i];
@@ -117,7 +125,7 @@ async function executeStages(
       runDir,
       runId,
       reporter,
-      signal: abort.signal,
+      signal: parentSignal,
       artifactPaths: { ...artifactPaths },
     };
 
@@ -135,18 +143,30 @@ async function executeStages(
     artifactPaths[stage.id] = artifactPath;
 
     const endedAt = toIsoSeconds(deps.clock());
-    const failed = result.stopReason === "validator_failed";
+    // §11: SIGINT → cancelled; timeoutMs / validator_failed → failed.
+    let stageStatus: StageState["status"] = "completed";
+    let errorMessage: string | undefined;
+    if (result.cancelReason === "sigint") {
+      stageStatus = "cancelled";
+      errorMessage = "cancelled by user (SIGINT)";
+    } else if (result.cancelReason === "timeout") {
+      stageStatus = "failed";
+      errorMessage = "stage timed out";
+    } else if (result.stopReason === "validator_failed") {
+      stageStatus = "failed";
+      errorMessage = describeValidatorFailure(stage, result.finalText);
+    }
+    const failed = stageStatus !== "completed";
+
     const stageState: StageState = {
-      status: failed ? "failed" : "completed",
+      status: stageStatus,
       endedAt,
       stopReason: result.stopReason,
       sessionId: result.sessionId,
       tokens: result.tokens,
       usd: result.usd,
     };
-    if (failed) {
-      stageState.error = describeValidatorFailure(stage, result.finalText);
-    }
+    if (errorMessage) stageState.error = errorMessage;
     state.stages[stage.id] = stageState;
     state.cost.totalTokens += result.tokens.input + result.tokens.output;
     state.cost.totalUsd += result.usd;
@@ -156,16 +176,17 @@ async function executeStages(
       ok: !failed,
       artifactPath,
       sessionId: result.sessionId,
-      error: failed ? stageState.error : undefined,
+      error: failed ? errorMessage : undefined,
     });
 
     if (failed) {
       return {
         ok: false,
-        reason: stageState.error ?? "stage failed",
+        reason: errorMessage ?? "stage failed",
         runId,
         runDir,
         failedStageId: stage.id,
+        status: stageStatus === "cancelled" ? "cancelled" : "failed",
       };
     }
 
