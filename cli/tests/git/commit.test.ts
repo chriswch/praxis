@@ -58,6 +58,48 @@ describe("commit() failure (AC-3)", () => {
   });
 });
 
+describe("commit() bundles pre-existing dirty files when called on a dirty tree (AC-10)", () => {
+  it("git add -A captures untracked + modified files alongside the run's own changes — both files appear in the resulting commit", async () => {
+    await withTempRepo(async ({ dir }) => {
+      // Baseline so HEAD exists; tracked.txt becomes the modified file.
+      writeFileSync(join(dir, "tracked.txt"), "v1\n", "utf8");
+      spawnSync("git", ["add", "tracked.txt"], { cwd: dir });
+      spawnSync("git", ["commit", "-m", "baseline"], { cwd: dir });
+
+      // The "pre-existing dirty" the user opted into bundling.
+      writeFileSync(join(dir, "tracked.txt"), "v2 — pre-existing dirty\n", "utf8");
+      writeFileSync(join(dir, "untracked.txt"), "stranded\n", "utf8");
+      // The "run's own change" (simulating an implement-stage edit).
+      writeFileSync(join(dir, "from-run.txt"), "produced by the run\n", "utf8");
+
+      const result = commit(dir, "feat: bundled commit");
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("unreachable");
+      if (!("sha" in result)) throw new Error("expected sha");
+
+      // git show --name-only on the new commit lists every file the commit
+      // touched (whether modified or added).
+      const show = spawnSync(
+        "git",
+        ["show", "--name-only", "--pretty=format:", "HEAD"],
+        { cwd: dir, encoding: "utf8" },
+      );
+      expect(show.status).toBe(0);
+      const files = show.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+      expect(files.sort()).toEqual(
+        ["from-run.txt", "tracked.txt", "untracked.txt"].sort(),
+      );
+
+      // Tree is clean after the bundled commit.
+      const status = spawnSync("git", ["status", "--porcelain"], {
+        cwd: dir,
+        encoding: "utf8",
+      });
+      expect(status.stdout.trim()).toBe("");
+    });
+  });
+});
+
 describe("commit() empty tree (AC-2)", () => {
   it("returns {ok:true, skipped:true} and creates no commit when nothing is staged or modified", async () => {
     await withTempRepo(async ({ dir }) => {
