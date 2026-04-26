@@ -136,6 +136,22 @@ describe("formatStageEnd (AC-10)", () => {
   });
 });
 
+describe("formatResuming (S-004 AC-13)", () => {
+  it("renders the §11 'resuming approved plan' headline for the paused path", async () => {
+    const { formatResuming } = await import("../../src/ui/line-formatter.js");
+    expect(formatResuming("approved", "2026-04-25-1430-7af2", "clarify-assess")).toEqual([
+      "praxis: resuming approved plan after clarify-assess (run 2026-04-25-1430-7af2)",
+    ]);
+  });
+
+  it("renders the §11 'recovering ... re-validating' headline for the recovery path", async () => {
+    const { formatResuming } = await import("../../src/ui/line-formatter.js");
+    expect(formatResuming("recovering", "2026-04-25-1430-7af2", "clarify-assess")).toEqual([
+      "praxis: recovering clarify-assess from on-disk artifact; re-validating (run 2026-04-25-1430-7af2)",
+    ]);
+  });
+});
+
 describe("formatPaused (AC-11)", () => {
   it("renders the canonical advance hint", () => {
     expect(

@@ -6,6 +6,7 @@ import {
   formatAssistantText,
   formatError,
   formatPaused,
+  formatResuming,
   formatRunDone,
   formatStage0,
   formatStageEnd,
@@ -121,6 +122,20 @@ export class LineReporter implements Reporter {
    */
   stage0(total: number, intentFilename: string): void {
     this.writeAll(this.stdout, formatStage0(total, intentFilename));
+  }
+
+  /**
+   * S-004 AC-13: §11 resume / recover headline emitted by `praxis advance`.
+   * Optional on the Reporter interface; runner calls it via
+   * `reporter.resuming?.(...)` and skips when absent.
+   */
+  resuming(
+    kind: "approved" | "recovering",
+    runId: string,
+    stageId: string,
+  ): void {
+    this.buffer.flush();
+    this.writeAll(this.stdout, formatResuming(kind, runId, stageId));
   }
 
   private writeAll(stream: Writable, lines: string[]): void {

@@ -8,6 +8,7 @@ import type { PraxisConfig } from "../../src/config/schema.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
 import { RecordingReporter } from "../support/recording-reporter.js";
 import {
+  hangingQuery,
   recordingScriptedQuery,
   scriptedQuery,
 } from "../support/scripted-query.js";
@@ -351,6 +352,120 @@ describe("advanceWorkflow paused happy path (AC-3)", () => {
       // .gitignore must remain absent — pre-flight (which appends it) is
       // skipped on advance.
       expect(existsSync(join(cwd, ".gitignore"))).toBe(false);
+    });
+  });
+});
+
+describe("advanceWorkflow Reporter resuming line (AC-13)", () => {
+  it("paused path calls reporter.resuming('approved', runId, prevStageId) before the next stageStart", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "x",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "second",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          first: completedStage(),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": "x\n" });
+      type Resume = { kind: "approved" | "recovering"; runId: string; stageId: string };
+      const resumeCalls: Resume[] = [];
+      const reporter = new RecordingReporter();
+      // Attach the optional method on the spy.
+      (reporter as unknown as {
+        resuming: (kind: "approved" | "recovering", runId: string, stageId: string) => void;
+      }).resuming = (kind, rid, sid) => resumeCalls.push({ kind, runId: rid, stageId: sid });
+
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: TWO_STAGE_CONFIG },
+        deps(scriptedQuery([{ messages: noopMessages("sess_b") }]), reporter),
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      expect(resumeCalls).toEqual([
+        { kind: "approved", runId: RUN_ID, stageId: "first" },
+      ]);
+    });
+  });
+
+  it("recovery path calls reporter.resuming('recovering', runId, stageId)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "x",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "first",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          first: failedStage(),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": VALID_FIRST_ARTIFACT });
+      type Resume = { kind: "approved" | "recovering"; runId: string; stageId: string };
+      const resumeCalls: Resume[] = [];
+      const reporter = new RecordingReporter();
+      (reporter as unknown as {
+        resuming: (kind: "approved" | "recovering", runId: string, stageId: string) => void;
+      }).resuming = (kind, rid, sid) => resumeCalls.push({ kind, runId: rid, stageId: sid });
+
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: VALIDATED_CONFIG },
+        deps(scriptedQuery([{ messages: noopMessages("sess_b") }]), reporter),
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      expect(resumeCalls).toEqual([
+        { kind: "recovering", runId: RUN_ID, stageId: "first" },
+      ]);
+    });
+  });
+});
+
+describe("advanceWorkflow SIGINT on resumed stage (AC-12)", () => {
+  it("an external abort during the resumed stage marks it cancelled and runDone fires with cancelled", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state: State = {
+        runId: RUN_ID,
+        intent: "x",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "second",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          first: completedStage(),
+          second: { status: "pending" },
+        },
+      };
+      seedRun(cwd, state, { "first.md": "x\n" });
+      const ctl = new AbortController();
+      setTimeout(() => ctl.abort(), 20);
+      const reporter = new RecordingReporter();
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: TWO_STAGE_CONFIG, signal: ctl.signal },
+        deps(hangingQuery("sess_abort"), reporter),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.status).toBe("cancelled");
+      expect(result.failedStageId).toBe("second");
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages.second.status).toBe("cancelled");
+
+      // runDone fired exactly once with the cancelled status.
+      const runDone = reporter.calls.filter((c) => c.kind === "runDone");
+      expect(runDone.length).toBe(1);
+      expect(runDone[0].kind === "runDone" && runDone[0].summary.status).toBe(
+        "cancelled",
+      );
     });
   });
 });

@@ -112,6 +112,22 @@ describe("LineReporter (AC-2/7/8/10/11/12)", () => {
     reporter.stage0(3, "00-intent.txt");
     expect(out.text()).toBe("[0/3 intent] captured → 00-intent.txt\n");
   });
+
+  it("resuming(approved) prints the §11 headline (S-004 AC-13)", () => {
+    const { reporter, out } = makeReporter();
+    reporter.resuming("approved", "2026-04-25-1430-7af2", "clarify-assess");
+    expect(out.text()).toBe(
+      "praxis: resuming approved plan after clarify-assess (run 2026-04-25-1430-7af2)\n",
+    );
+  });
+
+  it("resuming(recovering) prints the §11 recovery headline", () => {
+    const { reporter, out } = makeReporter();
+    reporter.resuming("recovering", "2026-04-25-1430-7af2", "clarify-assess");
+    expect(out.text()).toBe(
+      "praxis: recovering clarify-assess from on-disk artifact; re-validating (run 2026-04-25-1430-7af2)\n",
+    );
+  });
 });
 
 describe("LineReporter assistant_text coalescing (AC-6)", () => {

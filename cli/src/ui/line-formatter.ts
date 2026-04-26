@@ -92,6 +92,32 @@ export function formatPaused(
 }
 
 /**
+ * S-004 AC-13: §11 resume / recover headline emitted by `praxis advance`.
+ *
+ * Two kinds:
+ *   - `"approved"`  → paused → resume path (user reviewed the artifact).
+ *   - `"recovering"` → failed/cancelled → recover path (validator re-runs
+ *     against the hand-edited artifact).
+ *
+ * `runId` is included so multi-run terminals can disambiguate; `stageId` is
+ * the stage we're resuming after (approved) or recovering (recovering).
+ */
+export function formatResuming(
+  kind: "approved" | "recovering",
+  runId: string,
+  stageId: string,
+): string[] {
+  if (kind === "approved") {
+    return [
+      `praxis: resuming approved plan after ${stageId} (run ${runId})`,
+    ];
+  }
+  return [
+    `praxis: recovering ${stageId} from on-disk artifact; re-validating (run ${runId})`,
+  ];
+}
+
+/**
  * AC-12: end-of-run summary printed on every terminal path (completed,
  * paused, failed, cancelled). The headline verb branches on `summary.status`
  * so a failed/cancelled run does not misleadingly print "done" (H-1). Cost
