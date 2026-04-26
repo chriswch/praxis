@@ -108,6 +108,8 @@ export type Deps = {
   clock: () => Date;
   rng: (n: number) => Uint8Array;
   createQueryFn: CreateQueryFn;
+  /** Stdout/stderr Reporter; the CLI passes a LineReporter here (S-003). */
+  reporter: Reporter;
 };
 
 const PROMPTS_DIR = resolve(
@@ -187,7 +189,7 @@ export function buildUserPrompt(
 export async function runStage(
   config: StageConfig,
   ctx: StageContext,
-  deps: Pick<Deps, "createQueryFn">,
+  deps: Pick<Deps, "createQueryFn" | "reporter">,
 ): Promise<StageResult> {
   const systemPrompt = loadSystemPrompt(config);
   const initialUserPrompt = buildUserPrompt(config, ctx);

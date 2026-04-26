@@ -45,6 +45,7 @@ describe("runStage timeoutMs (product.md §7)", () => {
       const ctl = new AbortController(); // never aborted by us
       const result = await runStage(noValidateConfig, makeCtx(runDir, ctl.signal), {
         createQueryFn: hangingQuery("sess_timeout"),
+        reporter: new LineReporter(),
       });
       expect(result.cancelReason).toBe("timeout");
       expect(result.sessionId).toBe("sess_timeout");
@@ -64,6 +65,7 @@ describe("runStage SIGINT propagation (product.md §11)", () => {
       };
       const result = await runStage(stage, makeCtx(runDir, ctl.signal), {
         createQueryFn: hangingQuery("sess_sigint"),
+        reporter: new LineReporter(),
       });
       expect(result.cancelReason).toBe("sigint");
     });
@@ -99,6 +101,7 @@ describe("runWorkflow SIGINT (spec §11 — cancelled status)", () => {
           clock: () => new Date("2026-04-25T14:30:12Z"),
           rng: (n) => new Uint8Array([0x7a, 0xf2]).slice(0, n),
           createQueryFn: hangingQuery("sess_sigint_runner"),
+          reporter: new LineReporter(),
         },
       );
       expect(result.ok).toBe(false);

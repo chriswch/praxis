@@ -9,6 +9,7 @@ import type {
 } from "../../src/workflow/stage.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 import { scriptedQuery } from "../support/scripted-query.js";
+import { LineReporter } from "../../src/ui/line-reporter.js";
 import type { PraxisConfig } from "../../src/config/schema.js";
 
 const noopMessages: SdkMessage[] = [
@@ -67,6 +68,7 @@ function pinnedDeps(
     clock: () => date,
     rng: (n) => bytes.slice(0, n),
     createQueryFn,
+    reporter: new LineReporter(),
   };
 }
 

@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { Deps, StageContext, StageResult } from "./stage.js";
 import { runStage } from "./stage.js";
 import { formatRunId } from "./run-id.js";
@@ -13,17 +13,21 @@ import {
 import { runPreflight, appendPraxisToGitignore } from "./preflight.js";
 import { defaultWorkflow } from "../config/defaults.js";
 import type { PraxisConfig, StageConfig } from "../config/schema.js";
+import type { Reporter, RunSummary } from "../ui/reporter.js";
 import { LineReporter } from "../ui/line-reporter.js";
-import type { Reporter } from "../ui/reporter.js";
 
 export type RunWorkflowContext = {
   intent: string;
   cwd: string;
   allowDirty?: boolean;
+  /**
+   * Disable all pause gates (product.md §4 `--no-pause`). When set,
+   * `pauseAfter: true` stages still run + commit their artifact but the
+   * runner advances to the next stage instead of returning paused.
+   */
+  noPause?: boolean;
   /** Override the default 3-stage workflow (tests). */
   config?: PraxisConfig;
-  /** Override the default LineReporter (tests). */
-  reporter?: Reporter;
   /**
    * Parent abort signal — when fired, the in-flight stage is aborted as
    * `sigint` per spec §11. The CLI wires this to a SIGINT listener; tests
@@ -66,7 +70,7 @@ export async function runWorkflow(
   deps: Deps,
 ): Promise<RunWorkflowResult> {
   const config = ctx.config ?? defaultWorkflow;
-  const reporter = ctx.reporter ?? new LineReporter();
+  const reporter = deps.reporter;
 
   const preflight = runPreflight(ctx.cwd, {
     allowDirty: ctx.allowDirty ?? false,
@@ -86,7 +90,7 @@ export async function runWorkflow(
   const runDir = join(ctx.cwd, ".praxis", "runs", runId);
   mkdirSync(runDir, { recursive: true });
 
-  writeIntent(runDir, ctx.intent);
+  const intentPath = writeIntent(runDir, ctx.intent);
 
   const stageIds = config.workflow.map((s) => s.id);
   const state: State = buildInitialState({
@@ -97,6 +101,13 @@ export async function runWorkflow(
     currentStage: stageIds[0],
   });
   writeState(runDir, state);
+
+  // AC-3: synthetic stage-0 line `[0/N intent] captured → 00-intent.txt`.
+  // Not part of the Reporter interface (no StageConfig for the agentless
+  // intent capture), so we duck-type the LineReporter helper.
+  if (isLineReporter(reporter)) {
+    reporter.stage0Captured(config.workflow.length, basename(intentPath));
+  }
 
   return executeStages(state, config, ctx, deps, reporter, runDir, runId);
 }
@@ -133,6 +144,8 @@ async function executeStages(
       runId,
     );
     if (outcome.kind === "paused") {
+      reporter.paused(runId, outcome.stageId, outcome.artifactPath);
+      reporter.runDone(runId, summarize(state));
       return {
         ok: true,
         runId,
@@ -143,6 +156,7 @@ async function executeStages(
       };
     }
     if (outcome.kind === "failed") {
+      reporter.runDone(runId, summarize(state));
       return {
         ok: false,
         reason: outcome.reason,
@@ -154,6 +168,7 @@ async function executeStages(
     }
   }
 
+  reporter.runDone(runId, summarize(state));
   return { ok: true, runId, runDir, paused: false };
 }
 
@@ -171,7 +186,8 @@ async function runOneStage(
   state.currentStage = stage.id;
   state.stages[stage.id] = { status: "running" };
   writeState(runDir, state);
-  reporter.stageStart(stage, index, config.workflow.length);
+  // 1-based index per §8 (`[1/3 ...]`).
+  reporter.stageStart(stage, index + 1, config.workflow.length);
 
   const stageCtx: StageContext = {
     intent: ctx.intent,
@@ -184,6 +200,7 @@ async function runOneStage(
 
   const result = await runStage(stage, stageCtx, {
     createQueryFn: deps.createQueryFn,
+    reporter,
   });
 
   // Always write whatever the agent emitted — even on validator failure
@@ -227,18 +244,15 @@ async function runOneStage(
     };
   }
 
-  if (stage.pauseAfter) {
+  // AC-13: --no-pause overrides every `pauseAfter` so autopilot runs end-
+  // to-end. The stage's artifact + state still land identically; we just
+  // skip the paused short-circuit.
+  if (stage.pauseAfter && !ctx.noPause) {
     const nextStage = config.workflow[index + 1];
     if (nextStage) {
       state.currentStage = nextStage.id;
       writeState(runDir, state);
     }
-    reporter.paused(runId, stage.id, artifactPath);
-    // Pause hint to stdout — surfaces independently of the Reporter so the
-    // CLI shell can print the canonical hint even with a no-op reporter.
-    process.stdout.write(
-      `praxis: paused after ${stage.id}. Review ${artifactPath} then run: praxis advance ${runId}\n`,
-    );
     return { kind: "paused", stageId: stage.id, artifactPath };
   }
 
@@ -298,7 +312,36 @@ function collectArtifactPaths(
   return out;
 }
 
+/**
+ * Build the `RunSummary` from the current `state.json` shape so `runDone`
+ * has the totals + per-stage rows to print. Unstarted stages are skipped.
+ */
+function summarize(state: State): RunSummary {
+  const perStage: RunSummary["perStage"] = {};
+  for (const [id, s] of Object.entries(state.stages)) {
+    if (!s.tokens) continue;
+    perStage[id] = {
+      tokens: s.tokens.input + s.tokens.output,
+      usd: s.usd ?? 0,
+      sessionId: s.sessionId ?? "",
+    };
+  }
+  return {
+    cost: { ...state.cost },
+    perStage,
+  };
+}
+
 /** ISO-8601 UTC string truncated to whole seconds, e.g. `2026-04-25T14:30:12Z`. */
 function toIsoSeconds(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/**
+ * Duck-type a Reporter as a LineReporter so the runner can call
+ * `stage0Captured`. Future Reporters that don't implement it simply skip the
+ * synthesised line — keeping the Reporter interface frozen at §8.
+ */
+function isLineReporter(r: Reporter): r is LineReporter {
+  return typeof (r as { stage0Captured?: unknown }).stage0Captured === "function";
 }

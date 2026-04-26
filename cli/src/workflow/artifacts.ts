@@ -3,10 +3,12 @@ import { join } from "node:path";
 
 /**
  * Write the raw user intent to `<runDir>/00-intent.txt`. Verbatim — no trailing
- * newline appended.
+ * newline appended. Returns the absolute path written.
  */
-export function writeIntent(runDir: string, intent: string): void {
-  writeFileSync(join(runDir, "00-intent.txt"), intent, "utf8");
+export function writeIntent(runDir: string, intent: string): string {
+  const path = join(runDir, "00-intent.txt");
+  writeFileSync(path, intent, "utf8");
+  return path;
 }
 
 /**

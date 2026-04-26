@@ -16,12 +16,14 @@ import {
 import { runWorkflow } from "../../src/workflow/runner.js";
 import { scriptedQuery } from "../support/scripted-query.js";
 import type { Deps } from "../../src/workflow/stage.js";
+import { LineReporter } from "../../src/ui/line-reporter.js";
 
 function pinnedDeps(date: Date, bytes: Uint8Array): Deps {
   return {
     clock: () => date,
     rng: (n) => bytes.slice(0, n),
     createQueryFn: scriptedQuery([]),
+    reporter: new LineReporter(),
   };
 }
 

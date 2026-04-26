@@ -82,7 +82,7 @@ describe("runStage createQueryFn wiring (AC-9)", () => {
         [{ messages: happyPathScript() }],
       ]);
       const cfg = clarifyAssessConfig();
-      await runStage(cfg, makeCtx(runDir), { createQueryFn: recording });
+      await runStage(cfg, makeCtx(runDir), { createQueryFn: recording, reporter: new LineReporter() });
 
       expect(recording.calls.length).toBe(1);
       const input = recording.calls[0].input;
@@ -110,7 +110,7 @@ describe("runStage happy path (AC-5 in-process)", () => {
       const result = await runStage(
         clarifyAssessConfig(),
         makeCtx(runDir),
-        { createQueryFn: recording },
+        { createQueryFn: recording, reporter: new LineReporter() },
       );
       expect(result.finalText).toBe(clarifyArtifact);
       expect(result.sessionId).toBe("sess_happy");
@@ -187,7 +187,7 @@ describe("runStage validator retry (AC-6)", () => {
       const result = await runStage(
         clarifyAssessConfig(),
         makeCtx(runDir),
-        { createQueryFn: recording },
+        { createQueryFn: recording, reporter: new LineReporter() },
       );
 
       expect(result.finalText).toBe(clarifyArtifact);
@@ -213,6 +213,7 @@ function deps(createQueryFn: CreateQueryFn, date: Date, bytes: Uint8Array): Deps
     clock: () => date,
     rng: (n) => bytes.slice(0, n),
     createQueryFn,
+    reporter: new LineReporter(),
   };
 }
 
@@ -465,7 +466,7 @@ describe("runStage validator terminal failure (AC-7)", () => {
       const result = await runStage(
         clarifyAssessConfig(),
         makeCtx(runDir),
-        { createQueryFn: recording },
+        { createQueryFn: recording, reporter: new LineReporter() },
       );
 
       expect(result.stopReason).toBe("validator_failed");
