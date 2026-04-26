@@ -126,7 +126,7 @@ function adapt(raw: unknown): SdkMessage | null {
     const content = Array.isArray(message.content) ? message.content : [];
     type AssistantBlock =
       | { type: "text"; text: string }
-      | { type: "tool_use"; name: string; input: unknown }
+      | { type: "tool_use"; id?: string; name: string; input: unknown }
       | {
           type: "tool_result";
           tool_use_id: string;
@@ -140,7 +140,12 @@ function adapt(raw: unknown): SdkMessage | null {
       if (bb.type === "text" && typeof bb.text === "string") {
         blocks.push({ type: "text", text: bb.text });
       } else if (bb.type === "tool_use" && typeof bb.name === "string") {
-        blocks.push({ type: "tool_use", name: bb.name, input: bb.input });
+        blocks.push({
+          type: "tool_use",
+          id: typeof bb.id === "string" ? bb.id : undefined,
+          name: bb.name,
+          input: bb.input,
+        });
       } else if (bb.type === "tool_result" && typeof bb.tool_use_id === "string") {
         blocks.push({
           type: "tool_result",

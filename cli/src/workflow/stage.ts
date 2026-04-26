@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PermissionMode, StageConfig } from "../config/schema.js";
 import type { Reporter } from "../ui/reporter.js";
+import { briefFor } from "../ui/brief.js";
 
 /** Praxis-internal abstraction the Reporter consumes (S-003). */
 export type AgentEvent =
@@ -29,7 +30,7 @@ export type SdkMessage =
       message: {
         content: Array<
           | { type: "text"; text: string }
-          | { type: "tool_use"; name: string; input: unknown }
+          | { type: "tool_use"; id?: string; name: string; input: unknown }
           | {
               type: "tool_result";
               tool_use_id: string;
@@ -238,6 +239,11 @@ export async function runStage(
     let usd = 0;
     let validatorReason: string | undefined;
 
+    // Cache tool_use_id → tool name so a tool_result block (which only carries
+    // tool_use_id) can be reported with its originating tool's display name.
+    // Falls back to "Tool" when the id is unknown.
+    const toolNameById = new Map<string, string>();
+
     let pendingText = "";
     for await (const msg of handle.stream) {
       if (msg.type === "system" && msg.subtype === "init") {
@@ -249,6 +255,21 @@ export async function runStage(
         for (const block of msg.message.content) {
           if (block.type === "text") {
             pendingText += block.text;
+            ctx.reporter.stageEvent({ type: "assistant_text", text: block.text });
+          } else if (block.type === "tool_use") {
+            if (block.id) toolNameById.set(block.id, block.name);
+            ctx.reporter.stageEvent({
+              type: "tool_use",
+              name: block.name,
+              brief: briefFor(block.name, block.input),
+            });
+          } else if (block.type === "tool_result") {
+            const name = toolNameById.get(block.tool_use_id) ?? "Tool";
+            ctx.reporter.stageEvent({
+              type: "tool_result",
+              name,
+              ok: block.is_error !== true,
+            });
           }
         }
         continue;
