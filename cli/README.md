@@ -2,7 +2,7 @@
 
 A CLI that drives an AI coding agent through a deterministic, resumable workflow. State your intent in one line; Praxis handles clarification, implementation, and commit.
 
-> **Status: full 3-stage workflow shipped end-to-end with a real commit.** `praxis run "<intent>"` runs pre-flight (git repo + dirty-tree gates, `.gitignore` touch-up), then executes all three stages — `clarify-assess` (with one corrective retry on validator failure), `implement` (under `bypassPermissions`, 30-min budget), and `auto-commit` (Bash-only, generates a Conventional-Commits message and lands a real `git add -A && git commit -m`) — writing per-stage artifacts and updating `state.json` after each. The new commit's SHA is captured on `state.stages["auto-commit"].commitSha`, prepended onto `03-commit.txt` as `<sha>\n\n<message>\n`, and surfaced on the `[run …] done` line. The runner pre-checks `git status --porcelain` before auto-commit; a clean tree skips the SDK call entirely (`stopReason: "skipped"`, no `03-commit.txt`). Commit failure flips the stage to `failed`/`stopReason: "commit_failed"` with git's stderr captured as the error. `praxis advance <run-id>` resumes a paused run or recovers a failed/cancelled stage from its on-disk artifact (re-validating where applicable, no token spend on the recovered stage). The `LineReporter` (product.md §8) formats stage start / streamed assistant text / tool calls / errors / stage end / pause / run-done lines, with 100ms delta coalescing, plus the §11 `resuming approved plan` / `recovering …; re-validating` headlines. `--no-pause` (full autopilot) is wired through both `run` and `advance`. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for the rest of the v0.1 build plan and v0.2 roadmap.
+> **Status: v0.1 shipped end-to-end.** `praxis run "<intent>"` drives all three stages and lands a real `git commit`; `praxis advance <run-id>` resumes a paused run or recovers a failed/cancelled stage from its on-disk artifact. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for known gaps and the v0.2 roadmap.
 
 > **Git identity required.** `git commit -m` needs `user.email` and `user.name` set (globally via `git config --global user.email …` or per-repo via `git config user.email …`). On a machine with no identity configured, the auto-commit stage will land in `failed`/`stopReason: "commit_failed"` with git's "Please tell me who you are" error captured as the reason.
 
@@ -42,12 +42,10 @@ The run-id is printed to stdout at the start of every run.
 
 Failed stages are terminal. Two recovery paths:
 
-1. `praxis advance <run-id>` — uses the on-disk artifact (re-validates if the stage has a validator). For `clarify-assess` schema failures: hand-edit `01-clarify-assess.md`, then advance. The recovered stage flips to `completed` with `stopReason: "recovered"`; the prior run's `sessionId`, `tokens`, and `usd` are preserved and recovery itself contributes zero new spend. The advance log line is `praxis: recovering <stage-id> from on-disk artifact; re-validating (run <run-id>)`.
+1. `praxis advance <run-id>` — uses the on-disk artifact (re-validates if the stage has a validator). For `clarify-assess` schema failures: hand-edit `01-clarify-assess.md`, then advance.
 2. Fresh `praxis run "<intent>"` — for `implement` failures where the tree is in a partial state. Reset the tree first.
 
-`SIGINT` (Ctrl-C) marks the in-flight stage `cancelled` (distinct from `failed`); recovery via `advance` treats `cancelled` exactly like `failed`. From a paused run, `advance` skips the validator entirely and emits `praxis: resuming approved plan after <stage-id> (run <run-id>)`. From a still-`pending` or `running` state, or a fully completed run, `advance` exits 1 instead of doing anything.
-
-There is no `praxis retry`. The harness never re-runs a stage automatically.
+`SIGINT` (Ctrl-C) marks the in-flight stage `cancelled`; `advance` treats `cancelled` exactly like `failed`. There is no `praxis retry`. See [docs/features.md](docs/features.md#recovery-and-resume) for the full state machine.
 
 ### Inspecting transcripts
 
@@ -68,28 +66,7 @@ npm run typecheck   # tsc --noEmit
 npm run build       # emits dist/
 ```
 
-The planned module layout (per spec §12):
-
-```
-src/
-  cli.ts                 # commander entrypoint
-  config/
-    schema.ts            # zod schemas
-    defaults.ts          # built-in 3-stage workflow
-    prompts/             # stage system prompts as .md
-  workflow/
-    runner.ts            # stage loop, pause/resume
-    stage.ts             # single-stage execution
-    artifacts.ts         # finalText → disk + validator
-    state.ts             # state.json read/write
-  git/commit.ts
-  ui/
-    reporter.ts          # Reporter interface
-    line-reporter.ts     # stdout impl
-  index.ts
-```
-
-Treat `product.md` as the source of truth and pick the next slice off `docs/backlog.md`.
+`src/` is the source of truth for module layout. Pick the next slice off [docs/backlog.md](docs/backlog.md).
 
 ## Smoke run against the real SDK
 
@@ -132,11 +109,11 @@ praxis run --no-pause "add a top-level CONTRIBUTING.md with three sentences expl
 
 After the run completes, check each:
 
-- [ ] `praxis run` printed a `<run-id>` matching `^\d{4}-\d{2}-\d{2}-\d{4}-[0-9a-f]{4}$` on stdout (§4).
+- [ ] `praxis run` printed a `<run-id>` matching `^\d{4}-\d{2}-\d{2}-\d{4}-[0-9a-f]{4}$` on stdout.
 - [ ] `.praxis/runs/<run-id>/00-intent.txt` is the raw intent verbatim (no trailing newline added).
-- [ ] `.praxis/runs/<run-id>/01-clarify-assess.md` has the five H2 headings in order: `Intent`, `Assumptions`, `Gaps`, `Plan`, `Acceptance`, with at least one non-empty bullet under `Acceptance` (§5.2).
-- [ ] `.praxis/runs/<run-id>/02-implement-log.md` is the agent's verbatim implement-stage finalText (§5.3).
-- [ ] `.praxis/runs/<run-id>/03-commit.txt` starts with a 40-char SHA followed by `\n\n` and the commit message (§5.4).
+- [ ] `.praxis/runs/<run-id>/01-clarify-assess.md` has the five H2 headings in order: `Intent`, `Assumptions`, `Gaps`, `Plan`, `Acceptance`, with at least one non-empty bullet under `Acceptance`.
+- [ ] `.praxis/runs/<run-id>/02-implement-log.md` is the agent's verbatim implement-stage finalText.
+- [ ] `.praxis/runs/<run-id>/03-commit.txt` starts with a 40-char SHA followed by `\n\n` and the commit message.
 - [ ] `git log -1 --pretty=%H` matches the SHA in `03-commit.txt` and `state.json`'s `stages["auto-commit"].commitSha`.
 - [ ] `git log -1 --pretty=%s` is a Conventional-Commits style subject (e.g. `feat: …`, `docs: …`).
 - [ ] The new commit's tree contains the file the intent asked for (here, `CONTRIBUTING.md`).
@@ -151,7 +128,7 @@ Run each in a fresh throwaway repo. They exercise paths the scripted suite cover
 
 - **Clean-tree skip:** Run `--no-pause` against a repo where the implement stage produces no changes (e.g. an intent like "list the files in src/ and explain each"). Expect: auto-commit stage `completed`/`stopReason: "skipped"`, no `03-commit.txt`, no new commit.
 - **Recovery from validator failure:** During the paused review of `01-clarify-assess.md`, hand-edit the file to violate the H2 schema (e.g. delete the `## Acceptance` heading), then `praxis advance <run-id>`. Expect: exit 1 with the validator reason; restore the file; advance again succeeds with `stopReason: "recovered"` and zero new spend on that stage.
-- **`--allow-dirty` bundling:** In a repo with one pre-existing untracked file, run `praxis run --allow-dirty --no-pause "<intent>"`. Expect: the auto-commit's `git show --name-only HEAD` lists the pre-existing file alongside the intent's new files (documented §5.4 trade-off).
+- **`--allow-dirty` bundling:** In a repo with one pre-existing untracked file, run `praxis run --allow-dirty --no-pause "<intent>"`. Expect: the auto-commit's `git show --name-only HEAD` lists the pre-existing file alongside the intent's new files (documented trade-off).
 - **SIGINT during implement:** Start `praxis run --no-pause "<long intent>"`, Ctrl-C while implement is mid-stream. Expect: `state.stages["implement"].status === "cancelled"`, `stopReason: "sigint"`, partial `02-implement-log.md` written, auto-commit not executed.
 
 ### After the smoke
@@ -161,8 +138,7 @@ Run each in a fresh throwaway repo. They exercise paths the scripted suite cover
 
 ## Docs
 
-- [`product.md`](product.md) — full product spec. Authoritative for behavior, schemas, error modes, and roadmap.
-- [`docs/features.md`](docs/features.md) — what is currently implemented and verified.
+- [`docs/features.md`](docs/features.md) — what is currently implemented and verified, including type contracts and reporter formatting rules.
 - [`docs/backlog.md`](docs/backlog.md) — known gaps, planned work, and the v0.2 roadmap.
 
 ## License

@@ -1,6 +1,6 @@
 # Backlog
 
-Open work, known gaps, and the future roadmap. Authoritative spec is [`../product.md`](../product.md). Shipped behavior is described in [`features.md`](features.md).
+Open work, known gaps, and the future roadmap. Shipped behavior is described in [`features.md`](features.md).
 
 When an item lands, remove it from this file (don't strike-through) — `features.md` is where shipped behavior is described.
 
@@ -10,8 +10,8 @@ When an item lands, remove it from this file (don't strike-through) — `feature
 
 ### CLI surface (commander adoption)
 
-- [ ] Adopt `commander` for `praxis run "<intent>"` and `praxis advance <run-id>`. Argv parsing is hand-rolled today; it works and rejects unknown flags before any disk write, but `--help` text is not generated. (§4)
-- [ ] Once commander lands, surface the implement-stage risk warning verbatim in `praxis run --help` (currently only in the README). (§4)
+- [ ] Adopt `commander` for `praxis run "<intent>"` and `praxis advance <run-id>`. Argv parsing is hand-rolled today; it works and rejects unknown flags before any disk write, but `--help` text is not generated.
+- [ ] Once commander lands, surface the implement-stage risk warning verbatim in `praxis run --help` (currently only in the README).
 
 ### Real-SDK smoke
 
@@ -28,18 +28,18 @@ When an item lands, remove it from this file (don't strike-through) — `feature
 
 These are deliberate current-scope decisions documented for awareness; promote any of them only when a specific need lands.
 
-- **No worktree / sandbox for `implement`.** Runs against `process.cwd()` with `bypassPermissions`. Mitigation is the README warning. (§2, §5.3)
-- **`--allow-dirty` bundles pre-existing dirt into the auto-commit.** `git add -A` covers everything. (§5.4, §10)
-- **No SDK session resumption across processes.** `sessionId` is a debug aid (`claude --resume <id>`); it is not used to continue a stage. (§5.5, §9)
-- **No in-process session forking between stages.** Context flows via artifact files. (§2, §5.5)
-- **No event log file.** Persisted `sessionId` plus `claude --resume` is the debug surface. (§2)
-- **No `praxis retry`.** Recovery is `praxis advance` against a hand-fixed artifact, or a fresh `praxis run`. (§2, §11)
-- **No user-supplied config file.** Defaults are hardcoded; the schema exists for future extensibility. (§2, §6)
-- **No `list` / `show` commands.** (§2)
-- **No per-stage / per-run USD cap.** (§2)
-- **No per-stage model or thinking-effort knobs exposed.** `model` is in the internal schema but not user-facing. (§2, §6)
-- **No TUI.** `Reporter` is abstracted so a TUI can be added without touching the runner. (§2, §8)
-- **No PR creation, no verification stage, no MCP server, no Codex adapter.** (§2)
+- **No worktree / sandbox for `implement`.** Runs against `process.cwd()` with `bypassPermissions`. Mitigation is the README warning.
+- **`--allow-dirty` bundles pre-existing dirt into the auto-commit.** `git add -A` covers everything.
+- **No SDK session resumption across processes.** `sessionId` is a debug aid (`claude --resume <id>`); it is not used to continue a stage.
+- **No in-process session forking between stages.** Context flows via artifact files.
+- **No event log file.** Persisted `sessionId` plus `claude --resume` is the debug surface.
+- **No `praxis retry`.** Recovery is `praxis advance` against a hand-fixed artifact, or a fresh `praxis run`.
+- **No user-supplied config file.** Defaults are hardcoded; the schema exists for future extensibility.
+- **No `list` / `show` commands.**
+- **No per-stage / per-run USD cap.**
+- **No per-stage model or thinking-effort knobs exposed.** `model` is in the internal schema but not user-facing.
+- **No TUI.** `Reporter` is abstracted so a TUI can be added without touching the runner.
+- **No PR creation, no verification stage, no MCP server, no Codex adapter.**
 - **Stage hand-off is keyed on `stage.id === AUTO_COMMIT_ID`** in the runner (a constant exported from `defaults.ts`, locked by a regression test). When user-supplied workflow config arrives, promote this to a typed `postStage` field on `StageConfig`. (Carried from S-005/S-006 reviews.)
 
 ---

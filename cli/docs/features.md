@@ -1,6 +1,6 @@
 # Features
 
-What Praxis CLI currently provides. The authoritative behavioral spec is [`../product.md`](../product.md). Open work and known issues are tracked in [backlog.md](backlog.md).
+What Praxis CLI currently provides. Open work and known issues are tracked in [backlog.md](backlog.md).
 
 ---
 
@@ -55,7 +55,7 @@ Writes the raw `<intent>` argument to `00-intent.txt` verbatim (no trailing newl
 
 Read-only repo survey. `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash]`. Pinned model `claude-opus-4-7`. 15-minute timeout. Pauses afterward unless `--no-pause`.
 
-Emits a markdown artifact `01-clarify-assess.md` with five H2 headings in fixed order: `Intent`, `Assumptions`, `Gaps`, `Plan`, `Acceptance` (with ≥1 non-empty bullet under Acceptance). The harness validates this schema after the agent's Stop event. On schema failure the harness sends one corrective user message in the same `query()` stream; a second failure marks the stage `failed`/`stopReason: "validator_failed"` and exits 1. The partial artifact is written to disk in either case so the user can hand-edit and `praxis advance`.
+The system prompt directs the agent to restate intent, survey the repo, identify assumptions and gaps, and emit a plan with acceptance criteria — and then to end by emitting **only** a markdown artifact with five H2 headings in fixed order: `Intent`, `Assumptions`, `Gaps`, `Plan`, `Acceptance` (with ≥1 non-empty bullet under Acceptance). The harness validates this schema after the agent's Stop event. On schema failure the harness sends one corrective user message in the same `query()` stream; a second failure marks the stage `failed`/`stopReason: "validator_failed"` and exits 1. The partial artifact is written to disk in either case so the user can hand-edit and `praxis advance`.
 
 ### Stage 2 — `implement`
 
@@ -79,7 +79,7 @@ Otherwise, after the agent emits the commit message, the harness runs `git add -
 
 ## Recovery and resume
 
-`praxis advance <run-id>` branches via spec §11 log lines:
+`praxis advance <run-id>` branches via two distinct log lines:
 
 - **Paused** (the last completed stage had `pauseAfter: true`): `praxis: resuming approved plan after <stage-id> (run <run-id>)`. No validator re-check. Dispatches the next stage.
 - **Recovery** (most recent stage status is `failed` or `cancelled`): `praxis: recovering <stage-id> from on-disk artifact; re-validating (run <run-id>)`. Requires the artifact file to exist; if the stage has a validator, re-runs it against on-disk content. On validator success the stage flips to `completed`/`stopReason: "recovered"` with `endedAt` refreshed; `sessionId`, `tokens`, and `usd` are preserved from the prior failed run, so recovery contributes zero new spend. On validator failure the run aborts with the validator reason and state.json is left untouched.
@@ -92,7 +92,7 @@ There is no `praxis retry`; recovery is `advance` against a hand-edited artifact
 
 ## Reporter (`LineReporter`)
 
-Stdout/stderr formatting per `product.md §8`:
+Stdout/stderr formatting:
 
 - Stage start — `[N/total stage-id] starting…`
 - Stage 0 (synthesised) — `[0/3 intent] captured → 00-intent.txt`
@@ -110,7 +110,7 @@ Stdout/stderr formatting per `product.md §8`:
 
 Each run writes to `<cwd>/.praxis/runs/<run-id>/`:
 
-- `state.json` — pretty-printed JSON per `product.md §9`, trailing newline. Per-stage entries carry `status`, `endedAt`, `stopReason`, `sessionId`, `tokens` (`input` / `output` / `cacheRead` / `cacheCreate`), `usd`, optional `error`, and (for auto-commit) optional `commitSha`. Top-level `cost.totalTokens` aggregates `input + output` only — cache tokens are recorded per-stage but excluded from the running total. `cost.totalUsd` is the sum of per-stage `usd`. `currentStage` tracks the in-flight or next-to-run stage.
+- `state.json` — pretty-printed JSON, trailing newline. Per-stage entries carry `status`, `endedAt`, `stopReason`, `sessionId`, `tokens` (`input` / `output` / `cacheRead` / `cacheCreate`), `usd`, optional `error`, and (for auto-commit) optional `commitSha`. Top-level `cost.totalTokens` aggregates `input + output` only — cache tokens are recorded per-stage but excluded from the running total. `cost.totalUsd` is the sum of per-stage `usd`. `currentStage` tracks the in-flight or next-to-run stage.
 - `00-intent.txt` — raw intent verbatim.
 - `01-clarify-assess.md` — agent finalText verbatim (always written, even on validator failure).
 - `02-implement-log.md` — agent finalText verbatim (always written, even on timeout/SIGINT — partial log preserved).
@@ -119,6 +119,79 @@ Each run writes to `<cwd>/.praxis/runs/<run-id>/`:
 Run-id format: `${YYYY-MM-DD-HHMM-UTC}-${4-char-hex}`. `startedAt` is ISO-8601 UTC at second precision.
 
 Each stage runs in a fresh SDK session (distinct `session_id`s persisted) and a fresh `AbortController` linked to the shared parent signal. SDK session ids are a debug aid only — Praxis does not resume them across processes; use `claude --resume <session-id>` to inspect a transcript.
+
+---
+
+## Type contracts
+
+The internal shapes that bind the runner, the per-stage executor, and the reporter together. Stages are an internal data structure in v0.1 — there is no user-supplied config file — but the schema exists so future extensibility is cheap.
+
+```ts
+type StageConfig = {
+  id: string;                               // unique within workflow
+  systemPrompt: { file: string };           // path resolved against src/config/prompts/
+  userPromptTemplate: string;               // {{intent}}, {{runDir}}, {{artifacts.<id>.path}} interpolation
+  allowedTools?: string[];                  // SDK tool names; omit = all
+  permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan";
+  model?: string;                           // SDK model id; per-stage default in defaults.ts
+  maxTurns?: number;                        // omit = unbounded
+  timeoutMs?: number;                       // omit = unbounded
+  outputArtifact: string;                   // filename within run-dir; finalText written verbatim
+  validate?: (text: string) => { ok: true } | { ok: false; reason: string };
+  pauseAfter?: boolean;                     // default false
+};
+
+type PraxisConfig = {
+  version: 1;
+  workflow: StageConfig[];
+};
+```
+
+Interpolation tokens in `userPromptTemplate`: `{{intent}}` (raw user arg), `{{runDir}}` (absolute path to the run dir), `{{artifacts.<stage-id>.path}}` (absolute path to that stage's artifact file).
+
+Per-stage `runStage(config, ctx)` execution emits an `AgentEvent` stream and returns a `StageResult`:
+
+```ts
+type AgentEvent =
+  | { type: "assistant_text"; text: string }
+  | { type: "tool_use"; name: string; brief: string }   // e.g. "Read(src/foo.ts)"
+  | { type: "tool_result"; name: string; ok: boolean }  // bodies omitted
+  | { type: "error"; message: string };
+
+type StageResult = {
+  finalText: string;
+  turns: number;
+  stopReason: string;
+  cancelReason?: "timeout" | "sigint";
+  sessionId: string;                        // SDK-assigned; persisted + printed
+  tokens: { input: number; output: number; cacheRead: number; cacheCreate: number };
+  usd: number;
+};
+```
+
+`runStage` takes an `AbortSignal` (SIGINT) and the `Reporter` below. `timeoutMs` is enforced inside `runStage` via `setTimeout(() => abortController.abort("timeout"), timeoutMs)` on the same `AbortController` used for SIGINT, so the abort reason (`"timeout"` vs `"sigint"`) is preserved on `cancelReason`. If `validate` is set and the first `finalText` fails, `runStage` sends a corrective user message in the same `query()` stream and waits for a second Stop. One retry only.
+
+The runner emits to the `Reporter` interface; v0.1 ships a single `LineReporter` (stdout). A future TUI is added by implementing a second `Reporter` and selecting it in `cli.ts`.
+
+```ts
+interface Reporter {
+  stageStart(stage: StageConfig, idx: number, total: number): void;
+  stageEvent(e: AgentEvent): void;
+  stageEnd(
+    stage: StageConfig,
+    result: { ok: boolean; artifactPath?: string; sessionId?: string; error?: string },
+  ): void;
+  paused(runId: string, stageId: string, artifactPath: string): void;
+  runDone(
+    runId: string,
+    summary: {
+      commitSha?: string;
+      cost: { totalTokens: number; totalUsd: number };
+      perStage: Record<string, { tokens: number; usd: number; sessionId: string }>;
+    },
+  ): void;
+}
+```
 
 ---
 
