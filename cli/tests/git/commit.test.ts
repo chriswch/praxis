@@ -13,6 +13,27 @@ import { withTempRepo } from "../support/tmp-repo.js";
  * the e2e suites.
  */
 
+describe("commit() empty tree (AC-2)", () => {
+  it("returns {ok:true, skipped:true} and creates no commit when nothing is staged or modified", async () => {
+    await withTempRepo(async ({ dir }) => {
+      // Sanity: fresh withTempRepo has no HEAD yet.
+      const before = spawnSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: dir });
+      expect(before.status).not.toBe(0);
+
+      const result = commit(dir, "feat: nothing");
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("unreachable");
+      expect("skipped" in result && result.skipped === true).toBe(true);
+      expect("sha" in result).toBe(false);
+
+      // No HEAD created — commit was skipped.
+      const after = spawnSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: dir });
+      expect(after.status).not.toBe(0);
+    });
+  });
+});
+
 describe("commit() happy path (AC-1)", () => {
   it("runs git add -A and git commit -m and returns {ok:true, sha} matching git rev-parse HEAD", async () => {
     await withTempRepo(async ({ dir }) => {
