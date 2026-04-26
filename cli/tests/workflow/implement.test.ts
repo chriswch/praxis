@@ -21,7 +21,7 @@ import { defaultWorkflow } from "../../src/config/defaults.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
 import { recordingScriptedQuery } from "../support/scripted-query.js";
 import { withTempRepo } from "../support/tmp-repo.js";
-import { advanceWorkflow } from "../../src/workflow/runner.js";
+import { advanceWorkflow, runWorkflow } from "../../src/workflow/runner.js";
 import { writeState, type State } from "../../src/workflow/state.js";
 import { RecordingReporter } from "../support/recording-reporter.js";
 
@@ -263,6 +263,54 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
         // Repos with a starting HEAD: the sha must be unchanged.
         expect(headAfter.stdout.toString()).toBe(headBefore.stdout.toString());
       }
+    });
+  });
+});
+
+describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
+  it("noPause: true drives clarify-assess → implement → auto-commit; commit fires once with the auto-commit finalText", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const implementLog = "## Files changed\n\n- src/Foo.tsx — added logout button\n";
+      const commitMessage = "feat: add logout button";
+      const recording = recordingScriptedQuery([
+        // clarify-assess: emit a valid §5.2 artifact so the validator passes.
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        // implement.
+        [{ messages: stageMessages("sess_impl", implementLog) }],
+        // auto-commit.
+        [{ messages: stageMessages("sess_commit", commitMessage) }],
+      ]);
+      const commit = recordingCommit();
+
+      const result = await runWorkflow(
+        { intent: "add a logout button", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, commit),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+      expect(result.paused).toBe(false);
+
+      // All three SDK stages executed.
+      expect(recording.calls.length).toBe(3);
+
+      // Per-stage state.json transitions.
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["clarify-assess"].status).toBe("completed");
+      expect(persisted.stages.implement.status).toBe("completed");
+      expect(persisted.stages["auto-commit"].status).toBe("completed");
+
+      // Artifacts written verbatim.
+      expect(readFileSync(join(result.runDir, "01-clarify-assess.md"), "utf8"))
+        .toBe(VALID_CLARIFY_ARTIFACT);
+      expect(readFileSync(join(result.runDir, "02-implement-log.md"), "utf8"))
+        .toBe(implementLog);
+      expect(readFileSync(join(result.runDir, "03-commit.txt"), "utf8"))
+        .toBe(commitMessage);
+
+      // commit fired exactly once with the auto-commit final text.
+      expect(commit.calls.length).toBe(1);
+      expect(commit.calls[0]).toEqual({ cwd, message: commitMessage });
     });
   });
 });
