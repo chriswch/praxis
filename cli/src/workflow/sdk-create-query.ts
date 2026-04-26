@@ -21,7 +21,10 @@ import type {
 export const sdkCreateQueryFn: CreateQueryFn = (input) => {
   const userQueue: { resolve: (msg: SdkUserMessageLite | null) => void }[] = [];
   const pending: SdkUserMessageLite[] = [
-    { type: "user", message: { role: "user", content: input.initialUserPrompt } },
+    {
+      type: "user",
+      message: { role: "user", content: input.initialUserPrompt },
+    },
   ];
   let closed = false;
 
@@ -29,7 +32,7 @@ export const sdkCreateQueryFn: CreateQueryFn = (input) => {
     if (closed) return;
     closed = true;
     while (userQueue.length > 0) {
-      userQueue.shift()!.resolve(null);
+      userQueue.shift()?.resolve(null);
     }
   }
 
@@ -46,6 +49,7 @@ export const sdkCreateQueryFn: CreateQueryFn = (input) => {
     while (true) {
       if (closed) return;
       if (pending.length > 0) {
+        // biome-ignore lint/style/noNonNullAssertion: length > 0 guard above.
         yield pending.shift()!;
         continue;
       }
@@ -152,7 +156,10 @@ function adapt(raw: unknown): SdkMessage | null {
           name: bb.name,
           input: bb.input,
         });
-      } else if (bb.type === "tool_result" && typeof bb.tool_use_id === "string") {
+      } else if (
+        bb.type === "tool_result" &&
+        typeof bb.tool_use_id === "string"
+      ) {
         blocks.push({
           type: "tool_result",
           tool_use_id: bb.tool_use_id,
@@ -172,8 +179,7 @@ function adapt(raw: unknown): SdkMessage | null {
     return {
       type: "result",
       subtype: "success",
-      stop_reason:
-        typeof r.stop_reason === "string" ? r.stop_reason : null,
+      stop_reason: typeof r.stop_reason === "string" ? r.stop_reason : null,
       total_cost_usd: Number(r.total_cost_usd ?? 0),
       usage: {
         input_tokens: Number(usage.input_tokens ?? 0),

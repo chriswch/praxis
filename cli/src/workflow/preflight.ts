@@ -25,11 +25,10 @@ export function runPreflight(
   cwd: string,
   options: PreflightOptions,
 ): PreflightResult {
-  const isRepo = spawnSync(
-    "git",
-    ["rev-parse", "--is-inside-work-tree"],
-    { cwd, encoding: "utf8" },
-  );
+  const isRepo = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd,
+    encoding: "utf8",
+  });
   if (isRepo.status !== 0 || isRepo.stdout.trim() !== "true") {
     return {
       ok: false,
@@ -53,8 +52,7 @@ export function runPreflight(
     if (dirty.length > 0) {
       return {
         ok: false,
-        reason:
-          `working tree has uncommitted changes:\n  ${dirty.join("\n  ")}`,
+        reason: `working tree has uncommitted changes:\n  ${dirty.join("\n  ")}`,
         remediation:
           "Commit or stash these changes, or rerun with --allow-dirty (the auto-commit stage will then bundle them into this run's commit).",
       };

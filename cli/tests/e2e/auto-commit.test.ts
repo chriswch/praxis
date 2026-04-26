@@ -1,12 +1,10 @@
-import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withTempRepo } from "../support/tmp-repo.js";
-import { runWorkflow, advanceWorkflow } from "../../src/workflow/runner.js";
+import { describe, expect, it } from "vitest";
 import { commit as productionCommit } from "../../src/git/commit.js";
-import { recordingScriptedQuery } from "../support/scripted-query.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
+import { advanceWorkflow, runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
   Deps,
@@ -14,7 +12,8 @@ import type {
 } from "../../src/workflow/stage.js";
 import type { State } from "../../src/workflow/state.js";
 import { writeState } from "../../src/workflow/state.js";
-import { mkdirSync } from "node:fs";
+import { recordingScriptedQuery } from "../support/scripted-query.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 /**
  * S-006 AC-8 / AC-9 — end-to-end commit landing.
@@ -30,7 +29,12 @@ const VALID_CLARIFY = `## Intent\n\nadd a logout button.\n\n## Assumptions\n\n- 
 
 function stageMessages(sessionId: string, finalText: string): SdkMessage[] {
   return [
-    { type: "system", subtype: "init", session_id: sessionId, model: "claude-test" },
+    {
+      type: "system",
+      subtype: "init",
+      session_id: sessionId,
+      model: "claude-test",
+    },
     {
       type: "assistant",
       session_id: sessionId,
@@ -66,7 +70,7 @@ function implementWithSideEffect(
   sessionId = "sess_impl",
 ): CreateQueryFn {
   let invoked = false;
-  return (input) => {
+  return (_input) => {
     return {
       pushUserMessage() {},
       stream: (async function* () {
@@ -76,7 +80,10 @@ function implementWithSideEffect(
           // dirty state is observable when auto-commit pre-checks.
           writeFileSync(join(cwd, filename), contents, "utf8");
         }
-        for (const m of stageMessages(sessionId, "## Files changed\n\n- src/Foo.tsx\n")) {
+        for (const m of stageMessages(
+          sessionId,
+          "## Files changed\n\n- src/Foo.tsx\n",
+        )) {
           yield m;
         }
       })(),
@@ -210,7 +217,11 @@ describe("praxis advance lands one real commit (AC-9)", () => {
         },
       };
       writeState(runDir, seeded);
-      writeFileSync(join(runDir, "01-clarify-assess.md"), VALID_CLARIFY, "utf8");
+      writeFileSync(
+        join(runDir, "01-clarify-assess.md"),
+        VALID_CLARIFY,
+        "utf8",
+      );
 
       // Two more SDK calls: implement (with side-effect), auto-commit.
       let call = 0;

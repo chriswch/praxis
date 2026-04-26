@@ -129,6 +129,7 @@ Each stage runs in a fresh SDK session (distinct `session_id`s persisted) and a 
 - Runtime deps (`@anthropic-ai/claude-agent-sdk`, `zod`) are kept external — users get them via `npm install`, not bundled into the CLI artifact.
 - Prompt `.md` files in `src/config/prompts/` are copied into `dist/config/prompts/` by tsdown's `copy` step; the runtime loader resolves them via a layout-detection helper that handles both the bundled (dist) and source-via-tsx (src) directory shapes. Locked by a build-smoke regression test.
 - Tests run on Vitest. Layout: `tests/` mirrors `src/`, plus `tests/e2e/`. Real fs and real git in `mkdtemp` temp dirs (cleaned per-test). The SDK is the only seam stubbed — every test scripts SDK message streams via `tests/support/scripted-query.ts`, so the suite makes no real API calls and incurs no cost. Suite size: 193 tests across 25 files, all green.
+- Lint and format are handled by **Biome** (single Rust binary, replaces ESLint + Prettier). `npm run lint` checks; `npm run format` applies fixes. Configured to match the codebase's existing style (2-space indent, double quotes, trailing commas). Tests have `noNonNullAssertion` relaxed via override since `!` on known-defined fixture values is idiomatic.
 
 ## End-to-end validation
 

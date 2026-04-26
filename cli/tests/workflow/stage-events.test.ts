@@ -1,16 +1,16 @@
-import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runStage } from "../../src/workflow/stage.js";
+import { describe, expect, it } from "vitest";
+import { defaultWorkflow } from "../../src/config/defaults.js";
+import type { Reporter } from "../../src/ui/reporter.js";
 import type {
   AgentEvent,
   CreateQueryFn,
   SdkMessage,
   StageContext,
 } from "../../src/workflow/stage.js";
-import type { Reporter } from "../../src/ui/reporter.js";
-import { defaultWorkflow } from "../../src/config/defaults.js";
+import { runStage } from "../../src/workflow/stage.js";
 
 function withTmpDir<T>(fn: (dir: string) => T): T {
   const dir = mkdtempSync(join(tmpdir(), "praxis-stage-events-"));
@@ -79,7 +79,11 @@ describe("runStage emits stageEvents per assistant block (S-003)", () => {
           message: {
             content: [
               { type: "text", text: "thinking" },
-              { type: "tool_use", name: "Read", input: { file_path: "src/a.ts" } },
+              {
+                type: "tool_use",
+                name: "Read",
+                input: { file_path: "src/a.ts" },
+              },
               {
                 type: "tool_result",
                 tool_use_id: "tu_1",
@@ -131,9 +135,9 @@ describe("runStage emits stageEvents per assistant block (S-003)", () => {
       expect(kinds).toContain("tool_result");
 
       const text = events.find((e) => e.type === "assistant_text");
-      expect((text as Extract<AgentEvent, { type: "assistant_text" }>).text).toBe(
-        "thinking",
-      );
+      expect(
+        (text as Extract<AgentEvent, { type: "assistant_text" }>).text,
+      ).toBe("thinking");
 
       const toolUse = events.find((e) => e.type === "tool_use") as Extract<
         AgentEvent,
@@ -142,10 +146,9 @@ describe("runStage emits stageEvents per assistant block (S-003)", () => {
       expect(toolUse.name).toBe("Read");
       expect(toolUse.brief).toBe("src/a.ts");
 
-      const toolResult = events.find((e) => e.type === "tool_result") as Extract<
-        AgentEvent,
-        { type: "tool_result" }
-      >;
+      const toolResult = events.find(
+        (e) => e.type === "tool_result",
+      ) as Extract<AgentEvent, { type: "tool_result" }>;
       expect(toolResult.ok).toBe(true);
     });
   });

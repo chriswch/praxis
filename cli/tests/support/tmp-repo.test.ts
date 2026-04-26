@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
+import { describe, expect, it } from "vitest";
 import { withTempRepo } from "./tmp-repo.js";
 
 /**

@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest";
 import {
   existsSync,
   mkdtempSync,
@@ -8,15 +7,16 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { withTempRepo } from "../support/tmp-repo.js";
+import { describe, expect, it } from "vitest";
+import { LineReporter } from "../../src/ui/line-reporter.js";
 import {
-  runPreflight,
   appendPraxisToGitignore,
+  runPreflight,
 } from "../../src/workflow/preflight.js";
 import { runWorkflow } from "../../src/workflow/runner.js";
-import { scriptedQuery } from "../support/scripted-query.js";
 import type { Deps } from "../../src/workflow/stage.js";
-import { LineReporter } from "../../src/ui/line-reporter.js";
+import { scriptedQuery } from "../support/scripted-query.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 function pinnedDeps(date: Date, bytes: Uint8Array): Deps {
   return {
@@ -169,9 +169,7 @@ describe("appendPraxisToGitignore (AC-4)", () => {
       const path = join(cwd, ".gitignore");
       writeFileSync(path, "node_modules\n.praxis/\ndist\n", "utf8");
       appendPraxisToGitignore(cwd);
-      expect(readFileSync(path, "utf8")).toBe(
-        "node_modules\n.praxis/\ndist\n",
-      );
+      expect(readFileSync(path, "utf8")).toBe("node_modules\n.praxis/\ndist\n");
     });
   });
 });

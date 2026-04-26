@@ -1,7 +1,7 @@
 import type { Writable } from "node:stream";
 import type { StageConfig } from "../config/schema.js";
 import type { AgentEvent } from "../workflow/stage.js";
-import type { Reporter, RunSummary, StageEndResult } from "./reporter.js";
+import { EventBuffer, type Scheduler } from "./event-buffer.js";
 import {
   formatAssistantText,
   formatError,
@@ -14,7 +14,7 @@ import {
   formatToolResult,
   formatToolUse,
 } from "./line-formatter.js";
-import { EventBuffer, type Scheduler } from "./event-buffer.js";
+import type { Reporter, RunSummary, StageEndResult } from "./reporter.js";
 
 const DEFAULT_COLS = 80;
 const COALESCE_MS = 100;
@@ -63,7 +63,8 @@ export class LineReporter implements Reporter {
     this.color = opts.color ?? false;
     this.buffer = new EventBuffer({
       windowMs: COALESCE_MS,
-      onFlush: (text) => this.writeAll(this.stdout, formatAssistantText(text, this.cols)),
+      onFlush: (text) =>
+        this.writeAll(this.stdout, formatAssistantText(text, this.cols)),
       scheduler: opts.scheduler,
     });
   }
@@ -140,7 +141,7 @@ export class LineReporter implements Reporter {
 
   private writeAll(stream: Writable, lines: string[]): void {
     for (const line of lines) {
-      stream.write(line + "\n");
+      stream.write(`${line}\n`);
     }
   }
 }

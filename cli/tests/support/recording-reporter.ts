@@ -1,6 +1,10 @@
 import type { StageConfig } from "../../src/config/schema.js";
+import type {
+  Reporter,
+  RunSummary,
+  StageEndResult,
+} from "../../src/ui/reporter.js";
 import type { AgentEvent } from "../../src/workflow/stage.js";
-import type { Reporter, RunSummary, StageEndResult } from "../../src/ui/reporter.js";
 
 /**
  * Spy reporter for runner / orchestration tests. Captures every method call so

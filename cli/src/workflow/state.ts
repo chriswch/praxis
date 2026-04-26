@@ -70,7 +70,7 @@ export function buildInitialState(input: InitialStateInput): State {
 export function writeState(runDir: string, state: State): void {
   writeFileSync(
     join(runDir, "state.json"),
-    JSON.stringify(state, null, 2) + "\n",
+    `${JSON.stringify(state, null, 2)}\n`,
     "utf8",
   );
 }
@@ -118,7 +118,10 @@ export function readState(runDir: string): ReadStateResult {
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    return { ok: false, reason: `state.json is not valid JSON: ${errMsg(err)}` };
+    return {
+      ok: false,
+      reason: `state.json is not valid JSON: ${errMsg(err)}`,
+    };
   }
   if (!isObject(parsed)) {
     return { ok: false, reason: "state.json is not an object" };
@@ -143,7 +146,10 @@ export function readState(runDir: string): ReadStateResult {
     typeof cost.totalTokens !== "number" ||
     typeof cost.totalUsd !== "number"
   ) {
-    return { ok: false, reason: "state.json is missing or invalid field: cost" };
+    return {
+      ok: false,
+      reason: "state.json is missing or invalid field: cost",
+    };
   }
   const stages = parsed.stages;
   if (!isObject(stages)) {
@@ -156,7 +162,10 @@ export function readState(runDir: string): ReadStateResult {
         reason: `state.json stage entry ${id} is not an object`,
       };
     }
-    if (typeof entry.status !== "string" || !VALID_STAGE_STATUSES.has(entry.status)) {
+    if (
+      typeof entry.status !== "string" ||
+      !VALID_STAGE_STATUSES.has(entry.status)
+    ) {
       return {
         ok: false,
         reason: `state.json stage entry ${id} has invalid status: ${String(

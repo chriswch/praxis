@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { scriptedQuery } from "./scripted-query.js";
+import { describe, expect, it } from "vitest";
 import type { SdkMessage } from "../../src/workflow/stage.js";
+import { scriptedQuery } from "./scripted-query.js";
 
 const initMsg: SdkMessage = {
   type: "system",
@@ -27,7 +27,12 @@ describe("scriptedQuery", () => {
   it("returns one pre-recorded turn-stream per call, in order", async () => {
     const factory = scriptedQuery([
       { messages: [initMsg, resultMsg] },
-      { messages: [{ ...initMsg, session_id: "s-2" }, { ...resultMsg, session_id: "s-2" }] },
+      {
+        messages: [
+          { ...initMsg, session_id: "s-2" },
+          { ...resultMsg, session_id: "s-2" },
+        ],
+      },
     ]);
 
     const stream1 = factory({

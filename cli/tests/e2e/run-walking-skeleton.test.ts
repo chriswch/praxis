@@ -1,9 +1,9 @@
-import { describe, it, expect } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { withTempRepo } from "../support/tmp-repo.js";
+import { describe, expect, it } from "vitest";
 import { runCli } from "../support/run-cli.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 describe("praxis run (CLI surface)", () => {
   it("rejects empty intent without writing any run dir", async () => {

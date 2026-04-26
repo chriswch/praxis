@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 import { readState } from "../../src/workflow/state.js";
 
 function withTmpDir<T>(fn: (dir: string) => T): T {

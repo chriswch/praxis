@@ -30,7 +30,9 @@ export async function withTempRepo<T>(
     ["user.email", "praxis-test@example.com"],
     ["user.name", "Praxis Test"],
   ] as const) {
-    const cfg = spawnSync("git", ["config", "--local", key, value], { cwd: dir });
+    const cfg = spawnSync("git", ["config", "--local", key, value], {
+      cwd: dir,
+    });
     if (cfg.status !== 0) {
       rmSync(dir, { recursive: true, force: true });
       throw new Error(

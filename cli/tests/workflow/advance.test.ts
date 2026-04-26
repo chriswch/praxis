@@ -1,19 +1,22 @@
-import { describe, it, expect } from "vitest";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withTempRepo } from "../support/tmp-repo.js";
-import { advanceWorkflow } from "../../src/workflow/runner.js";
-import type { CreateQueryFn, Deps, SdkMessage } from "../../src/workflow/stage.js";
+import { describe, expect, it } from "vitest";
 import type { PraxisConfig } from "../../src/config/schema.js";
-import { LineReporter } from "../../src/ui/line-reporter.js";
+import { advanceWorkflow } from "../../src/workflow/runner.js";
+import type {
+  CreateQueryFn,
+  Deps,
+  SdkMessage,
+} from "../../src/workflow/stage.js";
+import { type State, writeState } from "../../src/workflow/state.js";
+import { validateClarifyAssessArtifact } from "../../src/workflow/validator.js";
 import { RecordingReporter } from "../support/recording-reporter.js";
 import {
   hangingQuery,
   recordingScriptedQuery,
   scriptedQuery,
 } from "../support/scripted-query.js";
-import { writeState, type State } from "../../src/workflow/state.js";
-import { validateClarifyAssessArtifact } from "../../src/workflow/validator.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 /** Default fixed runId used by advance tests so paths are predictable. */
 const RUN_ID = "2026-04-25-1430-7af2";
@@ -68,7 +71,12 @@ const VALID_FIRST_ARTIFACT = `## Intent\n\nadd a logout button.\n\n## Assumption
 
 function noopMessages(sessionId = "sess_x"): SdkMessage[] {
   return [
-    { type: "system", subtype: "init", session_id: sessionId, model: "claude-test" },
+    {
+      type: "system",
+      subtype: "init",
+      session_id: sessionId,
+      model: "claude-test",
+    },
     {
       type: "assistant",
       session_id: sessionId,
@@ -291,9 +299,9 @@ describe("advanceWorkflow paused happy path (AC-3)", () => {
       // Reporter saw the §11 paused-resume headline before the next stage start.
       const stageStarts = reporter.calls.filter((c) => c.kind === "stageStart");
       expect(stageStarts.length).toBe(1);
-      expect(stageStarts[0].kind === "stageStart" && stageStarts[0].stageId).toBe(
-        "second",
-      );
+      expect(
+        stageStarts[0].kind === "stageStart" && stageStarts[0].stageId,
+      ).toBe("second");
     });
   });
 
@@ -344,7 +352,9 @@ describe("advanceWorkflow paused happy path (AC-3)", () => {
       // No .gitignore on disk before advance.
       expect(existsSync(join(cwd, ".gitignore"))).toBe(false);
 
-      const recording = scriptedQuery([{ messages: noopMessages("sess_second") }]);
+      const recording = scriptedQuery([
+        { messages: noopMessages("sess_second") },
+      ]);
       const result = await advanceWorkflow(
         RUN_ID,
         { cwd, config: TWO_STAGE_CONFIG },
@@ -576,13 +586,24 @@ describe("advanceWorkflow Reporter resuming line (AC-13)", () => {
         },
       };
       seedRun(cwd, state, { "first.md": "x\n" });
-      type Resume = { kind: "approved" | "recovering"; runId: string; stageId: string };
+      type Resume = {
+        kind: "approved" | "recovering";
+        runId: string;
+        stageId: string;
+      };
       const resumeCalls: Resume[] = [];
       const reporter = new RecordingReporter();
       // Attach the optional method on the spy.
-      (reporter as unknown as {
-        resuming: (kind: "approved" | "recovering", runId: string, stageId: string) => void;
-      }).resuming = (kind, rid, sid) => resumeCalls.push({ kind, runId: rid, stageId: sid });
+      (
+        reporter as unknown as {
+          resuming: (
+            kind: "approved" | "recovering",
+            runId: string,
+            stageId: string,
+          ) => void;
+        }
+      ).resuming = (kind, rid, sid) =>
+        resumeCalls.push({ kind, runId: rid, stageId: sid });
 
       const result = await advanceWorkflow(
         RUN_ID,
@@ -611,12 +632,23 @@ describe("advanceWorkflow Reporter resuming line (AC-13)", () => {
         },
       };
       seedRun(cwd, state, { "first.md": VALID_FIRST_ARTIFACT });
-      type Resume = { kind: "approved" | "recovering"; runId: string; stageId: string };
+      type Resume = {
+        kind: "approved" | "recovering";
+        runId: string;
+        stageId: string;
+      };
       const resumeCalls: Resume[] = [];
       const reporter = new RecordingReporter();
-      (reporter as unknown as {
-        resuming: (kind: "approved" | "recovering", runId: string, stageId: string) => void;
-      }).resuming = (kind, rid, sid) => resumeCalls.push({ kind, runId: rid, stageId: sid });
+      (
+        reporter as unknown as {
+          resuming: (
+            kind: "approved" | "recovering",
+            runId: string,
+            stageId: string,
+          ) => void;
+        }
+      ).resuming = (kind, rid, sid) =>
+        resumeCalls.push({ kind, runId: rid, stageId: sid });
 
       const result = await advanceWorkflow(
         RUN_ID,
@@ -795,7 +827,10 @@ describe("advanceWorkflow recovery validator failure (AC-5)", () => {
 
       // state.json unchanged for the failed stage.
       const persisted = JSON.parse(
-        readFileSync(join(cwd, ".praxis", "runs", RUN_ID, "state.json"), "utf8"),
+        readFileSync(
+          join(cwd, ".praxis", "runs", RUN_ID, "state.json"),
+          "utf8",
+        ),
       );
       expect(persisted.stages.first.status).toBe("failed");
       expect(persisted.stages.first.sessionId).toBe("sess_failed");

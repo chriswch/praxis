@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 import { commit } from "../../src/git/commit.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
@@ -22,7 +22,11 @@ describe("commit() emits no stderr notice on the happy path (AC-12)", () => {
       const original = process.stderr.write.bind(process.stderr);
       const captured: string[] = [];
       process.stderr.write = ((chunk: string | Uint8Array) => {
-        captured.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
+        captured.push(
+          typeof chunk === "string"
+            ? chunk
+            : Buffer.from(chunk).toString("utf8"),
+        );
         return true;
       }) as typeof process.stderr.write;
       try {
@@ -67,7 +71,11 @@ describe("commit() bundles pre-existing dirty files when called on a dirty tree 
       spawnSync("git", ["commit", "-m", "baseline"], { cwd: dir });
 
       // The "pre-existing dirty" the user opted into bundling.
-      writeFileSync(join(dir, "tracked.txt"), "v2 — pre-existing dirty\n", "utf8");
+      writeFileSync(
+        join(dir, "tracked.txt"),
+        "v2 — pre-existing dirty\n",
+        "utf8",
+      );
       writeFileSync(join(dir, "untracked.txt"), "stranded\n", "utf8");
       // The "run's own change" (simulating an implement-stage edit).
       writeFileSync(join(dir, "from-run.txt"), "produced by the run\n", "utf8");
@@ -85,7 +93,10 @@ describe("commit() bundles pre-existing dirty files when called on a dirty tree 
         { cwd: dir, encoding: "utf8" },
       );
       expect(show.status).toBe(0);
-      const files = show.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+      const files = show.stdout
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
       expect(files.sort()).toEqual(
         ["from-run.txt", "tracked.txt", "untracked.txt"].sort(),
       );
@@ -104,7 +115,9 @@ describe("commit() empty tree (AC-2)", () => {
   it("returns {ok:true, skipped:true} and creates no commit when nothing is staged or modified", async () => {
     await withTempRepo(async ({ dir }) => {
       // Sanity: fresh withTempRepo has no HEAD yet.
-      const before = spawnSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: dir });
+      const before = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
+        cwd: dir,
+      });
       expect(before.status).not.toBe(0);
 
       const result = commit(dir, "feat: nothing");
@@ -115,7 +128,9 @@ describe("commit() empty tree (AC-2)", () => {
       expect("sha" in result).toBe(false);
 
       // No HEAD created — commit was skipped.
-      const after = spawnSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: dir });
+      const after = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
+        cwd: dir,
+      });
       expect(after.status).not.toBe(0);
     });
   });

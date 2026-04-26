@@ -2,8 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PermissionMode, StageConfig } from "../config/schema.js";
-import type { Reporter } from "../ui/reporter.js";
 import { briefFor } from "../ui/brief.js";
+import type { Reporter } from "../ui/reporter.js";
 
 /** Praxis-internal abstraction the Reporter consumes (S-003). */
 export type AgentEvent =
@@ -115,7 +115,10 @@ export type CreateQueryFn = (input: CreateQueryFnInput) => CreateQueryFnHandle;
  * a real commit and `{ ok: false, reason }` for a git failure without another
  * test-Deps churn.
  */
-export type CommitFn = (cwd: string, message: string) =>
+export type CommitFn = (
+  cwd: string,
+  message: string,
+) =>
   | { ok: true; sha: string }
   | { ok: true; skipped: true }
   | { ok: false; reason: string };
@@ -164,10 +167,7 @@ export function buildUserPrompt(
   const template =
     typeof config.userPromptTemplate === "string"
       ? config.userPromptTemplate
-      : readFileSync(
-          join(PROMPTS_DIR, config.userPromptTemplate.file),
-          "utf8",
-        );
+      : readFileSync(join(PROMPTS_DIR, config.userPromptTemplate.file), "utf8");
 
   return template.replace(/\{\{([^}]+)\}\}/g, (_match, raw: string) => {
     const token = raw.trim();
@@ -184,7 +184,9 @@ export function buildUserPrompt(
       }
       return path;
     }
-    throw new Error(`buildUserPrompt: unknown interpolation token: {{${token}}}`);
+    throw new Error(
+      `buildUserPrompt: unknown interpolation token: {{${token}}}`,
+    );
   });
 }
 
@@ -279,7 +281,10 @@ export async function runStage(
         for (const block of msg.message.content) {
           if (block.type === "text") {
             pendingText += block.text;
-            ctx.reporter.stageEvent({ type: "assistant_text", text: block.text });
+            ctx.reporter.stageEvent({
+              type: "assistant_text",
+              text: block.text,
+            });
           } else if (block.type === "tool_use") {
             if (block.id) toolNameById.set(block.id, block.name);
             ctx.reporter.stageEvent({

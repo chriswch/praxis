@@ -1,18 +1,18 @@
-import { describe, it, expect } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runStage } from "../../src/workflow/stage.js";
+import { describe, expect, it } from "vitest";
+import { defaultWorkflow } from "../../src/config/defaults.js";
+import { LineReporter } from "../../src/ui/line-reporter.js";
+import { runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
   Deps,
   SdkMessage,
   StageContext,
 } from "../../src/workflow/stage.js";
-import { defaultWorkflow } from "../../src/config/defaults.js";
-import { LineReporter } from "../../src/ui/line-reporter.js";
+import { runStage } from "../../src/workflow/stage.js";
 import { recordingScriptedQuery } from "../support/scripted-query.js";
-import { runWorkflow } from "../../src/workflow/runner.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
 function withTmpDir<T>(fn: (dir: string) => T): T {
@@ -82,7 +82,10 @@ describe("runStage createQueryFn wiring (AC-9)", () => {
         [{ messages: happyPathScript() }],
       ]);
       const cfg = clarifyAssessConfig();
-      await runStage(cfg, makeCtx(runDir), { createQueryFn: recording, reporter: new LineReporter() });
+      await runStage(cfg, makeCtx(runDir), {
+        createQueryFn: recording,
+        reporter: new LineReporter(),
+      });
 
       expect(recording.calls.length).toBe(1);
       const input = recording.calls[0].input;
@@ -107,11 +110,10 @@ describe("runStage happy path (AC-5 in-process)", () => {
       const recording = recordingScriptedQuery([
         [{ messages: happyPathScript() }],
       ]);
-      const result = await runStage(
-        clarifyAssessConfig(),
-        makeCtx(runDir),
-        { createQueryFn: recording, reporter: new LineReporter() },
-      );
+      const result = await runStage(clarifyAssessConfig(), makeCtx(runDir), {
+        createQueryFn: recording,
+        reporter: new LineReporter(),
+      });
       expect(result.finalText).toBe(clarifyArtifact);
       expect(result.sessionId).toBe("sess_happy");
       expect(result.stopReason).toBe("end_turn");
@@ -184,11 +186,10 @@ describe("runStage validator retry (AC-6)", () => {
       const recording = recordingScriptedQuery([
         [{ messages: firstAttempt }, { messages: retryAttempt }],
       ]);
-      const result = await runStage(
-        clarifyAssessConfig(),
-        makeCtx(runDir),
-        { createQueryFn: recording, reporter: new LineReporter() },
-      );
+      const result = await runStage(clarifyAssessConfig(), makeCtx(runDir), {
+        createQueryFn: recording,
+        reporter: new LineReporter(),
+      });
 
       expect(result.finalText).toBe(clarifyArtifact);
       expect(result.sessionId).toBe("sess_retry");
@@ -208,7 +209,11 @@ describe("runStage validator retry (AC-6)", () => {
   });
 });
 
-function deps(createQueryFn: CreateQueryFn, date: Date, bytes: Uint8Array): Deps {
+function deps(
+  createQueryFn: CreateQueryFn,
+  date: Date,
+  bytes: Uint8Array,
+): Deps {
   return {
     clock: () => date,
     rng: (n) => bytes.slice(0, n),
@@ -254,7 +259,7 @@ describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
         cacheCreate: 0,
       });
       expect(state.stages["clarify-assess"].usd).toBeCloseTo(0.012, 5);
-      expect(state.stages["implement"].status).toBe("pending");
+      expect(state.stages.implement.status).toBe("pending");
       expect(state.stages["auto-commit"].status).toBe("pending");
       expect(state.cost.totalTokens).toBe(150); // input + output only
       expect(state.cost.totalUsd).toBeCloseTo(0.012, 5);
@@ -269,7 +274,9 @@ describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
       expect(result.artifactPath).toBe(artifactPath);
 
       // Implement / auto-commit artifacts not written.
-      expect(existsSync(join(result.runDir, "02-implement-log.md"))).toBe(false);
+      expect(existsSync(join(result.runDir, "02-implement-log.md"))).toBe(
+        false,
+      );
       expect(existsSync(join(result.runDir, "03-commit.txt"))).toBe(false);
     });
   });
@@ -294,7 +301,9 @@ describe("runWorkflow --allow-dirty override (AC-3)", () => {
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
       expect(result.paused).toBe(true);
-      expect(existsSync(join(result.runDir, "01-clarify-assess.md"))).toBe(true);
+      expect(existsSync(join(result.runDir, "01-clarify-assess.md"))).toBe(
+        true,
+      );
     });
   });
 
@@ -404,7 +413,9 @@ describe("runWorkflow validator terminal failure (AC-7 runner)", () => {
       expect(state.stages["clarify-assess"].stopReason).toBe(
         "validator_failed",
       );
-      expect(state.stages["clarify-assess"].error).toMatch(/Acceptance|H2|order/);
+      expect(state.stages["clarify-assess"].error).toMatch(
+        /Acceptance|H2|order/,
+      );
     });
   });
 });
@@ -466,11 +477,10 @@ describe("runStage validator terminal failure (AC-7)", () => {
       const recording = recordingScriptedQuery([
         [{ messages: firstAttempt }, { messages: retryAttempt }],
       ]);
-      const result = await runStage(
-        clarifyAssessConfig(),
-        makeCtx(runDir),
-        { createQueryFn: recording, reporter: new LineReporter() },
-      );
+      const result = await runStage(clarifyAssessConfig(), makeCtx(runDir), {
+        createQueryFn: recording,
+        reporter: new LineReporter(),
+      });
 
       expect(result.stopReason).toBe("validator_failed");
       expect(result.finalText).toBe(badArtifact);

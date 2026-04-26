@@ -1,16 +1,16 @@
-import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withTempRepo } from "../support/tmp-repo.js";
-import { runStage } from "../../src/workflow/stage.js";
+import { describe, expect, it } from "vitest";
+import { defaultWorkflow } from "../../src/config/defaults.js";
+import { LineReporter } from "../../src/ui/line-reporter.js";
 import type {
   CreateQueryFn,
   CreateQueryFnHandle,
   SdkMessage,
   StageContext,
 } from "../../src/workflow/stage.js";
-import { defaultWorkflow } from "../../src/config/defaults.js";
-import { LineReporter } from "../../src/ui/line-reporter.js";
+import { runStage } from "../../src/workflow/stage.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 /**
  * S-005 AC-9 — option-(a) sociable test.
@@ -45,7 +45,12 @@ function fsMutatingQuery(
 ): CreateQueryFn {
   return () => {
     const messages: SdkMessage[] = [
-      { type: "system", subtype: "init", session_id: sessionId, model: "claude-test" },
+      {
+        type: "system",
+        subtype: "init",
+        session_id: sessionId,
+        model: "claude-test",
+      },
       {
         type: "assistant",
         session_id: sessionId,
@@ -97,7 +102,10 @@ function fsMutatingQuery(
           if (m.type === "assistant") {
             for (const block of m.message.content) {
               if (block.type === "tool_use" && block.name === "Write") {
-                const input = block.input as { file_path: string; content: string };
+                const input = block.input as {
+                  file_path: string;
+                  content: string;
+                };
                 writeFileSync(input.file_path, input.content, "utf8");
               }
             }

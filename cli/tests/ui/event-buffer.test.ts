@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBuffer } from "../../src/ui/event-buffer.js";
 
 describe("EventBuffer (AC-6) — 100ms delta coalescing", () => {
@@ -115,7 +115,7 @@ describe("EventBuffer (AC-6) — 100ms delta coalescing", () => {
     buf.push("hi");
     expect(storedDelay).toBe(100);
     expect(typeof storedCb).toBe("function");
-    storedCb!();
+    storedCb?.();
     expect(flushed).toEqual(["hi"]);
   });
 });

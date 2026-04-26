@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { tmpdir } from "node:os";
+import { beforeAll, describe, expect, it } from "vitest";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -16,9 +16,7 @@ describe("praxis (built)", () => {
       encoding: "utf8",
     });
     if (build.status !== 0) {
-      throw new Error(
-        `npm run build failed: ${build.stderr || build.stdout}`,
-      );
+      throw new Error(`npm run build failed: ${build.stderr || build.stdout}`);
     }
     if (!existsSync(distEntry)) {
       throw new Error(`expected build output at ${distEntry}`);

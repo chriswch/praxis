@@ -70,7 +70,7 @@ export function recordingScriptedQuery(
     calls.push({ input, pushedUserMessages });
 
     let scriptIdx = 0;
-    let pending: SdkMessage[] = [...(callScripts[scriptIdx]?.messages ?? [])];
+    const pending: SdkMessage[] = [...(callScripts[scriptIdx]?.messages ?? [])];
 
     const handle: CreateQueryFnHandle = {
       pushUserMessage(text) {

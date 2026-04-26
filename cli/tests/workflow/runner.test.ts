@@ -1,16 +1,16 @@
-import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import type { PraxisConfig } from "../../src/config/schema.js";
+import { LineReporter } from "../../src/ui/line-reporter.js";
 import { runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
   Deps,
   SdkMessage,
 } from "../../src/workflow/stage.js";
-import { withTempRepo } from "../support/tmp-repo.js";
 import { scriptedQuery } from "../support/scripted-query.js";
-import { LineReporter } from "../../src/ui/line-reporter.js";
-import type { PraxisConfig } from "../../src/config/schema.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 const noopMessages: SdkMessage[] = [
   {

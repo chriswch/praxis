@@ -1,15 +1,15 @@
-import { describe, it, expect } from "vitest";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import type { PraxisConfig } from "../../src/config/schema.js";
 import { runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
   Deps,
   SdkMessage,
 } from "../../src/workflow/stage.js";
-import type { PraxisConfig } from "../../src/config/schema.js";
-import { withTempRepo } from "../support/tmp-repo.js";
-import { scriptedQuery } from "../support/scripted-query.js";
 import { RecordingReporter } from "../support/recording-reporter.js";
+import { scriptedQuery } from "../support/scripted-query.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 function noopMessages(sessionId = "sess_noop"): SdkMessage[] {
   return [
@@ -41,7 +41,10 @@ function noopMessages(sessionId = "sess_noop"): SdkMessage[] {
   ];
 }
 
-const pauseStage = (id: string, pauseAfter: boolean): PraxisConfig["workflow"][number] => ({
+const pauseStage = (
+  id: string,
+  pauseAfter: boolean,
+): PraxisConfig["workflow"][number] => ({
   id,
   systemPrompt: { file: "clarify-assess.md" },
   userPromptTemplate: "{{intent}}",
@@ -49,10 +52,7 @@ const pauseStage = (id: string, pauseAfter: boolean): PraxisConfig["workflow"][n
   pauseAfter,
 });
 
-function deps(
-  createQueryFn: CreateQueryFn,
-  reporter: RecordingReporter,
-): Deps {
+function deps(createQueryFn: CreateQueryFn, reporter: RecordingReporter): Deps {
   return {
     clock: () => new Date("2026-04-25T14:30:12Z"),
     rng: (n) => new Uint8Array([0x7a, 0xf2]).slice(0, n),
@@ -105,7 +105,9 @@ describe("runWorkflow paused replaces direct stdout (AC-11)", () => {
       (process.stdout as { write: typeof process.stdout.write }).write = ((
         chunk: string | Uint8Array,
       ) => {
-        captured.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString());
+        captured.push(
+          typeof chunk === "string" ? chunk : Buffer.from(chunk).toString(),
+        );
         return true;
       }) as typeof process.stdout.write;
       try {
@@ -115,7 +117,8 @@ describe("runWorkflow paused replaces direct stdout (AC-11)", () => {
         );
         if (!result.ok) throw new Error(result.reason);
       } finally {
-        (process.stdout as { write: typeof process.stdout.write }).write = before;
+        (process.stdout as { write: typeof process.stdout.write }).write =
+          before;
       }
 
       expect(reporter.countOf("paused")).toBe(1);
@@ -267,8 +270,8 @@ describe("runWorkflow --no-pause overrides pauseAfter (AC-13)", () => {
       const state = JSON.parse(
         readFileSync(join(result.runDir, "state.json"), "utf8"),
       );
-      expect(state.stages["a"].status).toBe("completed");
-      expect(state.stages["b"].status).toBe("completed");
+      expect(state.stages.a.status).toBe("completed");
+      expect(state.stages.b.status).toBe("completed");
       expect(reporter.countOf("paused")).toBe(0);
     });
   });

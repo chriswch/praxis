@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Writable } from "node:stream";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StageConfig } from "../../src/config/schema.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
 
@@ -49,7 +49,11 @@ describe("LineReporter (AC-2/7/8/10/11/12)", () => {
   it("tool_use → `  › ToolName(brief)`", () => {
     const { reporter, out } = makeReporter();
     reporter.stageStart(stage("clarify-assess"), 1, 3);
-    reporter.stageEvent({ type: "tool_use", name: "Read", brief: "src/foo.ts" });
+    reporter.stageEvent({
+      type: "tool_use",
+      name: "Read",
+      brief: "src/foo.ts",
+    });
     expect(out.text()).toContain("  › Read(src/foo.ts)\n");
   });
 
@@ -84,13 +88,19 @@ describe("LineReporter (AC-2/7/8/10/11/12)", () => {
     });
     const text = out.text();
     expect(text).toContain("artifact: /tmp/run/01-clarify-assess.md");
-    expect(text).toContain("session: sess_X (claude --resume sess_X to inspect)");
+    expect(text).toContain(
+      "session: sess_X (claude --resume sess_X to inspect)",
+    );
     expect(text).toContain("done");
   });
 
   it("paused prints the canonical advance hint to stdout", () => {
     const { reporter, out } = makeReporter();
-    reporter.paused("2026-04-25-1430-7af2", "clarify-assess", "/abs/01-clarify-assess.md");
+    reporter.paused(
+      "2026-04-25-1430-7af2",
+      "clarify-assess",
+      "/abs/01-clarify-assess.md",
+    );
     expect(out.text()).toBe(
       "praxis: paused after clarify-assess. Review /abs/01-clarify-assess.md then run: praxis advance 2026-04-25-1430-7af2\n",
     );
@@ -165,7 +175,9 @@ describe("LineReporter assistant_text coalescing (AC-6)", () => {
     reporter.stageEvent({ type: "tool_use", name: "Read", brief: "x" });
     const text = out.text();
     expect(text.indexOf(" › thinking…")).toBeGreaterThanOrEqual(0);
-    expect(text.indexOf("  › Read(x)")).toBeGreaterThan(text.indexOf(" › thinking…"));
+    expect(text.indexOf("  › Read(x)")).toBeGreaterThan(
+      text.indexOf(" › thinking…"),
+    );
   });
 
   it("flushes before stageEnd and disposes the buffer", () => {

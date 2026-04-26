@@ -46,12 +46,15 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
-function stringField(obj: Record<string, unknown>, key: string): string | undefined {
+function stringField(
+  obj: Record<string, unknown>,
+  key: string,
+): string | undefined {
   const v = obj[key];
   return typeof v === "string" ? v : undefined;
 }
 
 function truncate(s: string): string {
   if (s.length <= MAX_BRIEF_LEN) return s;
-  return s.slice(0, MAX_BRIEF_LEN) + "…";
+  return `${s.slice(0, MAX_BRIEF_LEN)}…`;
 }

@@ -1,6 +1,6 @@
-import { spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cliEntry = resolve(here, "..", "..", "src", "cli.ts");

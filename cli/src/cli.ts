@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
-import { advanceWorkflow, runWorkflow } from "./workflow/runner.js";
-import type { Deps } from "./workflow/stage.js";
-import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
+import { commit } from "./git/commit.js";
 import { LineReporter } from "./ui/line-reporter.js";
 import { isRunId } from "./workflow/run-id.js";
-import { commit } from "./git/commit.js";
+import {
+  advanceWorkflow,
+  type RunWorkflowResult,
+  runWorkflow,
+} from "./workflow/runner.js";
+import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
+import type { Deps } from "./workflow/stage.js";
 
 function buildDefaultDeps(): Deps {
   // Color when stderr is a TTY and NO_COLOR is unset (the de facto convention).
@@ -54,7 +58,9 @@ function parseRunArgs(rest: string[]): ParsedArgs {
   }
   const intent = positional[0];
   if (intent === undefined) {
-    fail('missing intent. Usage: praxis run [--allow-dirty] [--no-pause] "<intent>"');
+    fail(
+      'missing intent. Usage: praxis run [--allow-dirty] [--no-pause] "<intent>"',
+    );
   }
   if (intent.trim().length === 0) {
     fail("intent must not be empty or whitespace");
@@ -113,7 +119,7 @@ async function main(argv: string[]): Promise<void> {
   const onSigint = () => sigintAbort.abort("sigint");
   process.once("SIGINT", onSigint);
 
-  let result;
+  let result: RunWorkflowResult;
   try {
     result = await runWorkflow(
       {
@@ -148,7 +154,7 @@ async function runAdvance(rest: string[]): Promise<void> {
   const onSigint = () => sigintAbort.abort("sigint");
   process.once("SIGINT", onSigint);
 
-  let result;
+  let result: RunWorkflowResult;
   try {
     result = await advanceWorkflow(
       runId,
@@ -173,6 +179,8 @@ async function runAdvance(rest: string[]): Promise<void> {
 }
 
 main(process.argv).catch((err) => {
-  process.stderr.write(`praxis: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.stderr.write(
+    `praxis: ${err instanceof Error ? err.message : String(err)}\n`,
+  );
   process.exit(1);
 });

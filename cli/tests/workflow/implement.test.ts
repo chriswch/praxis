@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -7,25 +7,27 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { hangingQuery } from "../support/scripted-query.js";
-import type { PraxisConfig } from "../../src/config/schema.js";
-import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runStage } from "../../src/workflow/stage.js";
+import { describe, expect, it } from "vitest";
+import { defaultWorkflow } from "../../src/config/defaults.js";
+import type { PraxisConfig } from "../../src/config/schema.js";
+import { LineReporter } from "../../src/ui/line-reporter.js";
+import { advanceWorkflow, runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
   Deps,
   SdkMessage,
   StageContext,
 } from "../../src/workflow/stage.js";
-import { defaultWorkflow } from "../../src/config/defaults.js";
-import { LineReporter } from "../../src/ui/line-reporter.js";
-import { recordingScriptedQuery } from "../support/scripted-query.js";
-import { withTempRepo } from "../support/tmp-repo.js";
-import { advanceWorkflow, runWorkflow } from "../../src/workflow/runner.js";
-import { writeState, type State } from "../../src/workflow/state.js";
+import { runStage } from "../../src/workflow/stage.js";
+import { type State, writeState } from "../../src/workflow/state.js";
 import { RecordingReporter } from "../support/recording-reporter.js";
+import {
+  hangingQuery,
+  recordingScriptedQuery,
+} from "../support/scripted-query.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 /**
  * S-005 — implement stage end-to-end. Suite focuses on the implement (and the
@@ -172,7 +174,10 @@ type CommitSpy = ((cwd: string, message: string) => CommitResult) & {
  * inject `result` to drive the runner down the skip / failure branches.
  */
 function recordingCommit(
-  result: CommitResult = { ok: true, sha: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" },
+  result: CommitResult = {
+    ok: true,
+    sha: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+  },
 ): CommitSpy {
   const calls: CommitCall[] = [];
   const fn = (cwd: string, message: string): CommitResult => {
@@ -235,7 +240,8 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
     await withTempRepo(async ({ dir: cwd }) => {
       const runDir = seedPausedRun(cwd);
 
-      const implementLog = "## Files changed\n\n- src/Foo.tsx — added logout button\n";
+      const implementLog =
+        "## Files changed\n\n- src/Foo.tsx — added logout button\n";
       const commitMessage = "feat: add logout button";
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_impl", implementLog) }],
@@ -326,7 +332,9 @@ describe("implement timeout (AC-4)", () => {
       expect(persisted.stages["auto-commit"].status).toBe("pending");
 
       // Partial log written (empty in this test, but the file exists).
-      expect(existsSync(join(result.runDir!, "02-implement-log.md"))).toBe(true);
+      expect(existsSync(join(result.runDir!, "02-implement-log.md"))).toBe(
+        true,
+      );
       // 03-commit.txt must NOT exist.
       expect(existsSync(join(result.runDir!, "03-commit.txt"))).toBe(false);
 
@@ -383,7 +391,9 @@ describe("implement SIGINT (AC-5)", () => {
       expect(persisted.stages.implement.stopReason).toBe("sigint");
       expect(persisted.stages["auto-commit"].status).toBe("pending");
 
-      expect(existsSync(join(result.runDir!, "02-implement-log.md"))).toBe(true);
+      expect(existsSync(join(result.runDir!, "02-implement-log.md"))).toBe(
+        true,
+      );
       expect(existsSync(join(result.runDir!, "03-commit.txt"))).toBe(false);
       expect(commit.calls.length).toBe(0);
       expect(call).toBe(2);
@@ -540,7 +550,9 @@ describe("runStage translates implement tool_use/tool_result blocks to AgentEven
         runId: RUN_ID,
         reporter,
         signal: new AbortController().signal,
-        artifactPaths: { "clarify-assess": join(runDir, "01-clarify-assess.md") },
+        artifactPaths: {
+          "clarify-assess": join(runDir, "01-clarify-assess.md"),
+        },
       };
       const recording = recordingScriptedQuery([[{ messages }]]);
       await runStage(implementConfig(), ctx, { createQueryFn: recording });
@@ -557,10 +569,9 @@ describe("runStage translates implement tool_use/tool_result blocks to AgentEven
       const toolResults = events.filter((e) => e.type === "tool_result");
       expect(toolResults.length).toBe(2);
       // Tool name resolved through the tool_use_id cache (AC-7 expectation).
-      expect(toolResults.map((e) => e.type === "tool_result" && e.name)).toEqual([
-        "Read",
-        "Edit",
-      ]);
+      expect(
+        toolResults.map((e) => e.type === "tool_result" && e.name),
+      ).toEqual(["Read", "Edit"]);
       expect(
         toolResults.every((e) => e.type === "tool_result" && e.ok === true),
       ).toBe(true);
@@ -571,7 +582,8 @@ describe("runStage translates implement tool_use/tool_result blocks to AgentEven
 describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
   it("noPause: true drives clarify-assess → implement → auto-commit; commit fires once with the auto-commit finalText", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
-      const implementLog = "## Files changed\n\n- src/Foo.tsx — added logout button\n";
+      const implementLog =
+        "## Files changed\n\n- src/Foo.tsx — added logout button\n";
       const commitMessage = "feat: add logout button";
       const recording = recordingScriptedQuery([
         // clarify-assess: emit a valid §5.2 artifact so the validator passes.
@@ -603,13 +615,16 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
 
       // Artifacts written verbatim — except 03-commit.txt which the runner
       // rewrites with the SHA prepended (S-006 AC-4).
-      expect(readFileSync(join(result.runDir, "01-clarify-assess.md"), "utf8"))
-        .toBe(VALID_CLARIFY_ARTIFACT);
-      expect(readFileSync(join(result.runDir, "02-implement-log.md"), "utf8"))
-        .toBe(implementLog);
+      expect(
+        readFileSync(join(result.runDir, "01-clarify-assess.md"), "utf8"),
+      ).toBe(VALID_CLARIFY_ARTIFACT);
+      expect(
+        readFileSync(join(result.runDir, "02-implement-log.md"), "utf8"),
+      ).toBe(implementLog);
       const expectedSha = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
-      expect(readFileSync(join(result.runDir, "03-commit.txt"), "utf8"))
-        .toBe(`${expectedSha}\n\n${commitMessage}\n`);
+      expect(readFileSync(join(result.runDir, "03-commit.txt"), "utf8")).toBe(
+        `${expectedSha}\n\n${commitMessage}\n`,
+      );
       expect(persisted.stages["auto-commit"].commitSha).toBe(expectedSha);
 
       // commit fired exactly once with the auto-commit final text.

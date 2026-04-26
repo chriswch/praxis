@@ -20,7 +20,9 @@ export function formatStageStart(
 }
 
 /** AC-7: `  › ToolName(brief)`. Brief is whatever `briefFor` produced. */
-export function formatToolUse(e: Extract<AgentEvent, { type: "tool_use" }>): string[] {
+export function formatToolUse(
+  e: Extract<AgentEvent, { type: "tool_use" }>,
+): string[] {
   return [`  › ${e.name}(${e.brief})`];
 }
 
@@ -39,7 +41,9 @@ export function formatToolResult(
  * the reporter when stderr is a TTY; the formatter stays plain so tests can
  * assert on text without ANSI noise.
  */
-export function formatError(e: Extract<AgentEvent, { type: "error" }>): string[] {
+export function formatError(
+  e: Extract<AgentEvent, { type: "error" }>,
+): string[] {
   return e.message.split("\n").map((line) => `error: ${line}`);
 }
 
@@ -108,9 +112,7 @@ export function formatResuming(
   stageId: string,
 ): string[] {
   if (kind === "approved") {
-    return [
-      `praxis: resuming approved plan after ${stageId} (run ${runId})`,
-    ];
+    return [`praxis: resuming approved plan after ${stageId} (run ${runId})`];
   }
   return [
     `praxis: recovering ${stageId} from on-disk artifact; re-validating (run ${runId})`,
@@ -141,7 +143,9 @@ export function formatRunDone(runId: string, summary: RunSummary): string[] {
     : `[run ${runId}] ${word} — ${tail}`;
   const lines = [head];
   for (const [id, row] of Object.entries(summary.perStage)) {
-    lines.push(`  ${id}: ${row.tokens} tokens, ${formatUsd(row.usd)} (${row.sessionId})`);
+    lines.push(
+      `  ${id}: ${row.tokens} tokens, ${formatUsd(row.usd)} (${row.sessionId})`,
+    );
   }
   return lines;
 }
@@ -176,7 +180,7 @@ function summarize(text: string): string {
     const end = m.index + 1; // include the punctuation char
     return text.slice(0, end);
   }
-  return text.slice(0, SUMMARIZE_THRESHOLD) + "…";
+  return `${text.slice(0, SUMMARIZE_THRESHOLD)}…`;
 }
 
 function wrap(text: string, cols: number): string[] {
@@ -201,13 +205,14 @@ function wrap(text: string, cols: number): string[] {
         i += budget;
       }
       // The last chunk might still have room for more — restart row with it.
+      // biome-ignore lint/style/noNonNullAssertion: just pushed at least one chunk above.
       row = wrappedRows.pop()!;
       continue;
     }
     if (row.length === 0) {
       row = tok;
     } else if (row.length + 1 + tok.length <= budget) {
-      row += " " + tok;
+      row += ` ${tok}`;
     } else {
       wrappedRows.push(row);
       row = tok;

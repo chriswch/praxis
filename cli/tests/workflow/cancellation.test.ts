@@ -1,12 +1,12 @@
-import { describe, it, expect } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runStage } from "../../src/workflow/stage.js";
-import type { StageContext } from "../../src/workflow/stage.js";
-import { runWorkflow } from "../../src/workflow/runner.js";
-import type { StageConfig, PraxisConfig } from "../../src/config/schema.js";
+import { describe, expect, it } from "vitest";
+import type { PraxisConfig, StageConfig } from "../../src/config/schema.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
+import { runWorkflow } from "../../src/workflow/runner.js";
+import type { StageContext } from "../../src/workflow/stage.js";
+import { runStage } from "../../src/workflow/stage.js";
 import { hangingQuery } from "../support/scripted-query.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
@@ -43,10 +43,14 @@ describe("runStage timeoutMs (product.md §7)", () => {
   it("aborts with cancelReason 'timeout' when the stage exceeds timeoutMs", async () => {
     await withTmpDir(async (runDir) => {
       const ctl = new AbortController(); // never aborted by us
-      const result = await runStage(noValidateConfig, makeCtx(runDir, ctl.signal), {
-        createQueryFn: hangingQuery("sess_timeout"),
-        reporter: new LineReporter(),
-      });
+      const result = await runStage(
+        noValidateConfig,
+        makeCtx(runDir, ctl.signal),
+        {
+          createQueryFn: hangingQuery("sess_timeout"),
+          reporter: new LineReporter(),
+        },
+      );
       expect(result.cancelReason).toBe("timeout");
       expect(result.sessionId).toBe("sess_timeout");
     });
@@ -112,7 +116,7 @@ describe("runWorkflow SIGINT (spec §11 — cancelled status)", () => {
       const state = JSON.parse(
         readFileSync(join(result.runDir!, "state.json"), "utf8"),
       );
-      expect(state.stages["hang"].status).toBe("cancelled");
+      expect(state.stages.hang.status).toBe("cancelled");
     });
   });
 });

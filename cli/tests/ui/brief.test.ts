@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { briefFor } from "../../src/ui/brief.js";
 
 describe("briefFor (AC-16) — tool-name → short, single-line summary", () => {
@@ -7,9 +7,13 @@ describe("briefFor (AC-16) — tool-name → short, single-line summary", () => 
   });
 
   it("Edit uses file_path", () => {
-    expect(briefFor("Edit", { file_path: "src/foo.ts", old_string: "x", new_string: "y" })).toBe(
-      "src/foo.ts",
-    );
+    expect(
+      briefFor("Edit", {
+        file_path: "src/foo.ts",
+        old_string: "x",
+        new_string: "y",
+      }),
+    ).toBe("src/foo.ts");
   });
 
   it("Write uses file_path", () => {
@@ -24,7 +28,9 @@ describe("briefFor (AC-16) — tool-name → short, single-line summary", () => 
 
   it("Grep uses pattern (path optional)", () => {
     expect(briefFor("Grep", { pattern: "TODO" })).toBe("TODO");
-    expect(briefFor("Grep", { pattern: "TODO", path: "src" })).toBe("TODO in src");
+    expect(briefFor("Grep", { pattern: "TODO", path: "src" })).toBe(
+      "TODO in src",
+    );
   });
 
   it("Bash uses command, truncated to 60 chars", () => {
@@ -36,7 +42,9 @@ describe("briefFor (AC-16) — tool-name → short, single-line summary", () => 
   });
 
   it("Task uses description (truncated to 60 chars)", () => {
-    expect(briefFor("Task", { description: "do the thing" })).toBe("do the thing");
+    expect(briefFor("Task", { description: "do the thing" })).toBe(
+      "do the thing",
+    );
     const long = "x".repeat(80);
     const out = briefFor("Task", { description: long });
     expect(out.length).toBeLessThanOrEqual(61);

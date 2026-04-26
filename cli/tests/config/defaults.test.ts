@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { defaultWorkflow } from "../../src/config/defaults.js";
 import { praxisConfigSchema } from "../../src/config/schema.js";
 import { buildUserPrompt, loadSystemPrompt } from "../../src/workflow/stage.js";
@@ -32,7 +32,7 @@ describe("defaultWorkflow", () => {
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     expect(byId["clarify-assess"].model).toBe("claude-opus-4-7");
-    expect(byId["implement"].model).toBe("claude-opus-4-7");
+    expect(byId.implement.model).toBe("claude-opus-4-7");
     expect(byId["auto-commit"].model).toBe("claude-haiku-4-5-20251001");
   });
 
@@ -41,7 +41,7 @@ describe("defaultWorkflow", () => {
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     expect(byId["clarify-assess"].outputArtifact).toBe("01-clarify-assess.md");
-    expect(byId["implement"].outputArtifact).toBe("02-implement-log.md");
+    expect(byId.implement.outputArtifact).toBe("02-implement-log.md");
     expect(byId["auto-commit"].outputArtifact).toBe("03-commit.txt");
   });
 
@@ -50,7 +50,7 @@ describe("defaultWorkflow", () => {
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     expect(byId["clarify-assess"].pauseAfter).toBe(true);
-    expect(byId["implement"].pauseAfter ?? false).toBe(false);
+    expect(byId.implement.pauseAfter ?? false).toBe(false);
     expect(byId["auto-commit"].pauseAfter ?? false).toBe(false);
   });
 
@@ -59,7 +59,7 @@ describe("defaultWorkflow", () => {
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     expect(typeof byId["clarify-assess"].validate).toBe("function");
-    expect(byId["implement"].validate).toBeUndefined();
+    expect(byId.implement.validate).toBeUndefined();
     expect(byId["auto-commit"].validate).toBeUndefined();
   });
 
@@ -78,8 +78,8 @@ describe("defaultWorkflow", () => {
     const byId = Object.fromEntries(
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
-    expect(byId["implement"].permissionMode).toBe("bypassPermissions");
-    expect(byId["implement"].allowedTools).toBeUndefined();
+    expect(byId.implement.permissionMode).toBe("bypassPermissions");
+    expect(byId.implement.allowedTools).toBeUndefined();
   });
 
   it("auto-commit uses default permission with Bash-only allowlist", () => {
@@ -140,7 +140,9 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
   it("implement references the clarify-assess artifact path per spec §5.3", () => {
     const rendered = buildUserPrompt(
       stageById("implement"),
-      ctx({ artifactPaths: { "clarify-assess": "/run/dir/01-clarify-assess.md" } }),
+      ctx({
+        artifactPaths: { "clarify-assess": "/run/dir/01-clarify-assess.md" },
+      }),
     );
     expect(rendered).toContain("Read /run/dir/01-clarify-assess.md");
     expect(rendered).toContain("implement the plan");

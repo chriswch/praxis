@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 /**
  * Verifies the production `sdkCreateQueryFn` does NOT terminate after the
@@ -19,42 +19,44 @@ const capturedOptions: Array<Record<string, unknown>> = [];
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => {
   return {
-    query: vi.fn((opts: { prompt: AsyncIterable<unknown>; options: unknown }) => {
-      capturedOptions.push(opts.options as Record<string, unknown>);
-      // Echo the user-prompt iterable back as one result-per-prompt so the
-      // wrapper's stream emits a result for each pushed user message.
-      return (async function* () {
-        let i = 0;
-        for await (const _userMsg of opts.prompt) {
-          i++;
-          yield {
-            type: "system",
-            subtype: "init",
-            session_id: `sess_${i}`,
-            model: "test",
-          };
-          yield {
-            type: "assistant",
-            session_id: `sess_${i}`,
-            message: { content: [{ type: "text", text: `reply_${i}` }] },
-          };
-          yield {
-            type: "result",
-            subtype: "success",
-            stop_reason: "end_turn",
-            total_cost_usd: 0,
-            usage: {
-              input_tokens: 1,
-              output_tokens: 1,
-              cache_read_input_tokens: 0,
-              cache_creation_input_tokens: 0,
-            },
-            num_turns: i,
-            session_id: `sess_${i}`,
-          };
-        }
-      })();
-    }),
+    query: vi.fn(
+      (opts: { prompt: AsyncIterable<unknown>; options: unknown }) => {
+        capturedOptions.push(opts.options as Record<string, unknown>);
+        // Echo the user-prompt iterable back as one result-per-prompt so the
+        // wrapper's stream emits a result for each pushed user message.
+        return (async function* () {
+          let i = 0;
+          for await (const _userMsg of opts.prompt) {
+            i++;
+            yield {
+              type: "system",
+              subtype: "init",
+              session_id: `sess_${i}`,
+              model: "test",
+            };
+            yield {
+              type: "assistant",
+              session_id: `sess_${i}`,
+              message: { content: [{ type: "text", text: `reply_${i}` }] },
+            };
+            yield {
+              type: "result",
+              subtype: "success",
+              stop_reason: "end_turn",
+              total_cost_usd: 0,
+              usage: {
+                input_tokens: 1,
+                output_tokens: 1,
+                cache_read_input_tokens: 0,
+                cache_creation_input_tokens: 0,
+              },
+              num_turns: i,
+              session_id: `sess_${i}`,
+            };
+          }
+        })();
+      },
+    ),
   };
 });
 

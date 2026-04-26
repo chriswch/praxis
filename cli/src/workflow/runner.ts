@@ -1,21 +1,21 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { Deps, StageContext, StageResult } from "./stage.js";
-import { runStage } from "./stage.js";
-import { formatRunId } from "./run-id.js";
-import { writeArtifact, writeIntent } from "./artifacts.js";
-import {
-  buildInitialState,
-  readState,
-  writeState,
-  type State,
-  type StageState,
-} from "./state.js";
-import { runPreflight, appendPraxisToGitignore } from "./preflight.js";
 import { AUTO_COMMIT_ID, defaultWorkflow } from "../config/defaults.js";
 import type { PraxisConfig, StageConfig } from "../config/schema.js";
 import type { Reporter, RunStatus, RunSummary } from "../ui/reporter.js";
+import { writeArtifact, writeIntent } from "./artifacts.js";
+import { appendPraxisToGitignore, runPreflight } from "./preflight.js";
+import { formatRunId } from "./run-id.js";
+import type { Deps, StageContext, StageResult } from "./stage.js";
+import { runStage } from "./stage.js";
+import {
+  buildInitialState,
+  readState,
+  type StageState,
+  type State,
+  writeState,
+} from "./state.js";
 
 export type RunWorkflowContext = {
   intent: string;
@@ -114,7 +114,16 @@ export async function runWorkflow(
     noPause: ctx.noPause,
     signal: ctx.signal,
   };
-  return executeStages(state, config, loopCtx, deps, reporter, runDir, runId, 0);
+  return executeStages(
+    state,
+    config,
+    loopCtx,
+    deps,
+    reporter,
+    runDir,
+    runId,
+    0,
+  );
 }
 
 type StepOutcome =
@@ -336,7 +345,11 @@ async function runOneStage(
     state.stages[stage.id] = stageState;
     writeState(runDir, state);
   } else {
-    artifactPath = writeArtifact(runDir, stage.outputArtifact, result.finalText);
+    artifactPath = writeArtifact(
+      runDir,
+      stage.outputArtifact,
+      result.finalText,
+    );
     state.stages[stage.id] = stageState;
     writeState(runDir, state);
   }
@@ -412,11 +425,15 @@ function failStage(
  * — runStage already ran the validator and captured the verdict, so the
  * runner does not re-run it here.
  */
-function classifyOutcome(
-  result: StageResult,
-): { stageStatus: StageState["status"]; errorMessage?: string } {
+function classifyOutcome(result: StageResult): {
+  stageStatus: StageState["status"];
+  errorMessage?: string;
+} {
   if (result.cancelReason === "sigint") {
-    return { stageStatus: "cancelled", errorMessage: "cancelled by user (SIGINT)" };
+    return {
+      stageStatus: "cancelled",
+      errorMessage: "cancelled by user (SIGINT)",
+    };
   }
   if (result.cancelReason === "timeout") {
     return { stageStatus: "failed", errorMessage: "stage timed out" };
@@ -605,16 +622,21 @@ export async function advanceWorkflow(
     // something `advance` should kick off.
     const prev = idx > 0 ? config.workflow[idx - 1] : undefined;
     const prevState = prev ? state.stages[prev.id] : undefined;
-    if (
-      prev &&
-      prevState?.status === "completed" &&
-      prev.pauseAfter === true
-    ) {
+    if (prev && prevState?.status === "completed" && prev.pauseAfter === true) {
       reporter.resuming?.("approved", runId, prev.id);
       // L-1: do NOT pre-write `currentStage` here — `runOneStage` rewrites it
       // on entry (line ~185), and the recovery branch below skips this same
       // pre-write. Harmonize both branches.
-      return executeStages(state, config, loopCtx, deps, reporter, runDir, runId, idx);
+      return executeStages(
+        state,
+        config,
+        loopCtx,
+        deps,
+        reporter,
+        runDir,
+        runId,
+        idx,
+      );
     }
     return {
       ok: false,
@@ -641,7 +663,16 @@ export async function advanceWorkflow(
         status: "failed",
       };
     }
-    return executeStages(state, config, loopCtx, deps, reporter, runDir, runId, idx + 1);
+    return executeStages(
+      state,
+      config,
+      loopCtx,
+      deps,
+      reporter,
+      runDir,
+      runId,
+      idx + 1,
+    );
   }
 
   // L-2: exhaustiveness guard — TS narrows `status` to `never` here when every
@@ -704,4 +735,3 @@ function recoverFailedStage(
   writeState(runDir, state);
   return { ok: true };
 }
-

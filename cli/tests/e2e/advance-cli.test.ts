@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withTempRepo } from "../support/tmp-repo.js";
+import { describe, expect, it } from "vitest";
 import { runCli } from "../support/run-cli.js";
+import { withTempRepo } from "../support/tmp-repo.js";
 
 describe("praxis advance (CLI surface, AC-1)", () => {
   it("rejects a missing run-id positional", async () => {
@@ -83,7 +83,7 @@ describe("praxis advance (CLI surface, AC-1)", () => {
       };
       writeFileSync(
         join(runDir, "state.json"),
-        JSON.stringify(state, null, 2) + "\n",
+        `${JSON.stringify(state, null, 2)}\n`,
         "utf8",
       );
       const result = runCli(["advance", runId], dir);

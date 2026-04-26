@@ -27,7 +27,10 @@ export function commit(cwd: string, message: string): CommitResult {
     encoding: "utf8",
   });
   if (status.status !== 0) {
-    return { ok: false, reason: `git status failed: ${(status.stderr || "").trim()}` };
+    return {
+      ok: false,
+      reason: `git status failed: ${(status.stderr || "").trim()}`,
+    };
   }
   if (status.stdout.trim() === "") {
     return { ok: true, skipped: true };
@@ -43,7 +46,10 @@ export function commit(cwd: string, message: string): CommitResult {
     encoding: "utf8",
   });
   if (commitRes.status !== 0) {
-    return { ok: false, reason: (commitRes.stderr || "git commit failed").trim() };
+    return {
+      ok: false,
+      reason: (commitRes.stderr || "git commit failed").trim(),
+    };
   }
 
   const head = spawnSync("git", ["rev-parse", "HEAD"], {
@@ -51,7 +57,10 @@ export function commit(cwd: string, message: string): CommitResult {
     encoding: "utf8",
   });
   if (head.status !== 0) {
-    return { ok: false, reason: `git rev-parse HEAD failed: ${(head.stderr || "").trim()}` };
+    return {
+      ok: false,
+      reason: `git rev-parse HEAD failed: ${(head.stderr || "").trim()}`,
+    };
   }
 
   return { ok: true, sha: head.stdout.trim() };

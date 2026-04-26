@@ -1,5 +1,5 @@
-import type { PraxisConfig } from "./schema.js";
 import { validateClarifyAssessArtifact } from "../workflow/validator.js";
+import type { PraxisConfig } from "./schema.js";
 
 /**
  * Stable id for the built-in auto-commit stage. The runner dispatches the

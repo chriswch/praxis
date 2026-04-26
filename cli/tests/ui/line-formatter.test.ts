@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { StageConfig } from "../../src/config/schema.js";
 import {
   formatAssistantText,
@@ -38,27 +38,29 @@ describe("formatStageStart (AC-2)", () => {
 
 describe("formatToolUse (AC-7)", () => {
   it("renders `  › ToolName(brief)`", () => {
-    expect(formatToolUse({ type: "tool_use", name: "Read", brief: "src/foo.ts" })).toEqual([
-      "  › Read(src/foo.ts)",
-    ]);
+    expect(
+      formatToolUse({ type: "tool_use", name: "Read", brief: "src/foo.ts" }),
+    ).toEqual(["  › Read(src/foo.ts)"]);
   });
 
   it("renders `  › ToolName()` when brief is empty", () => {
-    expect(formatToolUse({ type: "tool_use", name: "Mystery", brief: "" })).toEqual([
-      "  › Mystery()",
-    ]);
+    expect(
+      formatToolUse({ type: "tool_use", name: "Mystery", brief: "" }),
+    ).toEqual(["  › Mystery()"]);
   });
 });
 
 describe("formatToolResult (AC-8)", () => {
   it("is silent on success", () => {
-    expect(formatToolResult({ type: "tool_result", name: "Read", ok: true })).toEqual([]);
+    expect(
+      formatToolResult({ type: "tool_result", name: "Read", ok: true }),
+    ).toEqual([]);
   });
 
   it("renders `  ✗ ToolName failed` on failure", () => {
-    expect(formatToolResult({ type: "tool_result", name: "Bash", ok: false })).toEqual([
-      "  ✗ Bash failed",
-    ]);
+    expect(
+      formatToolResult({ type: "tool_result", name: "Bash", ok: false }),
+    ).toEqual(["  ✗ Bash failed"]);
   });
 });
 
@@ -70,7 +72,9 @@ describe("formatError (AC-9)", () => {
   });
 
   it("emits a single-line message as one line", () => {
-    expect(formatError({ type: "error", message: "boom" })).toEqual(["error: boom"]);
+    expect(formatError({ type: "error", message: "boom" })).toEqual([
+      "error: boom",
+    ]);
   });
 });
 
@@ -139,14 +143,18 @@ describe("formatStageEnd (AC-10)", () => {
 describe("formatResuming (S-004 AC-13)", () => {
   it("renders the §11 'resuming approved plan' headline for the paused path", async () => {
     const { formatResuming } = await import("../../src/ui/line-formatter.js");
-    expect(formatResuming("approved", "2026-04-25-1430-7af2", "clarify-assess")).toEqual([
+    expect(
+      formatResuming("approved", "2026-04-25-1430-7af2", "clarify-assess"),
+    ).toEqual([
       "praxis: resuming approved plan after clarify-assess (run 2026-04-25-1430-7af2)",
     ]);
   });
 
   it("renders the §11 'recovering ... re-validating' headline for the recovery path", async () => {
     const { formatResuming } = await import("../../src/ui/line-formatter.js");
-    expect(formatResuming("recovering", "2026-04-25-1430-7af2", "clarify-assess")).toEqual([
+    expect(
+      formatResuming("recovering", "2026-04-25-1430-7af2", "clarify-assess"),
+    ).toEqual([
       "praxis: recovering clarify-assess from on-disk artifact; re-validating (run 2026-04-25-1430-7af2)",
     ]);
   });
@@ -155,7 +163,11 @@ describe("formatResuming (S-004 AC-13)", () => {
 describe("formatPaused (AC-11)", () => {
   it("renders the canonical advance hint", () => {
     expect(
-      formatPaused("2026-04-25-1430-7af2", "clarify-assess", "/abs/path/01-clarify-assess.md"),
+      formatPaused(
+        "2026-04-25-1430-7af2",
+        "clarify-assess",
+        "/abs/path/01-clarify-assess.md",
+      ),
     ).toEqual([
       "praxis: paused after clarify-assess. Review /abs/path/01-clarify-assess.md then run: praxis advance 2026-04-25-1430-7af2",
     ]);
@@ -257,9 +269,9 @@ describe("formatAssistantText (AC-4) — wrap to terminal width", () => {
     const lines = formatAssistantText(text, 20);
     // Each continuation budget = 17. 40 = 17 + 17 + 6.
     expect(lines).toEqual([
-      " › " + "x".repeat(17),
-      "   " + "x".repeat(17),
-      "   " + "x".repeat(6),
+      ` › ${"x".repeat(17)}`,
+      `   ${"x".repeat(17)}`,
+      `   ${"x".repeat(6)}`,
     ]);
   });
 
@@ -283,28 +295,28 @@ describe("formatAssistantText (AC-5) — first-sentence summarization > 200 char
     const text = "y".repeat(300);
     const lines = formatAssistantText(text, 1000);
     expect(lines.length).toBe(1);
-    expect(lines[0]).toBe(" › " + "y".repeat(200) + "…");
+    expect(lines[0]).toBe(` › ${"y".repeat(200)}…`);
   });
 
   it("matches sentence boundary at end-of-string too (no trailing space required)", () => {
-    const text = "Done." + "z".repeat(250);
+    const text = `Done.${"z".repeat(250)}`;
     const lines = formatAssistantText(text, 1000);
     // The regex matches `.` followed by space OR end. After "Done." comes "z..."
     // — that's no boundary. So fallback to 200 + …
-    expect(lines[0]).toBe(" › " + text.slice(0, 200) + "…");
+    expect(lines[0]).toBe(` › ${text.slice(0, 200)}…`);
   });
 
   it("sentence-end at end-of-text triggers boundary match", () => {
-    const head = "x".repeat(205) + ".";
+    const head = `${"x".repeat(205)}.`;
     expect(head.length).toBe(206);
     const lines = formatAssistantText(head, 1000);
     // Single sentence ending at EOS.
-    expect(lines[0]).toBe(" › " + head);
+    expect(lines[0]).toBe(` › ${head}`);
   });
 
   it("does not summarize at exactly 200 chars or below", () => {
     const text = "z".repeat(200);
     const lines = formatAssistantText(text, 1000);
-    expect(lines).toEqual([" › " + text]);
+    expect(lines).toEqual([` › ${text}`]);
   });
 });

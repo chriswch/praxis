@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { validateClarifyAssessArtifact } from "../../src/workflow/validator.js";
 
 const happyPath = `## Intent
