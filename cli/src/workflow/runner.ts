@@ -1089,11 +1089,12 @@ export async function retryWorkflow(
     tokens: mergedTokens,
     usd: mergedUsd,
     retryAttempts: priorRetryAttempts + 1,
+    error:
+      errorMessage ??
+      (midStreamUnresumable
+        ? "code-improving session is unresumable"
+        : undefined),
   };
-  if (errorMessage) mergedStageState.error = errorMessage;
-  if (midStreamUnresumable && !mergedStageState.error) {
-    mergedStageState.error = "code-improving session is unresumable";
-  }
 
   const failed = stageStatus !== "completed";
   if (failed) {
