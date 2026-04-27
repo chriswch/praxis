@@ -16,6 +16,22 @@ import type { PraxisConfig } from "./schema.js";
  */
 export const AUTO_COMMIT_ID = "auto-commit";
 
+/**
+ * Stable id for the built-in code-reviewing stage. The runner dispatches the
+ * clean-tree skip-propagation by checking `stage.id === CODE_REVIEWING_ID`.
+ * Same dispatch-lock rationale as AUTO_COMMIT_ID — pin the literal in
+ * `tests/config/defaults.test.ts` so silent renames fail loudly.
+ */
+export const CODE_REVIEWING_ID = "code-reviewing";
+
+/**
+ * Stable id for the built-in code-improving stage. The runner dispatches the
+ * decision-driven skip and the "recoverable only via praxis retry" branch by
+ * checking `stage.id === CODE_IMPROVING_ID`. Same dispatch-lock rationale as
+ * AUTO_COMMIT_ID.
+ */
+export const CODE_IMPROVING_ID = "code-improving";
+
 const CLARIFY_ASSESS_USER_PROMPT = [
   "Intent: {{intent}}",
   "",
@@ -99,7 +115,7 @@ export const defaultWorkflow: PraxisConfig = {
       outputArtifact: "02-implement-log.md",
     },
     {
-      id: "code-reviewing",
+      id: CODE_REVIEWING_ID,
       systemPrompt: { file: "code-reviewing.md" },
       userPromptTemplate: CODE_REVIEWING_USER_PROMPT,
       allowedTools: ["Read", "Glob", "Grep", "Bash", "Skill"],
@@ -110,7 +126,7 @@ export const defaultWorkflow: PraxisConfig = {
       validate: validateCodeReviewArtifact,
     },
     {
-      id: "code-improving",
+      id: CODE_IMPROVING_ID,
       systemPrompt: { file: "code-improving.md" },
       userPromptTemplate: CODE_IMPROVING_USER_PROMPT,
       permissionMode: "bypassPermissions",

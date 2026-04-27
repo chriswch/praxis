@@ -1,8 +1,13 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { AUTO_COMMIT_ID, defaultWorkflow } from "../config/defaults.js";
+import {
+  AUTO_COMMIT_ID,
+  CODE_IMPROVING_ID,
+  CODE_REVIEWING_ID,
+  defaultWorkflow,
+} from "../config/defaults.js";
 import type { PraxisConfig, StageConfig } from "../config/schema.js";
+import { isWorkingTreeClean } from "../git/status.js";
 import type { Reporter, RunStatus, RunSummary } from "../ui/reporter.js";
 import { writeArtifact, writeIntent } from "./artifacts.js";
 import { appendPraxisToGitignore, runPreflight } from "./preflight.js";
@@ -16,6 +21,7 @@ import {
   type State,
   writeState,
 } from "./state.js";
+import { parseReviewDecision } from "./validator.js";
 
 export type RunWorkflowContext = {
   intent: string;
@@ -502,21 +508,6 @@ function summarize(state: State, status: RunStatus): RunSummary {
 /** ISO-8601 UTC string truncated to whole seconds, e.g. `2026-04-25T14:30:12Z`. */
 function toIsoSeconds(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
-}
-
-/**
- * S-006 AC-5 pre-check: returns true when `git status --porcelain` is empty
- * inside `cwd`. A non-zero git exit conservatively returns false so the
- * normal auto-commit path runs and surfaces the underlying error through the
- * commit() result rather than a silent skip.
- */
-function isWorkingTreeClean(cwd: string): boolean {
-  const status = spawnSync("git", ["status", "--porcelain"], {
-    cwd,
-    encoding: "utf8",
-  });
-  if (status.status !== 0) return false;
-  return status.stdout.trim() === "";
 }
 
 // ---------------------------------------------------------------------------

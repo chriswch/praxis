@@ -142,6 +142,25 @@ describe("defaultWorkflow", () => {
     expect(AUTO_COMMIT_ID).toBe("auto-commit");
   });
 
+  // S-003: same pattern as AUTO_COMMIT_ID. The runner dispatches the
+  // clean-tree skip-propagation and the decision-driven skip via
+  // `stage.id === CODE_REVIEWING_ID` / `stage.id === CODE_IMPROVING_ID`, so a
+  // silent rename of either default stage id would skip the dispatch without
+  // any other test failing. Lock the literals here.
+  it("CODE_REVIEWING_ID stays 'code-reviewing' (runner dispatch lock)", async () => {
+    const { CODE_REVIEWING_ID } = await import(
+      "../../src/config/defaults.js"
+    );
+    expect(CODE_REVIEWING_ID).toBe("code-reviewing");
+  });
+
+  it("CODE_IMPROVING_ID stays 'code-improving' (runner dispatch lock)", async () => {
+    const { CODE_IMPROVING_ID } = await import(
+      "../../src/config/defaults.js"
+    );
+    expect(CODE_IMPROVING_ID).toBe("code-improving");
+  });
+
   it("rejects a config with zero stages", () => {
     const result = praxisConfigSchema.safeParse({ version: 1, workflow: [] });
     expect(result.success).toBe(false);
