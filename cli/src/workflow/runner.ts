@@ -701,6 +701,26 @@ export async function advanceWorkflow(
 
   // failed / cancelled → recovery path. AC-7: cancelled is treated identically.
   if (status === "failed" || status === "cancelled") {
+    // S-003 AC-11/AC-12: a failed or cancelled code-improving stage cannot be
+    // recovered via `praxis advance`. Stage 4 is allowed to mutate the working
+    // tree (bypassPermissions, no validator), so a hand-edit + re-validate
+    // path doesn't exist — the code on disk and the partial 04-code-improve.md
+    // can be out of sync, and re-validating the artifact tells us nothing
+    // about what the stage actually did. Recovery requires a fresh SDK call,
+    // which is the `praxis retry` flow. Surface a precise error and leave
+    // state.json untouched so the user can run retry without losing context.
+    if (stage.id === CODE_IMPROVING_ID) {
+      reporter.runDone(runId, summarize(state, "failed"));
+      return {
+        ok: false,
+        reason:
+          "code-improving failed/cancelled is recoverable only via 'praxis retry <run-id>'",
+        runId,
+        runDir,
+        failedStageId: stage.id,
+        status: "failed",
+      };
+    }
     reporter.resuming?.("recovering", runId, stage.id);
     const recovery = recoverFailedStage(stage, state, runDir, deps);
     if (!recovery.ok) {

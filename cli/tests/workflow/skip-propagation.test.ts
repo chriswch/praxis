@@ -235,6 +235,95 @@ function seedRunDir(cwd: string, state: State): string {
   return runDir;
 }
 
+describe("S-003 AC-12: cancelled code-improving advance behaves identically to failed", () => {
+  it("cancelled code-improving on advance → same shape as AC-11", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state = stateWithCancelledImprove();
+      const runDir = seedRunDir(cwd, state);
+      writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
+      writeFileSync(
+        join(runDir, "04-code-improve.md"),
+        "## partial\n",
+        "utf8",
+      );
+      const stateBefore = JSON.parse(
+        readFileSync(join(runDir, "state.json"), "utf8"),
+      );
+      const recording = recordingScriptedQuery([]);
+      const reporter = new RecordingReporter();
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd },
+        buildDeps(recording, recordingCommit(), reporter),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.failedStageId).toBe("code-improving");
+      expect(result.status).toBe("failed");
+      expect(result.reason).toMatch(/code-improving.*recoverable.*praxis retry/);
+      expect(recording.calls.length).toBe(0);
+      const stateAfter = JSON.parse(
+        readFileSync(join(runDir, "state.json"), "utf8"),
+      );
+      expect(stateAfter).toEqual(stateBefore);
+      const runDone = reporter.calls.filter((c) => c.kind === "runDone");
+      expect(runDone.length).toBe(1);
+      expect(runDone[0].kind === "runDone" && runDone[0].summary.status).toBe(
+        "failed",
+      );
+    });
+  });
+});
+
+describe("S-003 AC-11: praxis advance against failed code-improving is rejected — only praxis retry can recover it", () => {
+  it("failed code-improving on advance → ok:false, reason names 'praxis retry', failedStageId='code-improving', status='failed', no SDK call, state untouched, runDone fires once with failed", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state = stateWithFailedImprove();
+      const runDir = seedRunDir(cwd, state);
+      // Both review + improve artifacts on disk so the test isolates the
+      // advance branch — not artifact-missing.
+      writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
+      writeFileSync(
+        join(runDir, "04-code-improve.md"),
+        "## partial\n",
+        "utf8",
+      );
+      const stateBefore = JSON.parse(
+        readFileSync(join(runDir, "state.json"), "utf8"),
+      );
+
+      const recording = recordingScriptedQuery([]);
+      const reporter = new RecordingReporter();
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd },
+        buildDeps(recording, recordingCommit(), reporter),
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.failedStageId).toBe("code-improving");
+      expect(result.status).toBe("failed");
+      expect(result.reason).toMatch(/code-improving.*recoverable.*praxis retry/);
+      // Zero SDK calls.
+      expect(recording.calls.length).toBe(0);
+
+      // state.json untouched.
+      const stateAfter = JSON.parse(
+        readFileSync(join(runDir, "state.json"), "utf8"),
+      );
+      expect(stateAfter).toEqual(stateBefore);
+
+      // runDone fired exactly once with status=failed.
+      const runDone = reporter.calls.filter((c) => c.kind === "runDone");
+      expect(runDone.length).toBe(1);
+      expect(runDone[0].kind === "runDone" && runDone[0].summary.status).toBe(
+        "failed",
+      );
+    });
+  });
+});
+
 describe("S-003 AC-10: cancelled code-reviewing recovery identical to failed", () => {
   it("cancelled stage 3 with valid hand-edited artifact (proceed) → stages 4,5 dispatch identically to AC-8", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
