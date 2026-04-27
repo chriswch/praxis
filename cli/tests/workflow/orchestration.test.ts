@@ -277,7 +277,7 @@ describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
       expect(existsSync(join(result.runDir, "02-implement-log.md"))).toBe(
         false,
       );
-      expect(existsSync(join(result.runDir, "03-commit.txt"))).toBe(false);
+      expect(existsSync(join(result.runDir, "05-commit.txt"))).toBe(false);
     });
   });
 });

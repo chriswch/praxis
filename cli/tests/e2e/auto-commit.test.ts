@@ -27,6 +27,10 @@ import { withTempRepo } from "../support/tmp-repo.js";
 
 const VALID_CLARIFY = `## Intent\n\nadd a logout button.\n\n## Assumptions\n\n- auth ctx is present\n\n## Gaps\n\n- none\n\n## Plan\n\n1. wire — surfaces logout\n\n## Acceptance\n\n- posts /logout and redirects home\n`;
 
+// S-002: stock review-stage finalText satisfying the `## Decision` validator.
+const REVIEW_PROCEED = `# Review\n\nNo blocking issues.\n\n## Decision\n\nproceed\n`;
+const IMPROVE_LOG = `## Improvement summary\n\n- no fixes needed\n`;
+
 function stageMessages(sessionId: string, finalText: string): SdkMessage[] {
   return [
     {
@@ -125,9 +129,17 @@ describe("praxis run --no-pause lands one real commit (AC-8)", () => {
         "src/Foo.tsx",
         "export function Logout() { return null; }\n",
       );
+      const reviewRecorder = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+      ]);
+      const improveRecorder = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+      ]);
       const commitRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_commit", "feat: add logout button") }],
       ]);
+      // S-002 5-stage shape: clarify-assess → implement → code-reviewing →
+      // code-improving → auto-commit.
       const composedCreateQueryFn: CreateQueryFn = (input) => {
         call++;
         if (call === 1) return clarifyRecorder(input);
@@ -136,8 +148,10 @@ describe("praxis run --no-pause lands one real commit (AC-8)", () => {
           mkdirSync(join(cwd, "src"), { recursive: true });
           return implementRecorder(input);
         }
-        if (call === 3) return commitRecorder(input);
-        throw new Error("unexpected SDK call beyond 3");
+        if (call === 3) return reviewRecorder(input);
+        if (call === 4) return improveRecorder(input);
+        if (call === 5) return commitRecorder(input);
+        throw new Error("unexpected SDK call beyond 5");
       };
 
       const result = await runWorkflow(
@@ -171,9 +185,9 @@ describe("praxis run --no-pause lands one real commit (AC-8)", () => {
       );
       expect(persisted.stages["auto-commit"].commitSha).toBe(newHead);
 
-      // 03-commit.txt is the SHA-prefixed form.
+      // 05-commit.txt is the SHA-prefixed form.
       const commitArtifact = readFileSync(
-        join(result.runDir, "03-commit.txt"),
+        join(result.runDir, "05-commit.txt"),
         "utf8",
       );
       expect(commitArtifact).toBe(`${newHead}\n\nfeat: add logout button\n`);
@@ -223,13 +237,20 @@ describe("praxis advance lands one real commit (AC-9)", () => {
         "utf8",
       );
 
-      // Two more SDK calls: implement (with side-effect), auto-commit.
+      // S-002 5-stage shape: advance from paused-after-clarify scripts
+      // implement → code-reviewing → code-improving → auto-commit.
       let call = 0;
       const implementRecorder = implementWithSideEffect(
         cwd,
         "src/Bar.tsx",
         "export function Logout2() { return null; }\n",
       );
+      const reviewRecorder = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+      ]);
+      const improveRecorder = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+      ]);
       const commitRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_commit", "feat: bar") }],
       ]);
@@ -239,8 +260,10 @@ describe("praxis advance lands one real commit (AC-9)", () => {
           mkdirSync(join(cwd, "src"), { recursive: true });
           return implementRecorder(input);
         }
-        if (call === 2) return commitRecorder(input);
-        throw new Error("unexpected SDK call beyond 2");
+        if (call === 2) return reviewRecorder(input);
+        if (call === 3) return improveRecorder(input);
+        if (call === 4) return commitRecorder(input);
+        throw new Error("unexpected SDK call beyond 4");
       };
 
       const result = await advanceWorkflow(

@@ -128,6 +128,19 @@ function seedPausedRun(cwd: string): string {
   return runDir;
 }
 
+/**
+ * Stock review-stage finalText that satisfies the `## Decision` H2 validator
+ * (S-002 AC-2). Tests scripting the 5-stage default workflow re-use this so
+ * code-reviewing's validator passes on the first attempt.
+ */
+const REVIEW_PROCEED = `# Code review\n\nNo blocking issues.\n\n## Decision\n\nproceed\n`;
+
+/**
+ * Stock improve-stage finalText. The improve stage has no validator, so any
+ * non-empty body works; this is just a human-readable placeholder.
+ */
+const IMPROVE_LOG = `## Improvement summary\n\n- no fixes needed\n`;
+
 /** Three-message script used by advance tests for both implement + auto-commit. */
 function stageMessages(sessionId: string, finalText: string): SdkMessage[] {
   return [
@@ -236,15 +249,19 @@ function happyImplementMessages(sessionId = "sess_impl"): SdkMessage[] {
 }
 
 describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)", () => {
-  it("writes 02-implement-log.md verbatim, rewrites 03-commit.txt with the SHA prepended, captures commitSha in state, calls deps.commit with (cwd, finalText)", async () => {
+  it("writes 02-implement-log.md verbatim, rewrites 05-commit.txt with the SHA prepended, captures commitSha in state, calls deps.commit with (cwd, finalText)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const runDir = seedPausedRun(cwd);
 
       const implementLog =
         "## Files changed\n\n- src/Foo.tsx — added logout button\n";
       const commitMessage = "feat: add logout button";
+      // S-002 5-stage shape: implement → code-reviewing → code-improving →
+      // auto-commit (clarify-assess already completed in seedPausedRun).
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_impl", implementLog) }],
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
         [{ messages: stageMessages("sess_commit", commitMessage) }],
       ]);
       const fakeSha = "abcdef0123456789abcdef0123456789abcdef01";
@@ -261,8 +278,8 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
       expect(readFileSync(join(runDir, "02-implement-log.md"), "utf8")).toBe(
         implementLog,
       );
-      // S-006 AC-4: 03-commit.txt rewritten with `<sha>\n\n<message>\n`.
-      expect(readFileSync(join(runDir, "03-commit.txt"), "utf8")).toBe(
+      // S-006 AC-4: 05-commit.txt rewritten with `<sha>\n\n<message>\n`.
+      expect(readFileSync(join(runDir, "05-commit.txt"), "utf8")).toBe(
         `${fakeSha}\n\n${commitMessage}\n`,
       );
 
@@ -335,8 +352,8 @@ describe("implement timeout (AC-4)", () => {
       expect(existsSync(join(result.runDir!, "02-implement-log.md"))).toBe(
         true,
       );
-      // 03-commit.txt must NOT exist.
-      expect(existsSync(join(result.runDir!, "03-commit.txt"))).toBe(false);
+      // 05-commit.txt must NOT exist.
+      expect(existsSync(join(result.runDir!, "05-commit.txt"))).toBe(false);
 
       // deps.commit was never invoked.
       expect(commit.calls.length).toBe(0);
@@ -394,7 +411,7 @@ describe("implement SIGINT (AC-5)", () => {
       expect(existsSync(join(result.runDir!, "02-implement-log.md"))).toBe(
         true,
       );
-      expect(existsSync(join(result.runDir!, "03-commit.txt"))).toBe(false);
+      expect(existsSync(join(result.runDir!, "05-commit.txt"))).toBe(false);
       expect(commit.calls.length).toBe(0);
       expect(call).toBe(2);
     });
@@ -402,11 +419,14 @@ describe("implement SIGINT (AC-5)", () => {
 });
 
 describe("fresh SDK session per stage (AC-10)", () => {
-  it("clarify-assess sessionId is not reused for implement; each stage call gets its own AbortSignal", async () => {
+  it("clarify-assess sessionId is not reused downstream; each stage call gets its own AbortSignal", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
+      // S-002 5-stage shape — each stage gets its own scripted SDK call.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_impl", "implement log\n") }],
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
         [{ messages: stageMessages("sess_commit", "chore: noop") }],
       ]);
       const result = await runWorkflow(
@@ -415,12 +435,12 @@ describe("fresh SDK session per stage (AC-10)", () => {
       );
       if (!result.ok) throw new Error(result.reason);
 
-      // Three distinct SDK invocations.
-      expect(recording.calls.length).toBe(3);
+      // Five distinct SDK invocations.
+      expect(recording.calls.length).toBe(5);
 
       // Each invocation got its own AbortSignal (not shared).
       const sigs = recording.calls.map((c) => c.input.signal);
-      expect(new Set(sigs).size).toBe(3);
+      expect(new Set(sigs).size).toBe(5);
 
       // Distinct sessionIds persisted.
       const persisted = JSON.parse(
@@ -429,11 +449,15 @@ describe("fresh SDK session per stage (AC-10)", () => {
       const sessionIds = [
         persisted.stages["clarify-assess"].sessionId,
         persisted.stages.implement.sessionId,
+        persisted.stages["code-reviewing"].sessionId,
+        persisted.stages["code-improving"].sessionId,
         persisted.stages["auto-commit"].sessionId,
       ];
-      expect(new Set(sessionIds).size).toBe(3);
+      expect(new Set(sessionIds).size).toBe(5);
       expect(persisted.stages["clarify-assess"].sessionId).toBe("sess_clarify");
       expect(persisted.stages.implement.sessionId).toBe("sess_impl");
+      expect(persisted.stages["code-reviewing"].sessionId).toBe("sess_review");
+      expect(persisted.stages["code-improving"].sessionId).toBe("sess_improve");
       expect(persisted.stages["auto-commit"].sessionId).toBe("sess_commit");
     });
   });
@@ -448,8 +472,12 @@ describe("02-implement-log.md is verbatim finalText (AC-8)", () => {
       const implementLog = "## Files changed\n\n- a.ts\n- b.ts";
       expect(implementLog.endsWith("\n")).toBe(false);
 
+      // S-002 5-stage shape: advance from paused-after-clarify must script
+      // implement → code-reviewing → code-improving → auto-commit.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_impl", implementLog) }],
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
         [{ messages: stageMessages("sess_commit", "chore: noop") }],
       ]);
       const result = await advanceWorkflow(
@@ -579,8 +607,8 @@ describe("runStage translates implement tool_use/tool_result blocks to AgentEven
   });
 });
 
-describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
-  it("noPause: true drives clarify-assess → implement → auto-commit; commit fires once with the auto-commit finalText", async () => {
+describe("runWorkflow --no-pause runs all 5 stages in one shot (AC-3)", () => {
+  it("noPause: true drives clarify-assess → implement → code-reviewing → code-improving → auto-commit; commit fires once with the auto-commit finalText", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const implementLog =
         "## Files changed\n\n- src/Foo.tsx — added logout button\n";
@@ -590,6 +618,10 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         // implement.
         [{ messages: stageMessages("sess_impl", implementLog) }],
+        // code-reviewing.
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        // code-improving.
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
         // auto-commit.
         [{ messages: stageMessages("sess_commit", commitMessage) }],
       ]);
@@ -602,8 +634,8 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
       expect(result.paused).toBe(false);
 
-      // All three SDK stages executed.
-      expect(recording.calls.length).toBe(3);
+      // All five SDK stages executed.
+      expect(recording.calls.length).toBe(5);
 
       // Per-stage state.json transitions.
       const persisted = JSON.parse(
@@ -611,9 +643,11 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
       );
       expect(persisted.stages["clarify-assess"].status).toBe("completed");
       expect(persisted.stages.implement.status).toBe("completed");
+      expect(persisted.stages["code-reviewing"].status).toBe("completed");
+      expect(persisted.stages["code-improving"].status).toBe("completed");
       expect(persisted.stages["auto-commit"].status).toBe("completed");
 
-      // Artifacts written verbatim — except 03-commit.txt which the runner
+      // Artifacts written verbatim — except 05-commit.txt which the runner
       // rewrites with the SHA prepended (S-006 AC-4).
       expect(
         readFileSync(join(result.runDir, "01-clarify-assess.md"), "utf8"),
@@ -621,8 +655,14 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
       expect(
         readFileSync(join(result.runDir, "02-implement-log.md"), "utf8"),
       ).toBe(implementLog);
+      expect(
+        readFileSync(join(result.runDir, "03-code-review.md"), "utf8"),
+      ).toBe(REVIEW_PROCEED);
+      expect(
+        readFileSync(join(result.runDir, "04-code-improve.md"), "utf8"),
+      ).toBe(IMPROVE_LOG);
       const expectedSha = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
-      expect(readFileSync(join(result.runDir, "03-commit.txt"), "utf8")).toBe(
+      expect(readFileSync(join(result.runDir, "05-commit.txt"), "utf8")).toBe(
         `${expectedSha}\n\n${commitMessage}\n`,
       );
       expect(persisted.stages["auto-commit"].commitSha).toBe(expectedSha);
@@ -637,9 +677,12 @@ describe("runWorkflow --no-pause runs all 3 stages in one shot (AC-3)", () => {
 describe("RunSummary.commitSha plumbed from auto-commit state (S-006 AC-7)", () => {
   it("summarize() reads state.stages['auto-commit'].commitSha and surfaces it on runDone's RunSummary", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
+      // S-002 5-stage shape.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
         [{ messages: stageMessages("sess_commit", "feat: x") }],
       ]);
       const sha = "1234567890abcdef1234567890abcdef12345678";
@@ -662,12 +705,15 @@ describe("RunSummary.commitSha plumbed from auto-commit state (S-006 AC-7)", () 
 });
 
 describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
-  it("deps.commit returns {ok:false, reason} → state.json shows status:failed, stopReason:commit_failed, error:reason; 03-commit.txt is the agent message only", async () => {
+  it("deps.commit returns {ok:false, reason} → state.json shows status:failed, stopReason:commit_failed, error:reason; 05-commit.txt is the agent message only", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const commitMessage = "feat: nope";
+      // S-002 5-stage shape.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
         [{ messages: stageMessages("sess_commit", commitMessage) }],
       ]);
       const reason = "git commit failed: pre-commit hook rejected";
@@ -694,8 +740,8 @@ describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
       // No SHA captured on failure.
       expect(ac.commitSha).toBeUndefined();
 
-      // 03-commit.txt holds the agent message only — no SHA prefix.
-      expect(readFileSync(join(result.runDir!, "03-commit.txt"), "utf8")).toBe(
+      // 05-commit.txt holds the agent message only — no SHA prefix.
+      expect(readFileSync(join(result.runDir!, "05-commit.txt"), "utf8")).toBe(
         commitMessage,
       );
 
@@ -706,7 +752,7 @@ describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
 });
 
 describe("runner skips auto-commit SDK call when tree is clean (S-006 AC-5)", () => {
-  it("clean tree before auto-commit → no SDK call, no deps.commit, state shows completed/skipped, no 03-commit.txt", async () => {
+  it("clean tree before auto-commit → no SDK call, no deps.commit, state shows completed/skipped, no 05-commit.txt", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // Pre-commit a baseline .gitignore so runWorkflow's
       // appendPraxisToGitignore is a no-op AND there is a HEAD already; the
@@ -720,11 +766,15 @@ describe("runner skips auto-commit SDK call when tree is clean (S-006 AC-5)", ()
         encoding: "utf8",
       }).stdout.trim();
 
-      // Only TWO scripts — clarify-assess and implement. Auto-commit's SDK
-      // call must NOT happen (the recording would throw "ran out of scripts").
+      // S-002 5-stage shape: clarify-assess + implement + code-reviewing +
+      // code-improving still run; only auto-commit's SDK call is skipped via
+      // the clean-tree pre-check (the recording would throw "ran out of
+      // scripts" if auto-commit's stage tried to fire).
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
       ]);
       const commit = recordingCommit();
 
@@ -734,8 +784,8 @@ describe("runner skips auto-commit SDK call when tree is clean (S-006 AC-5)", ()
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // Only two SDK invocations — auto-commit was short-circuited.
-      expect(recording.calls.length).toBe(2);
+      // Four SDK invocations — auto-commit was short-circuited.
+      expect(recording.calls.length).toBe(4);
       // deps.commit must not be called when we skip the stage.
       expect(commit.calls.length).toBe(0);
 
@@ -749,8 +799,8 @@ describe("runner skips auto-commit SDK call when tree is clean (S-006 AC-5)", ()
       expect(ac.tokens).toBeUndefined();
       expect(ac.usd).toBeUndefined();
 
-      // No 03-commit.txt — we never produced an agent message.
-      expect(existsSync(join(result.runDir, "03-commit.txt"))).toBe(false);
+      // No 05-commit.txt — we never produced an agent message.
+      expect(existsSync(join(result.runDir, "05-commit.txt"))).toBe(false);
 
       // HEAD did not move.
       const headAfter = spawnSync("git", ["rev-parse", "HEAD"], {

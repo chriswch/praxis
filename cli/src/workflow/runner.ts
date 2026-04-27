@@ -27,7 +27,7 @@ export type RunWorkflowContext = {
    * runner advances to the next stage instead of returning paused.
    */
   noPause?: boolean;
-  /** Override the default 3-stage workflow (tests). */
+  /** Override the default 5-stage workflow (tests). */
   config?: PraxisConfig;
   /**
    * Parent abort signal — when fired, the in-flight stage is aborted as
@@ -221,7 +221,7 @@ async function runOneStage(
   // Implement may have made no edits, or recovered to baseline; either way,
   // there is nothing to commit and no message to draft. Synthesize a
   // completed stage with stopReason "skipped" — no sessionId/tokens/usd, no
-  // 03-commit.txt, no deps.commit hand-off.
+  // 05-commit.txt, no deps.commit hand-off.
   if (stage.id === AUTO_COMMIT_ID && isWorkingTreeClean(ctx.cwd)) {
     const skipped: StageState = {
       status: "completed",
@@ -272,7 +272,7 @@ async function runOneStage(
 
   // M-2: compose the artifact's final content BEFORE the first write so each
   // terminal path performs at most one writeFileSync. The auto-commit stage
-  // is special — its final 03-commit.txt is the SHA-prefixed form ONLY when
+  // is special — its final 05-commit.txt is the SHA-prefixed form ONLY when
   // the commit lands; we therefore defer the write past `deps.commit()` and
   // pass through one of three branches:
   //
@@ -304,9 +304,9 @@ async function runOneStage(
   }
 
   // S-006 AC-4/AC-6: hand the message (verbatim finalText) to the git seam.
-  // On {ok:true, sha}, the SHA is prepended onto 03-commit.txt and stamped on
+  // On {ok:true, sha}, the SHA is prepended onto 05-commit.txt and stamped on
   // the stage state. On {ok:false}, the stage is flipped to failed/
-  // commit_failed; 03-commit.txt keeps the agent message only (no SHA prefix).
+  // commit_failed; 05-commit.txt keeps the agent message only (no SHA prefix).
   // Skip path (clean tree pre-stage) is handled at the top of this fn.
   let artifactPath: string;
   if (stage.id === AUTO_COMMIT_ID) {
@@ -339,7 +339,7 @@ async function runOneStage(
       // commitOutcome.skipped === true: commit() saw a clean tree mid-stage.
       // No SHA, no artifact — the agent's message is meaningless without a
       // real commit, and there is no path through which a downstream consumer
-      // expects 03-commit.txt to exist in this state.
+      // expects 05-commit.txt to exist in this state.
       artifactPath = join(runDir, stage.outputArtifact);
     }
     state.stages[stage.id] = stageState;
@@ -527,7 +527,7 @@ export type AdvanceWorkflowContext = {
   cwd: string;
   /** Disable pause gates (same semantics as `runWorkflow`'s `--no-pause`). */
   noPause?: boolean;
-  /** Override the default 3-stage workflow (tests). */
+  /** Override the default 5-stage workflow (tests). */
   config?: PraxisConfig;
   /** Parent abort signal — wired to SIGINT by the CLI. */
   signal?: AbortSignal;

@@ -1,7 +1,11 @@
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { defaultWorkflow } from "../../src/config/defaults.js";
 import { praxisConfigSchema } from "../../src/config/schema.js";
 import { buildUserPrompt, loadSystemPrompt } from "../../src/workflow/stage.js";
+import { validateCodeReviewArtifact } from "../../src/workflow/validator.js";
 
 describe("defaultWorkflow", () => {
   it("conforms to praxisConfigSchema", () => {
@@ -9,10 +13,14 @@ describe("defaultWorkflow", () => {
     expect(result.success).toBe(true);
   });
 
-  it("has the three required stage ids in order", () => {
+  // S-002 AC-1: 5-stage shape with code-reviewing and code-improving inserted
+  // between implement and auto-commit.
+  it("has the five required stage ids in order", () => {
     expect(defaultWorkflow.workflow.map((s) => s.id)).toEqual([
       "clarify-assess",
       "implement",
+      "code-reviewing",
+      "code-improving",
       "auto-commit",
     ]);
   });
@@ -33,6 +41,8 @@ describe("defaultWorkflow", () => {
     );
     expect(byId["clarify-assess"].model).toBe("claude-opus-4-7");
     expect(byId.implement.model).toBe("claude-opus-4-7");
+    expect(byId["code-reviewing"].model).toBe("claude-opus-4-7");
+    expect(byId["code-improving"].model).toBe("claude-opus-4-7");
     expect(byId["auto-commit"].model).toBe("claude-haiku-4-5-20251001");
   });
 
@@ -42,7 +52,10 @@ describe("defaultWorkflow", () => {
     );
     expect(byId["clarify-assess"].outputArtifact).toBe("01-clarify-assess.md");
     expect(byId.implement.outputArtifact).toBe("02-implement-log.md");
-    expect(byId["auto-commit"].outputArtifact).toBe("03-commit.txt");
+    expect(byId["code-reviewing"].outputArtifact).toBe("03-code-review.md");
+    expect(byId["code-improving"].outputArtifact).toBe("04-code-improve.md");
+    // S-002 AC-4: auto-commit artifact renumbered 03 → 05.
+    expect(byId["auto-commit"].outputArtifact).toBe("05-commit.txt");
   });
 
   it("only pauses after clarify-assess by default", () => {
@@ -51,15 +64,20 @@ describe("defaultWorkflow", () => {
     );
     expect(byId["clarify-assess"].pauseAfter).toBe(true);
     expect(byId.implement.pauseAfter ?? false).toBe(false);
+    expect(byId["code-reviewing"].pauseAfter ?? false).toBe(false);
+    expect(byId["code-improving"].pauseAfter ?? false).toBe(false);
     expect(byId["auto-commit"].pauseAfter ?? false).toBe(false);
   });
 
-  it("attaches a validate hook only to clarify-assess", () => {
+  it("attaches validate hooks to clarify-assess and code-reviewing only", () => {
     const byId = Object.fromEntries(
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     expect(typeof byId["clarify-assess"].validate).toBe("function");
     expect(byId.implement.validate).toBeUndefined();
+    // S-002 AC-2: code-reviewing wires the Decision-H2 validator.
+    expect(byId["code-reviewing"].validate).toBe(validateCodeReviewArtifact);
+    expect(byId["code-improving"].validate).toBeUndefined();
     expect(byId["auto-commit"].validate).toBeUndefined();
   });
 
@@ -89,6 +107,39 @@ describe("defaultWorkflow", () => {
     const ac = byId["auto-commit"];
     expect(ac.permissionMode ?? "default").toBe("default");
     expect(ac.allowedTools).toEqual(["Bash"]);
+  });
+
+  // S-002 AC-2: code-reviewing stage shape.
+  it("code-reviewing uses default permission with the review-tool allowlist", () => {
+    const byId = Object.fromEntries(
+      defaultWorkflow.workflow.map((s) => [s.id, s] as const),
+    );
+    const cr = byId["code-reviewing"];
+    expect(cr.permissionMode ?? "default").toBe("default");
+    expect([...(cr.allowedTools ?? [])].sort()).toEqual(
+      ["Bash", "Glob", "Grep", "Read", "Skill"].sort(),
+    );
+    expect(cr.timeoutMs).toBe(900_000);
+    expect(cr.systemPrompt).toEqual({ file: "code-reviewing.md" });
+  });
+
+  // S-002 AC-3: code-improving stage shape.
+  it("code-improving uses bypassPermissions and no allowedTools restriction", () => {
+    const byId = Object.fromEntries(
+      defaultWorkflow.workflow.map((s) => [s.id, s] as const),
+    );
+    const ci = byId["code-improving"];
+    expect(ci.permissionMode).toBe("bypassPermissions");
+    expect(ci.allowedTools).toBeUndefined();
+    expect(ci.timeoutMs).toBe(1_800_000);
+    expect(ci.systemPrompt).toEqual({ file: "code-improving.md" });
+  });
+
+  // S-002 AC-5: AUTO_COMMIT_ID literal must remain "auto-commit" so the runner
+  // dispatch in runner.ts (`stage.id === AUTO_COMMIT_ID`) keeps firing.
+  it("AUTO_COMMIT_ID stays 'auto-commit' (runner dispatch lock)", async () => {
+    const { AUTO_COMMIT_ID } = await import("../../src/config/defaults.js");
+    expect(AUTO_COMMIT_ID).toBe("auto-commit");
   });
 
   it("rejects a config with zero stages", () => {
@@ -161,5 +212,77 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
     const sys = loadSystemPrompt(stageById("auto-commit"));
     expect(rendered).not.toBe(sys);
     expect(rendered).not.toContain("`permissionMode`");
+  });
+
+  // S-002 AC-2: code-reviewing user prompt references {{runDir}} and asks
+  // the agent to invoke the praxis:code-reviewing skill via Skill.
+  it("code-reviewing renders runDir and names the praxis:code-reviewing skill", () => {
+    const rendered = buildUserPrompt(stageById("code-reviewing"), ctx());
+    expect(rendered).toContain("/run/dir");
+    expect(rendered).toContain("praxis:code-reviewing");
+    expect(rendered.toLowerCase()).toContain("skill");
+    // System prompt content must NOT leak into the user prompt.
+    const sys = loadSystemPrompt(stageById("code-reviewing"));
+    expect(rendered).not.toBe(sys);
+  });
+
+  // S-002 AC-3: code-improving user prompt references the code-reviewing
+  // artifact path token and names the praxis:code-improving skill.
+  it("code-improving references the code-reviewing artifact path and names the skill", () => {
+    const rendered = buildUserPrompt(
+      stageById("code-improving"),
+      ctx({
+        artifactPaths: { "code-reviewing": "/run/dir/03-code-review.md" },
+      }),
+    );
+    expect(rendered).toContain("/run/dir/03-code-review.md");
+    expect(rendered).toContain("praxis:code-improving");
+    // System prompt content must NOT leak into the user prompt.
+    const sys = loadSystemPrompt(stageById("code-improving"));
+    expect(rendered).not.toBe(sys);
+  });
+});
+
+/**
+ * S-002 AC-6, AC-7, AC-8: prompt files exist on disk and contain the marker
+ * phrases the runtime relies on. Belt-and-braces against accidental deletion
+ * or stale-template regressions.
+ */
+describe("S-002 prompt-file smoke tests", () => {
+  // Resolve src/config/prompts/ relative to this test file so the assertions
+  // don't depend on cwd.
+  const promptsDir = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "src",
+    "config",
+    "prompts",
+  );
+
+  it("code-reviewing.md exists and references the praxis:code-reviewing skill + Decision contract", () => {
+    const path = join(promptsDir, "code-reviewing.md");
+    expect(existsSync(path)).toBe(true);
+    const text = readFileSync(path, "utf8");
+    expect(text).toContain("praxis:code-reviewing");
+    expect(text).toContain("## Decision");
+    expect(text).toContain("proceed");
+    expect(text).toContain("skip-improve");
+  });
+
+  it("code-improving.md exists and references the praxis:code-improving skill + review-artifact token", () => {
+    const path = join(promptsDir, "code-improving.md");
+    expect(existsSync(path)).toBe(true);
+    const text = readFileSync(path, "utf8");
+    expect(text).toContain("praxis:code-improving");
+    expect(text).toContain("{{artifacts.code-reviewing.path}}");
+    expect(text).toContain("bypassPermissions");
+  });
+
+  it("auto-commit.md uses 05-commit.txt, not 03-commit.txt", () => {
+    const path = join(promptsDir, "auto-commit.md");
+    const text = readFileSync(path, "utf8");
+    expect(text).toContain("05-commit.txt");
+    expect(text).not.toContain("03-commit.txt");
   });
 });
