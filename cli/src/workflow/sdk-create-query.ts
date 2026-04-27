@@ -78,6 +78,7 @@ export const sdkCreateQueryFn: CreateQueryFn = (input) => {
     options.allowDangerouslySkipPermissions = true;
   }
   if (input.model) options.model = input.model;
+  if (input.resume !== undefined) options.resume = input.resume;
 
   const sdkStream = query({
     prompt: userPrompts() as never,

@@ -95,6 +95,12 @@ export type CreateQueryFnInput = {
   settingSources: ["user", "project"];
   signal: AbortSignal;
   initialUserPrompt: string;
+  /**
+   * SDK session id to resume. When set, the production wrapper passes it
+   * through as the `resume` option to the SDK's `query()` so the agent
+   * continues an existing conversation instead of starting fresh.
+   */
+  resume?: string;
 };
 
 export type CreateQueryFnHandle = {

@@ -170,6 +170,53 @@ describe("sdkCreateQueryFn lifecycle", () => {
     expect("allowDangerouslySkipPermissions" in opts).toBe(false);
   });
 
+  it("forwards resume to SDK options when provided", async () => {
+    capturedOptions.length = 0;
+    const ctl = new AbortController();
+    const handle = sdkCreateQueryFn({
+      systemPrompt: "test",
+      settingSources: ["user", "project"],
+      signal: ctl.signal,
+      initialUserPrompt: "first",
+      resume: "sess_abc123",
+    });
+    const consumer = (async () => {
+      for await (const msg of handle.stream) {
+        if (msg.type === "result") {
+          ctl.abort();
+          return;
+        }
+      }
+    })();
+    await consumer;
+    expect(capturedOptions.length).toBe(1);
+    const opts = capturedOptions[0];
+    expect(opts.resume).toBe("sess_abc123");
+  });
+
+  it("omits resume from SDK options when not provided", async () => {
+    capturedOptions.length = 0;
+    const ctl = new AbortController();
+    const handle = sdkCreateQueryFn({
+      systemPrompt: "test",
+      settingSources: ["user", "project"],
+      signal: ctl.signal,
+      initialUserPrompt: "first",
+    });
+    const consumer = (async () => {
+      for await (const msg of handle.stream) {
+        if (msg.type === "result") {
+          ctl.abort();
+          return;
+        }
+      }
+    })();
+    await consumer;
+    expect(capturedOptions.length).toBe(1);
+    const opts = capturedOptions[0];
+    expect("resume" in opts).toBe(false);
+  });
+
   it("terminates cleanly when the consumer aborts — the user-prompt iterable wakes up", async () => {
     const ctl = new AbortController();
     const handle = sdkCreateQueryFn({
