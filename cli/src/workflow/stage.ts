@@ -219,13 +219,29 @@ export function buildUserPrompt(
  *   - sessionId reflects the last attempt (so on retry success it's the
  *     retry's id).
  */
+/**
+ * Optional per-call overrides for `runStage`. Used by `retryWorkflow` to
+ * resume a prior `code-improving` SDK session with a literal `continue` user
+ * prompt instead of the stage's templated `userPromptTemplate`. When omitted,
+ * `runStage` behaves identically to the pre-S-005 contract — fresh session,
+ * templated prompt — so `runWorkflow` and `advanceWorkflow` are unaffected.
+ */
+export type RunStageOverrides = {
+  /** SDK session id to resume; threaded into CreateQueryFnInput.resume. */
+  resume?: string;
+  /** Override `buildUserPrompt(config, ctx)`. Used for the literal `continue`. */
+  initialUserPrompt?: string;
+};
+
 export async function runStage(
   config: StageConfig,
   ctx: StageContext,
   deps: Pick<Deps, "createQueryFn">,
+  overrides?: RunStageOverrides,
 ): Promise<StageResult> {
   const systemPrompt = loadSystemPrompt(config);
-  const initialUserPrompt = buildUserPrompt(config, ctx);
+  const initialUserPrompt =
+    overrides?.initialUserPrompt ?? buildUserPrompt(config, ctx);
 
   // Stage-local controller: aborts on (a) parent ctx.signal, (b) timeoutMs,
   // (c) when the stage decides it's done (in finally). The reason recorded
@@ -260,6 +276,7 @@ export async function runStage(
       settingSources: ["user", "project"],
       signal: stageAbort.signal,
       initialUserPrompt,
+      resume: overrides?.resume,
     });
 
     let attempt = 0;

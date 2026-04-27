@@ -28,6 +28,13 @@ export interface StageState {
    * `summarize()` onto `RunSummary.commitSha` for the run-done line.
    */
   commitSha?: string;
+  /**
+   * S-005: number of `praxis retry <run-id>` invocations against this stage.
+   * Only meaningful for the `code-improving` stage today. Incremented BEFORE
+   * the SDK call so a SIGINT mid-stream still leaves the count accurate.
+   * Absent until the first retry attempt.
+   */
+  retryAttempts?: number;
 }
 
 export interface State {

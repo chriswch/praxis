@@ -574,8 +574,12 @@ function classifyOutcome(result: StageResult): {
  * Resolve artifact paths for stages already completed in this run. Derived
  * straight from `state.stages[id].status === "completed"` plus the on-disk
  * filename so the runner doesn't keep a parallel cache.
+ *
+ * Exported for use by `retryWorkflow`, which builds a `StageContext` for the
+ * resumed `code-improving` stage and needs the same upstream-artifact map the
+ * normal loop derives.
  */
-function collectArtifactPaths(
+export function collectArtifactPaths(
   state: State,
   config: PraxisConfig,
   runDir: string,
@@ -862,4 +866,258 @@ function recoverFailedStage(
   // preserved via the spread.
   writeState(runDir, state);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Retry (S-005)
+// ---------------------------------------------------------------------------
+
+export type RetryWorkflowContext = {
+  cwd: string;
+  /** Disable pause gates (same semantics as `runWorkflow`'s `--no-pause`). */
+  noPause?: boolean;
+  /** Override the default 5-stage workflow (tests). */
+  config?: PraxisConfig;
+  /** Parent abort signal — wired to SIGINT by the CLI. */
+  signal?: AbortSignal;
+};
+
+/**
+ * Resume a failed/cancelled `code-improving` SDK session with the literal
+ * user prompt `continue`. Scoped narrowly to one stage for the milestone:
+ *
+ *   - first non-completed stage MUST be `code-improving`;
+ *   - its status MUST be `failed` or `cancelled`;
+ *   - its `sessionId` MUST be non-empty (otherwise resume is impossible).
+ *
+ * On success: tokens/usd/sessionId merge onto the existing per-stage entry,
+ * `retryAttempts` increments by 1, the stage flips to `completed`, and the
+ * remaining workflow (typically just `auto-commit`) executes via `executeStages`.
+ *
+ * On failure: tokens/usd accumulate, `retryAttempts` is preserved (it was
+ * incremented BEFORE the SDK call so SIGINT mid-stream still counts), the
+ * stage status is set per the harness signal, and the partial finalText is
+ * written to `04-code-improve.md` so the user can inspect what came back.
+ */
+export async function retryWorkflow(
+  runId: string,
+  ctx: RetryWorkflowContext,
+  deps: Deps,
+): Promise<RunWorkflowResult> {
+  const config = ctx.config ?? defaultWorkflow;
+  const reporter = deps.reporter;
+  const runDir = join(ctx.cwd, ".praxis", "runs", runId);
+
+  const read = readState(runDir);
+  if (!read.ok) {
+    return { ok: false, reason: read.reason, runId, runDir };
+  }
+  const state = read.state;
+
+  // Resume-point scan: first non-completed stage in workflow order.
+  const idx = config.workflow.findIndex(
+    (s) => state.stages[s.id]?.status !== "completed",
+  );
+  if (idx === -1) {
+    return {
+      ok: false,
+      reason: "run is already complete",
+      runId,
+      runDir,
+    };
+  }
+
+  const stage = config.workflow[idx];
+  if (stage.id !== CODE_IMPROVING_ID) {
+    return {
+      ok: false,
+      reason: `retry only supports code-improving (first non-completed stage is ${stage.id}); use praxis advance for that stage or start a fresh praxis run`,
+      runId,
+      runDir,
+      failedStageId: stage.id,
+    };
+  }
+
+  const prior = state.stages[stage.id];
+  if (!prior) {
+    return {
+      ok: false,
+      reason: `stage ${stage.id} has no state.json entry`,
+      runId,
+      runDir,
+      failedStageId: stage.id,
+    };
+  }
+  if (prior.status !== "failed" && prior.status !== "cancelled") {
+    return {
+      ok: false,
+      reason: `stage ${stage.id} is not in a retryable state (status=${prior.status})`,
+      runId,
+      runDir,
+      failedStageId: stage.id,
+    };
+  }
+
+  if (!prior.sessionId || prior.sessionId.length === 0) {
+    // No SDK session to resume → record the unresumable terminal state and
+    // surface a hint to start fresh. Costs are NOT touched (no SDK call).
+    state.stages[stage.id] = {
+      ...prior,
+      status: "failed",
+      stopReason: "session_unresumable",
+      endedAt: toIsoSeconds(deps.clock()),
+    };
+    writeState(runDir, state);
+    reporter.runDone(runId, summarize(state, "failed"));
+    return {
+      ok: false,
+      reason:
+        "code-improving session is unresumable; reset the working tree (e.g. git stash or git reset) and start a fresh praxis run",
+      runId,
+      runDir,
+      failedStageId: stage.id,
+      status: "failed",
+    };
+  }
+
+  // Increment retryAttempts BEFORE the SDK call so a SIGINT mid-stream still
+  // leaves the count accurate. Flip the stage to running while the call is in
+  // flight so a concurrent reader sees the in-progress state.
+  const priorRetryAttempts = prior.retryAttempts ?? 0;
+  state.stages[stage.id] = {
+    ...prior,
+    status: "running",
+    retryAttempts: priorRetryAttempts + 1,
+  };
+  writeState(runDir, state);
+
+  reporter.stageStart(stage, idx + 1, config.workflow.length);
+
+  const stageCtx: StageContext = {
+    intent: state.intent,
+    runDir,
+    runId,
+    reporter,
+    signal: ctx.signal ?? new AbortController().signal,
+    artifactPaths: collectArtifactPaths(state, config, runDir, stage.id),
+  };
+
+  const result = await runStage(
+    stage,
+    stageCtx,
+    { createQueryFn: deps.createQueryFn },
+    { resume: prior.sessionId, initialUserPrompt: "continue" },
+  );
+
+  // Mid-stream unresumable heuristic: when the SDK rejects the resume seed,
+  // the stream tears down before any `result` message lands — no tokens, no
+  // finalText, no cancelReason. Treat that shape as a session_unresumable
+  // failure so the user gets the same actionable error as the up-front guard.
+  const midStreamUnresumable =
+    result.cancelReason === undefined &&
+    (result.stopReason === "" || result.stopReason === undefined) &&
+    result.finalText === "" &&
+    result.tokens.input === 0;
+
+  const { stageStatus: classifiedStatus, errorMessage } =
+    classifyOutcome(result);
+
+  // Merge the new attempt's spend onto the prior entry. SessionId reflects
+  // the latest attempt — on a successful resume the SDK rotates to a new id.
+  const mergedTokens = {
+    input: (prior.tokens?.input ?? 0) + result.tokens.input,
+    output: (prior.tokens?.output ?? 0) + result.tokens.output,
+    cacheRead: (prior.tokens?.cacheRead ?? 0) + result.tokens.cacheRead,
+    cacheCreate: (prior.tokens?.cacheCreate ?? 0) + result.tokens.cacheCreate,
+  };
+  const mergedUsd = (prior.usd ?? 0) + result.usd;
+
+  // Cost totals only get the *new* attempt's spend — prior is already in the
+  // running totals from the original run + any prior retries.
+  state.cost.totalTokens += result.tokens.input + result.tokens.output;
+  state.cost.totalUsd += result.usd;
+
+  const stageStatus = midStreamUnresumable ? "failed" : classifiedStatus;
+  const persistedStopReason = midStreamUnresumable
+    ? "session_unresumable"
+    : (result.cancelReason ?? result.stopReason);
+
+  const mergedStageState: StageState = {
+    status: stageStatus,
+    endedAt: toIsoSeconds(deps.clock()),
+    stopReason: persistedStopReason,
+    sessionId: result.sessionId || prior.sessionId,
+    tokens: mergedTokens,
+    usd: mergedUsd,
+    retryAttempts: priorRetryAttempts + 1,
+  };
+  if (errorMessage) mergedStageState.error = errorMessage;
+  if (midStreamUnresumable && !mergedStageState.error) {
+    mergedStageState.error = "code-improving session is unresumable";
+  }
+
+  const failed = stageStatus !== "completed";
+  if (failed) {
+    // Preserve partial output for inspection, then go through the same
+    // failStage shape used by the main loop.
+    const artifactPath = writeArtifact(
+      runDir,
+      stage.outputArtifact,
+      result.finalText,
+    );
+    state.stages[stage.id] = mergedStageState;
+    writeState(runDir, state);
+    reporter.stageEnd(stage, {
+      ok: false,
+      artifactPath,
+      sessionId: mergedStageState.sessionId,
+      error: mergedStageState.error ?? "stage failed",
+    });
+    const runStatus =
+      classifiedStatus === "cancelled" && !midStreamUnresumable
+        ? "cancelled"
+        : "failed";
+    reporter.runDone(runId, summarize(state, runStatus));
+    return {
+      ok: false,
+      reason: mergedStageState.error ?? "stage failed",
+      runId,
+      runDir,
+      failedStageId: stage.id,
+      status: runStatus,
+    };
+  }
+
+  // Success: write the artifact, persist state, emit stageEnd, then dispatch
+  // the remaining stages. executeStages owns runDone for the success path.
+  const artifactPath = writeArtifact(
+    runDir,
+    stage.outputArtifact,
+    result.finalText,
+  );
+  state.stages[stage.id] = mergedStageState;
+  writeState(runDir, state);
+  reporter.stageEnd(stage, {
+    ok: true,
+    artifactPath,
+    sessionId: mergedStageState.sessionId,
+    error: undefined,
+  });
+
+  const loopCtx: LoopContext = {
+    intent: state.intent,
+    cwd: ctx.cwd,
+    noPause: ctx.noPause,
+    signal: ctx.signal,
+  };
+  return executeStages(
+    state,
+    config,
+    loopCtx,
+    deps,
+    reporter,
+    runDir,
+    runId,
+    idx + 1,
+  );
 }

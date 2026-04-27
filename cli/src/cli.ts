@@ -6,6 +6,7 @@ import { isRunId } from "./workflow/run-id.js";
 import {
   advanceWorkflow,
   type RunWorkflowResult,
+  retryWorkflow,
   runWorkflow,
 } from "./workflow/runner.js";
 import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
@@ -97,6 +98,35 @@ function parseAdvanceArgs(rest: string[]): ParsedAdvanceArgs {
   return { runId, noPause };
 }
 
+type ParsedRetryArgs = {
+  runId: string;
+  noPause: boolean;
+};
+
+function parseRetryArgs(rest: string[]): ParsedRetryArgs {
+  let noPause = false;
+  const positional: string[] = [];
+  for (const arg of rest) {
+    if (arg === "--no-pause") {
+      noPause = true;
+    } else if (arg.startsWith("--")) {
+      fail(`unknown flag: ${arg}`);
+    } else {
+      positional.push(arg);
+    }
+  }
+  const runId = positional[0];
+  if (runId === undefined) {
+    fail("missing run-id. Usage: praxis retry [--no-pause] <run-id>");
+  }
+  if (!isRunId(runId)) {
+    fail(
+      `invalid run-id: ${runId}. Expected shape YYYY-MM-DD-HHMM-xxxx (4 hex chars).`,
+    );
+  }
+  return { runId, noPause };
+}
+
 async function main(argv: string[]): Promise<void> {
   const args = argv.slice(2);
   const [command, ...rest] = args;
@@ -104,9 +134,13 @@ async function main(argv: string[]): Promise<void> {
     await runAdvance(rest);
     return;
   }
+  if (command === "retry") {
+    await runRetry(rest);
+    return;
+  }
   if (command !== "run") {
     fail(
-      `unknown command: ${command ?? "(missing)"}. Usage: praxis run [--allow-dirty] [--no-pause] "<intent>" | praxis advance [--no-pause] <run-id>`,
+      `unknown command: ${command ?? "(missing)"}. Usage: praxis run [--allow-dirty] [--no-pause] "<intent>" | praxis advance [--no-pause] <run-id> | praxis retry [--no-pause] <run-id>`,
     );
   }
   const { intent, allowDirty, noPause } = parseRunArgs(rest);
@@ -157,6 +191,41 @@ async function runAdvance(rest: string[]): Promise<void> {
   let result: RunWorkflowResult;
   try {
     result = await advanceWorkflow(
+      runId,
+      {
+        cwd: process.cwd(),
+        noPause,
+        signal: sigintAbort.signal,
+      },
+      buildDefaultDeps(),
+    );
+  } finally {
+    process.removeListener("SIGINT", onSigint);
+  }
+  if (!result.ok) {
+    process.stderr.write(`praxis: ${result.reason}\n`);
+    if (result.remediation) {
+      process.stderr.write(`${result.remediation}\n`);
+    }
+    process.exit(1);
+  }
+  process.stdout.write(`${result.runId}\n`);
+}
+
+async function runRetry(rest: string[]): Promise<void> {
+  // Parse first so unknown flags / bad run-ids surface before any disk I/O.
+  const { runId, noPause } = parseRetryArgs(rest);
+
+  // SIGINT mirrors `praxis run` / `praxis advance` — abort the in-flight stage
+  // so it surfaces a `cancelled` status rather than killing the SDK process
+  // orphan.
+  const sigintAbort = new AbortController();
+  const onSigint = () => sigintAbort.abort("sigint");
+  process.once("SIGINT", onSigint);
+
+  let result: RunWorkflowResult;
+  try {
+    result = await retryWorkflow(
       runId,
       {
         cwd: process.cwd(),
