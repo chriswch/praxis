@@ -883,6 +883,44 @@ export type RetryWorkflowContext = {
 };
 
 /**
+ * Shared retry-failure exit shape used by both the up-front
+ * `session_unresumable` guard and the post-SDK failure branch in
+ * {@link retryWorkflow}. Persists the merged stage state, emits the
+ * canonical `stageEnd` + `runDone` lifecycle, and returns the matching
+ * {@link RunWorkflowFailure}.
+ */
+function finalizeRetryFailure(
+  state: State,
+  runDir: string,
+  stage: StageConfig,
+  stageState: StageState,
+  reporter: Reporter,
+  runId: string,
+  reason: string,
+  status: "failed" | "cancelled",
+  failedStageId: string,
+  artifactPath?: string,
+): RunWorkflowFailure {
+  state.stages[stage.id] = stageState;
+  writeState(runDir, state);
+  reporter.stageEnd(stage, {
+    ok: false,
+    artifactPath,
+    sessionId: stageState.sessionId,
+    error: stageState.error ?? reason,
+  });
+  reporter.runDone(runId, summarize(state, status));
+  return {
+    ok: false,
+    reason,
+    runId,
+    runDir,
+    failedStageId,
+    status,
+  };
+}
+
+/**
  * Resume a failed/cancelled `code-improving` SDK session with the literal
  * user prompt `continue`. Scoped narrowly to one stage for the milestone:
  *
@@ -961,23 +999,24 @@ export async function retryWorkflow(
   if (!prior.sessionId || prior.sessionId.length === 0) {
     // No SDK session to resume → record the unresumable terminal state and
     // surface a hint to start fresh. Costs are NOT touched (no SDK call).
-    state.stages[stage.id] = {
+    const unresumableState: StageState = {
       ...prior,
       status: "failed",
       stopReason: "session_unresumable",
       endedAt: toIsoSeconds(deps.clock()),
     };
-    writeState(runDir, state);
-    reporter.runDone(runId, summarize(state, "failed"));
-    return {
-      ok: false,
-      reason:
-        "code-improving session is unresumable; reset the working tree (e.g. git stash or git reset) and start a fresh praxis run",
-      runId,
+    reporter.stageStart(stage, idx + 1, config.workflow.length);
+    return finalizeRetryFailure(
+      state,
       runDir,
-      failedStageId: stage.id,
-      status: "failed",
-    };
+      stage,
+      unresumableState,
+      reporter,
+      runId,
+      "code-improving session is unresumable; reset the working tree (e.g. git stash or git reset) and start a fresh praxis run",
+      "failed",
+      stage.id,
+    );
   }
 
   // Increment retryAttempts BEFORE the SDK call so a SIGINT mid-stream still
@@ -1065,27 +1104,22 @@ export async function retryWorkflow(
       stage.outputArtifact,
       result.finalText,
     );
-    state.stages[stage.id] = mergedStageState;
-    writeState(runDir, state);
-    reporter.stageEnd(stage, {
-      ok: false,
-      artifactPath,
-      sessionId: mergedStageState.sessionId,
-      error: mergedStageState.error ?? "stage failed",
-    });
     const runStatus =
       classifiedStatus === "cancelled" && !midStreamUnresumable
         ? "cancelled"
         : "failed";
-    reporter.runDone(runId, summarize(state, runStatus));
-    return {
-      ok: false,
-      reason: mergedStageState.error ?? "stage failed",
-      runId,
+    return finalizeRetryFailure(
+      state,
       runDir,
-      failedStageId: stage.id,
-      status: runStatus,
-    };
+      stage,
+      mergedStageState,
+      reporter,
+      runId,
+      mergedStageState.error ?? "stage failed",
+      runStatus,
+      stage.id,
+      artifactPath,
+    );
   }
 
   // Success: write the artifact, persist state, emit stageEnd, then dispatch
