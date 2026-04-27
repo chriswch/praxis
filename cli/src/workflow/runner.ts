@@ -223,12 +223,20 @@ async function runOneStage(
   // 1-based index (`[1/3 ...]`).
   reporter.stageStart(stage, index + 1, config.workflow.length);
 
-  // S-006 AC-5: skip the auto-commit SDK call when the working tree is clean.
-  // Implement may have made no edits, or recovered to baseline; either way,
-  // there is nothing to commit and no message to draft. Synthesize a
+  // S-006 AC-5 + S-003 AC-1/AC-2: skip the SDK call when the working tree is
+  // clean for any of the three trailing stages (code-reviewing, code-improving,
+  // auto-commit). Implement may have made no edits, or recovered to baseline;
+  // either way there is nothing to review, improve, or commit. Synthesize a
   // completed stage with stopReason "skipped" — no sessionId/tokens/usd, no
-  // 05-commit.txt, no deps.commit hand-off.
-  if (stage.id === AUTO_COMMIT_ID && isWorkingTreeClean(ctx.cwd)) {
+  // artifact written, no deps.commit hand-off. Once stage 3 skips on a clean
+  // tree, stages 4 and 5 see the same clean tree on entry and skip too,
+  // producing the cascading "skipped" stopReason for all three.
+  if (
+    (stage.id === AUTO_COMMIT_ID ||
+      stage.id === CODE_REVIEWING_ID ||
+      stage.id === CODE_IMPROVING_ID) &&
+    isWorkingTreeClean(ctx.cwd)
+  ) {
     const skipped: StageState = {
       status: "completed",
       endedAt: toIsoSeconds(deps.clock()),
