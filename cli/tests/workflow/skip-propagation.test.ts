@@ -156,6 +156,113 @@ function statePausedBeforeReview(): State {
   };
 }
 
+describe("S-003 AC-4: decision=skip-improve skips code-improving but still runs auto-commit", () => {
+  it("dirty tree + REVIEW_SKIP_IMPROVE → stage 4 skipped-trivial, no 04-code-improve.md, stage 5 still runs, recording.calls.length === 4 (no SDK call for stage 4)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+        [{ messages: stageMessages("sess_review", REVIEW_SKIP_IMPROVE) }],
+        // Stage 4 (code-improving) is decision-skipped — NO script for it.
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const commit = recordingCommit();
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, commit),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // Four SDK invocations: 1, 2, 3, 5. Stage 4 SDK call short-circuited.
+      expect(recording.calls.length).toBe(4);
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      const ci = persisted.stages["code-improving"];
+      expect(ci.status).toBe("completed");
+      expect(ci.stopReason).toBe("skipped-trivial");
+      expect(ci.sessionId).toBeUndefined();
+      expect(ci.tokens).toBeUndefined();
+      expect(ci.usd).toBeUndefined();
+
+      // No 04-code-improve.md — we never produced an agent message.
+      expect(existsSync(join(result.runDir, "04-code-improve.md"))).toBe(false);
+
+      // Auto-commit still ran (one deps.commit hand-off + a 05-commit.txt).
+      expect(commit.calls.length).toBe(1);
+      expect(persisted.stages["auto-commit"].status).toBe("completed");
+      expect(existsSync(join(result.runDir, "05-commit.txt"))).toBe(true);
+    });
+  });
+});
+
+describe("S-003 AC-3: decision=proceed dispatches code-improving normally", () => {
+  it("dirty tree + REVIEW_PROCEED → stage 4 SDK call happens; stages 4,5 both run; recording.calls.length === 5", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Dirty tree (no baseline commit) — runner appends .praxis/ to
+      // .gitignore, leaves it untracked. git status --porcelain is non-empty
+      // through every stage entry, so the clean-tree skip block is never
+      // taken.
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const commit = recordingCommit();
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, commit),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // All five SDK invocations made.
+      expect(recording.calls.length).toBe(5);
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-reviewing"].status).toBe("completed");
+      expect(persisted.stages["code-reviewing"].stopReason).toBe("end_turn");
+      expect(persisted.stages["code-improving"].status).toBe("completed");
+      expect(persisted.stages["code-improving"].stopReason).toBe("end_turn");
+      // Both artifacts written.
+      expect(
+        readFileSync(join(result.runDir, "03-code-review.md"), "utf8"),
+      ).toBe(REVIEW_PROCEED);
+      expect(
+        readFileSync(join(result.runDir, "04-code-improve.md"), "utf8"),
+      ).toBe(IMPROVE_LOG);
+    });
+  });
+});
+
+describe("S-003 AC-2: cascading clean-tree skip uses 'skipped' (not 'skipped-trivial')", () => {
+  it("stage 4 stopReason on cascading skip is 'skipped' — the 'skipped-trivial' token is reserved for decision-driven skips", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedCleanRepo(cwd);
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+      ]);
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-improving"].stopReason).toBe("skipped");
+      expect(persisted.stages["code-improving"].stopReason).not.toBe(
+        "skipped-trivial",
+      );
+    });
+  });
+});
+
 describe("S-003 AC-1: clean tree at code-reviewing entry skips stages 3, 4, 5", () => {
   it("clean tree before code-reviewing → stages 3,4,5 all completed/skipped, only 2 SDK calls (clarify-assess + implement)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {

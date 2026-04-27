@@ -248,6 +248,59 @@ async function runOneStage(
     return { kind: "continue" };
   }
 
+  // S-003 AC-4/AC-13: decision-driven skip on code-improving entry.
+  // The code-reviewing stage already validated its `## Decision` H2 (the
+  // validator runs there, not here), so the artifact body is one of "proceed"
+  // / "skip-improve" by construction. Read it, branch, and either short-
+  // circuit stage 4 with stopReason "skipped-trivial" (skip-improve) or fall
+  // through to the normal SDK dispatch (proceed). If the artifact is missing
+  // on disk we fail the stage rather than implicitly proceed — the run had a
+  // code-reviewing pass and its artifact must exist by AC-13.
+  if (stage.id === CODE_IMPROVING_ID) {
+    const codeReviewingStage = config.workflow.find(
+      (s) => s.id === CODE_REVIEWING_ID,
+    );
+    if (codeReviewingStage) {
+      const reviewArtifactPath = join(
+        runDir,
+        codeReviewingStage.outputArtifact,
+      );
+      if (!existsSync(reviewArtifactPath)) {
+        return failStage(
+          state,
+          runDir,
+          stage,
+          {
+            status: "failed",
+            endedAt: toIsoSeconds(deps.clock()),
+            stopReason: "missing_review_artifact",
+            error: `code-reviewing artifact missing: ${reviewArtifactPath}`,
+          },
+          reporter,
+          {
+            artifactPath: join(runDir, stage.outputArtifact),
+            reason: `code-reviewing artifact missing: ${reviewArtifactPath}`,
+            status: "failed",
+          },
+        );
+      }
+      const reviewText = readFileSync(reviewArtifactPath, "utf8");
+      const decision = parseReviewDecision(reviewText);
+      if (decision === "skip-improve") {
+        const skipped: StageState = {
+          status: "completed",
+          endedAt: toIsoSeconds(deps.clock()),
+          stopReason: "skipped-trivial",
+        };
+        state.stages[stage.id] = skipped;
+        writeState(runDir, state);
+        reporter.stageEnd(stage, { ok: true });
+        return { kind: "continue" };
+      }
+      // decision === "proceed" → fall through to normal SDK dispatch.
+    }
+  }
+
   const stageCtx: StageContext = {
     intent: ctx.intent,
     runDir,
