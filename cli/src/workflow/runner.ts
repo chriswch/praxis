@@ -223,83 +223,25 @@ async function runOneStage(
   // 1-based index (`[1/3 ...]`).
   reporter.stageStart(stage, index + 1, config.workflow.length);
 
-  // S-006 AC-5 + S-003 AC-1/AC-2: skip the SDK call when the working tree is
-  // clean for any of the three trailing stages (code-reviewing, code-improving,
-  // auto-commit). Implement may have made no edits, or recovered to baseline;
-  // either way there is nothing to review, improve, or commit. Synthesize a
-  // completed stage with stopReason "skipped" — no sessionId/tokens/usd, no
-  // artifact written, no deps.commit hand-off. Once stage 3 skips on a clean
-  // tree, stages 4 and 5 see the same clean tree on entry and skip too,
-  // producing the cascading "skipped" stopReason for all three.
-  if (
-    (stage.id === AUTO_COMMIT_ID ||
-      stage.id === CODE_REVIEWING_ID ||
-      stage.id === CODE_IMPROVING_ID) &&
-    isWorkingTreeClean(ctx.cwd)
-  ) {
-    const skipped: StageState = {
-      status: "completed",
-      endedAt: toIsoSeconds(deps.clock()),
-      stopReason: "skipped",
-    };
-    state.stages[stage.id] = skipped;
-    writeState(runDir, state);
-    reporter.stageEnd(stage, { ok: true });
-    return { kind: "continue" };
-  }
+  const cleanTreeSkip = maybeSkipCleanTree(
+    stage,
+    ctx,
+    deps,
+    runDir,
+    state,
+    reporter,
+  );
+  if (cleanTreeSkip) return cleanTreeSkip;
 
-  // S-003 AC-4/AC-13: decision-driven skip on code-improving entry.
-  // The code-reviewing stage already validated its `## Decision` H2 (the
-  // validator runs there, not here), so the artifact body is one of "proceed"
-  // / "skip-improve" by construction. Read it, branch, and either short-
-  // circuit stage 4 with stopReason "skipped-trivial" (skip-improve) or fall
-  // through to the normal SDK dispatch (proceed). If the artifact is missing
-  // on disk we fail the stage rather than implicitly proceed — the run had a
-  // code-reviewing pass and its artifact must exist by AC-13.
-  if (stage.id === CODE_IMPROVING_ID) {
-    const codeReviewingStage = config.workflow.find(
-      (s) => s.id === CODE_REVIEWING_ID,
-    );
-    if (codeReviewingStage) {
-      const reviewArtifactPath = join(
-        runDir,
-        codeReviewingStage.outputArtifact,
-      );
-      if (!existsSync(reviewArtifactPath)) {
-        return failStage(
-          state,
-          runDir,
-          stage,
-          {
-            status: "failed",
-            endedAt: toIsoSeconds(deps.clock()),
-            stopReason: "missing_review_artifact",
-            error: `code-reviewing artifact missing: ${reviewArtifactPath}`,
-          },
-          reporter,
-          {
-            artifactPath: join(runDir, stage.outputArtifact),
-            reason: `code-reviewing artifact missing: ${reviewArtifactPath}`,
-            status: "failed",
-          },
-        );
-      }
-      const reviewText = readFileSync(reviewArtifactPath, "utf8");
-      const decision = parseReviewDecision(reviewText);
-      if (decision === "skip-improve") {
-        const skipped: StageState = {
-          status: "completed",
-          endedAt: toIsoSeconds(deps.clock()),
-          stopReason: "skipped-trivial",
-        };
-        state.stages[stage.id] = skipped;
-        writeState(runDir, state);
-        reporter.stageEnd(stage, { ok: true });
-        return { kind: "continue" };
-      }
-      // decision === "proceed" → fall through to normal SDK dispatch.
-    }
-  }
+  const decisionSkip = maybeDecisionSkipOrFailMissing(
+    stage,
+    config,
+    runDir,
+    state,
+    deps,
+    reporter,
+  );
+  if (decisionSkip) return decisionSkip;
 
   const stageCtx: StageContext = {
     intent: ctx.intent,
@@ -441,6 +383,120 @@ async function runOneStage(
   }
 
   return { kind: "continue" };
+}
+
+/**
+ * S-006 AC-5 + S-003 AC-1/AC-2: skip the SDK call when the working tree is
+ * clean for any of the three trailing stages (code-reviewing, code-improving,
+ * auto-commit). Implement may have made no edits, or recovered to baseline;
+ * either way there is nothing to review, improve, or commit. Synthesize a
+ * completed stage with stopReason "skipped" — no sessionId/tokens/usd, no
+ * artifact written, no deps.commit hand-off. Once stage 3 skips on a clean
+ * tree, stages 4 and 5 see the same clean tree on entry and skip too,
+ * producing the cascading "skipped" stopReason for all three.
+ *
+ * Returns `null` when the stage is not eligible for clean-tree skip, so the
+ * caller can move on to the next gate.
+ */
+function maybeSkipCleanTree(
+  stage: StageConfig,
+  ctx: LoopContext,
+  deps: Deps,
+  runDir: string,
+  state: State,
+  reporter: Reporter,
+): StepOutcome | null {
+  if (
+    stage.id !== AUTO_COMMIT_ID &&
+    stage.id !== CODE_REVIEWING_ID &&
+    stage.id !== CODE_IMPROVING_ID
+  ) {
+    return null;
+  }
+  if (!isWorkingTreeClean(ctx.cwd)) return null;
+  const skipped: StageState = {
+    status: "completed",
+    endedAt: toIsoSeconds(deps.clock()),
+    stopReason: "skipped",
+  };
+  state.stages[stage.id] = skipped;
+  writeState(runDir, state);
+  reporter.stageEnd(stage, { ok: true });
+  return { kind: "continue" };
+}
+
+/**
+ * S-003 AC-4/AC-13: decision-driven skip on code-improving entry.
+ * The code-reviewing stage already validated its `## Decision` H2 (the
+ * validator runs there, not here), so the artifact body is one of "proceed"
+ * / "skip-improve" by construction. Read it, branch, and either short-
+ * circuit stage 4 with stopReason "skipped-trivial" (skip-improve) or return
+ * `null` (proceed) so the caller falls through to a normal SDK dispatch. If
+ * the artifact is missing on disk we fail the stage rather than implicitly
+ * proceed — the run had a code-reviewing pass and its artifact must exist by
+ * AC-13.
+ *
+ * No guard for `codeReviewingStage` being absent: the default workflow
+ * always contains it, and the user prompt template references
+ * `{{artifacts.code-reviewing.path}}`. If the stage were missing, falling
+ * through to the SDK dispatch would yield a broken prompt and a confusing
+ * failure mode. Throwing here is loud rather than silent.
+ *
+ * Returns `null` when the stage is not `code-improving` or when the decision
+ * is "proceed" — both cases continue to the SDK dispatch.
+ */
+function maybeDecisionSkipOrFailMissing(
+  stage: StageConfig,
+  config: PraxisConfig,
+  runDir: string,
+  state: State,
+  deps: Deps,
+  reporter: Reporter,
+): StepOutcome | null {
+  if (stage.id !== CODE_IMPROVING_ID) return null;
+  const codeReviewingStage = config.workflow.find(
+    (s) => s.id === CODE_REVIEWING_ID,
+  );
+  if (!codeReviewingStage) {
+    throw new Error(
+      `code-improving stage requires a preceding ${CODE_REVIEWING_ID} stage in the workflow`,
+    );
+  }
+  const reviewArtifactPath = join(runDir, codeReviewingStage.outputArtifact);
+  if (!existsSync(reviewArtifactPath)) {
+    return failStage(
+      state,
+      runDir,
+      stage,
+      {
+        status: "failed",
+        endedAt: toIsoSeconds(deps.clock()),
+        stopReason: "missing_review_artifact",
+        error: `code-reviewing artifact missing: ${reviewArtifactPath}`,
+      },
+      reporter,
+      {
+        artifactPath: reviewArtifactPath,
+        reason: `code-reviewing artifact missing: ${reviewArtifactPath}`,
+        status: "failed",
+      },
+    );
+  }
+  const reviewText = readFileSync(reviewArtifactPath, "utf8");
+  const decision = parseReviewDecision(reviewText);
+  if (decision === "skip-improve") {
+    const skipped: StageState = {
+      status: "completed",
+      endedAt: toIsoSeconds(deps.clock()),
+      stopReason: "skipped-trivial",
+    };
+    state.stages[stage.id] = skipped;
+    writeState(runDir, state);
+    reporter.stageEnd(stage, { ok: true });
+    return { kind: "continue" };
+  }
+  // decision === "proceed" → caller falls through to SDK dispatch.
+  return null;
 }
 
 /**
