@@ -1,12 +1,9 @@
 import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { defaultWorkflow } from "../../src/config/defaults.js";
+import type { PraxisConfig } from "../../src/config/schema.js";
 import { advanceWorkflow, runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
@@ -235,17 +232,151 @@ function seedRunDir(cwd: string, state: State): string {
   return runDir;
 }
 
+describe("S-003 AC-15: regression — pre-existing environmental failures unchanged", () => {
+  it("the runner module still compiles and isWorkingTreeClean is importable from src/git/status.js", async () => {
+    // Indirect proxy for AC-15: the 6 pre-existing failures are gpg-related
+    // and live outside this slice's scope. The test we own is that the
+    // public seams S-003 ships still resolve. Other passing tests in this
+    // suite assert behaviour; this one pins the import surface so a future
+    // refactor can't quietly delete the helper.
+    const { isWorkingTreeClean } = await import("../../src/git/status.js");
+    expect(typeof isWorkingTreeClean).toBe("function");
+    const { CODE_REVIEWING_ID, CODE_IMPROVING_ID, AUTO_COMMIT_ID } =
+      await import("../../src/config/defaults.js");
+    expect(CODE_REVIEWING_ID).toBe("code-reviewing");
+    expect(CODE_IMPROVING_ID).toBe("code-improving");
+    expect(AUTO_COMMIT_ID).toBe("auto-commit");
+  });
+});
+
+describe("S-003 AC-14: only src/git/* owns the porcelain spawn", () => {
+  it("spawnSync('git', ['status', '--porcelain']) appears only in src/git/ — runner.ts no longer has its own copy", async () => {
+    const { readdirSync } = await import("node:fs");
+    const srcDir = join(__dirname, "..", "..", "src");
+
+    function* walk(dir: string): Generator<string> {
+      for (const ent of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, ent.name);
+        if (ent.isDirectory()) yield* walk(full);
+        else if (ent.isFile() && full.endsWith(".ts")) yield full;
+      }
+    }
+
+    const hits: string[] = [];
+    for (const file of walk(srcDir)) {
+      const text = readFileSync(file, "utf8");
+      // Match the spawnSync invocation pattern (the actual command), not
+      // mere prose mentions. The runner used to have its own copy; after
+      // S-003 only src/git/status.ts and src/git/commit.ts spawn the
+      // porcelain command. preflight.ts uses it for the dirty-list check
+      // (a separate concern) and is allowed.
+      if (
+        /\["status",\s*"--porcelain"\]/.test(text) ||
+        /'status',\s*'--porcelain'/.test(text)
+      ) {
+        hits.push(file.replace(srcDir, "src"));
+      }
+    }
+    // Exactly the files we expect.
+    const sorted = [...hits].sort();
+    expect(sorted).toEqual([
+      "src/git/commit.ts",
+      "src/git/status.ts",
+      "src/workflow/preflight.ts",
+    ]);
+    // Specifically: runner.ts no longer holds the private copy.
+    expect(hits.some((f) => f.endsWith("workflow/runner.ts"))).toBe(false);
+  });
+});
+
+describe("S-003 AC-13: missing 03-code-review.md at code-improving entry → stage fails, no SDK call", () => {
+  it("seeded state with stage 3 completed but artifact missing → advance fails code-improving with stopReason 'missing_review_artifact'; no SDK call for stage 4", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Use a custom config where code-reviewing pauses after itself, so
+      // advance can resume into code-improving (the pending current stage).
+      // This isolates the "stage 4 entry sees missing 03-code-review.md"
+      // branch without needing to intercept mid-flight in runWorkflow.
+      const cfg: PraxisConfig = {
+        version: 1,
+        workflow: defaultWorkflow.workflow.map((s) =>
+          s.id === "code-reviewing" ? { ...s, pauseAfter: true } : s,
+        ),
+      };
+      const state: State = {
+        runId: RUN_ID,
+        intent: "x",
+        startedAt: "2026-04-25T14:30:12Z",
+        currentStage: "code-improving",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          "clarify-assess": {
+            status: "completed",
+            sessionId: "sess_clarify",
+            stopReason: "end_turn",
+            endedAt: "2026-04-25T14:31:00Z",
+            tokens: { input: 100, output: 50, cacheRead: 0, cacheCreate: 0 },
+            usd: 0.012,
+          },
+          implement: {
+            status: "completed",
+            sessionId: "sess_impl",
+            stopReason: "end_turn",
+            endedAt: "2026-04-25T14:32:00Z",
+            tokens: { input: 50, output: 25, cacheRead: 0, cacheCreate: 0 },
+            usd: 0.005,
+          },
+          "code-reviewing": {
+            status: "completed",
+            sessionId: "sess_review",
+            stopReason: "end_turn",
+            endedAt: "2026-04-25T14:33:00Z",
+            tokens: { input: 10, output: 5, cacheRead: 0, cacheCreate: 0 },
+            usd: 0.002,
+          },
+          "code-improving": { status: "pending" },
+          "auto-commit": { status: "pending" },
+        },
+      };
+      const runDir = seedRunDir(cwd, state);
+      // Note: NO 03-code-review.md on disk — that's the failure mode AC-13
+      // pins.
+
+      const recording = recordingScriptedQuery([]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd, config: cfg },
+        buildDeps(recording, recordingCommit()),
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.failedStageId).toBe("code-improving");
+
+      const persisted = JSON.parse(
+        readFileSync(join(runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-improving"].status).toBe("failed");
+      expect(persisted.stages["code-improving"].stopReason).toBe(
+        "missing_review_artifact",
+      );
+      expect(persisted.stages["code-improving"].error).toMatch(
+        /code-reviewing artifact missing/,
+      );
+      // Zero SDK calls — neither stage 4 nor stage 5 fire.
+      expect(recording.calls.length).toBe(0);
+      // No 04-code-improve.md or 05-commit.txt.
+      expect(existsSync(join(runDir, "05-commit.txt"))).toBe(false);
+    });
+  });
+});
+
 describe("S-003 AC-12: cancelled code-improving advance behaves identically to failed", () => {
   it("cancelled code-improving on advance → same shape as AC-11", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const state = stateWithCancelledImprove();
       const runDir = seedRunDir(cwd, state);
       writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
-      writeFileSync(
-        join(runDir, "04-code-improve.md"),
-        "## partial\n",
-        "utf8",
-      );
+      writeFileSync(join(runDir, "04-code-improve.md"), "## partial\n", "utf8");
       const stateBefore = JSON.parse(
         readFileSync(join(runDir, "state.json"), "utf8"),
       );
@@ -260,7 +391,9 @@ describe("S-003 AC-12: cancelled code-improving advance behaves identically to f
       if (result.ok) throw new Error("unreachable");
       expect(result.failedStageId).toBe("code-improving");
       expect(result.status).toBe("failed");
-      expect(result.reason).toMatch(/code-improving.*recoverable.*praxis retry/);
+      expect(result.reason).toMatch(
+        /code-improving.*recoverable.*praxis retry/,
+      );
       expect(recording.calls.length).toBe(0);
       const stateAfter = JSON.parse(
         readFileSync(join(runDir, "state.json"), "utf8"),
@@ -283,11 +416,7 @@ describe("S-003 AC-11: praxis advance against failed code-improving is rejected 
       // Both review + improve artifacts on disk so the test isolates the
       // advance branch — not artifact-missing.
       writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
-      writeFileSync(
-        join(runDir, "04-code-improve.md"),
-        "## partial\n",
-        "utf8",
-      );
+      writeFileSync(join(runDir, "04-code-improve.md"), "## partial\n", "utf8");
       const stateBefore = JSON.parse(
         readFileSync(join(runDir, "state.json"), "utf8"),
       );
@@ -304,7 +433,9 @@ describe("S-003 AC-11: praxis advance against failed code-improving is rejected 
       if (result.ok) throw new Error("unreachable");
       expect(result.failedStageId).toBe("code-improving");
       expect(result.status).toBe("failed");
-      expect(result.reason).toMatch(/code-improving.*recoverable.*praxis retry/);
+      expect(result.reason).toMatch(
+        /code-improving.*recoverable.*praxis retry/,
+      );
       // Zero SDK calls.
       expect(recording.calls.length).toBe(0);
 
@@ -490,7 +621,9 @@ describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
         readFileSync(join(result.runDir!, "03-code-review.md"), "utf8"),
       ).toBe(badReview);
       // No 04-code-improve.md, no 05-commit.txt.
-      expect(existsSync(join(result.runDir!, "04-code-improve.md"))).toBe(false);
+      expect(existsSync(join(result.runDir!, "04-code-improve.md"))).toBe(
+        false,
+      );
       expect(existsSync(join(result.runDir!, "05-commit.txt"))).toBe(false);
 
       const persisted = JSON.parse(

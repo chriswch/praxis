@@ -148,16 +148,12 @@ describe("defaultWorkflow", () => {
   // silent rename of either default stage id would skip the dispatch without
   // any other test failing. Lock the literals here.
   it("CODE_REVIEWING_ID stays 'code-reviewing' (runner dispatch lock)", async () => {
-    const { CODE_REVIEWING_ID } = await import(
-      "../../src/config/defaults.js"
-    );
+    const { CODE_REVIEWING_ID } = await import("../../src/config/defaults.js");
     expect(CODE_REVIEWING_ID).toBe("code-reviewing");
   });
 
   it("CODE_IMPROVING_ID stays 'code-improving' (runner dispatch lock)", async () => {
-    const { CODE_IMPROVING_ID } = await import(
-      "../../src/config/defaults.js"
-    );
+    const { CODE_IMPROVING_ID } = await import("../../src/config/defaults.js");
     expect(CODE_IMPROVING_ID).toBe("code-improving");
   });
 
