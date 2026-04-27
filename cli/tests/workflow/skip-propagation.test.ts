@@ -156,6 +156,352 @@ function statePausedBeforeReview(): State {
   };
 }
 
+/**
+ * State helper: clarify-assess + implement completed, code-reviewing failed
+ * (validator), code-improving and auto-commit pending. Used by AC-8/9/10.
+ */
+function stateWithFailedReview(): State {
+  const base = statePausedBeforeReview();
+  base.currentStage = "code-reviewing";
+  base.stages["code-reviewing"] = {
+    status: "failed",
+    sessionId: "sess_review_bad",
+    stopReason: "validator_failed",
+    endedAt: "2026-04-25T14:33:00Z",
+    tokens: { input: 10, output: 5, cacheRead: 0, cacheCreate: 0 },
+    usd: 0.002,
+    error: "missing required H2: Decision",
+  };
+  return base;
+}
+
+function stateWithCancelledReview(): State {
+  const base = statePausedBeforeReview();
+  base.currentStage = "code-reviewing";
+  base.stages["code-reviewing"] = {
+    status: "cancelled",
+    sessionId: "sess_review_cancel",
+    stopReason: "sigint",
+    endedAt: "2026-04-25T14:33:00Z",
+    tokens: { input: 10, output: 5, cacheRead: 0, cacheCreate: 0 },
+    usd: 0.002,
+    error: "cancelled by user (SIGINT)",
+  };
+  return base;
+}
+
+/**
+ * State helper: clarify-assess + implement + code-reviewing completed,
+ * code-improving failed. Used by AC-11/12.
+ */
+function stateWithFailedImprove(): State {
+  const base = statePausedBeforeReview();
+  base.currentStage = "code-improving";
+  base.stages["code-reviewing"] = {
+    status: "completed",
+    sessionId: "sess_review",
+    stopReason: "end_turn",
+    endedAt: "2026-04-25T14:33:00Z",
+    tokens: { input: 10, output: 5, cacheRead: 0, cacheCreate: 0 },
+    usd: 0.002,
+  };
+  base.stages["code-improving"] = {
+    status: "failed",
+    sessionId: "sess_improve_bad",
+    stopReason: "timeout",
+    endedAt: "2026-04-25T14:34:00Z",
+    tokens: { input: 10, output: 5, cacheRead: 0, cacheCreate: 0 },
+    usd: 0.002,
+    error: "stage timed out",
+  };
+  return base;
+}
+
+function stateWithCancelledImprove(): State {
+  const base = stateWithFailedImprove();
+  base.stages["code-improving"] = {
+    ...base.stages["code-improving"],
+    status: "cancelled",
+    stopReason: "sigint",
+    error: "cancelled by user (SIGINT)",
+  };
+  return base;
+}
+
+function seedRunDir(cwd: string, state: State): string {
+  const runDir = join(cwd, ".praxis", "runs", state.runId);
+  mkdirSync(runDir, { recursive: true });
+  writeState(runDir, state);
+  return runDir;
+}
+
+describe("S-003 AC-10: cancelled code-reviewing recovery identical to failed", () => {
+  it("cancelled stage 3 with valid hand-edited artifact (proceed) → stages 4,5 dispatch identically to AC-8", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state = stateWithCancelledReview();
+      const runDir = seedRunDir(cwd, state);
+      writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
+
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd },
+        buildDeps(recording, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      expect(recording.calls.length).toBe(2);
+      const persisted = JSON.parse(
+        readFileSync(join(runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-reviewing"].status).toBe("completed");
+      expect(persisted.stages["code-reviewing"].stopReason).toBe("recovered");
+      expect(persisted.stages["code-improving"].status).toBe("completed");
+      expect(persisted.stages["auto-commit"].status).toBe("completed");
+    });
+  });
+});
+
+describe("S-003 AC-9: praxis advance on failed code-reviewing with hand-edited skip-improve artifact", () => {
+  it("hand-edited 03-code-review.md with decision=skip-improve → stage 4 skipped-trivial, stage 5 still runs, recording.calls.length === 1 (only stage 5)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state = stateWithFailedReview();
+      const runDir = seedRunDir(cwd, state);
+      writeFileSync(
+        join(runDir, "03-code-review.md"),
+        REVIEW_SKIP_IMPROVE,
+        "utf8",
+      );
+
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd },
+        buildDeps(recording, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // Only stage 5 dispatched the SDK; stage 4 was decision-skipped.
+      expect(recording.calls.length).toBe(1);
+
+      const persisted = JSON.parse(
+        readFileSync(join(runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-reviewing"].status).toBe("completed");
+      expect(persisted.stages["code-reviewing"].stopReason).toBe("recovered");
+      expect(persisted.stages["code-improving"].status).toBe("completed");
+      expect(persisted.stages["code-improving"].stopReason).toBe(
+        "skipped-trivial",
+      );
+      expect(persisted.stages["auto-commit"].status).toBe("completed");
+
+      // No 04-code-improve.md.
+      expect(existsSync(join(runDir, "04-code-improve.md"))).toBe(false);
+    });
+  });
+});
+
+describe("S-003 AC-8: praxis advance recovers failed code-reviewing with valid hand-edited artifact (proceed)", () => {
+  it("hand-edited 03-code-review.md with decision=proceed → stage 3 flips to completed/recovered; stages 4,5 dispatch; recording.calls.length === 2", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const state = stateWithFailedReview();
+      const runDir = seedRunDir(cwd, state);
+      writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
+
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const result = await advanceWorkflow(
+        RUN_ID,
+        { cwd },
+        buildDeps(recording, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // Only stages 4 and 5 dispatched the SDK.
+      expect(recording.calls.length).toBe(2);
+
+      const persisted = JSON.parse(
+        readFileSync(join(runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-reviewing"].status).toBe("completed");
+      expect(persisted.stages["code-reviewing"].stopReason).toBe("recovered");
+      expect(persisted.stages["code-improving"].status).toBe("completed");
+      expect(persisted.stages["auto-commit"].status).toBe("completed");
+    });
+  });
+});
+
+describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
+  it("two bad reviews → terminal validator failure on stage 3; partial 03-code-review.md written; stages 4,5 not invoked; failedStageId === 'code-reviewing'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const badReview = "# Some body\n\n(no Decision H2)\n";
+      function badReviewMessages(sessionId: string): SdkMessage[] {
+        return [
+          {
+            type: "system",
+            subtype: "init",
+            session_id: sessionId,
+            model: "claude-test",
+          },
+          {
+            type: "assistant",
+            session_id: sessionId,
+            message: { content: [{ type: "text", text: badReview }] },
+          },
+          {
+            type: "result",
+            subtype: "success",
+            stop_reason: "end_turn",
+            total_cost_usd: 0.001,
+            usage: {
+              input_tokens: 5,
+              output_tokens: 3,
+              cache_read_input_tokens: 0,
+              cache_creation_input_tokens: 0,
+            },
+            num_turns: 1,
+            session_id: sessionId,
+          },
+        ];
+      }
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+        // Stage 3: bad first attempt + bad retry → terminal validator failure.
+        [
+          { messages: badReviewMessages("sess_bad1") },
+          { messages: badReviewMessages("sess_bad2") },
+        ],
+        // Stages 4 and 5 must NOT fire.
+      ]);
+      const commit = recordingCommit();
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, commit),
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.failedStageId).toBe("code-reviewing");
+      expect(result.status).toBe("failed");
+      // Three SDK invocations: clarify-assess, implement, code-reviewing.
+      expect(recording.calls.length).toBe(3);
+      // Stages 4 and 5 not invoked.
+      expect(commit.calls.length).toBe(0);
+
+      // Partial 03-code-review.md written verbatim (the bad agent message).
+      expect(
+        readFileSync(join(result.runDir!, "03-code-review.md"), "utf8"),
+      ).toBe(badReview);
+      // No 04-code-improve.md, no 05-commit.txt.
+      expect(existsSync(join(result.runDir!, "04-code-improve.md"))).toBe(false);
+      expect(existsSync(join(result.runDir!, "05-commit.txt"))).toBe(false);
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir!, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-reviewing"].status).toBe("failed");
+      expect(persisted.stages["code-reviewing"].stopReason).toBe(
+        "validator_failed",
+      );
+      expect(persisted.stages["code-improving"].status).toBe("pending");
+      expect(persisted.stages["auto-commit"].status).toBe("pending");
+    });
+  });
+});
+
+describe("S-003 AC-6: validator corrective retry on code-reviewing succeeds; downstream proceeds", () => {
+  it("first attempt missing Decision H2 → one pushUserMessage → retry passes; recording.calls[2].pushedUserMessages.length === 1; stages 4,5 dispatch", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const badReview = "# Some body\n\n(no Decision H2)\n";
+      const reviewFirstAttempt: SdkMessage[] = [
+        {
+          type: "system",
+          subtype: "init",
+          session_id: "sess_review_bad",
+          model: "claude-test",
+        },
+        {
+          type: "assistant",
+          session_id: "sess_review_bad",
+          message: { content: [{ type: "text", text: badReview }] },
+        },
+        {
+          type: "result",
+          subtype: "success",
+          stop_reason: "end_turn",
+          total_cost_usd: 0.001,
+          usage: {
+            input_tokens: 5,
+            output_tokens: 3,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+          num_turns: 1,
+          session_id: "sess_review_bad",
+        },
+      ];
+      const reviewRetryAttempt: SdkMessage[] = [
+        {
+          type: "assistant",
+          session_id: "sess_review_ok",
+          message: { content: [{ type: "text", text: REVIEW_PROCEED }] },
+        },
+        {
+          type: "result",
+          subtype: "success",
+          stop_reason: "end_turn",
+          total_cost_usd: 0.001,
+          usage: {
+            input_tokens: 8,
+            output_tokens: 4,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+          num_turns: 2,
+          session_id: "sess_review_ok",
+        },
+      ];
+
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+        // Stage 3: bad first attempt + retry-after-pushUserMessage.
+        [{ messages: reviewFirstAttempt }, { messages: reviewRetryAttempt }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // One corrective pushUserMessage on the code-reviewing call.
+      expect(recording.calls.length).toBe(5);
+      expect(recording.calls[2].pushedUserMessages.length).toBe(1);
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-reviewing"].status).toBe("completed");
+      expect(persisted.stages["code-reviewing"].sessionId).toBe(
+        "sess_review_ok",
+      );
+      // Downstream stages dispatched.
+      expect(persisted.stages["code-improving"].status).toBe("completed");
+      expect(persisted.stages["auto-commit"].status).toBe("completed");
+    });
+  });
+});
+
 describe("S-003 AC-4: decision=skip-improve skips code-improving but still runs auto-commit", () => {
   it("dirty tree + REVIEW_SKIP_IMPROVE → stage 4 skipped-trivial, no 04-code-improve.md, stage 5 still runs, recording.calls.length === 4 (no SDK call for stage 4)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
