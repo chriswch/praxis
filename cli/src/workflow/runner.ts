@@ -1015,7 +1015,7 @@ export async function retryWorkflow(
   // failure so the user gets the same actionable error as the up-front guard.
   const midStreamUnresumable =
     result.cancelReason === undefined &&
-    (result.stopReason === "" || result.stopReason === undefined) &&
+    result.stopReason === "" &&
     result.finalText === "" &&
     result.tokens.input === 0;
 
