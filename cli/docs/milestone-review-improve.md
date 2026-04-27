@@ -40,35 +40,16 @@ Stages 3 and 4 invoke skills `praxis:code-reviewing` and `praxis:code-improving`
 
 Read-only review of the uncommitted implement-stage changes. **Permission mode** `default`. **Allowed tools** `[Read, Glob, Grep, Bash, Skill]`. **Model** `claude-opus-4-7`. **Timeout** 15 min. **Auto-advances** to `code-improving`.
 
-The user prompt directs the agent to invoke the `praxis:code-reviewing` skill via the `Skill` tool, inspect changes through `git diff` / `git status` (changes are uncommitted; `git log` does not apply), and re-emit the review as its final assistant message conforming to this schema:
+The user prompt directs the agent to invoke the `praxis:code-reviewing` skill via the `Skill` tool, inspect changes through `git diff` / `git status` (changes are uncommitted; `git log` does not apply), and re-emit the skill's review **verbatim** as its final assistant message, then append a single `## Decision` H2 with body `proceed` or `skip-improve` so the runner can gate stage 4. The skill's native template — Premise Check, Layer 1–5 analyses, severity-graded Issues tables with `File:Line | Layer | Issue | Recommendation` columns, What's Done Well, Summary counts — is what stage 4 reads to apply fixes; the harness does not reshape it.
 
-```markdown
-## Summary
-<one paragraph; or "Skipped — trivial change.">
+**Validator** — `validateCodeReviewArtifact(text)`. Decision-only:
 
-## Findings
-### Critical
-- <bullet> | "- none"
-### High
-- <bullet> | "- none"
-### Medium
-- <bullet> | "- none"
-### Low
-- <bullet> | "- none"
+- An `## Decision` H2 exists.
+- Its body, trimmed, is exactly `proceed` or `skip-improve` (single line, case-sensitive).
 
-## Decision
-proceed | skip-improve
-```
+Everything above `## Decision` is freeform skill output. Schema failure → harness sends one corrective user message in the same `query()` stream. Second failure → stage `failed` / `stopReason: "validator_failed"`; partial artifact still written to `03-code-review.md`. Recovery via `praxis advance` re-runs the validator against on-disk content (same model as `clarify-assess`).
 
-**Validator** — `validateCodeReviewArtifact(text)`. Checks:
-
-- H2 order: `## Summary`, `## Findings`, `## Decision`.
-- Under `## Findings`, four `### Severity` H3s in order Critical → High → Medium → Low; each with at least one bullet (`- none` is valid).
-- `## Decision` body is exactly `proceed` or `skip-improve` (trimmed, single line, case-sensitive).
-
-Schema failure → harness sends one corrective user message in the same `query()` stream. Second failure → stage `failed` / `stopReason: "validator_failed"`; partial artifact still written to `03-code-review.md`. Recovery via `praxis advance` re-runs the validator against on-disk content (same model as `clarify-assess`).
-
-**Trivial-change short-circuit.** When the change is trivial enough that formal review is wasted ceremony, the agent emits the schema with `## Decision: skip-improve` and a one-line rationale in `## Summary`. Stage 4 skips on this decision (see below).
+**Trivial-change short-circuit.** When the change is trivial enough that formal review is wasted ceremony, the agent invokes `praxis:code-reviewing`, takes its built-in condensed/"review skipped" output verbatim, and appends `## Decision: skip-improve` with the skill's one-line rationale carried into `## Summary` (or wherever the condensed form puts it). Stage 4 skips on this decision (see below).
 
 **Clean-tree skip.** If `git status --porcelain` is empty at stage entry, mark `completed` / `stopReason: "skipped"`; no SDK call, no artifact, no spend. Stages 4 and 5 also skip downstream.
 
@@ -186,7 +167,7 @@ resume?: string;
 
 **Validator unit (`tests/workflow/validator.test.ts`):**
 
-- `validateCodeReviewArtifact` — schema pass; missing H2; wrong H2 order; missing severity H3; out-of-order severities; empty bullet list; malformed `## Decision`.
+- `validateCodeReviewArtifact` — Decision section present with `proceed`; with `skip-improve`; with whitespace tolerance around the body; missing `## Decision`; multi-line body; body neither `proceed` nor `skip-improve`; case mismatch (`Proceed`).
 - `parseReviewDecision` — `proceed`, `skip-improve`, with whitespace tolerance.
 
 **Runner orchestration:**
@@ -229,7 +210,7 @@ resume?: string;
 
 **`docs/features.md`:**
 
-- Workflow stages: insert §3 (code-reviewing) and §4 (code-improving) with full spec; renumber auto-commit to §5; update its artifact filename.
+- Workflow stages: insert §3 (code-reviewing) and §4 (code-improving) with full spec; renumber auto-commit to §5; update its artifact filename. §3 documents the Decision-only validator and that `03-code-review.md` carries the skill's native review template verbatim.
 - New §3.5 paragraph covering decision-driven skip.
 - Recovery and resume: rewrite to cover three branches — paused, recovery via `advance` (clarify-assess + code-reviewing), retry via `praxis retry` (code-improving only). Document token/USD accumulation, `retryAttempts`, `session_unresumable`.
 - State and artifacts: update artifact list, add `retryAttempts?`, add new `stopReason` values.
