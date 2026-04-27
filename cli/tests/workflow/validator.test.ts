@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { validateClarifyAssessArtifact } from "../../src/workflow/validator.js";
+import {
+  parseReviewDecision,
+  validateClarifyAssessArtifact,
+  validateCodeReviewArtifact,
+} from "../../src/workflow/validator.js";
 
 const happyPath = `## Intent
 
@@ -76,5 +80,81 @@ describe("validateClarifyAssessArtifact", () => {
   it("rejects an empty string", () => {
     const result = validateClarifyAssessArtifact("");
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("validateCodeReviewArtifact", () => {
+  it("accepts a Decision body of 'proceed'", () => {
+    const text = `## Summary\n\nLooks fine.\n\n## Decision\n\nproceed\n`;
+    expect(validateCodeReviewArtifact(text)).toEqual({ ok: true });
+  });
+
+  it("accepts a Decision body of 'skip-improve'", () => {
+    const text = `## Summary\n\nTrivial change.\n\n## Decision\n\nskip-improve\n`;
+    expect(validateCodeReviewArtifact(text)).toEqual({ ok: true });
+  });
+
+  it("rejects when the ## Decision section is missing", () => {
+    const text = `## Summary\n\nLooks fine.\n`;
+    const result = validateCodeReviewArtifact(text);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/Decision/);
+    }
+  });
+
+  it("rejects a Decision body that is neither 'proceed' nor 'skip-improve'", () => {
+    const text = `## Decision\n\nmaybe\n`;
+    const result = validateCodeReviewArtifact(text);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/Decision/);
+    }
+  });
+
+  it("rejects a case-mismatched Decision body ('Proceed')", () => {
+    const text = `## Decision\n\nProceed\n`;
+    const result = validateCodeReviewArtifact(text);
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a multi-line Decision body", () => {
+    const text = `## Decision\n\nproceed\nwith caution\n`;
+    const result = validateCodeReviewArtifact(text);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/Decision/);
+    }
+  });
+
+  it("rejects an empty Decision body", () => {
+    const text = `## Summary\n\nx\n\n## Decision\n\n`;
+    const result = validateCodeReviewArtifact(text);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/Decision/);
+    }
+  });
+
+  it("tolerates blank lines and trailing whitespace around the Decision value", () => {
+    const text = `## Decision\n\n\n  proceed   \n\n`;
+    expect(validateCodeReviewArtifact(text)).toEqual({ ok: true });
+  });
+});
+
+describe("parseReviewDecision", () => {
+  it("returns 'proceed' when the Decision body is 'proceed'", () => {
+    const text = `## Summary\n\nx\n\n## Decision\n\nproceed\n`;
+    expect(parseReviewDecision(text)).toBe("proceed");
+  });
+
+  it("returns 'skip-improve' when the Decision body is 'skip-improve'", () => {
+    const text = `## Summary\n\nx\n\n## Decision\n\nskip-improve\n`;
+    expect(parseReviewDecision(text)).toBe("skip-improve");
+  });
+
+  it("trims surrounding whitespace from the Decision body", () => {
+    const text = `## Decision\n\n\n   proceed   \n\n`;
+    expect(parseReviewDecision(text)).toBe("proceed");
   });
 });

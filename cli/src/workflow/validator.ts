@@ -1,8 +1,16 @@
 /**
- * Structural validator for `clarify-assess` artifacts.
+ * Structural validators for workflow stage artifacts.
  *
- * Required: all five H2 headings present in this exact order, and the
- * Acceptance section contains at least one non-whitespace bullet.
+ * `validateClarifyAssessArtifact`: all five H2 headings present in this
+ *   exact order, and the Acceptance section contains at least one
+ *   non-whitespace bullet.
+ *
+ * `validateCodeReviewArtifact`: an `## Decision` H2 exists and its body,
+ *   trimmed, is exactly `proceed` or `skip-improve` (single line,
+ *   case-sensitive). Everything above is freeform skill output.
+ *
+ * `parseReviewDecision`: returns the trimmed Decision body, narrowed to
+ *   the union. Caller is expected to have validated first.
  */
 const REQUIRED_H2 = [
   "Intent",
@@ -41,6 +49,28 @@ export function validateClarifyAssessArtifact(
     };
   }
 
+  return { ok: true };
+}
+
+export function parseReviewDecision(text: string): "proceed" | "skip-improve" {
+  const body = extractSectionBody(text, "Decision").trim();
+  return body as "proceed" | "skip-improve";
+}
+
+export function validateCodeReviewArtifact(
+  text: string,
+): { ok: true } | { ok: false; reason: string } {
+  const headings = extractH2Headings(text);
+  if (!headings.includes("Decision")) {
+    return { ok: false, reason: "missing required H2: Decision" };
+  }
+  const body = extractSectionBody(text, "Decision").trim();
+  if (body !== "proceed" && body !== "skip-improve") {
+    return {
+      ok: false,
+      reason: `Decision body must be 'proceed' or 'skip-improve', got: ${body}`,
+    };
+  }
   return { ok: true };
 }
 
