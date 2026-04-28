@@ -21,6 +21,13 @@ export interface StageEndResult {
   artifactPath?: string;
   sessionId?: string;
   error?: string;
+  /**
+   * Persisted `stopReason` from the stage's StageState (e.g. "skipped-trivial",
+   * "skipped", "end_turn"). Optional — the formatter only reacts to specific
+   * values (currently `"skipped-trivial"` for the decision-driven skip on
+   * `code-improving`). Plain success / failure paths leave this undefined.
+   */
+  stopReason?: string;
 }
 
 export interface Reporter {

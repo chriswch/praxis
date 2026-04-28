@@ -765,6 +765,38 @@ describe("S-003 AC-4: decision=skip-improve skips code-improving but still runs 
   });
 });
 
+describe("S-006: skip-improve stageEnd carries stopReason='skipped-trivial' to the reporter", () => {
+  it("recording reporter sees stopReason='skipped-trivial' on the code-improving stageEnd; clean-tree skips on stages 3+5 carry stopReason='skipped'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+        [{ messages: stageMessages("sess_review", REVIEW_SKIP_IMPROVE) }],
+        // Stage 4 (code-improving) decision-skipped — no script for it.
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const reporter = new RecordingReporter();
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, recordingCommit(), reporter),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      const stageEnds = reporter.calls.flatMap((c) =>
+        c.kind === "stageEnd" ? [c] : [],
+      );
+      const ciEnd = stageEnds.find((c) => c.stageId === "code-improving");
+      expect(ciEnd?.result.stopReason).toBe("skipped-trivial");
+      expect(ciEnd?.result.ok).toBe(true);
+      // Sanity: a normal stageEnd (clarify-assess) does not carry a stopReason.
+      const clarifyEnd = stageEnds.find(
+        (c) => c.stageId === "clarify-assess",
+      );
+      expect(clarifyEnd?.result.stopReason).toBeUndefined();
+    });
+  });
+});
+
 describe("S-003 AC-3: decision=proceed dispatches code-improving normally", () => {
   it("dirty tree + REVIEW_PROCEED → stage 4 SDK call happens; stages 4,5 both run; recording.calls.length === 5", async () => {
     await withTempRepo(async ({ dir: cwd }) => {

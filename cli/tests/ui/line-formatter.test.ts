@@ -138,6 +138,24 @@ describe("formatStageEnd (AC-10)", () => {
       }),
     ).toEqual(["[1/3 clarify-assess] failed: boom"]);
   });
+
+  it("renders a distinct skipped (skip-improve) line on stopReason=skipped-trivial", () => {
+    expect(
+      formatStageEnd(stage("code-improving"), 4, 5, {
+        ok: true,
+        stopReason: "skipped-trivial",
+      }),
+    ).toEqual(["[4/5 code-improving] skipped (skip-improve)"]);
+  });
+
+  it("ignores stopReason=skipped (clean-tree) — uses the existing done line", () => {
+    expect(
+      formatStageEnd(stage("code-improving"), 4, 5, {
+        ok: true,
+        stopReason: "skipped",
+      }),
+    ).toEqual(["[4/5 code-improving] done"]);
+  });
 });
 
 describe("formatResuming (S-004 AC-13)", () => {

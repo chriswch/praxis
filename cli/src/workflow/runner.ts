@@ -421,7 +421,7 @@ function maybeSkipCleanTree(
   };
   state.stages[stage.id] = skipped;
   writeState(runDir, state);
-  reporter.stageEnd(stage, { ok: true });
+  reporter.stageEnd(stage, { ok: true, stopReason: "skipped" });
   return { kind: "continue" };
 }
 
@@ -492,7 +492,7 @@ function maybeDecisionSkipOrFailMissing(
     };
     state.stages[stage.id] = skipped;
     writeState(runDir, state);
-    reporter.stageEnd(stage, { ok: true });
+    reporter.stageEnd(stage, { ok: true, stopReason: "skipped-trivial" });
     return { kind: "continue" };
   }
   // decision === "proceed" → caller falls through to SDK dispatch.
