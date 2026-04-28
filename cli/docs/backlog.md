@@ -10,7 +10,7 @@ When an item lands, remove it from this file (don't strike-through) — `feature
 
 ### CLI surface (commander adoption)
 
-- [ ] Adopt `commander` for `praxis run "<intent>"` and `praxis advance <run-id>`. Argv parsing is hand-rolled today; it works and rejects unknown flags before any disk write, but `--help` text is not generated.
+- [ ] Adopt `commander` for `praxis run "<intent>"`, `praxis advance <run-id>`, and `praxis retry <run-id>`. Argv parsing is hand-rolled today; it works and rejects unknown flags before any disk write, but `--help` text is not generated.
 - [ ] Once commander lands, surface the implement-stage risk warning verbatim in `praxis run --help` (currently only in the README).
 
 ### Real-SDK smoke
@@ -20,7 +20,14 @@ When an item lands, remove it from this file (don't strike-through) — `feature
 ### Polish (deferred from review)
 
 - [ ] Append a remediation hint to `commit_failed` errors when git's stderr matches the "missing identity" signature (`Author identity unknown` / `Please tell me who you are`). Today the raw git message is surfaced — actionable but not Praxis-curated. (Code-review L-2 from the auto-commit slice.)
-- [ ] Consolidate `isWorkingTreeClean` — the `git status --porcelain` check is implemented twice (in `src/git/commit.ts` for the `commit()` self-check, and in `src/workflow/runner.ts` for the auto-commit pre-check). Single source of truth. (Code-review L-3 from the auto-commit slice.)
+
+### Code-review/improve milestone follow-ups
+
+- [ ] Plugin pre-flight check — gate the run on `praxis` plugin presence so failures surface before any spend (instead of as a `code-reviewing` validator failure mid-run).
+- [ ] Promote `praxis retry` to other stages on demand — currently scoped to `code-improving`.
+- [ ] Annotate `runDone` per-stage rows with `retried Nx` when `retryAttempts > 0`.
+- [ ] Promote decision parsing to a typed validator return shape (`{ ok, decision }`) once a second decision-driven stage lands.
+- [ ] Stage hand-off keyed on `stage.id === AUTO_COMMIT_ID` in the runner — promote to a typed `postStage` field on `StageConfig`. The case strengthens with two new downstream stages now in the workflow. (Carried from S-005/S-006 reviews.)
 
 ---
 
@@ -30,17 +37,15 @@ These are deliberate current-scope decisions documented for awareness; promote a
 
 - **No worktree / sandbox for `implement`.** Runs against `process.cwd()` with `bypassPermissions`. Mitigation is the README warning.
 - **`--allow-dirty` bundles pre-existing dirt into the auto-commit.** `git add -A` covers everything.
-- **No SDK session resumption across processes.** `sessionId` is a debug aid (`claude --resume <id>`); it is not used to continue a stage.
+- **Cross-process SDK session resumption is scoped to `praxis retry` for `code-improving`.** Other stages remain non-resumable; their `sessionId` is debug-only (`claude --resume <id>`).
 - **No in-process session forking between stages.** Context flows via artifact files.
 - **No event log file.** Persisted `sessionId` plus `claude --resume` is the debug surface.
-- **No `praxis retry`.** Recovery is `praxis advance` against a hand-fixed artifact, or a fresh `praxis run`.
 - **No user-supplied config file.** Defaults are hardcoded; the schema exists for future extensibility.
 - **No `list` / `show` commands.**
 - **No per-stage / per-run USD cap.**
 - **No per-stage model or thinking-effort knobs exposed.** `model` is in the internal schema but not user-facing.
 - **No TUI.** `Reporter` is abstracted so a TUI can be added without touching the runner.
 - **No PR creation, no verification stage, no MCP server, no Codex adapter.**
-- **Stage hand-off is keyed on `stage.id === AUTO_COMMIT_ID`** in the runner (a constant exported from `defaults.ts`, locked by a regression test). When user-supplied workflow config arrives, promote this to a typed `postStage` field on `StageConfig`. (Carried from S-005/S-006 reviews.)
 
 ---
 
