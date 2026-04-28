@@ -792,13 +792,13 @@ describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
   });
 });
 
-describe("runner skips auto-commit SDK call when tree is clean (S-006 AC-5)", () => {
-  it("clean tree before auto-commit → no SDK call, no deps.commit, state shows completed/skipped, no 05-commit.txt", async () => {
+describe("runner skips trailing stages when tree is clean (S-006 AC-5, updated for S-003 cascade)", () => {
+  it("clean tree before code-reviewing → stages 3,4,5 all skipped; only clarify-assess + implement call the SDK; no deps.commit; no artifacts for the skipped stages", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // Pre-commit a baseline .gitignore so runWorkflow's
       // appendPraxisToGitignore is a no-op AND there is a HEAD already; the
       // .praxis/ run dir is then ignored, so git status --porcelain is empty
-      // by the time auto-commit's pre-check fires.
+      // by the time stage 3's clean-tree pre-check fires.
       writeFileSync(join(cwd, ".gitignore"), ".praxis/\n", "utf8");
       spawnSync("git", ["add", ".gitignore"], { cwd });
       spawnSync("git", ["commit", "-m", "baseline"], { cwd });
@@ -807,15 +807,11 @@ describe("runner skips auto-commit SDK call when tree is clean (S-006 AC-5)", ()
         encoding: "utf8",
       }).stdout.trim();
 
-      // S-002 5-stage shape: clarify-assess + implement + code-reviewing +
-      // code-improving still run; only auto-commit's SDK call is skipped via
-      // the clean-tree pre-check (the recording would throw "ran out of
-      // scripts" if auto-commit's stage tried to fire).
+      // S-003 cascade: clean tree at stage 3 entry skips code-reviewing,
+      // code-improving, AND auto-commit. Only stages 1 and 2 call the SDK.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
-        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
-        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
       ]);
       const commit = recordingCommit();
 
@@ -825,22 +821,27 @@ describe("runner skips auto-commit SDK call when tree is clean (S-006 AC-5)", ()
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // Four SDK invocations — auto-commit was short-circuited.
-      expect(recording.calls.length).toBe(4);
-      // deps.commit must not be called when we skip the stage.
+      // Two SDK invocations — code-reviewing/code-improving/auto-commit all
+      // short-circuit via the cascading clean-tree skip introduced in S-003.
+      expect(recording.calls.length).toBe(2);
+      // deps.commit must not be called when auto-commit is skipped.
       expect(commit.calls.length).toBe(0);
 
       const persisted = JSON.parse(
         readFileSync(join(result.runDir, "state.json"), "utf8"),
       );
-      const ac = persisted.stages["auto-commit"];
-      expect(ac.status).toBe("completed");
-      expect(ac.stopReason).toBe("skipped");
-      expect(ac.sessionId).toBeUndefined();
-      expect(ac.tokens).toBeUndefined();
-      expect(ac.usd).toBeUndefined();
+      for (const id of ["code-reviewing", "code-improving", "auto-commit"]) {
+        const stage = persisted.stages[id];
+        expect(stage.status).toBe("completed");
+        expect(stage.stopReason).toBe("skipped");
+        expect(stage.sessionId).toBeUndefined();
+        expect(stage.tokens).toBeUndefined();
+        expect(stage.usd).toBeUndefined();
+      }
 
-      // No 05-commit.txt — we never produced an agent message.
+      // No artifacts produced for skipped stages.
+      expect(existsSync(join(result.runDir, "03-code-review.md"))).toBe(false);
+      expect(existsSync(join(result.runDir, "04-code-improve.md"))).toBe(false);
       expect(existsSync(join(result.runDir, "05-commit.txt"))).toBe(false);
 
       // HEAD did not move.

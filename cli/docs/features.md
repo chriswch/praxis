@@ -293,9 +293,17 @@ interface Reporter {
 
 ## End-to-end validation
 
+### Scripted-SDK e2e (in-suite, no real spend)
+
+- `tests/e2e/auto-commit.test.ts` drives all five stages (clarify-assess → implement → code-reviewing → code-improving → auto-commit) with a scripted SDK, real git, and the production `commit()`. HEAD advances by exactly one commit; `state.commitSha` matches the new HEAD; `05-commit.txt` carries the SHA-prefixed form.
+- `tests/e2e/retry-flow.test.ts` drives a SIGINT-cancelled `code-improving`, then `praxis retry` resumes the prior SDK session with `initialUserPrompt: "continue"`, the agent's improvement summary lands in `04-code-improve.md`, and `auto-commit` lands one real commit. The persisted `state.json` reflects `retryAttempts === 1` and the sessionId rotation.
+
+### Real-SDK smoke (live, periodic)
+
 The full pipeline has been exercised against the real `@anthropic-ai/claude-agent-sdk` against the tsdown bundle:
 
-- Run `2026-04-26-1413-dc71` — `add a top-level CONTRIBUTING.md` against a throwaway repo, ~3.8K tokens, $0.36. All three stages completed with distinct session ids; the SHA-prefixed commit artifact matched the new HEAD. (Pre-dates the 5-stage rename; the run wrote the commit artifact under the legacy filename slot.)
+- Run `2026-04-26-1413-dc71` — `add a top-level CONTRIBUTING.md` against a throwaway repo, ~3.8K tokens, $0.36. All stages completed with distinct session ids; the SHA-prefixed commit artifact matched the new HEAD. (Pre-dates the 5-stage rename; the run wrote the commit artifact under the legacy filename slot.)
 - Run `2026-04-26-1521-4b4e` — `add PRAXIS_SMOKE.txt`, post-tsdown-migration verification, ~4.4K tokens, $0.36. Same shape; confirmed the bundled-layout path resolution works end-to-end against the real SDK.
+- The 5-stage workflow + `praxis retry` smoke is owed against the live SDK; it requires the `praxis` Claude Code plugin to be installed so stages 3 and 4 can call `praxis:code-reviewing` / `praxis:code-improving`. See [`../README.md`](../README.md#smoke-run-against-the-real-sdk) for the procedure and checklist; record run-id + USD here when it runs.
 
 See [`../README.md`](../README.md#smoke-run-against-the-real-sdk) for the smoke procedure and checklist.
