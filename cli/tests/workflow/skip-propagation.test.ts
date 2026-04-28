@@ -789,9 +789,7 @@ describe("S-006: skip-improve stageEnd carries stopReason='skipped-trivial' to t
       expect(ciEnd?.result.stopReason).toBe("skipped-trivial");
       expect(ciEnd?.result.ok).toBe(true);
       // Sanity: a normal stageEnd (clarify-assess) does not carry a stopReason.
-      const clarifyEnd = stageEnds.find(
-        (c) => c.stageId === "clarify-assess",
-      );
+      const clarifyEnd = stageEnds.find((c) => c.stageId === "clarify-assess");
       expect(clarifyEnd?.result.stopReason).toBeUndefined();
     });
   });

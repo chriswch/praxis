@@ -704,6 +704,47 @@ describe("RunSummary.commitSha plumbed from auto-commit state (S-006 AC-7)", () 
   });
 });
 
+describe("RunSummary.perStage covers all 5 stages on the proceed happy path (S-006)", () => {
+  it("runDone receives a perStage row for every stage that ran (5 SDK calls → 5 entries with tokens + sessionId)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const reporter = new RecordingReporter();
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        { ...buildDeps(recording, recordingCommit()), reporter },
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      const runDone = reporter.calls.find((c) => c.kind === "runDone");
+      if (!runDone || runDone.kind !== "runDone") {
+        throw new Error("runDone never fired");
+      }
+      const stages = Object.keys(runDone.summary.perStage);
+      // All five stages appear in the per-stage breakdown — summarize() is
+      // driven by state.stages, so this auto-grows with workflow.length and
+      // does not need any production change beyond the 5-stage default.
+      expect(stages).toEqual([
+        "clarify-assess",
+        "implement",
+        "code-reviewing",
+        "code-improving",
+        "auto-commit",
+      ]);
+      for (const id of stages) {
+        const row = runDone.summary.perStage[id];
+        expect(row.sessionId).toMatch(/^sess_/);
+        expect(row.tokens).toBeGreaterThan(0);
+      }
+    });
+  });
+});
+
 describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
   it("deps.commit returns {ok:false, reason} → state.json shows status:failed, stopReason:commit_failed, error:reason; 05-commit.txt is the agent message only", async () => {
     await withTempRepo(async ({ dir: cwd }) => {

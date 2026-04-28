@@ -138,10 +138,7 @@ export class LineReporter implements Reporter {
     sessionId?: string,
   ): void {
     this.buffer.flush();
-    this.writeAll(
-      this.stdout,
-      formatResuming(kind, runId, stageId, sessionId),
-    );
+    this.writeAll(this.stdout, formatResuming(kind, runId, stageId, sessionId));
   }
 
   private writeAll(stream: Writable, lines: string[]): void {

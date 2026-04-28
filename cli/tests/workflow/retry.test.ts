@@ -271,21 +271,18 @@ describe("retryWorkflow happy path (AC-5)", () => {
         sessionId: "sess_failed",
       });
       // Ordering: stageStart for code-improving, then resuming, then stageEnd.
-      const indexes = reporter.calls.map((c, i) => ({ c, i }));
-      const ciStageStart = indexes.find(
-        ({ c }) => c.kind === "stageStart" && c.stageId === CODE_IMPROVING_ID,
+      const ciStageStartIdx = reporter.calls.findIndex(
+        (c) => c.kind === "stageStart" && c.stageId === CODE_IMPROVING_ID,
       );
-      const ciResuming = indexes.find(({ c }) => c.kind === "resuming");
-      const ciStageEnd = indexes.find(
-        ({ c }) => c.kind === "stageEnd" && c.stageId === CODE_IMPROVING_ID,
+      const ciResumingIdx = reporter.calls.findIndex(
+        (c) => c.kind === "resuming",
       );
-      expect(ciStageStart).toBeDefined();
-      expect(ciResuming).toBeDefined();
-      expect(ciStageEnd).toBeDefined();
-      // biome-ignore lint/style/noNonNullAssertion: asserted defined above.
-      expect(ciStageStart!.i).toBeLessThan(ciResuming!.i);
-      // biome-ignore lint/style/noNonNullAssertion: asserted defined above.
-      expect(ciResuming!.i).toBeLessThan(ciStageEnd!.i);
+      const ciStageEndIdx = reporter.calls.findIndex(
+        (c) => c.kind === "stageEnd" && c.stageId === CODE_IMPROVING_ID,
+      );
+      expect(ciStageStartIdx).toBeGreaterThanOrEqual(0);
+      expect(ciResumingIdx).toBeGreaterThan(ciStageStartIdx);
+      expect(ciStageEndIdx).toBeGreaterThan(ciResumingIdx);
     });
   });
 });
