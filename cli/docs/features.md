@@ -300,10 +300,26 @@ interface Reporter {
 
 ### Real-SDK smoke (live, periodic)
 
-The full pipeline has been exercised against the real `@anthropic-ai/claude-agent-sdk` against the tsdown bundle:
+The full pipeline has been exercised against the real `@anthropic-ai/claude-agent-sdk` against the tsdown bundle.
+
+**Pre-5-stage runs (legacy 3-stage shape):**
 
 - Run `2026-04-26-1413-dc71` — `add a top-level CONTRIBUTING.md` against a throwaway repo, ~3.8K tokens, $0.36. All stages completed with distinct session ids; the SHA-prefixed commit artifact matched the new HEAD. (Pre-dates the 5-stage rename; the run wrote the commit artifact under the legacy filename slot.)
 - Run `2026-04-26-1521-4b4e` — `add PRAXIS_SMOKE.txt`, post-tsdown-migration verification, ~4.4K tokens, $0.36. Same shape; confirmed the bundled-layout path resolution works end-to-end against the real SDK.
-- The 5-stage workflow + `praxis retry` smoke is owed against the live SDK; it requires the `praxis` Claude Code plugin to be installed so stages 3 and 4 can call `praxis:code-reviewing` / `praxis:code-improving`. See [`../README.md`](../README.md#smoke-run-against-the-real-sdk) for the procedure and checklist; record run-id + USD here when it runs.
+
+**5-stage runs (current shape, with `praxis` plugin installed at user scope):**
+
+- Run `2026-04-28-0921-e8f4` — `add a top-level NOTES.md` against a throwaway repo. **5425 tokens, $0.7244.** Five stages ran; `praxis:code-reviewing` skill invoked successfully via the `Skill` tool, emitted a "review skipped" trivial-change short-circuit; `## Decision: skip-improve` parsed correctly; stage 4 marked `completed`/`stopReason: "skipped-trivial"` (no SDK call, no `04-code-improve.md`); stage 5 ran and landed commit `c9dbd8e`. `05-commit.txt` is the SHA-prefixed form. The `[4/5 code-improving] skipped (skip-improve)` reporter line emitted as designed.
+- Run `2026-04-28-0924-f628` — `add a small Python script scripts/today.py`. **6349 tokens, $0.6516.** Same shape: full review produced verbatim, decision = `skip-improve`, stage 4 short-circuited, commit `bd25f51` landed.
+- Run `2026-04-28-0928-0849` — `add src/userValidator.ts with email + password validators plus vitest tests`. **9573 tokens, $0.9207.** Five stages ran; `praxis:code-reviewing` skill produced a substantive 5-layer review (data structures, special cases, complexity, breaking changes, practicality) that found zero Critical/High/Medium findings and decided `skip-improve`. Commit `28a3ec4` landed.
+
+**`praxis retry` live CLI guards** — exercised against a completed run-id, a malformed run-id, and a non-existent valid-format run-id. All three matched the milestone's spec messages exactly: "run is already complete" / "invalid run-id: <id>. Expected shape …" with exit 1 on the malformed cases.
+
+**Total live-smoke spend: $2.30 across the three 5-stage runs above.**
+
+**Coverage gaps the live smoke did NOT exercise** (covered by scripted-SDK e2e in `tests/e2e/retry-flow.test.ts` and `tests/workflow/retry.test.ts`):
+
+- Stage 4 actually invoking `praxis:code-improving` with `Decision: proceed` against the live SDK — the `praxis:code-reviewing` skill consistently chose `skip-improve` in the small-throwaway-repo smoke variants because every change was below the trivial threshold.
+- Live retry resume of a failed `code-improving` SDK session — to force this against the real SDK would require either a deliberately-suboptimal implementation or a SIGINT mid-stage-4. Both paths are validated end-to-end by `tests/e2e/retry-flow.test.ts` (real git commit + SIGINT-triggered cancel + retry resume) and `tests/workflow/retry.test.ts` (10 mechanic tests pinning `resume`/`continue` wiring, retryAttempts, token/USD accumulation, session_unresumable detection).
 
 See [`../README.md`](../README.md#smoke-run-against-the-real-sdk) for the smoke procedure and checklist.
