@@ -51,6 +51,22 @@ describe("briefFor (AC-16) — tool-name → short, single-line summary", () => 
     expect(out.endsWith("…")).toBe(true);
   });
 
+  it("Skill uses skill (the canonical key on the SDK Skill tool)", () => {
+    expect(briefFor("Skill", { skill: "praxis:code-reviewing" })).toBe(
+      "praxis:code-reviewing",
+    );
+  });
+
+  it("Skill falls back to name when skill is absent", () => {
+    expect(briefFor("Skill", { name: "praxis:code-improving" })).toBe(
+      "praxis:code-improving",
+    );
+  });
+
+  it("Skill returns empty string when neither skill nor name is present", () => {
+    expect(briefFor("Skill", { args: "x" })).toBe("");
+  });
+
   it("falls back to empty string for unknown tools or missing input shape", () => {
     expect(briefFor("Unknown", { whatever: 1 })).toBe("");
     expect(briefFor("Read", null)).toBe("");

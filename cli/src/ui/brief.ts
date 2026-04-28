@@ -37,6 +37,11 @@ export function briefFor(name: string, input: unknown): string {
       const desc = stringField(input, "description");
       return desc ? truncate(desc) : "";
     }
+    case "Skill": {
+      // S-006: surface the skill identifier on retry/review tool events.
+      // The SDK's Skill tool calls use `skill`; some agents pass `name`.
+      return stringField(input, "skill") ?? stringField(input, "name") ?? "";
+    }
     default:
       return "";
   }
