@@ -44,16 +44,24 @@ export interface Reporter {
    */
   stage0?(total: number, intentFilename: string): void;
   /**
-   * Resume / recover headline emitted by `praxis advance`. `kind` is
-   * `"approved"` for the paused → resume path (the user reviewed the artifact
-   * and is letting the workflow continue) and `"recovering"` for the failed /
-   * cancelled → recover path (the user hand-edited the artifact and wants the
-   * validator to re-check it). Optional so non-CLI Reporters (tests) can skip
-   * it; the runner invokes via `reporter.resuming?.(...)`.
+   * Resume / recover / retry headline. `kind` is:
+   *   - `"approved"`   — paused → resume path (the user reviewed the artifact
+   *     and is letting the workflow continue); emitted by `praxis advance`.
+   *   - `"recovering"` — failed/cancelled → recover path (the user hand-edited
+   *     the artifact and wants the validator to re-check it); emitted by
+   *     `praxis advance`.
+   *   - `"retrying"`   — failed/cancelled `code-improving` → retry path
+   *     (resume the prior SDK session with the literal prompt `continue`);
+   *     emitted by `praxis retry`. The `sessionId` argument is the prior
+   *     session being resumed and is required for this kind only.
+   *
+   * Optional so non-CLI Reporters (tests) can skip it; the runner invokes via
+   * `reporter.resuming?.(...)`.
    */
   resuming?(
-    kind: "approved" | "recovering",
+    kind: "approved" | "recovering" | "retrying",
     runId: string,
     stageId: string,
+    sessionId?: string,
   ): void;
 }

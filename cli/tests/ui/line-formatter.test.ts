@@ -178,6 +178,22 @@ describe("formatResuming (S-004 AC-13)", () => {
   });
 });
 
+describe("formatResuming (S-006) — retrying path", () => {
+  it("renders the 'retrying ... sending continue' headline with the prior session id", async () => {
+    const { formatResuming } = await import("../../src/ui/line-formatter.js");
+    expect(
+      formatResuming(
+        "retrying",
+        "2026-04-25-1430-7af2",
+        "code-improving",
+        "sess_failed",
+      ),
+    ).toEqual([
+      'praxis: retrying code-improving (resume sess_failed) — sending "continue" (run 2026-04-25-1430-7af2)',
+    ]);
+  });
+});
+
 describe("formatPaused (AC-11)", () => {
   it("renders the canonical advance hint", () => {
     expect(

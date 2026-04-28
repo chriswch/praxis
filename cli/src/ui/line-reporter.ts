@@ -126,17 +126,22 @@ export class LineReporter implements Reporter {
   }
 
   /**
-   * S-004 AC-13: resume / recover headline emitted by `praxis advance`.
-   * Optional on the Reporter interface; runner calls it via
-   * `reporter.resuming?.(...)` and skips when absent.
+   * Resume / recover / retry headline. Used by both `praxis advance`
+   * (S-004 AC-13: kinds `"approved"` and `"recovering"`) and `praxis retry`
+   * (S-006: kind `"retrying"`). Optional on the Reporter interface; runner
+   * calls it via `reporter.resuming?.(...)` and skips when absent.
    */
   resuming(
-    kind: "approved" | "recovering",
+    kind: "approved" | "recovering" | "retrying",
     runId: string,
     stageId: string,
+    sessionId?: string,
   ): void {
     this.buffer.flush();
-    this.writeAll(this.stdout, formatResuming(kind, runId, stageId));
+    this.writeAll(
+      this.stdout,
+      formatResuming(kind, runId, stageId, sessionId),
+    );
   }
 
   private writeAll(stream: Writable, lines: string[]): void {

@@ -16,7 +16,14 @@ export type RecordedCall =
   | { kind: "stageEvent"; event: AgentEvent }
   | { kind: "stageEnd"; stageId: string; result: StageEndResult }
   | { kind: "paused"; runId: string; stageId: string; artifactPath: string }
-  | { kind: "runDone"; runId: string; summary: RunSummary };
+  | { kind: "runDone"; runId: string; summary: RunSummary }
+  | {
+      kind: "resuming";
+      resumingKind: "approved" | "recovering" | "retrying";
+      runId: string;
+      stageId: string;
+      sessionId?: string;
+    };
 
 export class RecordingReporter implements Reporter {
   calls: RecordedCall[] = [];
@@ -34,6 +41,20 @@ export class RecordingReporter implements Reporter {
   }
   runDone(runId: string, summary: RunSummary): void {
     this.calls.push({ kind: "runDone", runId, summary });
+  }
+  resuming(
+    kind: "approved" | "recovering" | "retrying",
+    runId: string,
+    stageId: string,
+    sessionId?: string,
+  ): void {
+    this.calls.push({
+      kind: "resuming",
+      resumingKind: kind,
+      runId,
+      stageId,
+      sessionId,
+    });
   }
   countOf(kind: RecordedCall["kind"]): number {
     return this.calls.filter((c) => c.kind === kind).length;

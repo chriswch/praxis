@@ -101,26 +101,40 @@ export function formatPaused(
 }
 
 /**
- * S-004 AC-13: resume / recover headline emitted by `praxis advance`.
+ * Resume / recover / retry headline.
  *
- * Two kinds:
- *   - `"approved"`  → paused → resume path (user reviewed the artifact).
+ * Three kinds:
+ *   - `"approved"`   → paused → resume path (user reviewed the artifact);
+ *     emitted by `praxis advance` (S-004 AC-13).
  *   - `"recovering"` → failed/cancelled → recover path (validator re-runs
- *     against the hand-edited artifact).
+ *     against the hand-edited artifact); emitted by `praxis advance` (S-004
+ *     AC-13).
+ *   - `"retrying"`   → failed/cancelled `code-improving` → retry path
+ *     (resume the prior SDK session with the literal prompt `continue`);
+ *     emitted by `praxis retry` (S-006). The `sessionId` argument is the
+ *     prior session being resumed and is required for this kind only.
  *
  * `runId` is included so multi-run terminals can disambiguate; `stageId` is
- * the stage we're resuming after (approved) or recovering (recovering).
+ * the stage we're resuming after (approved), recovering (recovering), or
+ * retrying (retrying).
  */
 export function formatResuming(
-  kind: "approved" | "recovering",
+  kind: "approved" | "recovering" | "retrying",
   runId: string,
   stageId: string,
+  sessionId?: string,
 ): string[] {
   if (kind === "approved") {
     return [`praxis: resuming approved plan after ${stageId} (run ${runId})`];
   }
+  if (kind === "recovering") {
+    return [
+      `praxis: recovering ${stageId} from on-disk artifact; re-validating (run ${runId})`,
+    ];
+  }
+  // retrying
   return [
-    `praxis: recovering ${stageId} from on-disk artifact; re-validating (run ${runId})`,
+    `praxis: retrying ${stageId} (resume ${sessionId ?? ""}) — sending "continue" (run ${runId})`,
   ];
 }
 

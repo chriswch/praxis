@@ -138,6 +138,19 @@ describe("LineReporter (AC-2/7/8/10/11/12)", () => {
       "praxis: recovering clarify-assess from on-disk artifact; re-validating (run 2026-04-25-1430-7af2)\n",
     );
   });
+
+  it("resuming(retrying) prints the retry headline including the prior session id (S-006)", () => {
+    const { reporter, out } = makeReporter();
+    reporter.resuming(
+      "retrying",
+      "2026-04-25-1430-7af2",
+      "code-improving",
+      "sess_failed",
+    );
+    expect(out.text()).toBe(
+      'praxis: retrying code-improving (resume sess_failed) — sending "continue" (run 2026-04-25-1430-7af2)\n',
+    );
+  });
 });
 
 describe("LineReporter assistant_text coalescing (AC-6)", () => {
