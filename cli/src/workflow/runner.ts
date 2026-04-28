@@ -1031,6 +1031,13 @@ export async function retryWorkflow(
   writeState(runDir, state);
 
   reporter.stageStart(stage, idx + 1, config.workflow.length);
+  // S-006: emit the retry headline AFTER stageStart and BEFORE the SDK
+  // dispatch so terminal output reads
+  //   [4/5 code-improving] starting…
+  //   praxis: retrying code-improving (resume <sess>) — sending "continue" (run <id>)
+  // The session id surfaced is the *prior* (failed) one — that is what the
+  // SDK is actually being asked to resume.
+  reporter.resuming?.("retrying", runId, stage.id, prior.sessionId);
 
   const stageCtx: StageContext = {
     intent: state.intent,

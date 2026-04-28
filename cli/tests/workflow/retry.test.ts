@@ -235,10 +235,11 @@ describe("retryWorkflow happy path (AC-5)", () => {
         [{ messages: noopMessages("sess_retry") }],
         [{ messages: commitMessages("sess_commit") }],
       ]);
+      const reporter = new RecordingReporter();
       const result = await retryWorkflow(
         RUN_ID,
         { cwd, config: RETRY_CONFIG },
-        deps(recording),
+        deps(recording, reporter),
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
@@ -256,6 +257,35 @@ describe("retryWorkflow happy path (AC-5)", () => {
       // SessionId from the latest (retry) attempt wins.
       expect(persisted.stages[CODE_IMPROVING_ID].sessionId).toBe("sess_retry");
       expect(persisted.stages[CODE_IMPROVING_ID].retryAttempts).toBe(1);
+
+      // S-006: reporter.resuming("retrying", runId, stageId, priorSessionId)
+      // fires exactly once, between stageStart and the SDK dispatch.
+      const resumingCalls = reporter.calls.flatMap((c) =>
+        c.kind === "resuming" ? [c] : [],
+      );
+      expect(resumingCalls.length).toBe(1);
+      expect(resumingCalls[0]).toMatchObject({
+        resumingKind: "retrying",
+        runId: RUN_ID,
+        stageId: CODE_IMPROVING_ID,
+        sessionId: "sess_failed",
+      });
+      // Ordering: stageStart for code-improving, then resuming, then stageEnd.
+      const indexes = reporter.calls.map((c, i) => ({ c, i }));
+      const ciStageStart = indexes.find(
+        ({ c }) => c.kind === "stageStart" && c.stageId === CODE_IMPROVING_ID,
+      );
+      const ciResuming = indexes.find(({ c }) => c.kind === "resuming");
+      const ciStageEnd = indexes.find(
+        ({ c }) => c.kind === "stageEnd" && c.stageId === CODE_IMPROVING_ID,
+      );
+      expect(ciStageStart).toBeDefined();
+      expect(ciResuming).toBeDefined();
+      expect(ciStageEnd).toBeDefined();
+      // biome-ignore lint/style/noNonNullAssertion: asserted defined above.
+      expect(ciStageStart!.i).toBeLessThan(ciResuming!.i);
+      // biome-ignore lint/style/noNonNullAssertion: asserted defined above.
+      expect(ciResuming!.i).toBeLessThan(ciStageEnd!.i);
     });
   });
 });
