@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,6 +11,7 @@ import type { PraxisConfig } from "../../src/config/schema.js";
 import {
   advanceWorkflow,
   retryWorkflow,
+  runWorkflow,
 } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
@@ -164,6 +166,50 @@ describe("advanceWorkflow uses state.baselineSha (AC-5)", () => {
       expect(recording.calls.length).toBe(1);
       const initialUserPrompt = recording.calls[0].input.initialUserPrompt;
       expect(initialUserPrompt).toBe(`baseline=${FAKE_BASELINE}`);
+    });
+  });
+});
+
+describe("runWorkflow populates StageContext.baselineSha (AC-8)", () => {
+  it("the first dispatched stage's user prompt carries the SHA captured by `git rev-parse HEAD`", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const head = spawnSync("git", ["rev-parse", "HEAD"], {
+        cwd,
+        encoding: "utf8",
+      });
+      expect(head.status).toBe(0);
+      const baseline = head.stdout.trim();
+
+      const config: PraxisConfig = {
+        version: 1,
+        workflow: [
+          {
+            id: "first",
+            systemPrompt: { file: "clarify-assess.md" },
+            userPromptTemplate: "baseline={{baselineSha}}",
+            outputArtifact: "first.md",
+            pauseAfter: true,
+          },
+        ],
+      };
+
+      const recording = recordingScriptedQuery([
+        [{ messages: noopMessages("sess_first") }],
+      ]);
+      const result = await runWorkflow(
+        { intent: "ship it", cwd, allowDirty: true, config },
+        {
+          ...deps(recording),
+          clock: () => new Date("2026-04-25T14:30:12Z"),
+          rng: (n) => new Uint8Array([0x7a, 0xf2]).slice(0, n),
+        },
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      expect(recording.calls.length).toBe(1);
+      expect(recording.calls[0].input.initialUserPrompt).toBe(
+        `baseline=${baseline}`,
+      );
     });
   });
 });
