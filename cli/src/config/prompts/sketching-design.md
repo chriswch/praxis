@@ -31,13 +31,14 @@ message must mirror whichever the skill returned:
    don't hold against the codebase, and a recommendation to return to
    `clarifying-intent`.
 
-Do not modify any files yourself — code edits are the implement stage's job,
-and the spec is the clarify-assess stage's. This stage is read-only design
-exploration.
+Do not modify any files yourself — code edits are the `driving-tdd` stage's
+job, and the spec is the clarify-assess stage's. This stage is read-only
+design exploration.
 
 Schema note: this stage has **no validator**. Whatever the skill emits is
 written verbatim to `02-sketching-design.md`. There is no corrective retry; if
 the skill cannot be invoked, the stage fails through the standard timeout /
-error path. The downstream `implement` stage reads only the clarify-assess
-artifact (`{{artifacts.clarify-assess.path}}`); the design sketch is advisory
-context for the human and for the implement stage to consult if needed.
+error path. The downstream `driving-tdd` stage reads **both** the
+clarify-assess artifact (`{{artifacts.clarify-assess.path}}`) **and** this
+sketch as primary inputs; treat the sketch as a real design hand-off, not just
+advisory context.
