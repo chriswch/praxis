@@ -78,6 +78,13 @@ export type StageContext = {
   runId: string;
   reporter: Reporter;
   signal: AbortSignal;
+  /**
+   * S-1: baseline commit SHA captured at run start (`git rev-parse HEAD` from
+   * `runWorkflow`, or `state.baselineSha` from `advanceWorkflow` /
+   * `retryWorkflow`). Surfaced to stage prompts via the `{{baselineSha}}` token
+   * in `buildUserPrompt`.
+   */
+  baselineSha: string;
   /** Resolved artifact paths for stages that have already run. */
   artifactPaths: Record<string, string>;
 };
@@ -163,12 +170,16 @@ export function loadSystemPrompt(config: StageConfig): string {
 
 /**
  * Build a stage's initial user prompt by interpolating
- * `{{intent}}`, `{{runDir}}`, and `{{artifacts.<id>.path}}` tokens. Missing
- * tokens throw — the harness guarantees these are populated before runStage.
+ * `{{intent}}`, `{{runDir}}`, `{{baselineSha}}`, and `{{artifacts.<id>.path}}`
+ * tokens. Missing tokens throw — the harness guarantees these are populated
+ * before runStage.
  */
 export function buildUserPrompt(
   config: StageConfig,
-  ctx: Pick<StageContext, "intent" | "runDir" | "artifactPaths">,
+  ctx: Pick<
+    StageContext,
+    "intent" | "runDir" | "baselineSha" | "artifactPaths"
+  >,
 ): string {
   const template =
     typeof config.userPromptTemplate === "string"
@@ -179,6 +190,7 @@ export function buildUserPrompt(
     const token = raw.trim();
     if (token === "intent") return ctx.intent;
     if (token === "runDir") return ctx.runDir;
+    if (token === "baselineSha") return ctx.baselineSha;
     const artifactMatch = /^artifacts\.([^.]+)\.path$/.exec(token);
     if (artifactMatch) {
       const stageId = artifactMatch[1];

@@ -121,6 +121,7 @@ export async function runWorkflow(
   const loopCtx: LoopContext = {
     intent: ctx.intent,
     cwd: ctx.cwd,
+    baselineSha: state.baselineSha,
     noPause: ctx.noPause,
     signal: ctx.signal,
   };
@@ -155,6 +156,12 @@ type StepOutcome =
 type LoopContext = {
   intent: string;
   cwd: string;
+  /**
+   * S-1: baseline commit SHA captured at run start (or read back from
+   * `state.baselineSha` on the resume paths). Threaded onto every
+   * `StageContext` so prompts can reference `{{baselineSha}}`.
+   */
+  baselineSha: string;
   noPause?: boolean;
   signal?: AbortSignal;
 };
@@ -253,6 +260,7 @@ async function runOneStage(
     runId,
     reporter,
     signal: ctx.signal ?? new AbortController().signal,
+    baselineSha: ctx.baselineSha,
     artifactPaths: collectArtifactPaths(state, config, runDir, stage.id),
   };
 
@@ -683,9 +691,12 @@ export async function advanceWorkflow(
   // M-2: resolve `intent` once at the advance boundary. The original run
   // captured it in state.json; downstream `runOneStage` reads it off the
   // loop context unconditionally — no per-stage shape check.
+  // S-1 AC-5: read `baselineSha` straight off state — advance does NOT
+  // shell out to `git rev-parse HEAD` again.
   const loopCtx: LoopContext = {
     intent: state.intent,
     cwd: ctx.cwd,
+    baselineSha: state.baselineSha,
     noPause: ctx.noPause,
     signal: ctx.signal,
   };
@@ -1049,6 +1060,8 @@ export async function retryWorkflow(
     runId,
     reporter,
     signal: ctx.signal ?? new AbortController().signal,
+    // S-1 AC-5: retry reads baselineSha from state; no second shell-out.
+    baselineSha: state.baselineSha,
     artifactPaths: collectArtifactPaths(state, config, runDir, stage.id),
   };
 
@@ -1153,6 +1166,7 @@ export async function retryWorkflow(
   const loopCtx: LoopContext = {
     intent: state.intent,
     cwd: ctx.cwd,
+    baselineSha: state.baselineSha,
     noPause: ctx.noPause,
     signal: ctx.signal,
   };
