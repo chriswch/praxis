@@ -62,10 +62,18 @@ function stageMessages(sessionId: string, finalText: string): SdkMessage[] {
 }
 
 /**
- * Implement-stage script that ALSO writes a real file inside the repo via the
- * test's filesystem before yielding the assistant text. This simulates the
- * SDK's tool side-effects so the working tree is actually dirty by the time
- * auto-commit runs — the production commit() then has something to capture.
+ * Implement-stage script that writes a real file inside the repo AND commits
+ * it before yielding the assistant text. This simulates the driving-tdd
+ * skill's per-AC commits — HEAD advances past baselineSha so the new
+ * cascade-skip predicate (S-3 AC-5) lets code-reviewing/code-improving/
+ * auto-commit dispatch.
+ *
+ * Production auto-commit then runs and lands a SECOND commit on top of the
+ * implement commit — the file the implement stage left untracked is the seed
+ * for that second commit. Tests written against this helper assert HEAD
+ * advances by exactly one commit RELATIVE to the implement commit (i.e. two
+ * commits past baseline), but they call `git rev-parse HEAD~1` to walk back
+ * one ancestor — adjust to walk back two.
  */
 function implementWithSideEffect(
   cwd: string,
@@ -80,9 +88,16 @@ function implementWithSideEffect(
       stream: (async function* () {
         if (!invoked) {
           invoked = true;
-          // Write the side-effect file before yielding the result so the
-          // dirty state is observable when auto-commit pre-checks.
+          // S-3 AC-7: commit the implement-stage file so HEAD advances and
+          // the trailing three stages cascade-dispatch under the new
+          // predicate. Without this, code-reviewing/code-improving/auto-commit
+          // would skip — leaving the test with no commit to assert on.
           writeFileSync(join(cwd, filename), contents, "utf8");
+          spawnSync("git", ["add", filename], { cwd });
+          spawnSync("git", ["commit", "-m", "implement: per-AC"], { cwd });
+          // Drop a SECOND uncommitted file so production auto-commit has
+          // something dirty to capture in its own commit.
+          writeFileSync(join(cwd, `${filename}.note`), "auto-commit me\n", "utf8");
         }
         for (const m of stageMessages(
           sessionId,
@@ -105,8 +120,8 @@ function buildDeps(createQueryFn: CreateQueryFn): Deps {
   };
 }
 
-describe("praxis run --no-pause lands one real commit (AC-8)", () => {
-  it("workflow drives clarify-assess → implement (with file side-effect) → auto-commit; HEAD advances by exactly one commit and the SHA matches state.commitSha", async () => {
+describe("praxis run --no-pause lands one real auto-commit on top of the implement commit (AC-8)", () => {
+  it("workflow drives clarify-assess → implement (commits per AC) → auto-commit; HEAD advances by exactly two commits (implement + auto-commit) and the auto-commit SHA matches state.commitSha", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // Pre-commit a baseline so HEAD exists; lets us assert HEAD ADVANCES by
       // one (rather than gets created from nothing).
@@ -162,17 +177,18 @@ describe("praxis run --no-pause lands one real commit (AC-8)", () => {
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // HEAD advanced by exactly one commit.
+      // S-3: HEAD advanced by exactly two commits — implement (per-AC) and
+      // auto-commit (the trailing dirty bits). HEAD~2 walks back to baseline.
       const newHead = spawnSync("git", ["rev-parse", "HEAD"], {
         cwd,
         encoding: "utf8",
       }).stdout.trim();
       expect(newHead).not.toBe(baselineSha);
-      const parent = spawnSync("git", ["rev-parse", "HEAD~1"], {
+      const grandparent = spawnSync("git", ["rev-parse", "HEAD~2"], {
         cwd,
         encoding: "utf8",
       }).stdout.trim();
-      expect(parent).toBe(baselineSha);
+      expect(grandparent).toBe(baselineSha);
 
       // Commit subject matches the agent's auto-commit finalText.
       const subject = spawnSync("git", ["log", "-1", "--pretty=%s"], {
@@ -283,16 +299,17 @@ describe("praxis advance lands one real commit (AC-9)", () => {
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
+      // S-3: HEAD advanced by exactly two commits — implement + auto-commit.
       const newHead = spawnSync("git", ["rev-parse", "HEAD"], {
         cwd,
         encoding: "utf8",
       }).stdout.trim();
       expect(newHead).not.toBe(baselineSha);
-      const parent = spawnSync("git", ["rev-parse", "HEAD~1"], {
+      const grandparent = spawnSync("git", ["rev-parse", "HEAD~2"], {
         cwd,
         encoding: "utf8",
       }).stdout.trim();
-      expect(parent).toBe(baselineSha);
+      expect(grandparent).toBe(baselineSha);
 
       const subject = spawnSync("git", ["log", "-1", "--pretty=%s"], {
         cwd,

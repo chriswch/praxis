@@ -7,7 +7,7 @@ import {
   defaultWorkflow,
 } from "../config/defaults.js";
 import type { PraxisConfig, StageConfig } from "../config/schema.js";
-import { currentHead, isWorkingTreeClean } from "../git/status.js";
+import { currentHead } from "../git/status.js";
 import type { Reporter, RunStatus, RunSummary } from "../ui/reporter.js";
 import { writeArtifact, writeIntent } from "./artifacts.js";
 import { appendPraxisToGitignore, runPreflight } from "./preflight.js";
@@ -413,18 +413,24 @@ async function runOneStage(
 }
 
 /**
- * S-006 AC-5 + S-003 AC-1/AC-2: skip the SDK call when the working tree is
- * clean for any of the three trailing stages (code-reviewing, code-improving,
- * auto-commit). Implement may have made no edits, or recovered to baseline;
- * either way there is nothing to review, improve, or commit. Synthesize a
- * completed stage with stopReason "skipped" — no sessionId/tokens/usd, no
- * artifact written, no deps.commit hand-off. Once driving-tdd skips on a
- * clean tree, code-reviewing and code-improving see the same clean tree on
- * entry and skip too, producing the cascading "skipped" stopReason for all
- * three.
+ * S-006 AC-5 + S-003 AC-1/AC-2 + S-3 AC-5: skip the SDK call for any of the
+ * three trailing stages (code-reviewing, code-improving, auto-commit) when
+ * driving-tdd produced no commits — i.e. HEAD has not advanced past the
+ * baseline captured at run start. The skill commits per AC, so HEAD is the
+ * canonical signal that work landed; a dirty working tree without a commit
+ * is noise (the skill discarded a red test, dropped a stray file, etc.) and
+ * the trailing stages have nothing real to review, improve, or commit.
  *
- * Returns `null` when the stage is not eligible for clean-tree skip, so the
- * caller can move on to the next gate.
+ * Synthesize a completed stage with stopReason "skipped" — no sessionId/
+ * tokens/usd, no artifact written, no deps.commit hand-off. Once
+ * code-reviewing skips on the unchanged HEAD, code-improving and auto-commit
+ * see the same unchanged HEAD on entry and skip too, producing the cascading
+ * "skipped" stopReason for all three.
+ *
+ * Returns `null` when the stage is not eligible for clean-tree skip OR when
+ * `currentHead` cannot be resolved — in the unresolvable case we fall through
+ * to the normal SDK dispatch so the underlying git failure surfaces through
+ * the stage rather than a silent skip.
  */
 function maybeSkipCleanTree(
   stage: StageConfig,
@@ -441,7 +447,8 @@ function maybeSkipCleanTree(
   ) {
     return null;
   }
-  if (!isWorkingTreeClean(ctx.cwd)) return null;
+  const head = currentHead(ctx.cwd);
+  if (!head.ok || head.sha !== ctx.baselineSha) return null;
   const skipped: StageState = {
     status: "completed",
     endedAt: toIsoSeconds(deps.clock()),

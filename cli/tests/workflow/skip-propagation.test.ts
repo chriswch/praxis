@@ -12,7 +12,11 @@ import type {
 } from "../../src/workflow/stage.js";
 import { type State, writeState } from "../../src/workflow/state.js";
 import { RecordingReporter } from "../support/recording-reporter.js";
-import { recordingScriptedQuery } from "../support/scripted-query.js";
+import {
+  type RecordingCreateQueryFn,
+  recordingScriptedQuery,
+  type Script,
+} from "../support/scripted-query.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
 /**
@@ -119,6 +123,40 @@ function seedCleanRepo(cwd: string): void {
   writeFileSync(join(cwd, ".gitignore"), ".praxis/\n", "utf8");
   spawnSync("git", ["add", ".gitignore"], { cwd });
   spawnSync("git", ["commit", "-m", "baseline"], { cwd });
+}
+
+/**
+ * S-3 AC-7: wrap a `recordingScriptedQuery` so the Nth scripted call drops a
+ * file AND commits it before yielding the result. HEAD advances past the
+ * baseline so the trailing three stages cascade-dispatch (rather than skip).
+ *
+ * Used by AC-3/4/6/7 fixtures where the implement scripted turn used to
+ * implicitly "make the tree dirty" via `allowDirty: true` and no commit; with
+ * the new HEAD-advance predicate, those tests need a real commit.
+ */
+function recordingScriptedQueryWithCommitOn(
+  cwd: string,
+  callIdxToCommitOn: number,
+  scripts: Script[][],
+): RecordingCreateQueryFn {
+  const inner = recordingScriptedQuery(scripts);
+  let i = 0;
+  const wrapped: CreateQueryFn = (input) => {
+    const myIdx = i++;
+    if (myIdx === callIdxToCommitOn) {
+      writeFileSync(
+        join(cwd, `stage-${myIdx}.txt`),
+        `committed at call ${myIdx}\n`,
+        "utf8",
+      );
+      spawnSync("git", ["add", `stage-${myIdx}.txt`], { cwd });
+      spawnSync("git", ["commit", "-m", `stage-${myIdx}`], { cwd });
+    }
+    return inner(input);
+  };
+  const out = wrapped as RecordingCreateQueryFn;
+  out.calls = inner.calls;
+  return out;
 }
 
 /** Fixture state: clarify-assess + implement completed, awaiting code-reviewing. */
@@ -243,6 +281,170 @@ function seedRunDir(cwd: string, state: State): string {
   writeState(runDir, state);
   return runDir;
 }
+
+describe("S-3 AC-5: clean-tree skip predicate flips to baselineSha-vs-HEAD", () => {
+  it("dirty tree but HEAD unchanged at code-reviewing entry → cascade still skips (recording.calls.length === 3)", async () => {
+    // S-3 AC-5: the old predicate `isWorkingTreeClean(cwd)` returns false on
+    // any dirty file in the tree, even when no commits have landed. The new
+    // predicate compares HEAD to state.baselineSha — if HEAD has not advanced
+    // since the run started, the trailing three stages still cascade-skip.
+    //
+    // Fixture: seed a clean baseline commit, run the 6-stage pipeline. The
+    // implement stage's scripted query drops a stray file via writeFileSync
+    // WITHOUT staging or committing — HEAD stays put but the working tree is
+    // dirty. With the old predicate, code-reviewing dispatches (recording.calls
+    // would be 6); with the new predicate, code-reviewing/code-improving/
+    // auto-commit cascade-skip (recording.calls === 3).
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedCleanRepo(cwd);
+
+      const sessionId = "sess_impl_dirty";
+      const implementMessages: SdkMessage[] = [
+        {
+          type: "system",
+          subtype: "init",
+          session_id: sessionId,
+          model: "claude-test",
+        },
+        {
+          type: "assistant",
+          session_id: sessionId,
+          message: { content: [{ type: "text", text: "wrote stray.txt\n" }] },
+        },
+        {
+          type: "result",
+          subtype: "success",
+          stop_reason: "end_turn",
+          total_cost_usd: 0.001,
+          usage: {
+            input_tokens: 10,
+            output_tokens: 5,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+          num_turns: 1,
+          session_id: sessionId,
+        },
+      ];
+
+      // Sociable side-effect: a real createQueryFn that drops a stray file in
+      // cwd before yielding the result. Mirrors the implement-fs-mutation
+      // pattern from implement-fs-mutation.test.ts:109.
+      const stageScripts: SdkMessage[][] = [
+        stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT),
+        stageMessages("sess_sketch", "## Sketch\n\nok\n"),
+        implementMessages,
+      ];
+      let callIdx = 0;
+      const calls: Array<{ input: unknown }> = [];
+      const createQueryFn: CreateQueryFn = (input) => {
+        const myCallIdx = callIdx++;
+        calls.push({ input });
+        const messages = stageScripts[myCallIdx];
+        if (!messages) {
+          throw new Error(
+            `createQueryFn: cascade should have skipped past call ${myCallIdx + 1}`,
+          );
+        }
+        const isImplement = myCallIdx === 2;
+        const handle = {
+          pushUserMessage() {},
+          stream: (async function* () {
+            for (const m of messages) {
+              if (isImplement && m.type === "result") {
+                // Drop a stray dirty file — uncommitted, untracked. Tree is
+                // dirty, but HEAD stays at baseline.
+                writeFileSync(join(cwd, "stray.txt"), "stray\n", "utf8");
+              }
+              yield m;
+            }
+          })(),
+        };
+        return handle;
+      };
+
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(createQueryFn, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // The trailing three stages cascade-skipped because HEAD never moved.
+      expect(calls.length).toBe(3);
+      // Stray file is still on disk — proof the tree was dirty.
+      expect(existsSync(join(cwd, "stray.txt"))).toBe(true);
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-reviewing"].stopReason).toBe("skipped");
+      expect(persisted.stages["code-improving"].stopReason).toBe("skipped");
+      expect(persisted.stages["auto-commit"].stopReason).toBe("skipped");
+    });
+  });
+
+  it("dirty tree with HEAD advanced past baselineSha → cascade dispatches (recording.calls.length === 6)", async () => {
+    // Symmetric counterpart: when implement actually commits a change, HEAD
+    // moves past the baseline and the trailing three stages MUST run. Use
+    // git CLI inside the scripted implement turn so the test is sociable
+    // with the real git-status reality.
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedCleanRepo(cwd);
+
+      const stageScripts: SdkMessage[][] = [
+        stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT),
+        stageMessages("sess_sketch", "## Sketch\n\nok\n"),
+        stageMessages("sess_impl", "wrote and committed src/Foo.tsx\n"),
+        stageMessages("sess_review", REVIEW_PROCEED),
+        stageMessages("sess_improve", IMPROVE_LOG),
+        stageMessages("sess_commit", "feat: x"),
+      ];
+      let callIdx = 0;
+      const calls: Array<{ input: unknown }> = [];
+      const createQueryFn: CreateQueryFn = (input) => {
+        const myCallIdx = callIdx++;
+        calls.push({ input });
+        const messages = stageScripts[myCallIdx];
+        if (!messages) {
+          throw new Error(
+            `createQueryFn: ran out of scripts at call ${myCallIdx + 1}`,
+          );
+        }
+        const isImplement = myCallIdx === 2;
+        const handle = {
+          pushUserMessage() {},
+          stream: (async function* () {
+            for (const m of messages) {
+              if (isImplement && m.type === "result") {
+                // Make a real commit so HEAD advances past baselineSha.
+                writeFileSync(join(cwd, "Foo.tsx"), "x\n", "utf8");
+                spawnSync("git", ["add", "Foo.tsx"], { cwd });
+                spawnSync("git", ["commit", "-m", "AC-1"], { cwd });
+              }
+              yield m;
+            }
+          })(),
+        };
+        return handle;
+      };
+
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(createQueryFn, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      // S-3 AC-7: cascade dispatched all six stages because HEAD advanced.
+      expect(calls.length).toBe(6);
+
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(persisted.stages["code-reviewing"].stopReason).toBe("end_turn");
+      expect(persisted.stages["code-improving"].stopReason).toBe("end_turn");
+    });
+  });
+});
 
 describe("S-003 AC-15: regression — pre-existing environmental failures unchanged", () => {
   it("the runner module still compiles and isWorkingTreeClean is importable from src/git/status.js", async () => {
@@ -613,7 +815,11 @@ describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
           },
         ];
       }
-      const recording = recordingScriptedQuery([
+      // S-3 AC-7: implement (call idx 2) commits a real change so HEAD
+      // advances past baselineSha; code-reviewing dispatches and gets to fail
+      // its validator. The trailing two stages still don't fire because the
+      // validator failure short-circuits.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         // S-2: sketching-design runs between clarify-assess and implement.
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
@@ -717,7 +923,9 @@ describe("S-003 AC-6: validator corrective retry on code-reviewing succeeds; dow
         },
       ];
 
-      const recording = recordingScriptedQuery([
+      // S-3 AC-7: implement (call idx 2) commits a real change so HEAD
+      // advances past baselineSha; cascade dispatches the trailing stages.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         // S-2: sketching-design between clarify-assess and implement.
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
@@ -754,9 +962,11 @@ describe("S-003 AC-6: validator corrective retry on code-reviewing succeeds; dow
 });
 
 describe("S-003 AC-4: decision=skip-improve skips code-improving but still runs auto-commit", () => {
-  it("dirty tree + REVIEW_SKIP_IMPROVE → code-improving skipped-trivial, no 05-code-improve.md, auto-commit still runs, recording.calls.length === 5 (no SDK call for code-improving)", async () => {
+  it("HEAD-advanced + REVIEW_SKIP_IMPROVE → code-improving skipped-trivial, no 05-code-improve.md, auto-commit still runs, recording.calls.length === 5 (no SDK call for code-improving)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
-      const recording = recordingScriptedQuery([
+      // S-3 AC-7: implement (call idx 2) commits a real change so HEAD
+      // advances past baselineSha; cascade dispatches the trailing stages.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         // S-2: sketching-design.
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
@@ -800,7 +1010,10 @@ describe("S-003 AC-4: decision=skip-improve skips code-improving but still runs 
 describe("S-006: skip-improve stageEnd carries stopReason='skipped-trivial' to the reporter", () => {
   it("recording reporter sees stopReason='skipped-trivial' on the code-improving stageEnd; clean-tree skips on code-reviewing+auto-commit carry stopReason='skipped'", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
-      const recording = recordingScriptedQuery([
+      // S-3 AC-7: implement commits so HEAD advances and cascade dispatches
+      // through code-reviewing; only the decision-driven skip on code-improving
+      // remains.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         // S-2: sketching-design.
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
@@ -830,13 +1043,11 @@ describe("S-006: skip-improve stageEnd carries stopReason='skipped-trivial' to t
 });
 
 describe("S-003 AC-3: decision=proceed dispatches code-improving normally", () => {
-  it("dirty tree + REVIEW_PROCEED → code-improving SDK call happens; review/improve/commit all run; recording.calls.length === 6", async () => {
+  it("HEAD-advanced + REVIEW_PROCEED → code-improving SDK call happens; review/improve/commit all run; recording.calls.length === 6", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
-      // Dirty tree (no baseline commit) — runner appends .praxis/ to
-      // .gitignore, leaves it untracked. git status --porcelain is non-empty
-      // through every stage entry, so the clean-tree skip block is never
-      // taken.
-      const recording = recordingScriptedQuery([
+      // S-3 AC-7: implement (call idx 2) commits a real change so HEAD
+      // advances past baselineSha and the trailing three stages dispatch.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         // S-2: sketching-design.
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],

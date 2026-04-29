@@ -61,10 +61,14 @@ function stageMessages(sessionId: string, finalText: string): SdkMessage[] {
 }
 
 /**
- * Implement-stage script that ALSO writes a real file inside the repo via the
- * test's filesystem before yielding the assistant text. This simulates the
- * SDK's tool side-effects so the working tree is dirty by the time
- * code-reviewing runs.
+ * Implement-stage script that writes a real file inside the repo AND commits
+ * it before yielding the assistant text. This simulates the driving-tdd
+ * skill's per-AC commits — HEAD advances past baselineSha so the new
+ * cascade-skip predicate (S-3 AC-5) lets code-reviewing/code-improving/
+ * auto-commit dispatch.
+ *
+ * Also drops a SECOND uncommitted file so production auto-commit has
+ * something dirty to capture in its own commit on top.
  */
 function implementWithSideEffect(
   cwd: string,
@@ -81,6 +85,10 @@ function implementWithSideEffect(
           invoked = true;
           mkdirSync(join(cwd, filename, ".."), { recursive: true });
           writeFileSync(join(cwd, filename), contents, "utf8");
+          spawnSync("git", ["add", filename], { cwd });
+          spawnSync("git", ["commit", "-m", "implement: per-AC"], { cwd });
+          // Trailing dirty file for production auto-commit to land.
+          writeFileSync(join(cwd, `${filename}.note`), "auto-commit me\n", "utf8");
         }
         for (const m of stageMessages(
           sessionId,
@@ -173,9 +181,16 @@ describe("praxis run --no-pause then praxis retry lands one real commit (S-008)"
       expect(stateAfterFail.stages["code-improving"].sessionId).toBe(
         "sess_improve_first",
       );
-      // No commit yet.
+      // S-3: HEAD has advanced by exactly one commit (the implement-stage's
+      // per-AC commit). auto-commit hasn't run yet — that's the retry path's
+      // job. So HEAD~1 walks back to baseline, but HEAD itself does NOT.
+      const headAfterFail = spawnSync("git", ["rev-parse", "HEAD"], {
+        cwd,
+        encoding: "utf8",
+      }).stdout.trim();
+      expect(headAfterFail).not.toBe(baselineSha);
       expect(
-        spawnSync("git", ["rev-parse", "HEAD"], {
+        spawnSync("git", ["rev-parse", "HEAD~1"], {
           cwd,
           encoding: "utf8",
         }).stdout.trim(),
@@ -216,14 +231,16 @@ describe("praxis run --no-pause then praxis retry lands one real commit (S-008)"
         "continue",
       );
 
-      // HEAD advanced by exactly one commit.
+      // S-3: HEAD advanced by exactly two commits — implement (per-AC, landed
+      // on the first pass before SIGINT) and auto-commit (landed on retry).
+      // HEAD~2 walks back to baseline.
       const newHead = spawnSync("git", ["rev-parse", "HEAD"], {
         cwd,
         encoding: "utf8",
       }).stdout.trim();
       expect(newHead).not.toBe(baselineSha);
       expect(
-        spawnSync("git", ["rev-parse", "HEAD~1"], {
+        spawnSync("git", ["rev-parse", "HEAD~2"], {
           cwd,
           encoding: "utf8",
         }).stdout.trim(),

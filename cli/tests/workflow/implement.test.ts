@@ -25,7 +25,9 @@ import { type State, writeState } from "../../src/workflow/state.js";
 import { RecordingReporter } from "../support/recording-reporter.js";
 import {
   hangingQuery,
+  type RecordingCreateQueryFn,
   recordingScriptedQuery,
+  type Script,
 } from "../support/scripted-query.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
@@ -204,6 +206,41 @@ function recordingCommit(
   const spy = fn as CommitSpy;
   spy.calls = calls;
   return spy;
+}
+
+/**
+ * S-3 AC-7: wrap a `recordingScriptedQuery` so the Nth scripted call drops a
+ * file AND commits it before yielding the result. HEAD advances past the
+ * baseline so the trailing three stages (code-reviewing/code-improving/
+ * auto-commit) cascade-dispatch under the new clean-tree predicate.
+ *
+ * Used by tests where the implement scripted turn used to implicitly "make
+ * the tree dirty" via `allowDirty: true` and no commit; with the new HEAD-
+ * advance predicate, those tests need a real commit during implement.
+ */
+function recordingScriptedQueryWithCommitOn(
+  cwd: string,
+  callIdxToCommitOn: number,
+  scripts: Script[][],
+): RecordingCreateQueryFn {
+  const inner = recordingScriptedQuery(scripts);
+  let i = 0;
+  const wrapped: CreateQueryFn = (input) => {
+    const myIdx = i++;
+    if (myIdx === callIdxToCommitOn) {
+      writeFileSync(
+        join(cwd, `stage-${myIdx}.txt`),
+        `committed at call ${myIdx}\n`,
+        "utf8",
+      );
+      spawnSync("git", ["add", `stage-${myIdx}.txt`], { cwd });
+      spawnSync("git", ["commit", "-m", `stage-${myIdx}`], { cwd });
+    }
+    return inner(input);
+  };
+  const out = wrapped as RecordingCreateQueryFn;
+  out.calls = inner.calls;
+  return out;
 }
 
 function buildDeps(
@@ -435,7 +472,9 @@ describe("fresh SDK session per stage (AC-10)", () => {
   it("clarify-assess sessionId is not reused downstream; each stage call gets its own AbortSignal", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // S-2 6-stage shape — each stage gets its own scripted SDK call.
-      const recording = recordingScriptedQuery([
+      // S-3 AC-7: implement (call idx 2) commits so HEAD advances past
+      // baselineSha and the trailing three stages dispatch.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "implement log\n") }],
@@ -632,7 +671,9 @@ describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () 
         "## Files changed\n\n- src/Foo.tsx — added logout button\n";
       const commitMessage = "feat: add logout button";
       const sketchLog = "## Sketch\n\n- start at src/Foo.tsx\n";
-      const recording = recordingScriptedQuery([
+      // S-3 AC-7: implement (call idx 2) commits so HEAD advances past
+      // baselineSha and the trailing three stages dispatch.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         // clarify-assess: emit a valid artifact so the validator passes.
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         // sketching-design.
@@ -702,8 +743,9 @@ describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () 
 describe("RunSummary.commitSha plumbed from auto-commit state (S-006 AC-7)", () => {
   it("summarize() reads state.stages['auto-commit'].commitSha and surfaces it on runDone's RunSummary", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
-      // S-2 6-stage shape.
-      const recording = recordingScriptedQuery([
+      // S-2 6-stage shape. S-3 AC-7: implement commits so HEAD advances and
+      // cascade dispatches.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
@@ -733,7 +775,8 @@ describe("RunSummary.commitSha plumbed from auto-commit state (S-006 AC-7)", () 
 describe("RunSummary.perStage covers all 6 stages on the proceed happy path (S-006, S-2)", () => {
   it("runDone receives a perStage row for every stage that ran (6 SDK calls → 6 entries with tokens + sessionId)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
-      const recording = recordingScriptedQuery([
+      // S-3 AC-7: implement commits so HEAD advances and cascade dispatches.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
@@ -777,8 +820,9 @@ describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
   it("deps.commit returns {ok:false, reason} → state.json shows status:failed, stopReason:commit_failed, error:reason; 06-commit.txt is the agent message only", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const commitMessage = "feat: nope";
-      // S-2 6-stage shape.
-      const recording = recordingScriptedQuery([
+      // S-2 6-stage shape. S-3 AC-7: implement commits so HEAD advances and
+      // cascade dispatches all the way through auto-commit (which then fails).
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
