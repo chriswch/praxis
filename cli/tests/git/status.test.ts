@@ -35,17 +35,22 @@ describe("currentHead happy path", () => {
 
 describe("currentHead empty repo", () => {
   it("returns {ok:false, reason} naming 'no commits' when the repo has no commits yet", async () => {
-    await withTempRepo(async ({ dir }) => {
-      // Sanity: fresh withTempRepo has no HEAD.
-      const before = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
-        cwd: dir,
-      });
-      expect(before.status).not.toBe(0);
+    // S-1: opt out of the default baseline-commit seed so the test still
+    // exercises the empty-repo branch.
+    await withTempRepo(
+      async ({ dir }) => {
+        // Sanity: fresh withTempRepo has no HEAD.
+        const before = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
+          cwd: dir,
+        });
+        expect(before.status).not.toBe(0);
 
-      const result = currentHead(dir);
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expect(result.reason.toLowerCase()).toContain("no commits");
-    });
+        const result = currentHead(dir);
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error("unreachable");
+        expect(result.reason.toLowerCase()).toContain("no commits");
+      },
+      { seedBaseline: false },
+    );
   });
 });

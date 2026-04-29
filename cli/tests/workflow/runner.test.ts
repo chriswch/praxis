@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -142,5 +143,62 @@ describe("runWorkflow bootstrap shape", () => {
       );
       expect(state.startedAt).toBe("2026-04-25T14:30:12Z");
     });
+  });
+});
+
+describe("runWorkflow baselineSha capture (AC-3)", () => {
+  it("stamps state.baselineSha with git rev-parse HEAD from the cwd", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // The default-seeded baseline commit IS the HEAD we expect to capture.
+      const head = spawnSync("git", ["rev-parse", "HEAD"], {
+        cwd,
+        encoding: "utf8",
+      });
+      expect(head.status).toBe(0);
+      const baseline = head.stdout.trim();
+
+      const result = await runWorkflow(
+        { intent: "ship it", cwd, allowDirty: true, config: oneStageConfig },
+        pinnedDeps(
+          new Date("2026-04-25T14:30:12Z"),
+          new Uint8Array([0x7a, 0xf2]),
+          scriptedQuery([{ messages: noopMessages }]),
+        ),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+      const state = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      expect(state.baselineSha).toBe(baseline);
+      expect(state.baselineSha).toMatch(/^[0-9a-f]{40}$/);
+    });
+  });
+});
+
+describe("runWorkflow empty repo (AC-4)", () => {
+  it("returns {ok:false} with reason naming 'no commits' and remediation hinting 'git commit --allow-empty'; no run-dir created", async () => {
+    // S-1: opt out of the default baseline-commit seed so we exercise the
+    // empty-repo branch.
+    await withTempRepo(
+      async ({ dir: cwd }) => {
+        const result = await runWorkflow(
+          { intent: "ship it", cwd, allowDirty: true, config: oneStageConfig },
+          pinnedDeps(
+            new Date("2026-04-25T14:30:12Z"),
+            new Uint8Array([0x7a, 0xf2]),
+            scriptedQuery([{ messages: noopMessages }]),
+          ),
+        );
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error("unreachable");
+        expect(result.reason.toLowerCase()).toContain("no commits");
+        expect((result.remediation ?? "").toLowerCase()).toContain(
+          "git commit --allow-empty",
+        );
+        // No run dir — `.praxis/runs/` should not exist on disk.
+        expect(existsSync(join(cwd, ".praxis", "runs"))).toBe(false);
+      },
+      { seedBaseline: false },
+    );
   });
 });

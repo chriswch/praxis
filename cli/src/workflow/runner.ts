@@ -7,7 +7,7 @@ import {
   defaultWorkflow,
 } from "../config/defaults.js";
 import type { PraxisConfig, StageConfig } from "../config/schema.js";
-import { isWorkingTreeClean } from "../git/status.js";
+import { currentHead, isWorkingTreeClean } from "../git/status.js";
 import type { Reporter, RunStatus, RunSummary } from "../ui/reporter.js";
 import { writeArtifact, writeIntent } from "./artifacts.js";
 import { appendPraxisToGitignore, runPreflight } from "./preflight.js";
@@ -90,6 +90,20 @@ export async function runWorkflow(
     };
   }
 
+  // S-1 AC-3/AC-4: capture `git rev-parse HEAD` exactly once, AFTER preflight
+  // (so the not-a-repo / dirty-tree messages still take precedence) and
+  // BEFORE any disk write tied to the run-dir. An empty-repo failure here
+  // returns the failure shape without creating .praxis/runs/<id>/.
+  const head = currentHead(ctx.cwd);
+  if (!head.ok) {
+    return {
+      ok: false,
+      reason: head.reason,
+      remediation:
+        "Create a baseline commit first, e.g. 'git commit --allow-empty -m init'.",
+    };
+  }
+
   appendPraxisToGitignore(ctx.cwd);
 
   const startedAt = deps.clock();
@@ -104,10 +118,7 @@ export async function runWorkflow(
     runId,
     intent: ctx.intent,
     startedAt: toIsoSeconds(startedAt),
-    // S-1 placeholder: real `git rev-parse HEAD` capture lands in the next
-    // cycle (AC-3). Until then, the field is plumbed through as an empty
-    // string so the type contract holds without yet bisecting the runner.
-    baselineSha: "",
+    baselineSha: head.sha,
     stageIds,
     currentStage: stageIds[0],
   });

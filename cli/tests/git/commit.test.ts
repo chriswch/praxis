@@ -113,26 +113,31 @@ describe("commit() bundles pre-existing dirty files when called on a dirty tree 
 
 describe("commit() empty tree (AC-2)", () => {
   it("returns {ok:true, skipped:true} and creates no commit when nothing is staged or modified", async () => {
-    await withTempRepo(async ({ dir }) => {
-      // Sanity: fresh withTempRepo has no HEAD yet.
-      const before = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
-        cwd: dir,
-      });
-      expect(before.status).not.toBe(0);
+    // S-1: opt out of the default baseline-commit seed so the test still
+    // exercises the genuine no-HEAD case.
+    await withTempRepo(
+      async ({ dir }) => {
+        // Sanity: fresh withTempRepo has no HEAD yet.
+        const before = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
+          cwd: dir,
+        });
+        expect(before.status).not.toBe(0);
 
-      const result = commit(dir, "feat: nothing");
+        const result = commit(dir, "feat: nothing");
 
-      expect(result.ok).toBe(true);
-      if (!result.ok) throw new Error("unreachable");
-      expect("skipped" in result && result.skipped === true).toBe(true);
-      expect("sha" in result).toBe(false);
+        expect(result.ok).toBe(true);
+        if (!result.ok) throw new Error("unreachable");
+        expect("skipped" in result && result.skipped === true).toBe(true);
+        expect("sha" in result).toBe(false);
 
-      // No HEAD created — commit was skipped.
-      const after = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
-        cwd: dir,
-      });
-      expect(after.status).not.toBe(0);
-    });
+        // No HEAD created — commit was skipped.
+        const after = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
+          cwd: dir,
+        });
+        expect(after.status).not.toBe(0);
+      },
+      { seedBaseline: false },
+    );
   });
 });
 
