@@ -73,6 +73,7 @@ describe("praxis advance (CLI surface, AC-1)", () => {
         runId,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "auto-commit",
         cost: { totalTokens: 0, totalUsd: 0 },
         // S-002 5-stage shape: every default-workflow stage must be completed

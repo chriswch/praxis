@@ -173,6 +173,7 @@ describe("advanceWorkflow invalid statuses (AC-8, AC-9)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "first",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -199,6 +200,7 @@ describe("advanceWorkflow invalid statuses (AC-8, AC-9)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 100, totalUsd: 0.012 },
         stages: {
@@ -225,6 +227,7 @@ describe("advanceWorkflow invalid statuses (AC-8, AC-9)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 200, totalUsd: 0.024 },
         stages: {
@@ -266,6 +269,7 @@ describe("advanceWorkflow paused happy path (AC-3)", () => {
         runId: RUN_ID,
         intent: "ship it",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 150, totalUsd: 0.012 },
         stages: {
@@ -311,6 +315,7 @@ describe("advanceWorkflow paused happy path (AC-3)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -341,6 +346,7 @@ describe("advanceWorkflow paused happy path (AC-3)", () => {
         runId: RUN_ID,
         intent: "ship it",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -395,6 +401,7 @@ describe("advanceWorkflow --no-pause (AC-15)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -451,6 +458,7 @@ describe("advanceWorkflow --no-pause (AC-15)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -484,6 +492,7 @@ describe("advanceWorkflow runDone + cost (AC-14)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 150, totalUsd: 0.012 },
         stages: {
@@ -515,6 +524,7 @@ describe("advanceWorkflow runDone + cost (AC-14)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "first",
         cost: { totalTokens: 150, totalUsd: 0.012 },
         stages: {
@@ -546,6 +556,7 @@ describe("advanceWorkflow runDone + cost (AC-14)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "first",
         cost: { totalTokens: 150, totalUsd: 0.012 },
         stages: {
@@ -578,6 +589,7 @@ describe("advanceWorkflow Reporter resuming line (AC-13)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -624,6 +636,7 @@ describe("advanceWorkflow Reporter resuming line (AC-13)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "first",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -671,6 +684,7 @@ describe("advanceWorkflow SIGINT on resumed stage (AC-12)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "second",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -714,6 +728,7 @@ describe("advanceWorkflow recovery on cancelled (AC-7)", () => {
         runId: RUN_ID,
         intent: "ship it",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "first",
         cost: { totalTokens: 150, totalUsd: 0.012 },
         stages: {
@@ -746,6 +761,7 @@ describe("advanceWorkflow recovery on cancelled (AC-7)", () => {
         runId: RUN_ID,
         intent: "ship it",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "first",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -773,6 +789,7 @@ describe("advanceWorkflow recovery missing artifact (AC-6)", () => {
         runId: RUN_ID,
         intent: "ship it",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "first",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -805,6 +822,7 @@ describe("advanceWorkflow recovery validator failure (AC-5)", () => {
         runId: RUN_ID,
         intent: "ship it",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "first",
         cost: { totalTokens: 150, totalUsd: 0.012 },
         stages: {
@@ -846,6 +864,7 @@ describe("advanceWorkflow recovery happy path (AC-4)", () => {
         runId: RUN_ID,
         intent: "ship it",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "first",
         cost: { totalTokens: 150, totalUsd: 0.012 },
         stages: {

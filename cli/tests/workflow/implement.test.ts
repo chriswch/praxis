@@ -98,6 +98,7 @@ function pausedAfterClarifyState(): State {
     runId: RUN_ID,
     intent: "add a logout button",
     startedAt: "2026-04-25T14:30:12Z",
+    baselineSha: "0123456789abcdef0123456789abcdef01234567",
     currentStage: "implement",
     cost: { totalTokens: 150, totalUsd: 0.012 },
     stages: {

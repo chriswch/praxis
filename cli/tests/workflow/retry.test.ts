@@ -208,6 +208,7 @@ function baseStateWithFailedCodeImproving(
     runId: RUN_ID,
     intent: "ship it",
     startedAt: "2026-04-25T14:30:12Z",
+    baselineSha: "0123456789abcdef0123456789abcdef01234567",
     currentStage: CODE_IMPROVING_ID,
     cost: {
       totalTokens: overrides.priorTotalTokens ?? 300,
@@ -403,6 +404,7 @@ describe("retryWorkflow scope guard (AC-8)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: CODE_REVIEWING_ID,
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -517,6 +519,7 @@ describe("retryWorkflow already complete (AC-11)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: AUTO_COMMIT_ID,
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -545,6 +548,7 @@ describe("retryWorkflow retryable status guard (AC-12)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: CODE_IMPROVING_ID,
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {
@@ -575,6 +579,7 @@ describe("retryWorkflow retryable status guard (AC-12)", () => {
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: CODE_IMPROVING_ID,
         cost: { totalTokens: 300, totalUsd: 0.024 },
         stages: {

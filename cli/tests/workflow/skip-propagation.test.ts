@@ -127,6 +127,7 @@ function statePausedBeforeReview(): State {
     runId: RUN_ID,
     intent: "x",
     startedAt: "2026-04-25T14:30:12Z",
+    baselineSha: "0123456789abcdef0123456789abcdef01234567",
     currentStage: "code-reviewing",
     cost: { totalTokens: 150, totalUsd: 0.012 },
     stages: {
@@ -306,6 +307,7 @@ describe("S-003 AC-13: missing 03-code-review.md at code-improving entry → sta
         runId: RUN_ID,
         intent: "x",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "code-improving",
         cost: { totalTokens: 0, totalUsd: 0 },
         stages: {

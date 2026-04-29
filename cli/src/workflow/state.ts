@@ -146,6 +146,7 @@ export function readState(runDir: string): ReadStateResult {
     "runId",
     "intent",
     "startedAt",
+    "baselineSha",
     "currentStage",
   ];
   for (const key of requiredStrings) {

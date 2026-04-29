@@ -59,6 +59,7 @@ describe("readState (AC-2 structural validation)", () => {
           runId: "r",
           intent: "i",
           startedAt: "2026-04-25T14:30:12Z",
+          baselineSha: "0123456789abcdef0123456789abcdef01234567",
           currentStage: "a",
           cost: { totalTokens: 0, totalUsd: 0 },
           stages: "not a map",
@@ -72,6 +73,49 @@ describe("readState (AC-2 structural validation)", () => {
     });
   });
 
+  it("AC-2: returns ok:false naming baselineSha when the field is absent", () => {
+    withTmpDir((dir) => {
+      writeFileSync(
+        join(dir, "state.json"),
+        JSON.stringify({
+          runId: "r",
+          intent: "i",
+          startedAt: "2026-04-25T14:30:12Z",
+          currentStage: "a",
+          cost: { totalTokens: 0, totalUsd: 0 },
+          stages: { a: { status: "pending" } },
+        }),
+        "utf8",
+      );
+      const result = readState(dir);
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.reason).toContain("baselineSha");
+    });
+  });
+
+  it("AC-2: returns ok:false naming baselineSha when the field is non-string", () => {
+    withTmpDir((dir) => {
+      writeFileSync(
+        join(dir, "state.json"),
+        JSON.stringify({
+          runId: "r",
+          intent: "i",
+          startedAt: "2026-04-25T14:30:12Z",
+          baselineSha: 12345,
+          currentStage: "a",
+          cost: { totalTokens: 0, totalUsd: 0 },
+          stages: { a: { status: "pending" } },
+        }),
+        "utf8",
+      );
+      const result = readState(dir);
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.reason).toContain("baselineSha");
+    });
+  });
+
   it("returns ok:false when a stage entry has an unknown status string", () => {
     withTmpDir((dir) => {
       writeFileSync(
@@ -80,6 +124,7 @@ describe("readState (AC-2 structural validation)", () => {
           runId: "r",
           intent: "i",
           startedAt: "2026-04-25T14:30:12Z",
+          baselineSha: "0123456789abcdef0123456789abcdef01234567",
           currentStage: "a",
           cost: { totalTokens: 0, totalUsd: 0 },
           stages: { a: { status: "weird" } },
