@@ -11,11 +11,11 @@ When an item lands, remove it from this file (don't strike-through) — `feature
 ### CLI surface (commander adoption)
 
 - [ ] Adopt `commander` for `praxis run "<intent>"`, `praxis advance <run-id>`, and `praxis retry <run-id>`. Argv parsing is hand-rolled today; it works and rejects unknown flags before any disk write, but `--help` text is not generated.
-- [ ] Once commander lands, surface the implement-stage risk warning verbatim in `praxis run --help` (currently only in the README).
+- [ ] Once commander lands, surface the driving-tdd / code-improving stage risk warning verbatim in `praxis run --help` (currently only in the README).
 
 ### Real-SDK smoke
 
-- [ ] Run at least one of the README's [smoke variants](../README.md#smoke-variants-worth-running-once) — clean-tree skip, validator-failure recovery, `--allow-dirty` bundling, or SIGINT during implement — to exercise the paths the happy-path smoke did not. The happy path is already validated (see `features.md` "End-to-end validation").
+- [ ] Run at least one of the README's [smoke variants](../README.md#smoke-variants-worth-running-once) — clean-tree skip, validator-failure recovery, `--allow-dirty` bundling, or SIGINT during driving-tdd — to exercise the paths the happy-path smoke did not. The happy path is already validated (see `features.md` "End-to-end validation").
 
 ### Polish (deferred from review)
 
@@ -35,7 +35,7 @@ When an item lands, remove it from this file (don't strike-through) — `feature
 
 These are deliberate current-scope decisions documented for awareness; promote any of them only when a specific need lands.
 
-- **No worktree / sandbox for `implement`.** Runs against `process.cwd()` with `bypassPermissions`. Mitigation is the README warning.
+- **No worktree / sandbox for `driving-tdd` / `code-improving`.** Both run against `process.cwd()` with `bypassPermissions`. Mitigation is the README warning.
 - **`--allow-dirty` bundles pre-existing dirt into the auto-commit.** `git add -A` covers everything.
 - **Cross-process SDK session resumption is scoped to `praxis retry` for `code-improving`.** Other stages remain non-resumable; their `sessionId` is debug-only (`claude --resume <id>`).
 - **No in-process session forking between stages.** Context flows via artifact files.
@@ -93,15 +93,15 @@ Until one of those triggers, the existing helper is small (~5 lines), tested, an
 
 ### Likely-first
 
-- **Verify stage** between `implement` and `auto-commit`. Auto-detect a verification command from project files (`package.json` scripts, `Cargo.toml`, `pyproject.toml`, `Makefile`); allow `--verify <cmd>` override. Non-zero exit fails the run.
-- **Expose `model` and `thinkingEffort` per stage** via config. Default `thinkingEffort` to elevated for `implement`.
+- **Verify stage** between `driving-tdd` and `auto-commit`. Auto-detect a verification command from project files (`package.json` scripts, `Cargo.toml`, `pyproject.toml`, `Makefile`); allow `--verify <cmd>` override. Non-zero exit fails the run.
+- **Expose `model` and `thinkingEffort` per stage** via config. Default `thinkingEffort` to elevated for `driving-tdd`.
 
 ### Other
 
 - `AgentAdapter` interface, shape informed by both Claude Agent SDK and Codex Agent SDK.
 - Codex adapter implementation.
 - Per-stage and per-run `maxUsd` cap.
-- `--worktree` flag — run `implement` in `.praxis/worktrees/<run-id>/` and merge back on success.
+- `--worktree` flag — run `driving-tdd` in `.praxis/worktrees/<run-id>/` and merge back on success.
 - In-process session forking, only if profiling shows a meaningful win over the path-based handoff.
 - `--branch` flag for workflow branches.
 - Optional auto-stash for `--allow-dirty`.

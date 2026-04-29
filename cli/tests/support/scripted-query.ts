@@ -1,3 +1,6 @@
+import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   CreateQueryFn,
   CreateQueryFnHandle,
@@ -92,6 +95,44 @@ export function recordingScriptedQuery(
   const recording = fn as RecordingCreateQueryFn;
   recording.calls = calls;
   return recording;
+}
+
+/**
+ * S-3 AC-7 fixture helper. Wraps a `recordingScriptedQuery` so the call at
+ * `callIdxToCommitOn` (zero-indexed against the inner recorder's `calls`
+ * array) writes a marker file and runs `git add` + `git commit` against
+ * `cwd` BEFORE yielding its scripted result. Lets a scripted-SDK test
+ * advance HEAD past the run baseline so the trailing-stages cascade
+ * dispatches under S-3's HEAD-vs-baseline skip predicate.
+ *
+ * Pairs with `recordingScriptedQuery` from this file — the wrapper's commit
+ * counter reuses the inner recorder's `calls.length` to stay in lockstep
+ * with the actual scripted call sequence (no parallel counter that could
+ * desync under future async-aware refactors).
+ */
+export function recordingScriptedQueryWithCommitOn(
+  cwd: string,
+  callIdxToCommitOn: number,
+  scripts: Script[][],
+): RecordingCreateQueryFn {
+  const inner = recordingScriptedQuery(scripts);
+  const wrapped: CreateQueryFn = (input) => {
+    const myIdx = inner.calls.length;
+    if (myIdx === callIdxToCommitOn) {
+      const filename = `stage-${myIdx}.txt`;
+      writeFileSync(
+        join(cwd, filename),
+        `committed at call ${myIdx}\n`,
+        "utf8",
+      );
+      spawnSync("git", ["add", filename], { cwd });
+      spawnSync("git", ["commit", "-m", `stage-${myIdx}`], { cwd });
+    }
+    return inner(input);
+  };
+  const out = wrapped as RecordingCreateQueryFn;
+  out.calls = inner.calls;
+  return out;
 }
 
 /**

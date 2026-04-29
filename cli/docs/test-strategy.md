@@ -30,7 +30,7 @@ Test only what a **user** or a **downstream stage** can observe. Skip everything
 
 - CLI surface — exit code, stderr message, presence/absence of `.praxis/` after the call.
 - Pre-flight gates — non-git dir, dirty tree, empty/missing intent, unknown flags.
-- Artifact contracts — file paths, H2 schemas for `01-clarify-assess.md` and `04-code-review.md`, the SHA-prefix shape of `06-commit.txt`, the verbatim-finalText rule for `02-sketching-design.md` / `03-implement-log.md` / `05-code-improve.md`.
+- Artifact contracts — file paths, H2 schemas for `01-clarify-assess.md` and `04-code-review.md`, the SHA-prefix shape of `06-commit.txt`, the verbatim-finalText rule for `02-sketching-design.md` / `03-driving-tdd.md` / `05-code-improve.md`.
 - `state.json` invariants — status transitions, `sessionId` capture, `tokens`/`usd` accumulation, `cost.totalTokens`/`cost.totalUsd` aggregation, `retryAttempts` increment, `stopReason` values.
 - Stage chaining — pause-after gates, `--no-pause` autopilot, skip propagation when `code-reviewing` returns `skip-improve`, clean-tree skip for `auto-commit`.
 - Recovery — `praxis advance` from a paused stage, from a failed/cancelled `clarify-assess` or `code-reviewing`; `praxis retry` for `code-improving`; the "use retry instead" hint when `advance` hits a failed `code-improving`.

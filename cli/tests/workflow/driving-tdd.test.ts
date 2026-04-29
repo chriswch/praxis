@@ -25,9 +25,8 @@ import { type State, writeState } from "../../src/workflow/state.js";
 import { RecordingReporter } from "../support/recording-reporter.js";
 import {
   hangingQuery,
-  type RecordingCreateQueryFn,
   recordingScriptedQuery,
-  type Script,
+  recordingScriptedQueryWithCommitOn,
 } from "../support/scripted-query.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
@@ -208,41 +207,6 @@ function recordingCommit(
   const spy = fn as CommitSpy;
   spy.calls = calls;
   return spy;
-}
-
-/**
- * S-3 AC-7: wrap a `recordingScriptedQuery` so the Nth scripted call drops a
- * file AND commits it before yielding the result. HEAD advances past the
- * baseline so the trailing three stages (code-reviewing/code-improving/
- * auto-commit) cascade-dispatch under the new clean-tree predicate.
- *
- * Used by tests where the implement scripted turn used to implicitly "make
- * the tree dirty" via `allowDirty: true` and no commit; with the new HEAD-
- * advance predicate, those tests need a real commit during implement.
- */
-function recordingScriptedQueryWithCommitOn(
-  cwd: string,
-  callIdxToCommitOn: number,
-  scripts: Script[][],
-): RecordingCreateQueryFn {
-  const inner = recordingScriptedQuery(scripts);
-  let i = 0;
-  const wrapped: CreateQueryFn = (input) => {
-    const myIdx = i++;
-    if (myIdx === callIdxToCommitOn) {
-      writeFileSync(
-        join(cwd, `stage-${myIdx}.txt`),
-        `committed at call ${myIdx}\n`,
-        "utf8",
-      );
-      spawnSync("git", ["add", `stage-${myIdx}.txt`], { cwd });
-      spawnSync("git", ["commit", "-m", `stage-${myIdx}`], { cwd });
-    }
-    return inner(input);
-  };
-  const out = wrapped as RecordingCreateQueryFn;
-  out.calls = inner.calls;
-  return out;
 }
 
 function buildDeps(
