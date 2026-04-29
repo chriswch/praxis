@@ -669,6 +669,51 @@ describe("runStage translates driving-tdd tool_use/tool_result blocks to AgentEv
   });
 });
 
+describe("S-3 AC-10: scripted 6-stage e2e records [3/6 driving-tdd] on the reporter", () => {
+  it("recording reporter sees stageStart for driving-tdd at index=3, total=6", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // S-3 AC-7: implement (call idx 2) commits so HEAD advances and the
+      // trailing three stages dispatch.
+      const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
+        [{ messages: stageMessages("sess_impl", "## TDD log\n\n- AC-1 green\n") }],
+        [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
+        [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_commit", "feat: x") }],
+      ]);
+      const reporter = new RecordingReporter();
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        { ...buildDeps(recording, recordingCommit()), reporter },
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      const stageStarts = reporter.calls.flatMap((c) =>
+        c.kind === "stageStart" ? [c] : [],
+      );
+      // Six stageStart events total, one per stage, in workflow order.
+      expect(stageStarts.map((s) => s.stageId)).toEqual([
+        "clarify-assess",
+        "sketching-design",
+        "driving-tdd",
+        "code-reviewing",
+        "code-improving",
+        "auto-commit",
+      ]);
+      // The driving-tdd stage MUST be reported as 3 of 6 — the line is what
+      // the user sees on the terminal, and a regression here would surface
+      // as a stale `[3/5 implement]` from the pre-S-2/S-3 days.
+      const drivingTddStart = stageStarts.find(
+        (s) => s.stageId === "driving-tdd",
+      );
+      expect(drivingTddStart).toBeDefined();
+      expect(drivingTddStart!.index).toBe(3);
+      expect(drivingTddStart!.total).toBe(6);
+    });
+  });
+});
+
 describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () => {
   it("noPause: true drives clarify-assess → sketching-design → driving-tdd → code-reviewing → code-improving → auto-commit; commit fires once with the auto-commit finalText", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
