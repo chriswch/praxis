@@ -2,7 +2,7 @@
 
 Spec-driven software engineering workflows for Claude Code and Codex, shipped as agent skills.
 
-Praxis is a collection of skills that take a request through clarification, slicing, design, implementation, review, and verification — and two orchestrator entry points (`craft` and `forge`) that chain them.
+Praxis is a collection of skills that take a request through clarification, slicing, design, implementation, review, and verification — and one orchestrator entry point (`craft`) that chains them, with a manual mode (default) for stage-by-stage checkpoints and an `--autopilot` mode for end-to-end runs.
 
 ## Install
 
@@ -16,29 +16,20 @@ Add the Praxis plugin from your marketplace, or install the `plugin/` directory 
 
 ## Entry points
 
-- **Claude Code**: `/craft` and `/forge` slash commands (`plugin/commands/craft.md`, `plugin/commands/forge.md`).
-- **Codex**: `craft` and `forge` skills (`plugin/skills/craft/SKILL.md`, `plugin/skills/forge/SKILL.md`).
+- **Claude Code**: `/craft` slash command (`plugin/commands/craft.md`).
+- **Codex**: `craft` skill (`plugin/skills/craft/SKILL.md`).
 
 Both entry points orchestrate the same underlying skills.
 
-## Workflows
+## Workflow
 
 ### Craft
 
-Full TDD pipeline with user checkpoints between stages.
+Full TDD pipeline. `/craft <task>` runs in manual mode with user checkpoints between stages; `/craft --autopilot <task>` auto-confirms gates and runs end-to-end, stopping only on hard blockers (worker `## Feedback`, **Open questions** from `clarifying-intent`, `## Spec Issue` from `sketching-design`, or **Rework**/**Escalate** from `verifying-and-adapting`).
 
 ```
 clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
   → code-reviewing → code-improving → verifying-and-adapting
-```
-
-### Forge
-
-Fast pipeline with one user checkpoint at the spec, then auto-advance.
-
-```
-clarifying-intent → [slicing-stories] → sketching-design → rapid-implementing
-  → code-reviewing → code-improving
 ```
 
 ## Skills
@@ -49,7 +40,6 @@ clarifying-intent → [slicing-stories] → sketching-design → rapid-implement
 | `slicing-stories` | Split a Feature Brief into an ordered slice map of thin, vertical stories. |
 | `sketching-design` | Produce a lightweight design sketch — change map, pattern match, first test. |
 | `driving-tdd` | Drive Red → Green → Refactor cycles, one acceptance criterion at a time. |
-| `rapid-implementing` | Implement each acceptance criterion without writing new tests. |
 | `code-reviewing` | Independent five-layer review (data, special cases, complexity, breaking changes, practicality). |
 | `code-improving` | Apply fixes for critical/high/medium review findings. |
 | `verifying-and-adapting` | Reconcile spec vs. reality, update the spec, recommend the next action. |

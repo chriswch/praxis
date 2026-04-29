@@ -1,6 +1,6 @@
 {
   "name": "praxis",
-  "description": "Spec-driven workflows: /craft for full TDD with checkpoints, /forge for fast delivery, plus reusable stage skills.",
+  "description": "Spec-driven workflows: /craft drives the full TDD pipeline (manual by default, --autopilot for end-to-end runs), plus reusable stage skills.",
   "version": "1.0.0",
   "license": "MIT"
 }

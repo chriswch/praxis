@@ -1,6 +1,6 @@
 ---
 name: code-reviewing
-description: "Independent code quality review after implementation. Performs a sequential 5-layer analysis — data structures, special case elimination, complexity, breaking changes, and practicality — producing a severity-graded review report without modifying any code. Use after driving-tdd or rapid-implementing completes. Triggers on 'review the code', 'code review', 'check code quality', or when implementation is complete and code quality needs assessment before proceeding."
+description: "Independent code quality review after implementation. Performs a sequential 5-layer analysis — data structures, special case elimination, complexity, breaking changes, and practicality — producing a severity-graded review report without modifying any code. Use after driving-tdd completes. Triggers on 'review the code', 'code review', 'check code quality', or when implementation is complete and code quality needs assessment before proceeding."
 context: fork
 allowed-tools: Read, Grep, Glob, Bash(git *)
 ---
@@ -18,7 +18,7 @@ You do NOT assess spec compliance or test coverage — that's a separate concern
 ## Input
 
 - The **spec** for context (from `clarifying-intent`).
-- The **implementation summary** from `driving-tdd` or `rapid-implementing` (whichever ran).
+- The **implementation summary** from `driving-tdd`.
 - The **design sketch** if it exists (from `sketching-design`).
 
 Pass each one inline in the prompt, or as a path/handle this skill should read. The skill identifies the changed files via `git log --name-only` for recent commits.
