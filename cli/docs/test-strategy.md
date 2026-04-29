@@ -30,12 +30,12 @@ Test only what a **user** or a **downstream stage** can observe. Skip everything
 
 - CLI surface — exit code, stderr message, presence/absence of `.praxis/` after the call.
 - Pre-flight gates — non-git dir, dirty tree, empty/missing intent, unknown flags.
-- Artifact contracts — file paths, H2 schemas for `01-clarify-assess.md` and `03-code-review.md`, the SHA-prefix shape of `05-commit.txt`, the verbatim-finalText rule for `02-implement-log.md` / `04-code-improve.md`.
+- Artifact contracts — file paths, H2 schemas for `01-clarify-assess.md` and `04-code-review.md`, the SHA-prefix shape of `06-commit.txt`, the verbatim-finalText rule for `02-sketching-design.md` / `03-implement-log.md` / `05-code-improve.md`.
 - `state.json` invariants — status transitions, `sessionId` capture, `tokens`/`usd` accumulation, `cost.totalTokens`/`cost.totalUsd` aggregation, `retryAttempts` increment, `stopReason` values.
-- Stage chaining — pause-after gates, `--no-pause` autopilot, skip propagation when stage 3 returns `skip-improve`, clean-tree skip for `auto-commit`.
+- Stage chaining — pause-after gates, `--no-pause` autopilot, skip propagation when `code-reviewing` returns `skip-improve`, clean-tree skip for `auto-commit`.
 - Recovery — `praxis advance` from a paused stage, from a failed/cancelled `clarify-assess` or `code-reviewing`; `praxis retry` for `code-improving`; the "use retry instead" hint when `advance` hits a failed `code-improving`.
 - Cancellation — SIGINT marks the in-flight stage `cancelled`, downstream stages do not run, partial artifact persists.
-- Commit invariants — the SHA written to `05-commit.txt` matches `git log -1 --pretty=%H` and `state.stages["auto-commit"].commitSha`; `.gitignore` ends with a single `.praxis/` line (idempotent).
+- Commit invariants — the SHA written to `06-commit.txt` matches `git log -1 --pretty=%H` and `state.stages["auto-commit"].commitSha`; `.gitignore` ends with a single `.praxis/` line (idempotent).
 - Reporter output — only the lines documented in the smoke checklist (README §What to verify).
 
 **Not critical (do not test):**

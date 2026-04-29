@@ -76,14 +76,15 @@ describe("praxis advance (CLI surface, AC-1)", () => {
         baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "auto-commit",
         cost: { totalTokens: 0, totalUsd: 0 },
-        // S-002 5-stage shape: every default-workflow stage must be completed
+        // S-2 6-stage shape: every default-workflow stage must be completed
         // for advance to report "already complete".
         stages: {
           "clarify-assess": stage("a"),
-          implement: stage("b"),
-          "code-reviewing": stage("c"),
-          "code-improving": stage("d"),
-          "auto-commit": stage("e"),
+          "sketching-design": stage("b"),
+          implement: stage("c"),
+          "code-reviewing": stage("d"),
+          "code-improving": stage("e"),
+          "auto-commit": stage("f"),
         },
       };
       writeFileSync(

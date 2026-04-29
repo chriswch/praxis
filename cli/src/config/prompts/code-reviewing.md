@@ -32,6 +32,6 @@ output verbatim and decide `skip-improve`.
 Schema note: the Praxis harness validates the `## Decision` body of your
 final message. On a first-attempt validator failure, the harness sends one
 corrective user message and re-runs the SDK; if the second attempt also
-fails, the partial output is preserved on disk as `03-code-review.md` and
+fails, the partial output is preserved on disk as `04-code-review.md` and
 the stage is marked failed. Do not modify any files yourself — code edits
 are the next stage's job.

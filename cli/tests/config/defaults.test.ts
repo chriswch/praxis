@@ -13,11 +13,12 @@ describe("defaultWorkflow", () => {
     expect(result.success).toBe(true);
   });
 
-  // S-002 AC-1: 5-stage shape with code-reviewing and code-improving inserted
-  // between implement and auto-commit.
-  it("has the five required stage ids in order", () => {
+  // S-2 AC-1: 6-stage shape with sketching-design inserted between
+  // clarify-assess and implement.
+  it("has the six required stage ids in order", () => {
     expect(defaultWorkflow.workflow.map((s) => s.id)).toEqual([
       "clarify-assess",
+      "sketching-design",
       "implement",
       "code-reviewing",
       "code-improving",
@@ -40,6 +41,7 @@ describe("defaultWorkflow", () => {
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     expect(byId["clarify-assess"].model).toBe("claude-opus-4-7");
+    expect(byId["sketching-design"].model).toBe("claude-opus-4-7");
     expect(byId.implement.model).toBe("claude-opus-4-7");
     expect(byId["code-reviewing"].model).toBe("claude-opus-4-7");
     expect(byId["code-improving"].model).toBe("claude-opus-4-7");
@@ -51,11 +53,15 @@ describe("defaultWorkflow", () => {
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     expect(byId["clarify-assess"].outputArtifact).toBe("01-clarify-assess.md");
-    expect(byId.implement.outputArtifact).toBe("02-implement-log.md");
-    expect(byId["code-reviewing"].outputArtifact).toBe("03-code-review.md");
-    expect(byId["code-improving"].outputArtifact).toBe("04-code-improve.md");
-    // S-002 AC-4: auto-commit artifact renumbered 03 → 05.
-    expect(byId["auto-commit"].outputArtifact).toBe("05-commit.txt");
+    // S-2 AC-1: sketching-design inserted at slot 02.
+    expect(byId["sketching-design"].outputArtifact).toBe(
+      "02-sketching-design.md",
+    );
+    // S-2 AC-2: trailing four artifacts renumbered 02→03, 03→04, 04→05, 05→06.
+    expect(byId.implement.outputArtifact).toBe("03-implement-log.md");
+    expect(byId["code-reviewing"].outputArtifact).toBe("04-code-review.md");
+    expect(byId["code-improving"].outputArtifact).toBe("05-code-improve.md");
+    expect(byId["auto-commit"].outputArtifact).toBe("06-commit.txt");
   });
 
   it("only pauses after clarify-assess by default", () => {
@@ -63,6 +69,7 @@ describe("defaultWorkflow", () => {
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     expect(byId["clarify-assess"].pauseAfter).toBe(true);
+    expect(byId["sketching-design"].pauseAfter ?? false).toBe(false);
     expect(byId.implement.pauseAfter ?? false).toBe(false);
     expect(byId["code-reviewing"].pauseAfter ?? false).toBe(false);
     expect(byId["code-improving"].pauseAfter ?? false).toBe(false);
@@ -74,6 +81,9 @@ describe("defaultWorkflow", () => {
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     expect(typeof byId["clarify-assess"].validate).toBe("function");
+    // S-2 AC-1: sketching-design has no validator (the skill's three valid
+    // output shapes — sketch / skipped / spec-issue — all pass through).
+    expect(byId["sketching-design"].validate).toBeUndefined();
     expect(byId.implement.validate).toBeUndefined();
     // S-002 AC-2: code-reviewing wires the Decision-H2 validator.
     expect(byId["code-reviewing"].validate).toBe(validateCodeReviewArtifact);
@@ -107,6 +117,24 @@ describe("defaultWorkflow", () => {
     const ac = byId["auto-commit"];
     expect(ac.permissionMode ?? "default").toBe("default");
     expect(ac.allowedTools).toEqual(["Bash"]);
+  });
+
+  // S-2 AC-1: sketching-design stage shape — clones the read-only Skill-
+  // invoking pattern from code-reviewing but without a validator.
+  it("sketching-design uses default permission with the read-only Skill-invoking allowlist", () => {
+    const byId = Object.fromEntries(
+      defaultWorkflow.workflow.map((s) => [s.id, s] as const),
+    );
+    const sd = byId["sketching-design"];
+    expect(sd.permissionMode ?? "default").toBe("default");
+    expect([...(sd.allowedTools ?? [])].sort()).toEqual(
+      ["Bash", "Glob", "Grep", "Read", "Skill"].sort(),
+    );
+    expect(sd.timeoutMs).toBe(900_000);
+    expect(sd.systemPrompt).toEqual({ file: "sketching-design.md" });
+    expect(sd.outputArtifact).toBe("02-sketching-design.md");
+    expect(sd.validate).toBeUndefined();
+    expect(sd.pauseAfter ?? false).toBe(false);
   });
 
   // S-002 AC-2: code-reviewing stage shape.
@@ -247,13 +275,32 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
     const rendered = buildUserPrompt(
       stageById("code-improving"),
       ctx({
-        artifactPaths: { "code-reviewing": "/run/dir/03-code-review.md" },
+        // S-2 AC-2: review artifact renumbered 03 → 04.
+        artifactPaths: { "code-reviewing": "/run/dir/04-code-review.md" },
       }),
     );
-    expect(rendered).toContain("/run/dir/03-code-review.md");
+    expect(rendered).toContain("/run/dir/04-code-review.md");
     expect(rendered).toContain("praxis:code-improving");
     // System prompt content must NOT leak into the user prompt.
     const sys = loadSystemPrompt(stageById("code-improving"));
+    expect(rendered).not.toBe(sys);
+  });
+
+  // S-2 AC-1/AC-3: sketching-design user prompt references the clarify-assess
+  // artifact path, names the praxis:sketching-design skill, and renders runDir.
+  it("sketching-design renders runDir, names the praxis:sketching-design skill, and references the clarify-assess artifact path", () => {
+    const rendered = buildUserPrompt(
+      stageById("sketching-design"),
+      ctx({
+        artifactPaths: { "clarify-assess": "/run/dir/01-clarify-assess.md" },
+      }),
+    );
+    expect(rendered).toContain("/run/dir");
+    expect(rendered).toContain("/run/dir/01-clarify-assess.md");
+    expect(rendered).toContain("praxis:sketching-design");
+    expect(rendered.toLowerCase()).toContain("skill");
+    // System prompt content must NOT leak into the user prompt.
+    const sys = loadSystemPrompt(stageById("sketching-design"));
     expect(rendered).not.toBe(sys);
   });
 });
@@ -294,10 +341,26 @@ describe("S-002 prompt-file smoke tests", () => {
     expect(text).toContain("bypassPermissions");
   });
 
-  it("auto-commit.md uses 05-commit.txt, not 03-commit.txt", () => {
+  it("auto-commit.md uses 06-commit.txt, not the old 03/05 numbering", () => {
     const path = join(promptsDir, "auto-commit.md");
     const text = readFileSync(path, "utf8");
-    expect(text).toContain("05-commit.txt");
+    expect(text).toContain("06-commit.txt");
     expect(text).not.toContain("03-commit.txt");
+    expect(text).not.toContain("05-commit.txt");
+  });
+
+  // S-2 AC-3: sketching-design.md exists, instructs invoking the
+  // praxis:sketching-design skill against the clarify-assess artifact, and
+  // acknowledges the three valid output shapes (sketch / skipped / spec-issue).
+  it("sketching-design.md exists and references the praxis:sketching-design skill + the clarify-assess artifact token + the three output shapes", () => {
+    const path = join(promptsDir, "sketching-design.md");
+    expect(existsSync(path)).toBe(true);
+    const text = readFileSync(path, "utf8");
+    expect(text).toContain("praxis:sketching-design");
+    expect(text).toContain("{{artifacts.clarify-assess.path}}");
+    // The three valid output shapes the skill emits.
+    expect(text.toLowerCase()).toContain("design sketch");
+    expect(text.toLowerCase()).toContain("skipped");
+    expect(text).toContain("Spec Issue");
   });
 });

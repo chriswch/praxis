@@ -10,4 +10,4 @@ those steps directly using your final message.
 
 Your final assistant message must be **only the commit message** — no
 explanations, no markdown fences, no preamble. The harness writes it
-verbatim to `05-commit.txt` and passes it to `git commit -m`.
+verbatim to `06-commit.txt` and passes it to `git commit -m`.

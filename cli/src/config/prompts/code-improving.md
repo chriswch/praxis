@@ -9,7 +9,7 @@ Critical/High/Medium severity findings; it never modifies test files.
 
 Your final assistant message must be an improvement summary listing fixes
 applied and items deferred. The harness writes that summary verbatim to
-`04-code-improve.md` — it is the only human-readable record of this stage.
+`05-code-improve.md` — it is the only human-readable record of this stage.
 
 User-prompt template (interpolated by the Praxis harness):
 
@@ -19,7 +19,7 @@ review artifact at {{artifacts.code-reviewing.path}}.
 The skill auto-fixes Critical/High/Medium severity findings and never
 modifies test files.
 Your final assistant message must be an improvement summary listing fixes
-applied and items deferred — it is written verbatim to 04-code-improve.md.
+applied and items deferred — it is written verbatim to 05-code-improve.md.
 ```
 
 There is no validator on this stage. If the skill cannot be invoked, the

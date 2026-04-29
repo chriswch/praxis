@@ -259,13 +259,17 @@ describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
         cacheCreate: 0,
       });
       expect(state.stages["clarify-assess"].usd).toBeCloseTo(0.012, 5);
+      // S-2 AC-6: paused after clarify-assess, the next stage is now
+      // sketching-design.
+      expect(state.stages["sketching-design"].status).toBe("pending");
       expect(state.stages.implement.status).toBe("pending");
       expect(state.stages["auto-commit"].status).toBe("pending");
       expect(state.cost.totalTokens).toBe(150); // input + output only
       expect(state.cost.totalUsd).toBeCloseTo(0.012, 5);
-      expect(state.currentStage).toBe("implement");
+      expect(state.currentStage).toBe("sketching-design");
 
-      // implement/auto-commit NOT executed: createQueryFn called exactly once.
+      // sketching-design / implement / auto-commit NOT executed:
+      // createQueryFn called exactly once.
       expect(recording.calls.length).toBe(1);
 
       // Pause hint surfaced.
@@ -273,11 +277,118 @@ describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
       expect(result.pausedStageId).toBe("clarify-assess");
       expect(result.artifactPath).toBe(artifactPath);
 
-      // Implement / auto-commit artifacts not written.
-      expect(existsSync(join(result.runDir, "02-implement-log.md"))).toBe(
+      // Sketching-design / implement / auto-commit artifacts not written.
+      expect(existsSync(join(result.runDir, "02-sketching-design.md"))).toBe(
         false,
       );
-      expect(existsSync(join(result.runDir, "05-commit.txt"))).toBe(false);
+      expect(existsSync(join(result.runDir, "03-implement-log.md"))).toBe(
+        false,
+      );
+      expect(existsSync(join(result.runDir, "06-commit.txt"))).toBe(false);
+    });
+  });
+});
+
+// S-2 AC-6: pause-after-clarify; `praxis advance` resumes into
+// sketching-design (the new stage 2 of 6), and the reporter's stageStart for
+// that resume carries (index=2, total=6) so the line reads
+// `[2/6 sketching-design] starting…`.
+describe("S-2 AC-6: pause-after-clarify advances into sketching-design", () => {
+  it("paused run + advance dispatches sketching-design as stage 2/6 (no longer implement at 2/5)", async () => {
+    const { advanceWorkflow } = await import("../../src/workflow/runner.js");
+    const { RecordingReporter } = await import(
+      "../support/recording-reporter.js"
+    );
+    await withTempRepo(async ({ dir: cwd }) => {
+      // First leg: paused after clarify-assess.
+      const recording1 = recordingScriptedQuery([
+        [{ messages: happyPathScript() }],
+      ]);
+      const reporter1 = new RecordingReporter();
+      const first = await runWorkflow(
+        { intent: "add a logout button", cwd, allowDirty: true },
+        {
+          ...deps(
+            recording1,
+            new Date("2026-04-25T14:30:12Z"),
+            new Uint8Array([0x7a, 0xf2]),
+          ),
+          reporter: reporter1,
+        },
+      );
+      if (!first.ok) throw new Error(first.reason);
+      expect(first.paused).toBe(true);
+      expect(first.pausedStageId).toBe("clarify-assess");
+
+      // Second leg: advance. Script just sketching-design (it hands off to
+      // implement, but implement times out below — easier to short-circuit
+      // by also scripting only sketching-design + capturing the reporter
+      // call before the next stage dispatches).
+      const sketchText = "## Sketch\n\n- direction\n";
+      const recording2 = recordingScriptedQuery([
+        [
+          {
+            messages: [
+              {
+                type: "system",
+                subtype: "init",
+                session_id: "sess_sketch",
+                model: "claude-opus-4-7",
+              },
+              {
+                type: "assistant",
+                session_id: "sess_sketch",
+                message: { content: [{ type: "text", text: sketchText }] },
+              },
+              {
+                type: "result",
+                subtype: "success",
+                stop_reason: "end_turn",
+                total_cost_usd: 0.001,
+                usage: {
+                  input_tokens: 10,
+                  output_tokens: 5,
+                  cache_read_input_tokens: 0,
+                  cache_creation_input_tokens: 0,
+                },
+                num_turns: 1,
+                session_id: "sess_sketch",
+              },
+            ],
+          },
+        ],
+      ]);
+      const reporter2 = new RecordingReporter();
+      // advanceWorkflow continues through every remaining stage on noPause:
+      // we don't care about the downstream — assert just that sketching-
+      // design got the (2, 6) stageStart before the recording exhausts.
+      let _err: unknown;
+      try {
+        await advanceWorkflow(first.runId, { cwd, noPause: true }, {
+          ...deps(
+            recording2,
+            new Date("2026-04-25T14:35:00Z"),
+            new Uint8Array([0x01, 0x02]),
+          ),
+          reporter: reporter2,
+        });
+      } catch (e) {
+        _err = e; // expected — the trailing stages have no script and throw.
+      }
+
+      const sketchStart = reporter2.calls.find(
+        (c) => c.kind === "stageStart" && c.stageId === "sketching-design",
+      );
+      expect(sketchStart).toBeDefined();
+      if (sketchStart && sketchStart.kind === "stageStart") {
+        // [2/6 sketching-design] starting…
+        expect(sketchStart.index).toBe(2);
+        expect(sketchStart.total).toBe(6);
+      }
+      // 02-sketching-design.md was written by the resumed stage.
+      expect(
+        existsSync(join(first.runDir, "02-sketching-design.md")),
+      ).toBe(true);
     });
   });
 });

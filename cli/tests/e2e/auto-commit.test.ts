@@ -118,11 +118,14 @@ describe("praxis run --no-pause lands one real commit (AC-8)", () => {
         encoding: "utf8",
       }).stdout.trim();
 
-      // Compose: clarify-assess (scripted), implement (side-effect + scripted),
-      // auto-commit (scripted message). Three SDK calls total.
+      // S-2 6-stage shape: clarify-assess → sketching-design → implement →
+      // code-reviewing → code-improving → auto-commit.
       let call = 0;
       const clarifyRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY) }],
+      ]);
+      const sketchRecorder = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
       ]);
       const implementRecorder = implementWithSideEffect(
         cwd,
@@ -138,20 +141,19 @@ describe("praxis run --no-pause lands one real commit (AC-8)", () => {
       const commitRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_commit", "feat: add logout button") }],
       ]);
-      // S-002 5-stage shape: clarify-assess → implement → code-reviewing →
-      // code-improving → auto-commit.
       const composedCreateQueryFn: CreateQueryFn = (input) => {
         call++;
         if (call === 1) return clarifyRecorder(input);
-        if (call === 2) {
+        if (call === 2) return sketchRecorder(input);
+        if (call === 3) {
           // The implement stage will write src/Foo.tsx — need its parent dir.
           mkdirSync(join(cwd, "src"), { recursive: true });
           return implementRecorder(input);
         }
-        if (call === 3) return reviewRecorder(input);
-        if (call === 4) return improveRecorder(input);
-        if (call === 5) return commitRecorder(input);
-        throw new Error("unexpected SDK call beyond 5");
+        if (call === 4) return reviewRecorder(input);
+        if (call === 5) return improveRecorder(input);
+        if (call === 6) return commitRecorder(input);
+        throw new Error("unexpected SDK call beyond 6");
       };
 
       const result = await runWorkflow(
@@ -185,9 +187,9 @@ describe("praxis run --no-pause lands one real commit (AC-8)", () => {
       );
       expect(persisted.stages["auto-commit"].commitSha).toBe(newHead);
 
-      // 05-commit.txt is the SHA-prefixed form.
+      // 06-commit.txt is the SHA-prefixed form.
       const commitArtifact = readFileSync(
-        join(result.runDir, "05-commit.txt"),
+        join(result.runDir, "06-commit.txt"),
         "utf8",
       );
       expect(commitArtifact).toBe(`${newHead}\n\nfeat: add logout button\n`);
@@ -216,7 +218,8 @@ describe("praxis advance lands one real commit (AC-9)", () => {
         intent: "add a logout button",
         startedAt: "2026-04-25T14:30:12Z",
         baselineSha: "0123456789abcdef0123456789abcdef01234567",
-        currentStage: "implement",
+        // S-2: paused after clarify-assess → next stage is sketching-design.
+        currentStage: "sketching-design",
         cost: { totalTokens: 150, totalUsd: 0.012 },
         stages: {
           "clarify-assess": {
@@ -227,6 +230,7 @@ describe("praxis advance lands one real commit (AC-9)", () => {
             tokens: { input: 100, output: 50, cacheRead: 0, cacheCreate: 0 },
             usd: 0.012,
           },
+          "sketching-design": { status: "pending" },
           implement: { status: "pending" },
           "auto-commit": { status: "pending" },
         },
@@ -238,9 +242,13 @@ describe("praxis advance lands one real commit (AC-9)", () => {
         "utf8",
       );
 
-      // S-002 5-stage shape: advance from paused-after-clarify scripts
-      // implement → code-reviewing → code-improving → auto-commit.
+      // S-2 6-stage shape: advance from paused-after-clarify scripts
+      // sketching-design → implement → code-reviewing → code-improving →
+      // auto-commit.
       let call = 0;
+      const sketchRecorder = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
+      ]);
       const implementRecorder = implementWithSideEffect(
         cwd,
         "src/Bar.tsx",
@@ -257,14 +265,15 @@ describe("praxis advance lands one real commit (AC-9)", () => {
       ]);
       const composedCreateQueryFn: CreateQueryFn = (input) => {
         call++;
-        if (call === 1) {
+        if (call === 1) return sketchRecorder(input);
+        if (call === 2) {
           mkdirSync(join(cwd, "src"), { recursive: true });
           return implementRecorder(input);
         }
-        if (call === 2) return reviewRecorder(input);
-        if (call === 3) return improveRecorder(input);
-        if (call === 4) return commitRecorder(input);
-        throw new Error("unexpected SDK call beyond 4");
+        if (call === 3) return reviewRecorder(input);
+        if (call === 4) return improveRecorder(input);
+        if (call === 5) return commitRecorder(input);
+        throw new Error("unexpected SDK call beyond 5");
       };
 
       const result = await advanceWorkflow(

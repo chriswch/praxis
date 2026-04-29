@@ -308,7 +308,7 @@ async function runOneStage(
 
   // M-2: compose the artifact's final content BEFORE the first write so each
   // terminal path performs at most one writeFileSync. The auto-commit stage
-  // is special — its final 05-commit.txt is the SHA-prefixed form ONLY when
+  // is special — its final 06-commit.txt is the SHA-prefixed form ONLY when
   // the commit lands; we therefore defer the write past `deps.commit()` and
   // pass through one of three branches:
   //
@@ -340,9 +340,9 @@ async function runOneStage(
   }
 
   // S-006 AC-4/AC-6: hand the message (verbatim finalText) to the git seam.
-  // On {ok:true, sha}, the SHA is prepended onto 05-commit.txt and stamped on
+  // On {ok:true, sha}, the SHA is prepended onto 06-commit.txt and stamped on
   // the stage state. On {ok:false}, the stage is flipped to failed/
-  // commit_failed; 05-commit.txt keeps the agent message only (no SHA prefix).
+  // commit_failed; 06-commit.txt keeps the agent message only (no SHA prefix).
   // Skip path (clean tree pre-stage) is handled at the top of this fn.
   let artifactPath: string;
   if (stage.id === AUTO_COMMIT_ID) {
@@ -375,7 +375,7 @@ async function runOneStage(
       // commitOutcome.skipped === true: commit() saw a clean tree mid-stage.
       // No SHA, no artifact — the agent's message is meaningless without a
       // real commit, and there is no path through which a downstream consumer
-      // expects 05-commit.txt to exist in this state.
+      // expects 06-commit.txt to exist in this state.
       artifactPath = join(runDir, stage.outputArtifact);
     }
     state.stages[stage.id] = stageState;
@@ -856,7 +856,7 @@ export async function advanceWorkflow(
     // S-003 AC-11/AC-12: a failed or cancelled code-improving stage cannot be
     // recovered via `praxis advance`. Stage 4 is allowed to mutate the working
     // tree (bypassPermissions, no validator), so a hand-edit + re-validate
-    // path doesn't exist — the code on disk and the partial 04-code-improve.md
+    // path doesn't exist — the code on disk and the partial 05-code-improve.md
     // can be out of sync, and re-validating the artifact tells us nothing
     // about what the stage actually did. Recovery requires a fresh SDK call,
     // which is the `praxis retry` flow. Surface a precise error and leave
@@ -1027,7 +1027,7 @@ function finalizeRetryFailure(
  * On failure: tokens/usd accumulate, `retryAttempts` is preserved (it was
  * incremented BEFORE the SDK call so SIGINT mid-stream still counts), the
  * stage status is set per the harness signal, and the partial finalText is
- * written to `04-code-improve.md` so the user can inspect what came back.
+ * written to `05-code-improve.md` so the user can inspect what came back.
  */
 export async function retryWorkflow(
   runId: string,

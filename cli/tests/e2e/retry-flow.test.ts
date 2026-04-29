@@ -115,12 +115,15 @@ describe("praxis run --no-pause then praxis retry lands one real commit (S-008)"
         encoding: "utf8",
       }).stdout.trim();
 
-      // FIRST PASS: clarify-assess → implement (mutates fs) → code-reviewing
-      // (proceed) → code-improving HANGS, then SIGINT marks it cancelled.
-      // Stage 5 never runs.
+      // FIRST PASS: clarify-assess → sketching-design → implement (mutates fs)
+      // → code-reviewing (proceed) → code-improving HANGS, then SIGINT marks
+      // it cancelled. auto-commit never runs.
       let firstCall = 0;
       const clarifyFirst = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY) }],
+      ]);
+      const sketchFirst = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
       ]);
       const implementFirst = implementWithSideEffect(
         cwd,
@@ -134,9 +137,10 @@ describe("praxis run --no-pause then praxis retry lands one real commit (S-008)"
       const firstCreateQueryFn: CreateQueryFn = (input) => {
         firstCall++;
         if (firstCall === 1) return clarifyFirst(input);
-        if (firstCall === 2) return implementFirst(input);
-        if (firstCall === 3) return reviewFirst(input);
-        if (firstCall === 4) return improveHanging(input);
+        if (firstCall === 2) return sketchFirst(input);
+        if (firstCall === 3) return implementFirst(input);
+        if (firstCall === 4) return reviewFirst(input);
+        if (firstCall === 5) return improveHanging(input);
         throw new Error(`unexpected SDK call ${firstCall} in first pass`);
       };
 
@@ -244,12 +248,12 @@ describe("praxis run --no-pause then praxis retry lands one real commit (S-008)"
       expect(finalState.stages["auto-commit"].status).toBe("completed");
       expect(finalState.stages["auto-commit"].commitSha).toBe(newHead);
 
-      // 05-commit.txt is the SHA-prefixed form.
-      expect(readFileSync(join(runDir, "05-commit.txt"), "utf8")).toBe(
+      // 06-commit.txt is the SHA-prefixed form.
+      expect(readFileSync(join(runDir, "06-commit.txt"), "utf8")).toBe(
         `${newHead}\n\nfeat: add logout button\n`,
       );
-      // 04-code-improve.md holds the retry's improvement summary.
-      expect(readFileSync(join(runDir, "04-code-improve.md"), "utf8")).toBe(
+      // 05-code-improve.md holds the retry's improvement summary.
+      expect(readFileSync(join(runDir, "05-code-improve.md"), "utf8")).toBe(
         IMPROVE_LOG,
       );
       // The implement-stage side-effect file landed in the commit.

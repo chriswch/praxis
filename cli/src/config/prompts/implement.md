@@ -21,4 +21,4 @@ Constraints:
 - When in doubt about scope, prefer the smallest change that satisfies the
   acceptance criteria.
 - Your final assistant message is written verbatim to
-  `02-implement-log.md` and is the only human-readable record of this stage.
+  `03-implement-log.md` and is the only human-readable record of this stage.

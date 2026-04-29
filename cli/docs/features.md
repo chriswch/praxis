@@ -57,7 +57,7 @@ The `praxis` Claude Code plugin's presence is **not** pre-flighted; a missing pl
 
 ## Workflow stages
 
-Five sequential stages, each running in a fresh Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) session. Stages communicate by writing artifact files; downstream stages reference them by absolute path and the agent reads them via the Read tool.
+Six sequential stages, each running in a fresh Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) session. Stages communicate by writing artifact files; downstream stages reference them by absolute path and the agent reads them via the Read tool.
 
 ### Stage 0 — intent capture
 
@@ -69,21 +69,35 @@ Read-only repo survey. `permissionMode: "default"`, allowlist `[Read, Glob, Grep
 
 The system prompt directs the agent to restate intent, survey the repo, identify assumptions and gaps, and emit a plan with acceptance criteria — and then to end by emitting **only** a markdown artifact with five H2 headings in fixed order: `Intent`, `Assumptions`, `Gaps`, `Plan`, `Acceptance` (with ≥1 non-empty bullet under Acceptance). The harness validates this schema after the agent's Stop event. On schema failure the harness sends one corrective user message in the same `query()` stream; a second failure marks the stage `failed`/`stopReason: "validator_failed"` and exits 1. The partial artifact is written to disk in either case so the user can hand-edit and `praxis advance`.
 
-### Stage 2 — `implement`
+### Stage 2 — `sketching-design`
+
+Read-only design sketch via the `praxis:sketching-design` skill. `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash, Skill]`. Pinned model `claude-opus-4-7`. 15-minute timeout. Auto-advances to `implement`.
+
+The user prompt directs the agent to invoke the `praxis:sketching-design` skill via the `Skill` tool against `01-clarify-assess.md`, re-emitting the skill's output **verbatim** as the final assistant message. The skill returns one of three valid shapes:
+
+- a **design sketch** — change map, pattern match, proposed direction, and the first failing test (the typical case for a non-trivial story);
+- a single line **`Skipped — no sketch needed`** when the implementation path is obvious from the spec;
+- a **`## Spec Issue`** H2 when codebase exploration reveals the spec's assumptions are wrong (recommends returning to `clarifying-intent`).
+
+There is no validator on this stage — all three shapes pass through to `02-sketching-design.md` unchanged. There is no clean-tree skip either: this stage runs even on a clean tree because it operates on the spec, not the working tree. Failure modes are the standard timeout / SIGINT path.
+
+The downstream `implement` stage reads only `01-clarify-assess.md`; the design sketch is advisory context for the human reviewer and for any agent that chooses to consult it.
+
+### Stage 3 — `implement`
 
 Full-tools execution. `permissionMode: "bypassPermissions"` (paired with `allowDangerouslySkipPermissions: true` per the SDK's requirement). Pinned model `claude-opus-4-7`. 30-minute timeout. Auto-advances to `code-reviewing`.
 
-The user prompt references `01-clarify-assess.md` by absolute path; the agent reads it via the Read tool. Writes `02-implement-log.md` verbatim from the agent's final assistant message (no validator). Timeout marks the stage `failed`/`stopReason: "timeout"`; SIGINT marks it `cancelled`/`stopReason: "sigint"`. In both cases the partial log is preserved and downstream stages are skipped.
+The user prompt references `01-clarify-assess.md` by absolute path; the agent reads it via the Read tool. Writes `03-implement-log.md` verbatim from the agent's final assistant message (no validator). Timeout marks the stage `failed`/`stopReason: "timeout"`; SIGINT marks it `cancelled`/`stopReason: "sigint"`. In both cases the partial log is preserved and downstream stages are skipped.
 
 > **Risk:** the implement stage runs with `bypassPermissions` against `process.cwd()`. The agent can run `rm`, `git push`, network installers, and overwrite files outside its declared scope. **Use only on repos you can roll back.**
 
-### Stage 3 — `code-reviewing`
+### Stage 4 — `code-reviewing`
 
 Read-only quality review of the uncommitted implement-stage changes. `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash, Skill]`. Pinned model `claude-opus-4-7`. 15-minute timeout. Auto-advances to `code-improving`.
 
-The user prompt directs the agent to invoke the `praxis:code-reviewing` skill via the `Skill` tool (against uncommitted changes inspected through `git diff` / `git status` — `git log` does not apply), re-emit the skill's review **verbatim** as its final assistant message, and append a single `## Decision` H2 with body `proceed` or `skip-improve` so the runner can gate stage 4. The skill's native template — Premise Check, Layer 1–5 analyses, severity-graded Issues tables, What's Done Well, Summary counts — is what stage 4 reads to apply fixes; the harness does not reshape it.
+The user prompt directs the agent to invoke the `praxis:code-reviewing` skill via the `Skill` tool (against uncommitted changes inspected through `git diff` / `git status` — `git log` does not apply), re-emit the skill's review **verbatim** as its final assistant message, and append a single `## Decision` H2 with body `proceed` or `skip-improve` so the runner can gate stage 5. The skill's native template — Premise Check, Layer 1–5 analyses, severity-graded Issues tables, What's Done Well, Summary counts — is what stage 5 reads to apply fixes; the harness does not reshape it.
 
-The artifact is written verbatim to `03-code-review.md` (always written, even on validator failure).
+The artifact is written verbatim to `04-code-review.md` (always written, even on validator failure).
 
 **Validator** — `validateCodeReviewArtifact(text)`. Decision-only:
 
@@ -94,34 +108,34 @@ Everything above `## Decision` is freeform skill output. Schema failure → harn
 
 **Trivial-change short-circuit.** When the change is trivial enough that formal review is wasted ceremony, the agent invokes `praxis:code-reviewing`, takes its built-in condensed/"review skipped" output verbatim, and appends `## Decision: skip-improve` with the skill's one-line rationale carried into `## Summary` (or wherever the condensed form puts it). Stage 4 then takes the decision-driven skip path (see §3.5).
 
-**Clean-tree skip.** If `git status --porcelain` is empty at stage entry (the implement stage produced no changes), the stage is marked `completed`/`stopReason: "skipped"` — no SDK call, no artifact, no spend. Stages 4 and 5 also skip downstream.
+**Clean-tree skip.** If `git status --porcelain` is empty at stage entry (the implement stage produced no changes), the stage is marked `completed`/`stopReason: "skipped"` — no SDK call, no artifact, no spend. Stages 5 and 6 also skip downstream.
 
-### §3.5 — Decision-driven skip on stage 4
+### §4.5 — Decision-driven skip on stage 5
 
-When `code-reviewing` ends with `## Decision: skip-improve`, the runner marks `code-improving` `completed`/`stopReason: "skipped-trivial"` without invoking the SDK or writing `04-code-improve.md`. Stage 5 (`auto-commit`) still runs — the implement-stage edits are real and need to land — and `git diff` covers them.
+When `code-reviewing` ends with `## Decision: skip-improve`, the runner marks `code-improving` `completed`/`stopReason: "skipped-trivial"` without invoking the SDK or writing `05-code-improve.md`. Stage 6 (`auto-commit`) still runs — the implement-stage edits are real and need to land — and `git diff` covers them.
 
-### Stage 4 — `code-improving`
+### Stage 5 — `code-improving`
 
 Applies fixes from the review. `permissionMode: "bypassPermissions"`, allowlist all (incl. `Skill`). Pinned model `claude-opus-4-7`. 30-minute timeout. Auto-advances to `auto-commit`. **No validator.**
 
-The user prompt directs the agent to invoke the `praxis:code-improving` skill via the `Skill` tool against `03-code-review.md`. The skill auto-fixes Critical/High/Medium findings and never modifies test files. The agent's final assistant message — an improvement summary listing fixes applied and items deferred — is written verbatim to `04-code-improve.md`.
+The user prompt directs the agent to invoke the `praxis:code-improving` skill via the `Skill` tool against `04-code-review.md`. The skill auto-fixes Critical/High/Medium findings and never modifies test files. The agent's final assistant message — an improvement summary listing fixes applied and items deferred — is written verbatim to `05-code-improve.md`.
 
 > **Risk:** same blast radius as `implement` — runs against `process.cwd()` with `bypassPermissions`. **Use only on repos you can roll back.**
 
 **Skip paths:**
 
-- **Clean tree at stage 3 entry** (cascaded from upstream) → `completed`/`stopReason: "skipped"`. No SDK call, no artifact.
-- **Decision = `skip-improve`** on the upstream review → `completed`/`stopReason: "skipped-trivial"`. No SDK call, no artifact. Stage 5 still runs.
+- **Clean tree at stage 4 entry** (cascaded from upstream) → `completed`/`stopReason: "skipped"`. No SDK call, no artifact.
+- **Decision = `skip-improve`** on the upstream review → `completed`/`stopReason: "skipped-trivial"`. No SDK call, no artifact. Stage 6 still runs.
 
 **Recovery.** A failed/cancelled `code-improving` is recoverable **only** via `praxis retry <run-id>`. `praxis advance` rejects the failed stage with the scoped error.
 
-### Stage 5 — `auto-commit`
+### Stage 6 — `auto-commit`
 
 Generates a Conventional-Commits message and lands a real commit. `permissionMode: "default"`, allowlist `[Bash]`. Pinned model `claude-haiku-4-5-20251001`. 5-minute timeout.
 
-Pre-stage check: if `git status --porcelain` is empty before invoking the stage, the SDK call is skipped entirely; the stage is marked `completed`/`stopReason: "skipped"` (no sessionId/tokens/usd, no `05-commit.txt`, HEAD untouched).
+Pre-stage check: if `git status --porcelain` is empty before invoking the stage, the SDK call is skipped entirely; the stage is marked `completed`/`stopReason: "skipped"` (no sessionId/tokens/usd, no `06-commit.txt`, HEAD untouched).
 
-Otherwise, after the agent emits the commit message, the harness runs `git add -A` and `git commit -m <message>` directly (not via the agent). On success, the new HEAD SHA is captured and `05-commit.txt` is written as `<40-char-sha>\n\n<message>\n`; the SHA also lands on `state.stages["auto-commit"].commitSha` and on the run-done line. On commit failure (e.g., missing git identity, pre-commit hook failure), the stage flips to `failed`/`stopReason: "commit_failed"` with git's stderr captured in `error`; `05-commit.txt` keeps the agent message verbatim (no SHA prefix). The user-prompt copy stays generic ("staged + unstaged changes") — `git diff` covers implement and code-improve edits without per-stage attribution.
+Otherwise, after the agent emits the commit message, the harness runs `git add -A` and `git commit -m <message>` directly (not via the agent). On success, the new HEAD SHA is captured and `06-commit.txt` is written as `<40-char-sha>\n\n<message>\n`; the SHA also lands on `state.stages["auto-commit"].commitSha` and on the run-done line. On commit failure (e.g., missing git identity, pre-commit hook failure), the stage flips to `failed`/`stopReason: "commit_failed"` with git's stderr captured in `error`; `06-commit.txt` keeps the agent message verbatim (no SHA prefix). The user-prompt copy stays generic ("staged + unstaged changes") — `git diff` covers implement and code-improve edits without per-stage attribution.
 
 > **Git identity required.** `git commit -m` needs `user.email` and `user.name` set, globally (`git config --global user.email …`) or per-repo. Missing identity surfaces as `commit_failed` with git's own actionable message.
 
@@ -145,7 +159,7 @@ The most recent stage status is `failed` or `cancelled` and the stage carries a 
 
 Scoped to a failed or cancelled `code-improving`. Reporter prints `praxis: retrying code-improving (resume <sessionId>) — sending "continue" (run <runId>)`. The runner calls `runStage` with `resume: prior.sessionId` and `initialUserPrompt: "continue"`, increments `state.stages["code-improving"].retryAttempts` (default 0 → 1, etc.), and **accumulates** new tokens / USD into the existing entry rather than replacing them; `cost.totalTokens` / `cost.totalUsd` reflect the sum across attempts. Retry is unbounded.
 
-On success the stage flips to `completed`/`stopReason: "end_turn"`, `04-code-improve.md` is rewritten verbatim from the new finalText, and `executeStages` continues with `auto-commit`. On failure the same `failStage` shape applies; tokens/USD continue to accumulate.
+On success the stage flips to `completed`/`stopReason: "end_turn"`, `05-code-improve.md` is rewritten verbatim from the new finalText, and `executeStages` continues with `auto-commit`. On failure the same `failStage` shape applies; tokens/USD continue to accumulate.
 
 Out-of-scope cases exit 1:
 
@@ -163,14 +177,14 @@ Out-of-scope cases exit 1:
 
 Stdout/stderr formatting:
 
-- Stage start — `[N/5 stage-id] starting…` (`…` is U+2026).
-- Stage 0 (synthesised) — `[0/5 intent] captured → 00-intent.txt`.
+- Stage start — `[N/6 stage-id] starting…` (`…` is U+2026).
+- Stage 0 (synthesised) — `[0/6 intent] captured → 00-intent.txt`.
 - Streaming assistant text — wrapped to terminal width (default 80 cols when not a TTY), prefixed ` ›`, 3-space-aligned continuations. Long bodies (> 200 chars) summarised to the first sentence (`/[.!?](\s|$)/`); fallback to the first 200 chars + `…` when no boundary matches. Streaming deltas are coalesced for 100ms and force-flushed before any structural boundary line.
 - Tool use — `  › ToolName(brief)` where `brief` is the tool's salient input (Read/Edit/Write → `file_path`; Glob/Grep → `pattern`; Bash/Task → first 50 chars of `command`/`description`; `Skill` → `input.skill ?? input.name ?? ""`; unknown tools → empty).
 - Tool result — silent on success; `  ✗ ToolName failed` on failure.
 - Errors — written to stderr, multi-line OK; red when stderr is a TTY and `NO_COLOR` is unset.
-- Stage end — artifact path, then `[N/5 stage-id] session: <id> (claude --resume <id> to inspect)`.
-- Stage end (decision-driven skip on stage 4) — `[4/5 code-improving] skipped (skip-improve)`. No artifact path, no session id.
+- Stage end — artifact path, then `[N/6 stage-id] session: <id> (claude --resume <id> to inspect)`.
+- Stage end (decision-driven skip on `code-improving`) — `[5/6 code-improving] skipped (skip-improve)`. No artifact path, no session id.
 - Paused — `praxis: paused after <stage-id> — review .praxis/runs/<run-id>/<artifact>, then: praxis advance <run-id>`.
 - Resume (paused) — `praxis: resuming approved plan after <stage-id> (run <run-id>)`.
 - Recover — `praxis: recovering <stage-id> from on-disk artifact; re-validating (run <run-id>)`.
@@ -186,10 +200,11 @@ Each run writes to `<cwd>/.praxis/runs/<run-id>/`:
 - `state.json` — pretty-printed JSON, trailing newline. Per-stage entries carry `status`, `endedAt`, `stopReason`, `sessionId`, `tokens` (`input` / `output` / `cacheRead` / `cacheCreate`), `usd`, optional `error`, optional `retryAttempts` (serialized when > 0; only `code-improving`), and (for `auto-commit`) optional `commitSha`. Top-level `cost.totalTokens` aggregates `input + output` only — cache tokens are recorded per-stage but excluded from the running total. `cost.totalUsd` is the sum of per-stage `usd`. `currentStage` tracks the in-flight or next-to-run stage. `stopReason` values include: `end_turn`, `skipped` (clean-tree skip), `skipped-trivial` (decision-driven skip on `code-improving`), `recovered`, `commit_failed`, `validator_failed`, `timeout`, `sigint`, `session_unresumable`.
 - `00-intent.txt` — raw intent verbatim.
 - `01-clarify-assess.md` — agent finalText verbatim (always written, even on validator failure).
-- `02-implement-log.md` — agent finalText verbatim (always written, even on timeout/SIGINT — partial log preserved).
-- `03-code-review.md` — agent finalText verbatim (always written, even on validator failure). Carries the skill's native review template plus a final `## Decision` H2 (`proceed` | `skip-improve`). Not written on a clean-tree skip.
-- `04-code-improve.md` — agent finalText verbatim (improvement summary). Not written on either skip path (clean-tree or decision-driven `skipped-trivial`).
-- `05-commit.txt` — `<sha>\n\n<message>\n` on commit success; agent message verbatim on commit failure; not written on the skip path.
+- `02-sketching-design.md` — agent finalText verbatim (design sketch, `Skipped — no sketch needed` line, or `## Spec Issue` H2 — all three pass through unchanged; no validator).
+- `03-implement-log.md` — agent finalText verbatim (always written, even on timeout/SIGINT — partial log preserved).
+- `04-code-review.md` — agent finalText verbatim (always written, even on validator failure). Carries the skill's native review template plus a final `## Decision` H2 (`proceed` | `skip-improve`). Not written on a clean-tree skip.
+- `05-code-improve.md` — agent finalText verbatim (improvement summary). Not written on either skip path (clean-tree or decision-driven `skipped-trivial`).
+- `06-commit.txt` — `<sha>\n\n<message>\n` on commit success; agent message verbatim on commit failure; not written on the skip path.
 
 Run-id format: `${YYYY-MM-DD-HHMM-UTC}-${4-char-hex}`. `startedAt` is ISO-8601 UTC at second precision.
 
@@ -295,8 +310,8 @@ interface Reporter {
 
 ### Scripted-SDK e2e (in-suite, no real spend)
 
-- `tests/e2e/auto-commit.test.ts` drives all five stages (clarify-assess → implement → code-reviewing → code-improving → auto-commit) with a scripted SDK, real git, and the production `commit()`. HEAD advances by exactly one commit; `state.commitSha` matches the new HEAD; `05-commit.txt` carries the SHA-prefixed form.
-- `tests/e2e/retry-flow.test.ts` drives a SIGINT-cancelled `code-improving`, then `praxis retry` resumes the prior SDK session with `initialUserPrompt: "continue"`, the agent's improvement summary lands in `04-code-improve.md`, and `auto-commit` lands one real commit. The persisted `state.json` reflects `retryAttempts === 1` and the sessionId rotation.
+- `tests/e2e/auto-commit.test.ts` drives all six stages (clarify-assess → sketching-design → implement → code-reviewing → code-improving → auto-commit) with a scripted SDK, real git, and the production `commit()`. HEAD advances by exactly one commit; `state.commitSha` matches the new HEAD; `06-commit.txt` carries the SHA-prefixed form.
+- `tests/e2e/retry-flow.test.ts` drives a SIGINT-cancelled `code-improving`, then `praxis retry` resumes the prior SDK session with `initialUserPrompt: "continue"`, the agent's improvement summary lands in `05-code-improve.md`, and `auto-commit` lands one real commit. The persisted `state.json` reflects `retryAttempts === 1` and the sessionId rotation.
 
 ### Real-SDK smoke (live, periodic)
 
@@ -307,11 +322,13 @@ The full pipeline has been exercised against the real `@anthropic-ai/claude-agen
 - Run `2026-04-26-1413-dc71` — `add a top-level CONTRIBUTING.md` against a throwaway repo, ~3.8K tokens, $0.36. All stages completed with distinct session ids; the SHA-prefixed commit artifact matched the new HEAD. (Pre-dates the 5-stage rename; the run wrote the commit artifact under the legacy filename slot.)
 - Run `2026-04-26-1521-4b4e` — `add PRAXIS_SMOKE.txt`, post-tsdown-migration verification, ~4.4K tokens, $0.36. Same shape; confirmed the bundled-layout path resolution works end-to-end against the real SDK.
 
-**5-stage runs (current shape, with `praxis` plugin installed at user scope):**
+**5-stage runs (legacy shape, pre-S-2):**
 
 - Run `2026-04-28-0921-e8f4` — `add a top-level NOTES.md` against a throwaway repo. **5425 tokens, $0.7244.** Five stages ran; `praxis:code-reviewing` skill invoked successfully via the `Skill` tool, emitted a "review skipped" trivial-change short-circuit; `## Decision: skip-improve` parsed correctly; stage 4 marked `completed`/`stopReason: "skipped-trivial"` (no SDK call, no `04-code-improve.md`); stage 5 ran and landed commit `c9dbd8e`. `05-commit.txt` is the SHA-prefixed form. The `[4/5 code-improving] skipped (skip-improve)` reporter line emitted as designed.
 - Run `2026-04-28-0924-f628` — `add a small Python script scripts/today.py`. **6349 tokens, $0.6516.** Same shape: full review produced verbatim, decision = `skip-improve`, stage 4 short-circuited, commit `bd25f51` landed.
 - Run `2026-04-28-0928-0849` — `add src/userValidator.ts with email + password validators plus vitest tests`. **9573 tokens, $0.9207.** Five stages ran; `praxis:code-reviewing` skill produced a substantive 5-layer review (data structures, special cases, complexity, breaking changes, practicality) that found zero Critical/High/Medium findings and decided `skip-improve`. Commit `28a3ec4` landed.
+
+**6-stage runs (current shape, S-2 onwards):** No live-SDK smoke captured yet against the 6-stage workflow; scripted-SDK e2e (`tests/e2e/auto-commit.test.ts` and `tests/e2e/retry-flow.test.ts`) drives the full 6-stage pipeline against real git and the production `commit()` seam. Next live smoke against the real SDK should exercise `sketching-design` invoking `praxis:sketching-design`, the artifact landing at `02-sketching-design.md`, and the `[2/6 sketching-design] starting…` reporter line.
 
 **`praxis retry` live CLI guards** — exercised against a completed run-id, a malformed run-id, and a non-existent valid-format run-id. All three matched the milestone's spec messages exactly: "run is already complete" / "invalid run-id: <id>. Expected shape …" with exit 1 on the malformed cases.
 
@@ -319,7 +336,7 @@ The full pipeline has been exercised against the real `@anthropic-ai/claude-agen
 
 **Coverage gaps the live smoke did NOT exercise** (covered by scripted-SDK e2e in `tests/e2e/retry-flow.test.ts` and `tests/workflow/retry.test.ts`):
 
-- Stage 4 actually invoking `praxis:code-improving` with `Decision: proceed` against the live SDK — the `praxis:code-reviewing` skill consistently chose `skip-improve` in the small-throwaway-repo smoke variants because every change was below the trivial threshold.
-- Live retry resume of a failed `code-improving` SDK session — to force this against the real SDK would require either a deliberately-suboptimal implementation or a SIGINT mid-stage-4. Both paths are validated end-to-end by `tests/e2e/retry-flow.test.ts` (real git commit + SIGINT-triggered cancel + retry resume) and `tests/workflow/retry.test.ts` (10 mechanic tests pinning `resume`/`continue` wiring, retryAttempts, token/USD accumulation, session_unresumable detection).
+- `code-improving` actually invoking `praxis:code-improving` with `Decision: proceed` against the live SDK — the `praxis:code-reviewing` skill consistently chose `skip-improve` in the small-throwaway-repo smoke variants because every change was below the trivial threshold.
+- Live retry resume of a failed `code-improving` SDK session — to force this against the real SDK would require either a deliberately-suboptimal implementation or a SIGINT mid-`code-improving`. Both paths are validated end-to-end by `tests/e2e/retry-flow.test.ts` (real git commit + SIGINT-triggered cancel + retry resume) and `tests/workflow/retry.test.ts` (10 mechanic tests pinning `resume`/`continue` wiring, retryAttempts, token/USD accumulation, session_unresumable detection).
 
 See [`../README.md`](../README.md#smoke-run-against-the-real-sdk) for the smoke procedure and checklist.

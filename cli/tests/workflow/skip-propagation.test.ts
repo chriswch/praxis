@@ -139,6 +139,17 @@ function statePausedBeforeReview(): State {
         tokens: { input: 100, output: 50, cacheRead: 0, cacheCreate: 0 },
         usd: 0.012,
       },
+      // S-2: sketching-design slot — completed in fixtures so that
+      // advanceWorkflow's resume-point scan finds the first non-completed
+      // stage at code-reviewing (or later).
+      "sketching-design": {
+        status: "completed",
+        sessionId: "sess_sketch",
+        stopReason: "end_turn",
+        endedAt: "2026-04-25T14:31:30Z",
+        tokens: { input: 20, output: 10, cacheRead: 0, cacheCreate: 0 },
+        usd: 0.001,
+      },
       implement: {
         status: "completed",
         sessionId: "sess_impl",
@@ -290,12 +301,12 @@ describe("S-003 AC-14: only src/git/* owns the porcelain spawn", () => {
   });
 });
 
-describe("S-003 AC-13: missing 03-code-review.md at code-improving entry → stage fails, no SDK call", () => {
+describe("S-003 AC-13: missing 04-code-review.md at code-improving entry → stage fails, no SDK call", () => {
   it("seeded state with stage 3 completed but artifact missing → advance fails code-improving with stopReason 'missing_review_artifact'; no SDK call for stage 4", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // Use a custom config where code-reviewing pauses after itself, so
       // advance can resume into code-improving (the pending current stage).
-      // This isolates the "stage 4 entry sees missing 03-code-review.md"
+      // This isolates the "stage 4 entry sees missing 04-code-review.md"
       // branch without needing to intercept mid-flight in runWorkflow.
       const cfg: PraxisConfig = {
         version: 1,
@@ -319,6 +330,15 @@ describe("S-003 AC-13: missing 03-code-review.md at code-improving entry → sta
             tokens: { input: 100, output: 50, cacheRead: 0, cacheCreate: 0 },
             usd: 0.012,
           },
+          // S-2: sketching-design slot — completed in fixture.
+          "sketching-design": {
+            status: "completed",
+            sessionId: "sess_sketch",
+            stopReason: "end_turn",
+            endedAt: "2026-04-25T14:31:30Z",
+            tokens: { input: 20, output: 10, cacheRead: 0, cacheCreate: 0 },
+            usd: 0.001,
+          },
           implement: {
             status: "completed",
             sessionId: "sess_impl",
@@ -340,7 +360,7 @@ describe("S-003 AC-13: missing 03-code-review.md at code-improving entry → sta
         },
       };
       const runDir = seedRunDir(cwd, state);
-      // Note: NO 03-code-review.md on disk — that's the failure mode AC-13
+      // Note: NO 04-code-review.md on disk — that's the failure mode AC-13
       // pins.
 
       const recording = recordingScriptedQuery([]);
@@ -366,8 +386,8 @@ describe("S-003 AC-13: missing 03-code-review.md at code-improving entry → sta
       );
       // Zero SDK calls — neither stage 4 nor stage 5 fire.
       expect(recording.calls.length).toBe(0);
-      // No 04-code-improve.md or 05-commit.txt.
-      expect(existsSync(join(runDir, "05-commit.txt"))).toBe(false);
+      // No 05-code-improve.md or 06-commit.txt.
+      expect(existsSync(join(runDir, "06-commit.txt"))).toBe(false);
     });
   });
 });
@@ -377,8 +397,8 @@ describe("S-003 AC-12: cancelled code-improving advance behaves identically to f
     await withTempRepo(async ({ dir: cwd }) => {
       const state = stateWithCancelledImprove();
       const runDir = seedRunDir(cwd, state);
-      writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
-      writeFileSync(join(runDir, "04-code-improve.md"), "## partial\n", "utf8");
+      writeFileSync(join(runDir, "04-code-review.md"), REVIEW_PROCEED, "utf8");
+      writeFileSync(join(runDir, "05-code-improve.md"), "## partial\n", "utf8");
       const stateBefore = JSON.parse(
         readFileSync(join(runDir, "state.json"), "utf8"),
       );
@@ -417,8 +437,8 @@ describe("S-003 AC-11: praxis advance against failed code-improving is rejected 
       const runDir = seedRunDir(cwd, state);
       // Both review + improve artifacts on disk so the test isolates the
       // advance branch — not artifact-missing.
-      writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
-      writeFileSync(join(runDir, "04-code-improve.md"), "## partial\n", "utf8");
+      writeFileSync(join(runDir, "04-code-review.md"), REVIEW_PROCEED, "utf8");
+      writeFileSync(join(runDir, "05-code-improve.md"), "## partial\n", "utf8");
       const stateBefore = JSON.parse(
         readFileSync(join(runDir, "state.json"), "utf8"),
       );
@@ -462,7 +482,7 @@ describe("S-003 AC-10: cancelled code-reviewing recovery identical to failed", (
     await withTempRepo(async ({ dir: cwd }) => {
       const state = stateWithCancelledReview();
       const runDir = seedRunDir(cwd, state);
-      writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
+      writeFileSync(join(runDir, "04-code-review.md"), REVIEW_PROCEED, "utf8");
 
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
@@ -488,12 +508,12 @@ describe("S-003 AC-10: cancelled code-reviewing recovery identical to failed", (
 });
 
 describe("S-003 AC-9: praxis advance on failed code-reviewing with hand-edited skip-improve artifact", () => {
-  it("hand-edited 03-code-review.md with decision=skip-improve → stage 4 skipped-trivial, stage 5 still runs, recording.calls.length === 1 (only stage 5)", async () => {
+  it("hand-edited 04-code-review.md with decision=skip-improve → stage 4 skipped-trivial, stage 5 still runs, recording.calls.length === 1 (only stage 5)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const state = stateWithFailedReview();
       const runDir = seedRunDir(cwd, state);
       writeFileSync(
-        join(runDir, "03-code-review.md"),
+        join(runDir, "04-code-review.md"),
         REVIEW_SKIP_IMPROVE,
         "utf8",
       );
@@ -522,18 +542,18 @@ describe("S-003 AC-9: praxis advance on failed code-reviewing with hand-edited s
       );
       expect(persisted.stages["auto-commit"].status).toBe("completed");
 
-      // No 04-code-improve.md.
-      expect(existsSync(join(runDir, "04-code-improve.md"))).toBe(false);
+      // No 05-code-improve.md.
+      expect(existsSync(join(runDir, "05-code-improve.md"))).toBe(false);
     });
   });
 });
 
 describe("S-003 AC-8: praxis advance recovers failed code-reviewing with valid hand-edited artifact (proceed)", () => {
-  it("hand-edited 03-code-review.md with decision=proceed → stage 3 flips to completed/recovered; stages 4,5 dispatch; recording.calls.length === 2", async () => {
+  it("hand-edited 04-code-review.md with decision=proceed → stage 3 flips to completed/recovered; stages 4,5 dispatch; recording.calls.length === 2", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const state = stateWithFailedReview();
       const runDir = seedRunDir(cwd, state);
-      writeFileSync(join(runDir, "03-code-review.md"), REVIEW_PROCEED, "utf8");
+      writeFileSync(join(runDir, "04-code-review.md"), REVIEW_PROCEED, "utf8");
 
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
@@ -561,7 +581,7 @@ describe("S-003 AC-8: praxis advance recovers failed code-reviewing with valid h
 });
 
 describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
-  it("two bad reviews → terminal validator failure on stage 3; partial 03-code-review.md written; stages 4,5 not invoked; failedStageId === 'code-reviewing'", async () => {
+  it("two bad reviews → terminal validator failure on stage 3; partial 04-code-review.md written; stages 4,5 not invoked; failedStageId === 'code-reviewing'", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const badReview = "# Some body\n\n(no Decision H2)\n";
       function badReviewMessages(sessionId: string): SdkMessage[] {
@@ -595,13 +615,15 @@ describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
       }
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        // S-2: sketching-design runs between clarify-assess and implement.
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
-        // Stage 3: bad first attempt + bad retry → terminal validator failure.
+        // Stage 4 (was 3): bad first attempt + bad retry → terminal validator failure.
         [
           { messages: badReviewMessages("sess_bad1") },
           { messages: badReviewMessages("sess_bad2") },
         ],
-        // Stages 4 and 5 must NOT fire.
+        // Stages 5 and 6 must NOT fire.
       ]);
       const commit = recordingCommit();
       const result = await runWorkflow(
@@ -613,20 +635,21 @@ describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
       if (result.ok) throw new Error("unreachable");
       expect(result.failedStageId).toBe("code-reviewing");
       expect(result.status).toBe("failed");
-      // Three SDK invocations: clarify-assess, implement, code-reviewing.
-      expect(recording.calls.length).toBe(3);
-      // Stages 4 and 5 not invoked.
+      // S-2: four SDK invocations now — clarify-assess, sketching-design,
+      // implement, code-reviewing.
+      expect(recording.calls.length).toBe(4);
+      // Stages 5 and 6 not invoked.
       expect(commit.calls.length).toBe(0);
 
-      // Partial 03-code-review.md written verbatim (the bad agent message).
+      // Partial 04-code-review.md written verbatim (the bad agent message).
       expect(
-        readFileSync(join(result.runDir!, "03-code-review.md"), "utf8"),
+        readFileSync(join(result.runDir!, "04-code-review.md"), "utf8"),
       ).toBe(badReview);
-      // No 04-code-improve.md, no 05-commit.txt.
-      expect(existsSync(join(result.runDir!, "04-code-improve.md"))).toBe(
+      // No 05-code-improve.md, no 06-commit.txt.
+      expect(existsSync(join(result.runDir!, "05-code-improve.md"))).toBe(
         false,
       );
-      expect(existsSync(join(result.runDir!, "05-commit.txt"))).toBe(false);
+      expect(existsSync(join(result.runDir!, "06-commit.txt"))).toBe(false);
 
       const persisted = JSON.parse(
         readFileSync(join(result.runDir!, "state.json"), "utf8"),
@@ -696,8 +719,10 @@ describe("S-003 AC-6: validator corrective retry on code-reviewing succeeds; dow
 
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        // S-2: sketching-design between clarify-assess and implement.
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
-        // Stage 3: bad first attempt + retry-after-pushUserMessage.
+        // Stage 4: bad first attempt + retry-after-pushUserMessage.
         [{ messages: reviewFirstAttempt }, { messages: reviewRetryAttempt }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
         [{ messages: stageMessages("sess_commit", "feat: x") }],
@@ -708,9 +733,11 @@ describe("S-003 AC-6: validator corrective retry on code-reviewing succeeds; dow
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // One corrective pushUserMessage on the code-reviewing call.
-      expect(recording.calls.length).toBe(5);
-      expect(recording.calls[2].pushedUserMessages.length).toBe(1);
+      // S-2: six SDK calls total. The corrective pushUserMessage lands on the
+      // code-reviewing call, which is now index 3 (clarify, sketch, implement,
+      // review).
+      expect(recording.calls.length).toBe(6);
+      expect(recording.calls[3].pushedUserMessages.length).toBe(1);
 
       const persisted = JSON.parse(
         readFileSync(join(result.runDir, "state.json"), "utf8"),
@@ -727,13 +754,15 @@ describe("S-003 AC-6: validator corrective retry on code-reviewing succeeds; dow
 });
 
 describe("S-003 AC-4: decision=skip-improve skips code-improving but still runs auto-commit", () => {
-  it("dirty tree + REVIEW_SKIP_IMPROVE → stage 4 skipped-trivial, no 04-code-improve.md, stage 5 still runs, recording.calls.length === 4 (no SDK call for stage 4)", async () => {
+  it("dirty tree + REVIEW_SKIP_IMPROVE → code-improving skipped-trivial, no 05-code-improve.md, auto-commit still runs, recording.calls.length === 5 (no SDK call for code-improving)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        // S-2: sketching-design.
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
         [{ messages: stageMessages("sess_review", REVIEW_SKIP_IMPROVE) }],
-        // Stage 4 (code-improving) is decision-skipped — NO script for it.
+        // code-improving is decision-skipped — NO script for it.
         [{ messages: stageMessages("sess_commit", "feat: x") }],
       ]);
       const commit = recordingCommit();
@@ -743,8 +772,9 @@ describe("S-003 AC-4: decision=skip-improve skips code-improving but still runs 
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // Four SDK invocations: 1, 2, 3, 5. Stage 4 SDK call short-circuited.
-      expect(recording.calls.length).toBe(4);
+      // S-2: five SDK invocations — clarify, sketch, implement, review,
+      // auto-commit. code-improving SDK call short-circuited.
+      expect(recording.calls.length).toBe(5);
 
       const persisted = JSON.parse(
         readFileSync(join(result.runDir, "state.json"), "utf8"),
@@ -756,25 +786,27 @@ describe("S-003 AC-4: decision=skip-improve skips code-improving but still runs 
       expect(ci.tokens).toBeUndefined();
       expect(ci.usd).toBeUndefined();
 
-      // No 04-code-improve.md — we never produced an agent message.
-      expect(existsSync(join(result.runDir, "04-code-improve.md"))).toBe(false);
+      // No 05-code-improve.md — we never produced an agent message.
+      expect(existsSync(join(result.runDir, "05-code-improve.md"))).toBe(false);
 
-      // Auto-commit still ran (one deps.commit hand-off + a 05-commit.txt).
+      // Auto-commit still ran (one deps.commit hand-off + a 06-commit.txt).
       expect(commit.calls.length).toBe(1);
       expect(persisted.stages["auto-commit"].status).toBe("completed");
-      expect(existsSync(join(result.runDir, "05-commit.txt"))).toBe(true);
+      expect(existsSync(join(result.runDir, "06-commit.txt"))).toBe(true);
     });
   });
 });
 
 describe("S-006: skip-improve stageEnd carries stopReason='skipped-trivial' to the reporter", () => {
-  it("recording reporter sees stopReason='skipped-trivial' on the code-improving stageEnd; clean-tree skips on stages 3+5 carry stopReason='skipped'", async () => {
+  it("recording reporter sees stopReason='skipped-trivial' on the code-improving stageEnd; clean-tree skips on code-reviewing+auto-commit carry stopReason='skipped'", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        // S-2: sketching-design.
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
         [{ messages: stageMessages("sess_review", REVIEW_SKIP_IMPROVE) }],
-        // Stage 4 (code-improving) decision-skipped — no script for it.
+        // code-improving decision-skipped — no script for it.
         [{ messages: stageMessages("sess_commit", "feat: x") }],
       ]);
       const reporter = new RecordingReporter();
@@ -798,7 +830,7 @@ describe("S-006: skip-improve stageEnd carries stopReason='skipped-trivial' to t
 });
 
 describe("S-003 AC-3: decision=proceed dispatches code-improving normally", () => {
-  it("dirty tree + REVIEW_PROCEED → stage 4 SDK call happens; stages 4,5 both run; recording.calls.length === 5", async () => {
+  it("dirty tree + REVIEW_PROCEED → code-improving SDK call happens; review/improve/commit all run; recording.calls.length === 6", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // Dirty tree (no baseline commit) — runner appends .praxis/ to
       // .gitignore, leaves it untracked. git status --porcelain is non-empty
@@ -806,6 +838,8 @@ describe("S-003 AC-3: decision=proceed dispatches code-improving normally", () =
       // taken.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        // S-2: sketching-design.
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
@@ -818,8 +852,8 @@ describe("S-003 AC-3: decision=proceed dispatches code-improving normally", () =
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // All five SDK invocations made.
-      expect(recording.calls.length).toBe(5);
+      // S-2: six SDK invocations.
+      expect(recording.calls.length).toBe(6);
       const persisted = JSON.parse(
         readFileSync(join(result.runDir, "state.json"), "utf8"),
       );
@@ -829,21 +863,25 @@ describe("S-003 AC-3: decision=proceed dispatches code-improving normally", () =
       expect(persisted.stages["code-improving"].stopReason).toBe("end_turn");
       // Both artifacts written.
       expect(
-        readFileSync(join(result.runDir, "03-code-review.md"), "utf8"),
+        readFileSync(join(result.runDir, "04-code-review.md"), "utf8"),
       ).toBe(REVIEW_PROCEED);
       expect(
-        readFileSync(join(result.runDir, "04-code-improve.md"), "utf8"),
+        readFileSync(join(result.runDir, "05-code-improve.md"), "utf8"),
       ).toBe(IMPROVE_LOG);
     });
   });
 });
 
 describe("S-003 AC-2: cascading clean-tree skip uses 'skipped' (not 'skipped-trivial')", () => {
-  it("stage 4 stopReason on cascading skip is 'skipped' — the 'skipped-trivial' token is reserved for decision-driven skips", async () => {
+  it("code-improving stopReason on cascading skip is 'skipped' — the 'skipped-trivial' token is reserved for decision-driven skips", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       seedCleanRepo(cwd);
+      // S-2: sketching-design runs even on a clean tree (AC-8: not in the
+      // clean-tree skip set), so three SDK calls fire before the clean-tree
+      // cascade kicks in at code-reviewing.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
       ]);
       const result = await runWorkflow(
@@ -863,12 +901,60 @@ describe("S-003 AC-2: cascading clean-tree skip uses 'skipped' (not 'skipped-tri
   });
 });
 
-describe("S-003 AC-1: clean tree at code-reviewing entry skips stages 3, 4, 5", () => {
-  it("clean tree before code-reviewing → stages 3,4,5 all completed/skipped, only 2 SDK calls (clarify-assess + implement)", async () => {
+// S-2 AC-8: sketching-design is NOT in `maybeSkipCleanTree`'s eligibility set
+// (which is still only [auto-commit, code-reviewing, code-improving]), so even
+// on a perfectly clean tree the SDK fires for sketching-design, an artifact
+// is written, and stage state is `completed`/`stopReason: "end_turn"` — not
+// `skipped`. The clean-tree cascade still applies to code-reviewing onward
+// (covered by S-003 AC-1 below).
+describe("S-2 AC-8: sketching-design runs even on a clean tree", () => {
+  it("clean tree at sketching-design entry → sketching-design dispatches the SDK; stage state is completed/end_turn, NOT skipped; artifact 02-sketching-design.md exists", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       seedCleanRepo(cwd);
+      const sketchText = "## Sketch\n\n- pick file X\n";
+      // Script all three stages that DO dispatch under a clean tree:
+      // clarify-assess, sketching-design, and implement. The trailing three
+      // (code-reviewing, code-improving, auto-commit) cascade-skip on the
+      // still-clean tree.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_sketch", sketchText) }],
+        [{ messages: stageMessages("sess_impl", "log\n") }],
+      ]);
+      const result = await runWorkflow(
+        { intent: "x", cwd, allowDirty: true, noPause: true },
+        buildDeps(recording, recordingCommit()),
+      );
+      if (!result.ok) throw new Error(result.reason);
+
+      // sketching-design's SDK call DID fire (call 2 of 3).
+      expect(recording.calls.length).toBe(3);
+      const persisted = JSON.parse(
+        readFileSync(join(result.runDir, "state.json"), "utf8"),
+      );
+      const sd = persisted.stages["sketching-design"];
+      expect(sd.status).toBe("completed");
+      // Crucially: NOT "skipped" / "skipped-trivial" — the SDK actually ran.
+      expect(sd.stopReason).toBe("end_turn");
+      expect(sd.sessionId).toBe("sess_sketch");
+      expect(sd.tokens).toBeDefined();
+      // The artifact landed verbatim.
+      expect(
+        readFileSync(join(result.runDir, "02-sketching-design.md"), "utf8"),
+      ).toBe(sketchText);
+    });
+  });
+});
+
+describe("S-003 AC-1: clean tree at code-reviewing entry skips code-reviewing, code-improving, auto-commit", () => {
+  it("clean tree before code-reviewing → those three stages all completed/skipped, three SDK calls (clarify-assess + sketching-design + implement)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedCleanRepo(cwd);
+      // S-2: sketching-design runs even on a clean tree (AC-8: not in the
+      // clean-tree skip set).
+      const recording = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
+        [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "log\n") }],
       ]);
       const commit = recordingCommit();
@@ -878,8 +964,9 @@ describe("S-003 AC-1: clean tree at code-reviewing entry skips stages 3, 4, 5", 
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // Only two SDK invocations.
-      expect(recording.calls.length).toBe(2);
+      // S-2: three SDK invocations — clarify, sketch, implement. Stages
+      // code-reviewing/code-improving/auto-commit cascade-skip on clean tree.
+      expect(recording.calls.length).toBe(3);
       // Auto-commit hand-off skipped too.
       expect(commit.calls.length).toBe(0);
 
@@ -897,9 +984,9 @@ describe("S-003 AC-1: clean tree at code-reviewing entry skips stages 3, 4, 5", 
       expect(ac.stopReason).toBe("skipped");
 
       // No artifacts produced for skipped stages.
-      expect(existsSync(join(result.runDir, "03-code-review.md"))).toBe(false);
-      expect(existsSync(join(result.runDir, "04-code-improve.md"))).toBe(false);
-      expect(existsSync(join(result.runDir, "05-commit.txt"))).toBe(false);
+      expect(existsSync(join(result.runDir, "04-code-review.md"))).toBe(false);
+      expect(existsSync(join(result.runDir, "05-code-improve.md"))).toBe(false);
+      expect(existsSync(join(result.runDir, "06-commit.txt"))).toBe(false);
     });
   });
 });
