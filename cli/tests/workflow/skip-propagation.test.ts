@@ -302,11 +302,11 @@ describe("S-003 AC-14: only src/git/* owns the porcelain spawn", () => {
 });
 
 describe("S-003 AC-13: missing 04-code-review.md at code-improving entry → stage fails, no SDK call", () => {
-  it("seeded state with stage 3 completed but artifact missing → advance fails code-improving with stopReason 'missing_review_artifact'; no SDK call for stage 4", async () => {
+  it("seeded state with code-reviewing completed but artifact missing → advance fails code-improving with stopReason 'missing_review_artifact'; no SDK call for code-improving", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // Use a custom config where code-reviewing pauses after itself, so
       // advance can resume into code-improving (the pending current stage).
-      // This isolates the "stage 4 entry sees missing 04-code-review.md"
+      // This isolates the "code-improving entry sees missing 04-code-review.md"
       // branch without needing to intercept mid-flight in runWorkflow.
       const cfg: PraxisConfig = {
         version: 1,
@@ -384,7 +384,7 @@ describe("S-003 AC-13: missing 04-code-review.md at code-improving entry → sta
       expect(persisted.stages["code-improving"].error).toMatch(
         /code-reviewing artifact missing/,
       );
-      // Zero SDK calls — neither stage 4 nor stage 5 fire.
+      // Zero SDK calls — neither code-improving nor auto-commit fire.
       expect(recording.calls.length).toBe(0);
       // No 05-code-improve.md or 06-commit.txt.
       expect(existsSync(join(runDir, "06-commit.txt"))).toBe(false);
@@ -478,7 +478,7 @@ describe("S-003 AC-11: praxis advance against failed code-improving is rejected 
 });
 
 describe("S-003 AC-10: cancelled code-reviewing recovery identical to failed", () => {
-  it("cancelled stage 3 with valid hand-edited artifact (proceed) → stages 4,5 dispatch identically to AC-8", async () => {
+  it("cancelled code-reviewing with valid hand-edited artifact (proceed) → code-improving and auto-commit dispatch identically to AC-8", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const state = stateWithCancelledReview();
       const runDir = seedRunDir(cwd, state);
@@ -508,7 +508,7 @@ describe("S-003 AC-10: cancelled code-reviewing recovery identical to failed", (
 });
 
 describe("S-003 AC-9: praxis advance on failed code-reviewing with hand-edited skip-improve artifact", () => {
-  it("hand-edited 04-code-review.md with decision=skip-improve → stage 4 skipped-trivial, stage 5 still runs, recording.calls.length === 1 (only stage 5)", async () => {
+  it("hand-edited 04-code-review.md with decision=skip-improve → code-improving skipped-trivial, auto-commit still runs, recording.calls.length === 1 (only auto-commit)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const state = stateWithFailedReview();
       const runDir = seedRunDir(cwd, state);
@@ -528,7 +528,7 @@ describe("S-003 AC-9: praxis advance on failed code-reviewing with hand-edited s
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // Only stage 5 dispatched the SDK; stage 4 was decision-skipped.
+      // Only auto-commit dispatched the SDK; code-improving was decision-skipped.
       expect(recording.calls.length).toBe(1);
 
       const persisted = JSON.parse(
@@ -549,7 +549,7 @@ describe("S-003 AC-9: praxis advance on failed code-reviewing with hand-edited s
 });
 
 describe("S-003 AC-8: praxis advance recovers failed code-reviewing with valid hand-edited artifact (proceed)", () => {
-  it("hand-edited 04-code-review.md with decision=proceed → stage 3 flips to completed/recovered; stages 4,5 dispatch; recording.calls.length === 2", async () => {
+  it("hand-edited 04-code-review.md with decision=proceed → code-reviewing flips to completed/recovered; code-improving and auto-commit dispatch; recording.calls.length === 2", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const state = stateWithFailedReview();
       const runDir = seedRunDir(cwd, state);
@@ -566,7 +566,7 @@ describe("S-003 AC-8: praxis advance recovers failed code-reviewing with valid h
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // Only stages 4 and 5 dispatched the SDK.
+      // Only code-improving and auto-commit dispatched the SDK.
       expect(recording.calls.length).toBe(2);
 
       const persisted = JSON.parse(
@@ -581,7 +581,7 @@ describe("S-003 AC-8: praxis advance recovers failed code-reviewing with valid h
 });
 
 describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
-  it("two bad reviews → terminal validator failure on stage 3; partial 04-code-review.md written; stages 4,5 not invoked; failedStageId === 'code-reviewing'", async () => {
+  it("two bad reviews → terminal validator failure on code-reviewing; partial 04-code-review.md written; code-improving and auto-commit not invoked; failedStageId === 'code-reviewing'", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const badReview = "# Some body\n\n(no Decision H2)\n";
       function badReviewMessages(sessionId: string): SdkMessage[] {
@@ -665,7 +665,7 @@ describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
 });
 
 describe("S-003 AC-6: validator corrective retry on code-reviewing succeeds; downstream proceeds", () => {
-  it("first attempt missing Decision H2 → one pushUserMessage → retry passes; recording.calls[2].pushedUserMessages.length === 1; stages 4,5 dispatch", async () => {
+  it("first attempt missing Decision H2 → one pushUserMessage → retry passes; recording.calls[2].pushedUserMessages.length === 1; code-improving and auto-commit dispatch", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const badReview = "# Some body\n\n(no Decision H2)\n";
       const reviewFirstAttempt: SdkMessage[] = [

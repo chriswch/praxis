@@ -134,7 +134,7 @@ function seedPausedRun(cwd: string): string {
 
 /**
  * Stock review-stage finalText that satisfies the `## Decision` H2 validator
- * (S-002 AC-2). Tests scripting the 5-stage default workflow re-use this so
+ * (S-002 AC-2). Tests scripting the 6-stage default workflow re-use this so
  * code-reviewing's validator passes on the first attempt.
  */
 const REVIEW_PROCEED = `# Code review\n\nNo blocking issues.\n\n## Decision\n\nproceed\n`;
