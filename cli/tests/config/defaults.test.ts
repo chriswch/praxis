@@ -215,10 +215,17 @@ describe("defaultWorkflow", () => {
  * into the user prompt.
  */
 describe("defaultWorkflow user prompts (H-1 regression)", () => {
-  function ctx(extras?: { artifactPaths?: Record<string, string> }) {
+  function ctx(extras?: {
+    artifactPaths?: Record<string, string>;
+    baselineSha?: string;
+  }) {
     return {
       intent: "add a logout button",
       runDir: "/run/dir",
+      // S-3 AC-3/4: code-reviewing + code-improving prompts reference
+      // {{baselineSha}}, so the interpolation needs a value. Default to a
+      // recognisable placeholder so assertions can match it.
+      baselineSha: extras?.baselineSha ?? "BASELINE_SHA",
       artifactPaths: extras?.artifactPaths ?? {},
     };
   }
@@ -269,21 +276,28 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
     expect(rendered).not.toContain("`permissionMode`");
   });
 
-  // S-002 AC-2: code-reviewing user prompt references {{runDir}} and asks
-  // the agent to invoke the praxis:code-reviewing skill via Skill.
-  it("code-reviewing renders runDir and names the praxis:code-reviewing skill", () => {
+  // S-002 AC-2 + S-3 AC-3: code-reviewing user prompt references {{runDir}},
+  // names the praxis:code-reviewing skill, and points at the per-AC commit
+  // range via {{baselineSha}}..HEAD instead of the old "uncommitted" wording.
+  it("code-reviewing renders runDir, names the praxis:code-reviewing skill, and points at the baselineSha..HEAD range", () => {
     const rendered = buildUserPrompt(stageById("code-reviewing"), ctx());
     expect(rendered).toContain("/run/dir");
     expect(rendered).toContain("praxis:code-reviewing");
     expect(rendered.toLowerCase()).toContain("skill");
+    // {{baselineSha}} is interpolated to the BASELINE_SHA placeholder by ctx().
+    expect(rendered).toContain("git diff BASELINE_SHA..HEAD");
+    expect(rendered).toContain("git log BASELINE_SHA..HEAD");
+    expect(rendered.toLowerCase()).not.toContain("uncommitted");
+    expect(rendered).not.toContain("do NOT use `git log`");
     // System prompt content must NOT leak into the user prompt.
     const sys = loadSystemPrompt(stageById("code-reviewing"));
     expect(rendered).not.toBe(sys);
   });
 
-  // S-002 AC-3: code-improving user prompt references the code-reviewing
-  // artifact path token and names the praxis:code-improving skill.
-  it("code-improving references the code-reviewing artifact path and names the skill", () => {
+  // S-002 AC-3 + S-3 AC-4: code-improving user prompt references the
+  // code-reviewing artifact path, names the praxis:code-improving skill, and
+  // points at the per-AC commit range via {{baselineSha}}..HEAD.
+  it("code-improving references the code-reviewing artifact path, names the skill, and points at the baselineSha..HEAD range", () => {
     const rendered = buildUserPrompt(
       stageById("code-improving"),
       ctx({
@@ -293,6 +307,8 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
     );
     expect(rendered).toContain("/run/dir/04-code-review.md");
     expect(rendered).toContain("praxis:code-improving");
+    expect(rendered).toContain("git diff BASELINE_SHA..HEAD");
+    expect(rendered).toContain("git log BASELINE_SHA..HEAD");
     // System prompt content must NOT leak into the user prompt.
     const sys = loadSystemPrompt(stageById("code-improving"));
     expect(rendered).not.toBe(sys);
@@ -334,7 +350,7 @@ describe("S-002 prompt-file smoke tests", () => {
     "prompts",
   );
 
-  it("code-reviewing.md exists and references the praxis:code-reviewing skill + Decision contract", () => {
+  it("code-reviewing.md exists and references the praxis:code-reviewing skill + Decision contract + baselineSha range", () => {
     const path = join(promptsDir, "code-reviewing.md");
     expect(existsSync(path)).toBe(true);
     const text = readFileSync(path, "utf8");
@@ -342,15 +358,24 @@ describe("S-002 prompt-file smoke tests", () => {
     expect(text).toContain("## Decision");
     expect(text).toContain("proceed");
     expect(text).toContain("skip-improve");
+    // S-3 AC-3: walk the per-AC commits via the baselineSha range. The
+    // "uncommitted" / "do NOT use git log" wording must be gone.
+    expect(text).toContain("git diff {{baselineSha}}..HEAD");
+    expect(text).toContain("git log {{baselineSha}}..HEAD");
+    expect(text.toLowerCase()).not.toContain("uncommitted");
+    expect(text).not.toContain("do NOT use `git log`");
   });
 
-  it("code-improving.md exists and references the praxis:code-improving skill + review-artifact token", () => {
+  it("code-improving.md exists and references the praxis:code-improving skill + review-artifact token + baselineSha range", () => {
     const path = join(promptsDir, "code-improving.md");
     expect(existsSync(path)).toBe(true);
     const text = readFileSync(path, "utf8");
     expect(text).toContain("praxis:code-improving");
     expect(text).toContain("{{artifacts.code-reviewing.path}}");
     expect(text).toContain("bypassPermissions");
+    // S-3 AC-4: walk the per-AC commits via the baselineSha range.
+    expect(text).toContain("git diff {{baselineSha}}..HEAD");
+    expect(text).toContain("git log {{baselineSha}}..HEAD");
   });
 
   // S-3 AC-2: driving-tdd.md exists, names the praxis:driving-tdd skill,
