@@ -46,8 +46,14 @@ export interface State {
    * here so `advanceWorkflow` and `retryWorkflow` resume with the original
    * baseline (no second shell-out) and the `{{baselineSha}}` token expands
    * identically across the run.
+   *
+   * Optional only to keep round-trip compatibility with pre-S-1 state.json
+   * files — fresh runs always populate it via `buildInitialState` (AC-1).
+   * The advance / retry resume paths fall back to a one-shot `currentHead`
+   * when this is missing on a legacy file and persist the resolved SHA back
+   * via `writeState` so subsequent reads stay on the fast path.
    */
-  baselineSha: string;
+  baselineSha?: string;
   currentStage: string;
   cost: { totalTokens: number; totalUsd: number };
   stages: Record<string, StageState>;
@@ -146,7 +152,6 @@ export function readState(runDir: string): ReadStateResult {
     "runId",
     "intent",
     "startedAt",
-    "baselineSha",
     "currentStage",
   ];
   for (const key of requiredStrings) {
@@ -156,6 +161,18 @@ export function readState(runDir: string): ReadStateResult {
         reason: `state.json is missing or invalid field: ${String(key)}`,
       };
     }
+  }
+  // M-2: `baselineSha` is optional in `readState` so pre-S-1 state.json files
+  // (where the field is absent entirely) can still be advanced/retried — the
+  // resume path will resolve it via `currentHead(cwd)` and persist it back.
+  // A *present-but-non-string* value is still rejected with a baselineSha-
+  // specific reason so the schema-bad case stays distinguishable from the
+  // legacy-missing case.
+  if ("baselineSha" in parsed && typeof parsed.baselineSha !== "string") {
+    return {
+      ok: false,
+      reason: "state.json is missing or invalid field: baselineSha",
+    };
   }
   const cost = parsed.cost;
   if (

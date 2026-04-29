@@ -132,7 +132,11 @@ export async function runWorkflow(
   const loopCtx: LoopContext = {
     intent: ctx.intent,
     cwd: ctx.cwd,
-    baselineSha: state.baselineSha,
+    // M-2: `state.baselineSha` is optional on the type to allow legacy
+    // pre-S-1 state.json files to load on advance/retry, but fresh runs
+    // always populate it via `buildInitialState` — read straight from `head`
+    // so the type check stays tight without a non-null assertion.
+    baselineSha: head.sha,
     noPause: ctx.noPause,
     signal: ctx.signal,
   };
@@ -654,6 +658,51 @@ function toIsoSeconds(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+/**
+ * M-2: legacy back-fill for `state.baselineSha`. Pre-S-1 state.json files
+ * have no `baselineSha` field; `readState` permits the absence on purpose
+ * (so `advance` / `retry` can resume in-flight legacy runs) and this helper
+ * resolves the missing value once via `currentHead(cwd)`, persists it back
+ * via `writeState`, and emits a one-line stderr warning so the migration is
+ * visible.
+ *
+ * Returns the resolved SHA on success. On the (very unlikely) `currentHead`
+ * failure — the original run started from a non-empty repo, so this only
+ * fires if HEAD has been wound back since — returns the same `{ ok: false,
+ * reason, remediation }` shape `runWorkflow` uses for empty-repo failures so
+ * the CLI can render an identical error.
+ *
+ * Mutates `state.baselineSha` in place when back-filling so the caller's
+ * `LoopContext` and downstream `StageContext` see the resolved SHA without
+ * a second `readState`.
+ */
+function ensureBaselineSha(
+  state: State,
+  cwd: string,
+  runDir: string,
+):
+  | { ok: true; sha: string }
+  | { ok: false; reason: string; remediation?: string } {
+  if (typeof state.baselineSha === "string" && state.baselineSha.length > 0) {
+    return { ok: true, sha: state.baselineSha };
+  }
+  const head = currentHead(cwd);
+  if (!head.ok) {
+    return {
+      ok: false,
+      reason: head.reason,
+      remediation:
+        "Create a baseline commit first, e.g. 'git commit --allow-empty -m init'.",
+    };
+  }
+  state.baselineSha = head.sha;
+  writeState(runDir, state);
+  process.stderr.write(
+    `praxis: legacy state.json migrated — back-filled baselineSha=${head.sha}\n`,
+  );
+  return { ok: true, sha: head.sha };
+}
+
 // ---------------------------------------------------------------------------
 // Advance
 // ---------------------------------------------------------------------------
@@ -699,15 +748,32 @@ export async function advanceWorkflow(
   }
   const state = read.state;
 
+  // M-2: legacy pre-S-1 state.json files have no `baselineSha` field. Resolve
+  // it once via `currentHead(cwd)`, persist back via `writeState` so
+  // subsequent reads see it, and emit a one-line stderr warning so the
+  // migration is visible. If `currentHead` fails (extremely unlikely on a
+  // resume — the original run started from a non-empty repo), return the
+  // same failure shape `runWorkflow` does.
+  const baselineSha = ensureBaselineSha(state, ctx.cwd, runDir);
+  if (!baselineSha.ok) {
+    return {
+      ok: false,
+      reason: baselineSha.reason,
+      remediation: baselineSha.remediation,
+      runId,
+      runDir,
+    };
+  }
+
   // M-2: resolve `intent` once at the advance boundary. The original run
   // captured it in state.json; downstream `runOneStage` reads it off the
   // loop context unconditionally — no per-stage shape check.
   // S-1 AC-5: read `baselineSha` straight off state — advance does NOT
-  // shell out to `git rev-parse HEAD` again.
+  // shell out to `git rev-parse HEAD` again on the happy path.
   const loopCtx: LoopContext = {
     intent: state.intent,
     cwd: ctx.cwd,
-    baselineSha: state.baselineSha,
+    baselineSha: baselineSha.sha,
     noPause: ctx.noPause,
     signal: ctx.signal,
   };
@@ -978,6 +1044,21 @@ export async function retryWorkflow(
   }
   const state = read.state;
 
+  // M-2: same legacy back-fill as `advanceWorkflow`. Resolve the missing
+  // baseline once, persist it, and warn — so downstream stage contexts
+  // (including the {{baselineSha}} expansion in auto-commit's prompt) see
+  // a real SHA instead of `undefined`.
+  const baselineSha = ensureBaselineSha(state, ctx.cwd, runDir);
+  if (!baselineSha.ok) {
+    return {
+      ok: false,
+      reason: baselineSha.reason,
+      remediation: baselineSha.remediation,
+      runId,
+      runDir,
+    };
+  }
+
   // Resume-point scan: first non-completed stage in workflow order.
   const idx = config.workflow.findIndex(
     (s) => state.stages[s.id]?.status !== "completed",
@@ -1071,8 +1152,10 @@ export async function retryWorkflow(
     runId,
     reporter,
     signal: ctx.signal ?? new AbortController().signal,
-    // S-1 AC-5: retry reads baselineSha from state; no second shell-out.
-    baselineSha: state.baselineSha,
+    // S-1 AC-5: retry reads baselineSha from state; no second shell-out on
+    // the happy path. (Legacy back-fill happens once at the top of
+    // retryWorkflow via `ensureBaselineSha`.)
+    baselineSha: baselineSha.sha,
     artifactPaths: collectArtifactPaths(state, config, runDir, stage.id),
   };
 
@@ -1177,7 +1260,7 @@ export async function retryWorkflow(
   const loopCtx: LoopContext = {
     intent: state.intent,
     cwd: ctx.cwd,
-    baselineSha: state.baselineSha,
+    baselineSha: baselineSha.sha,
     noPause: ctx.noPause,
     signal: ctx.signal,
   };
