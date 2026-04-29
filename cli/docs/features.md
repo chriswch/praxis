@@ -71,31 +71,31 @@ The system prompt directs the agent to restate intent, survey the repo, identify
 
 ### Stage 2 — `sketching-design`
 
-Read-only design sketch via the `praxis:sketching-design` skill. `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash, Skill]`. Pinned model `claude-opus-4-7`. 15-minute timeout. Auto-advances to `implement`.
+Read-only design sketch via the `praxis:sketching-design` skill. `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash, Skill]`. Pinned model `claude-opus-4-7`. 15-minute timeout. Auto-advances to `driving-tdd`.
 
 The user prompt directs the agent to invoke the `praxis:sketching-design` skill via the `Skill` tool against `01-clarify-assess.md`, re-emitting the skill's output **verbatim** as the final assistant message. The skill returns one of three valid shapes:
 
 - a **design sketch** — change map, pattern match, proposed direction, and the first failing test (the typical case for a non-trivial story);
-- a single line **`Skipped — no sketch needed`** when the implementation path is obvious from the spec;
+- a single line **`Skipped — no sketch needed`** when the path is obvious from the spec;
 - a **`## Spec Issue`** H2 when codebase exploration reveals the spec's assumptions are wrong (recommends returning to `clarifying-intent`).
 
 There is no validator on this stage — all three shapes pass through to `02-sketching-design.md` unchanged. There is no clean-tree skip either: this stage runs even on a clean tree because it operates on the spec, not the working tree. Failure modes are the standard timeout / SIGINT path.
 
-The downstream `implement` stage reads only `01-clarify-assess.md`; the design sketch is advisory context for the human reviewer and for any agent that chooses to consult it.
+The downstream `driving-tdd` stage reads BOTH `01-clarify-assess.md` (spec) AND `02-sketching-design.md` (sketch); the skill consumes both as inputs.
 
-### Stage 3 — `implement`
+### Stage 3 — `driving-tdd`
 
-Full-tools execution. `permissionMode: "bypassPermissions"` (paired with `allowDangerouslySkipPermissions: true` per the SDK's requirement). Pinned model `claude-opus-4-7`. 30-minute timeout. Auto-advances to `code-reviewing`.
+Full-tools execution via the `praxis:driving-tdd` skill. `permissionMode: "bypassPermissions"` (paired with `allowDangerouslySkipPermissions: true` per the SDK's requirement). Pinned model `claude-opus-4-7`. 30-minute timeout. Auto-advances to `code-reviewing`.
 
-The user prompt references `01-clarify-assess.md` by absolute path; the agent reads it via the Read tool. Writes `03-implement-log.md` verbatim from the agent's final assistant message (no validator). Timeout marks the stage `failed`/`stopReason: "timeout"`; SIGINT marks it `cancelled`/`stopReason: "sigint"`. In both cases the partial log is preserved and downstream stages are skipped.
+The user prompt references both `01-clarify-assess.md` and `02-sketching-design.md` by absolute path; the agent reads them via the Read tool and invokes the `praxis:driving-tdd` skill. The skill drives Red → Green → Refactor cycles and lands one commit per acceptance criterion (the agent does not commit manually). Writes `03-driving-tdd.md` verbatim from the agent's final assistant message (no validator) — the message must summarize the TDD cycles completed, ACs covered, files changed, and the per-AC commit SHAs. Timeout marks the stage `failed`/`stopReason: "timeout"`; SIGINT marks it `cancelled`/`stopReason: "sigint"`. In both cases the partial log is preserved and downstream stages are skipped.
 
-> **Risk:** the implement stage runs with `bypassPermissions` against `process.cwd()`. The agent can run `rm`, `git push`, network installers, and overwrite files outside its declared scope. **Use only on repos you can roll back.**
+> **Risk:** the driving-tdd stage runs with `bypassPermissions` against `process.cwd()`. The agent can run `rm`, `git push`, network installers, and overwrite files outside its declared scope. **Use only on repos you can roll back.**
 
 ### Stage 4 — `code-reviewing`
 
-Read-only quality review of the uncommitted implement-stage changes. `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash, Skill]`. Pinned model `claude-opus-4-7`. 15-minute timeout. Auto-advances to `code-improving`.
+Read-only quality review of the per-AC commits the driving-tdd stage landed. `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash, Skill]`. Pinned model `claude-opus-4-7`. 15-minute timeout. Auto-advances to `code-improving`.
 
-The user prompt directs the agent to invoke the `praxis:code-reviewing` skill via the `Skill` tool (against uncommitted changes inspected through `git diff` / `git status` — `git log` does not apply), re-emit the skill's review **verbatim** as its final assistant message, and append a single `## Decision` H2 with body `proceed` or `skip-improve` so the runner can gate stage 5. The skill's native template — Premise Check, Layer 1–5 analyses, severity-graded Issues tables, What's Done Well, Summary counts — is what stage 5 reads to apply fixes; the harness does not reshape it.
+The user prompt directs the agent to invoke the `praxis:code-reviewing` skill via the `Skill` tool (walking the per-AC commit range via `git diff {{baselineSha}}..HEAD` and `git log {{baselineSha}}..HEAD`), re-emit the skill's review **verbatim** as its final assistant message, and append a single `## Decision` H2 with body `proceed` or `skip-improve` so the runner can gate stage 5. The skill's native template — Premise Check, Layer 1–5 analyses, severity-graded Issues tables, What's Done Well, Summary counts — is what stage 5 reads to apply fixes; the harness does not reshape it.
 
 The artifact is written verbatim to `04-code-review.md` (always written, even on validator failure).
 
@@ -108,11 +108,11 @@ Everything above `## Decision` is freeform skill output. Schema failure → harn
 
 **Trivial-change short-circuit.** When the change is trivial enough that formal review is wasted ceremony, the agent invokes `praxis:code-reviewing`, takes its built-in condensed/"review skipped" output verbatim, and appends `## Decision: skip-improve` with the skill's one-line rationale carried into `## Summary` (or wherever the condensed form puts it). Stage 4 then takes the decision-driven skip path (see §3.5).
 
-**Clean-tree skip.** If `git status --porcelain` is empty at stage entry (the implement stage produced no changes), the stage is marked `completed`/`stopReason: "skipped"` — no SDK call, no artifact, no spend. Stages 5 and 6 also skip downstream.
+**No-commit skip (S-3).** If HEAD has not advanced past `state.baselineSha` at stage entry (driving-tdd produced no commits — its skill discarded a red test, dropped a stray scratch file, or otherwise did no work that landed), the stage is marked `completed`/`stopReason: "skipped"` — no SDK call, no artifact, no spend. Stages 5 and 6 cascade-skip downstream (they will see the same unchanged HEAD).
 
 ### §4.5 — Decision-driven skip on stage 5
 
-When `code-reviewing` ends with `## Decision: skip-improve`, the runner marks `code-improving` `completed`/`stopReason: "skipped-trivial"` without invoking the SDK or writing `05-code-improve.md`. Stage 6 (`auto-commit`) still runs — the implement-stage edits are real and need to land — and `git diff` covers them.
+When `code-reviewing` ends with `## Decision: skip-improve`, the runner marks `code-improving` `completed`/`stopReason: "skipped-trivial"` without invoking the SDK or writing `05-code-improve.md`. Stage 6 (`auto-commit`) still runs — there are still per-AC commits to land alongside any final-touch tweaks — and `git diff` covers anything still in the working tree.
 
 ### Stage 5 — `code-improving`
 
@@ -120,11 +120,11 @@ Applies fixes from the review. `permissionMode: "bypassPermissions"`, allowlist 
 
 The user prompt directs the agent to invoke the `praxis:code-improving` skill via the `Skill` tool against `04-code-review.md`. The skill auto-fixes Critical/High/Medium findings and never modifies test files. The agent's final assistant message — an improvement summary listing fixes applied and items deferred — is written verbatim to `05-code-improve.md`.
 
-> **Risk:** same blast radius as `implement` — runs against `process.cwd()` with `bypassPermissions`. **Use only on repos you can roll back.**
+> **Risk:** same blast radius as `driving-tdd` — runs against `process.cwd()` with `bypassPermissions`. **Use only on repos you can roll back.**
 
 **Skip paths:**
 
-- **Clean tree at stage 4 entry** (cascaded from upstream) → `completed`/`stopReason: "skipped"`. No SDK call, no artifact.
+- **HEAD unchanged from baseline at stage 4 entry** (cascaded from upstream) → `completed`/`stopReason: "skipped"`. No SDK call, no artifact.
 - **Decision = `skip-improve`** on the upstream review → `completed`/`stopReason: "skipped-trivial"`. No SDK call, no artifact. Stage 6 still runs.
 
 **Recovery.** A failed/cancelled `code-improving` is recoverable **only** via `praxis retry <run-id>`. `praxis advance` rejects the failed stage with the scoped error.
@@ -133,9 +133,9 @@ The user prompt directs the agent to invoke the `praxis:code-improving` skill vi
 
 Generates a Conventional-Commits message and lands a real commit. `permissionMode: "default"`, allowlist `[Bash]`. Pinned model `claude-haiku-4-5-20251001`. 5-minute timeout.
 
-Pre-stage check: if `git status --porcelain` is empty before invoking the stage, the SDK call is skipped entirely; the stage is marked `completed`/`stopReason: "skipped"` (no sessionId/tokens/usd, no `06-commit.txt`, HEAD untouched).
+Pre-stage check (S-3): if HEAD has not advanced past `state.baselineSha` before invoking the stage (driving-tdd produced no commits), the SDK call is skipped entirely; the stage is marked `completed`/`stopReason: "skipped"` (no sessionId/tokens/usd, no `06-commit.txt`, HEAD untouched).
 
-Otherwise, after the agent emits the commit message, the harness runs `git add -A` and `git commit -m <message>` directly (not via the agent). On success, the new HEAD SHA is captured and `06-commit.txt` is written as `<40-char-sha>\n\n<message>\n`; the SHA also lands on `state.stages["auto-commit"].commitSha` and on the run-done line. On commit failure (e.g., missing git identity, pre-commit hook failure), the stage flips to `failed`/`stopReason: "commit_failed"` with git's stderr captured in `error`; `06-commit.txt` keeps the agent message verbatim (no SHA prefix). The user-prompt copy stays generic ("staged + unstaged changes") — `git diff` covers implement and code-improve edits without per-stage attribution.
+Otherwise, after the agent emits the commit message, the harness runs `git add -A` and `git commit -m <message>` directly (not via the agent). On success, the new HEAD SHA is captured and `06-commit.txt` is written as `<40-char-sha>\n\n<message>\n`; the SHA also lands on `state.stages["auto-commit"].commitSha` and on the run-done line. On commit failure (e.g., missing git identity, pre-commit hook failure), the stage flips to `failed`/`stopReason: "commit_failed"` with git's stderr captured in `error`; `06-commit.txt` keeps the agent message verbatim (no SHA prefix). The user-prompt copy stays generic ("staged + unstaged changes") — `git diff` covers anything driving-tdd left uncommitted plus code-improve edits without per-stage attribution.
 
 > **Git identity required.** `git commit -m` needs `user.email` and `user.name` set, globally (`git config --global user.email …`) or per-repo. Missing identity surfaces as `commit_failed` with git's own actionable message.
 
@@ -153,7 +153,7 @@ The last completed stage had `pauseAfter: true` (only `clarify-assess` after S-0
 
 The most recent stage status is `failed` or `cancelled` and the stage carries a validator — `clarify-assess` and `code-reviewing`. Reporter prints `praxis: recovering <stage-id> from on-disk artifact; re-validating (run <run-id>)`. Requires the artifact file to exist; the validator re-runs against on-disk content. On validator success the stage flips to `completed`/`stopReason: "recovered"` with `endedAt` refreshed; `sessionId`, `tokens`, and `usd` are preserved from the prior failed run, so recovery contributes zero new spend. On validator failure the run aborts with the validator reason and state.json is left untouched.
 
-`praxis advance` exits 1 when the failed stage is `code-improving` (`retry only — use praxis retry <run-id>`), and for `implement` the recommended path is a fresh `praxis run` after resetting the tree.
+`praxis advance` exits 1 when the failed stage is `code-improving` (`retry only — use praxis retry <run-id>`), and for `driving-tdd` the recommended path is a fresh `praxis run` after resetting the tree.
 
 ### Retry via `praxis retry` (code-improving only)
 
@@ -201,7 +201,7 @@ Each run writes to `<cwd>/.praxis/runs/<run-id>/`:
 - `00-intent.txt` — raw intent verbatim.
 - `01-clarify-assess.md` — agent finalText verbatim (always written, even on validator failure).
 - `02-sketching-design.md` — agent finalText verbatim (design sketch, `Skipped — no sketch needed` line, or `## Spec Issue` H2 — all three pass through unchanged; no validator).
-- `03-implement-log.md` — agent finalText verbatim (always written, even on timeout/SIGINT — partial log preserved).
+- `03-driving-tdd.md` — agent finalText verbatim (always written, even on timeout/SIGINT — partial log preserved). Summarizes TDD cycles completed, ACs covered, files changed, and per-AC commit SHAs.
 - `04-code-review.md` — agent finalText verbatim (always written, even on validator failure). Carries the skill's native review template plus a final `## Decision` H2 (`proceed` | `skip-improve`). Not written on a clean-tree skip.
 - `05-code-improve.md` — agent finalText verbatim (improvement summary). Not written on either skip path (clean-tree or decision-driven `skipped-trivial`).
 - `06-commit.txt` — `<sha>\n\n<message>\n` on commit success; agent message verbatim on commit failure; not written on the skip path.
@@ -310,7 +310,7 @@ interface Reporter {
 
 ### Scripted-SDK e2e (in-suite, no real spend)
 
-- `tests/e2e/auto-commit.test.ts` drives all six stages (clarify-assess → sketching-design → implement → code-reviewing → code-improving → auto-commit) with a scripted SDK, real git, and the production `commit()`. HEAD advances by exactly one commit; `state.commitSha` matches the new HEAD; `06-commit.txt` carries the SHA-prefixed form.
+- `tests/e2e/auto-commit.test.ts` drives all six stages (clarify-assess → sketching-design → driving-tdd → code-reviewing → code-improving → auto-commit) with a scripted SDK, real git, and the production `commit()`. HEAD advances by exactly two commits (driving-tdd's per-AC commit + auto-commit's final bundle); `state.commitSha` matches the new HEAD; `06-commit.txt` carries the SHA-prefixed form.
 - `tests/e2e/retry-flow.test.ts` drives a SIGINT-cancelled `code-improving`, then `praxis retry` resumes the prior SDK session with `initialUserPrompt: "continue"`, the agent's improvement summary lands in `05-code-improve.md`, and `auto-commit` lands one real commit. The persisted `state.json` reflects `retryAttempts === 1` and the sessionId rotation.
 
 ### Real-SDK smoke (live, periodic)
