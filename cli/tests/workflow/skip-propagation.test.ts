@@ -188,7 +188,7 @@ function statePausedBeforeReview(): State {
         tokens: { input: 20, output: 10, cacheRead: 0, cacheCreate: 0 },
         usd: 0.001,
       },
-      implement: {
+      "driving-tdd": {
         status: "completed",
         sessionId: "sess_impl",
         stopReason: "end_turn",
@@ -541,7 +541,7 @@ describe("S-003 AC-13: missing 04-code-review.md at code-improving entry → sta
             tokens: { input: 20, output: 10, cacheRead: 0, cacheCreate: 0 },
             usd: 0.001,
           },
-          implement: {
+          "driving-tdd": {
             status: "completed",
             sessionId: "sess_impl",
             stopReason: "end_turn",

@@ -44,7 +44,9 @@ describe("praxis (built)", () => {
     // crashes with ENOENT on the very first stage. Locks against regression.
     const promptsDir = join(repoRoot, "dist", "config", "prompts");
     expect(existsSync(join(promptsDir, "clarify-assess.md"))).toBe(true);
-    expect(existsSync(join(promptsDir, "implement.md"))).toBe(true);
+    expect(existsSync(join(promptsDir, "driving-tdd.md"))).toBe(true);
     expect(existsSync(join(promptsDir, "auto-commit.md"))).toBe(true);
+    // S-3 AC-2: implement.md is gone — driving-tdd.md replaces it.
+    expect(existsSync(join(promptsDir, "implement.md"))).toBe(false);
   });
 });

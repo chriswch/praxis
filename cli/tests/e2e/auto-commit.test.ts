@@ -247,7 +247,7 @@ describe("praxis advance lands one real commit (AC-9)", () => {
             usd: 0.012,
           },
           "sketching-design": { status: "pending" },
-          implement: { status: "pending" },
+          "driving-tdd": { status: "pending" },
           "auto-commit": { status: "pending" },
         },
       };

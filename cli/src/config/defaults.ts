@@ -40,31 +40,38 @@ const CLARIFY_ASSESS_USER_PROMPT = [
   "Survey the repository (read-only) and produce the markdown artifact described in your system prompt as your final assistant message.",
 ].join("\n");
 
-// The implement stage reads the clarify-assess artifact by path and edits
-// files in cwd. Inline so the system prompt is not accidentally re-served as
-// the user prompt.
-const IMPLEMENT_USER_PROMPT = [
-  "Read {{artifacts.clarify-assess.path}} and implement the plan.",
-  "Edit files in the current working directory.",
-  "Your final message must summarize files changed, what each change does, and anything skipped.",
+// S-3: the driving-tdd stage reads the clarify-assess spec AND the
+// sketching-design sketch by path and edits files in cwd. The
+// `praxis:driving-tdd` skill owns Red → Green → Refactor and the per-AC
+// commits — the agent does not commit manually. Inline so the system prompt
+// is not accidentally re-served as the user prompt.
+const DRIVING_TDD_USER_PROMPT = [
+  "Read {{artifacts.clarify-assess.path}} (spec) and {{artifacts.sketching-design.path}} (design sketch).",
+  "Invoke the `praxis:driving-tdd` skill via the Skill tool against them.",
+  "Run dir: {{runDir}}.",
+  "Your final assistant message must summarize the TDD cycles completed, ACs covered, files changed, and the SHAs the skill committed — written verbatim to 03-driving-tdd.md.",
 ].join("\n");
 
-// S-002: code-reviewing stage runs the praxis:code-reviewing skill against the
-// uncommitted implement-stage changes (git diff / git status — NOT git log).
-// Inline so the system prompt is not accidentally re-served as the user prompt.
+// S-002 + S-3 AC-3: code-reviewing stage runs the praxis:code-reviewing skill
+// against the commits driving-tdd produced. The skill inspects them with
+// `git diff {{baselineSha}}..HEAD` and `git log {{baselineSha}}..HEAD` (the
+// per-AC commits live in the range). Inline so the system prompt is not
+// accidentally re-served as the user prompt.
 const CODE_REVIEWING_USER_PROMPT = [
   "Run dir: {{runDir}}",
   "",
-  "Invoke the `praxis:code-reviewing` skill via the Skill tool to review the uncommitted changes from the implement stage. Inspect them with `git diff` and `git status` — do NOT use `git log`, the changes are not committed yet.",
+  "Invoke the `praxis:code-reviewing` skill via the Skill tool to review the commits the driving-tdd stage landed. Inspect them with `git diff {{baselineSha}}..HEAD` and `git log {{baselineSha}}..HEAD` — the commits are real, walk them.",
   "",
   "Re-emit the skill's review output verbatim as your final assistant message, then append a single `## Decision` H2 whose body is exactly `proceed` or `skip-improve` (no extra prose).",
 ].join("\n");
 
-// S-002: code-improving stage runs the praxis:code-improving skill against the
-// review artifact at {{artifacts.code-reviewing.path}}.
+// S-002 + S-3 AC-4: code-improving stage runs the praxis:code-improving skill
+// against the review artifact at {{artifacts.code-reviewing.path}}. The skill
+// inspects the per-AC commit range via `git diff {{baselineSha}}..HEAD` /
+// `git log {{baselineSha}}..HEAD`.
 const CODE_IMPROVING_USER_PROMPT = [
   "Invoke the `praxis:code-improving` skill via the Skill tool against the review artifact at {{artifacts.code-reviewing.path}}.",
-  "The skill auto-fixes Critical/High/Medium severity findings and never modifies test files.",
+  "The skill inspects the driving-tdd commit range with `git diff {{baselineSha}}..HEAD` and `git log {{baselineSha}}..HEAD`, auto-fixes Critical/High/Medium severity findings, and never modifies test files.",
   "Your final assistant message must be an improvement summary listing fixes applied and items deferred — it is written verbatim to 05-code-improve.md.",
 ].join("\n");
 
@@ -96,14 +103,16 @@ const SKETCHING_DESIGN_USER_PROMPT = [
  * - sketching-design: read-only design sketch via the praxis:sketching-design
  *   skill; no validator (the skill's three valid output shapes — sketch /
  *   skipped / spec-issue — all pass through verbatim).
- * - implement: bypassPermissions, all tools, no pause.
+ * - driving-tdd: bypassPermissions, all tools, no pause; runs the
+ *   praxis:driving-tdd skill which owns Red → Green → Refactor and per-AC
+ *   commits.
  * - code-reviewing: read-only review via the praxis:code-reviewing skill;
  *   validates the `## Decision` H2 (proceed / skip-improve).
  * - code-improving: bypassPermissions, all tools, no validator; runs the
  *   praxis:code-improving skill against the review artifact.
  * - auto-commit: Bash-only, default permissions, no pause.
  *
- * Models pinned: Opus 4.7 for clarify-assess, sketching-design, implement,
+ * Models pinned: Opus 4.7 for clarify-assess, sketching-design, driving-tdd,
  * code-reviewing, and code-improving; Haiku 4.5 for auto-commit.
  */
 export const defaultWorkflow: PraxisConfig = {
@@ -132,13 +141,13 @@ export const defaultWorkflow: PraxisConfig = {
       outputArtifact: "02-sketching-design.md",
     },
     {
-      id: "implement",
-      systemPrompt: { file: "implement.md" },
-      userPromptTemplate: IMPLEMENT_USER_PROMPT,
+      id: "driving-tdd",
+      systemPrompt: { file: "driving-tdd.md" },
+      userPromptTemplate: DRIVING_TDD_USER_PROMPT,
       permissionMode: "bypassPermissions",
       model: "claude-opus-4-7",
       timeoutMs: 1_800_000,
-      outputArtifact: "03-implement-log.md",
+      outputArtifact: "03-driving-tdd.md",
     },
     {
       id: CODE_REVIEWING_ID,

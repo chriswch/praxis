@@ -81,7 +81,7 @@ describe("praxis advance (CLI surface, AC-1)", () => {
         stages: {
           "clarify-assess": stage("a"),
           "sketching-design": stage("b"),
-          implement: stage("c"),
+          "driving-tdd": stage("c"),
           "code-reviewing": stage("d"),
           "code-improving": stage("e"),
           "auto-commit": stage("f"),

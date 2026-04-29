@@ -41,7 +41,7 @@ import { withTempRepo } from "../support/tmp-repo.js";
  */
 
 function withTmpDir<T>(fn: (dir: string) => T): T {
-  const dir = mkdtempSync(join(tmpdir(), "praxis-implement-"));
+  const dir = mkdtempSync(join(tmpdir(), "praxis-driving-tdd-"));
   try {
     return fn(dir);
   } finally {
@@ -49,23 +49,25 @@ function withTmpDir<T>(fn: (dir: string) => T): T {
   }
 }
 
-function implementConfig() {
-  const cfg = defaultWorkflow.workflow.find((s) => s.id === "implement");
-  if (!cfg) throw new Error("implement stage missing from defaultWorkflow");
+function drivingTddConfig() {
+  const cfg = defaultWorkflow.workflow.find((s) => s.id === "driving-tdd");
+  if (!cfg) throw new Error("driving-tdd stage missing from defaultWorkflow");
   return cfg;
 }
 
-function makeImplementCtx(runDir: string): StageContext {
+function makeDrivingTddCtx(runDir: string): StageContext {
   return {
     intent: "add a logout button",
     runDir,
     runId: "2026-04-25-1430-7af2",
     reporter: new LineReporter(),
     signal: new AbortController().signal,
-    // implement reads the clarify-assess artifact by path; the template
-    // requires the {{artifacts.clarify-assess.path}} interpolation to resolve.
+    // S-3 AC-1: driving-tdd reads BOTH the clarify-assess spec AND the
+    // sketching-design sketch — the user prompt template references both
+    // tokens, so the interpolation requires both paths to resolve.
     artifactPaths: {
       "clarify-assess": join(runDir, "01-clarify-assess.md"),
+      "sketching-design": join(runDir, "02-sketching-design.md"),
     },
   };
 }
@@ -79,11 +81,11 @@ const RUN_ID = "2026-04-25-1430-7af2";
  * this to drive the implement stage to timeout/SIGINT without slowing the
  * suite or pulling in fake timers.
  */
-function workflowWithImplementTimeout(timeoutMs: number): PraxisConfig {
+function workflowWithDrivingTddTimeout(timeoutMs: number): PraxisConfig {
   return {
     version: 1,
     workflow: defaultWorkflow.workflow.map((s) =>
-      s.id === "implement" ? { ...s, timeoutMs } : s,
+      s.id === "driving-tdd" ? { ...s, timeoutMs } : s,
     ),
   };
 }
@@ -115,7 +117,7 @@ function pausedAfterClarifyState(): State {
         usd: 0.012,
       },
       "sketching-design": { status: "pending" },
-      implement: { status: "pending" },
+      "driving-tdd": { status: "pending" },
       "auto-commit": { status: "pending" },
     },
   };
@@ -257,7 +259,7 @@ function buildDeps(
   };
 }
 
-function happyImplementMessages(sessionId = "sess_impl"): SdkMessage[] {
+function happyDrivingTddMessages(sessionId = "sess_impl"): SdkMessage[] {
   return [
     {
       type: "system",
@@ -289,8 +291,8 @@ function happyImplementMessages(sessionId = "sess_impl"): SdkMessage[] {
   ];
 }
 
-describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)", () => {
-  it("writes 03-implement-log.md verbatim, rewrites 06-commit.txt with the SHA prepended, captures commitSha in state, calls deps.commit with (cwd, finalText)", async () => {
+describe("advance from paused clarify-assess runs driving-tdd + auto-commit (AC-2)", () => {
+  it("writes 03-driving-tdd.md verbatim, rewrites 06-commit.txt with the SHA prepended, captures commitSha in state, calls deps.commit with (cwd, finalText)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const runDir = seedPausedRun(cwd);
 
@@ -317,8 +319,8 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // 03-implement-log.md verbatim.
-      expect(readFileSync(join(runDir, "03-implement-log.md"), "utf8")).toBe(
+      // 03-driving-tdd.md verbatim.
+      expect(readFileSync(join(runDir, "03-driving-tdd.md"), "utf8")).toBe(
         implementLog,
       );
       // S-006 AC-4: 06-commit.txt rewritten with `<sha>\n\n<message>\n`.
@@ -330,9 +332,9 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
       const persisted = JSON.parse(
         readFileSync(join(runDir, "state.json"), "utf8"),
       );
-      expect(persisted.stages.implement.status).toBe("completed");
+      expect(persisted.stages["driving-tdd"].status).toBe("completed");
       expect(persisted.stages["auto-commit"].status).toBe("completed");
-      expect(persisted.stages.implement.sessionId).toBe("sess_impl");
+      expect(persisted.stages["driving-tdd"].sessionId).toBe("sess_impl");
       expect(persisted.stages["auto-commit"].sessionId).toBe("sess_commit");
       // S-006 AC-4: commitSha plumbed onto the auto-commit stage state.
       expect(persisted.stages["auto-commit"].commitSha).toBe(fakeSha);
@@ -345,8 +347,8 @@ describe("advance from paused clarify-assess runs implement + auto-commit (AC-2)
   });
 });
 
-describe("implement timeout (AC-4)", () => {
-  it("implement timeoutMs fires → status: failed, cancelReason: 'timeout' on StageResult, stopReason: 'timeout' in state.json, partial log written, auto-commit not executed, deps.commit not called", async () => {
+describe("driving-tdd timeout (AC-4)", () => {
+  it("driving-tdd timeoutMs fires → status: failed, cancelReason: 'timeout' on StageResult, stopReason: 'timeout' in state.json, partial log written, auto-commit not executed, deps.commit not called", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // S-2: hybrid createQueryFn — clarify-assess + sketching-design get
       // scripted happy paths, implement gets a hanging stream that only ends
@@ -373,7 +375,7 @@ describe("implement timeout (AC-4)", () => {
           cwd,
           allowDirty: true,
           noPause: true,
-          config: workflowWithImplementTimeout(50),
+          config: workflowWithDrivingTddTimeout(50),
         },
         buildDeps(composedCreateQueryFn, commit),
       );
@@ -382,19 +384,19 @@ describe("implement timeout (AC-4)", () => {
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
       expect(result.status).toBe("failed");
-      expect(result.failedStageId).toBe("implement");
+      expect(result.failedStageId).toBe("driving-tdd");
 
       // state.json: implement marked failed, stopReason 'timeout'.
       const persisted = JSON.parse(
         readFileSync(join(result.runDir!, "state.json"), "utf8"),
       );
-      expect(persisted.stages.implement.status).toBe("failed");
-      expect(persisted.stages.implement.stopReason).toBe("timeout");
+      expect(persisted.stages["driving-tdd"].status).toBe("failed");
+      expect(persisted.stages["driving-tdd"].stopReason).toBe("timeout");
       // auto-commit untouched.
       expect(persisted.stages["auto-commit"].status).toBe("pending");
 
       // Partial log written (empty in this test, but the file exists).
-      expect(existsSync(join(result.runDir!, "03-implement-log.md"))).toBe(
+      expect(existsSync(join(result.runDir!, "03-driving-tdd.md"))).toBe(
         true,
       );
       // 06-commit.txt must NOT exist.
@@ -410,8 +412,8 @@ describe("implement timeout (AC-4)", () => {
   });
 });
 
-describe("implement SIGINT (AC-5)", () => {
-  it("external abort during implement → status: cancelled, stopReason: 'sigint' in state.json, partial log written, auto-commit not executed, deps.commit not called", async () => {
+describe("driving-tdd SIGINT (AC-5)", () => {
+  it("external abort during driving-tdd → status: cancelled, stopReason: 'sigint' in state.json, partial log written, auto-commit not executed, deps.commit not called", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // S-2: clarify-assess + sketching-design scripted; implement hangs.
       let call = 0;
@@ -448,16 +450,16 @@ describe("implement SIGINT (AC-5)", () => {
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
       expect(result.status).toBe("cancelled");
-      expect(result.failedStageId).toBe("implement");
+      expect(result.failedStageId).toBe("driving-tdd");
 
       const persisted = JSON.parse(
         readFileSync(join(result.runDir!, "state.json"), "utf8"),
       );
-      expect(persisted.stages.implement.status).toBe("cancelled");
-      expect(persisted.stages.implement.stopReason).toBe("sigint");
+      expect(persisted.stages["driving-tdd"].status).toBe("cancelled");
+      expect(persisted.stages["driving-tdd"].stopReason).toBe("sigint");
       expect(persisted.stages["auto-commit"].status).toBe("pending");
 
-      expect(existsSync(join(result.runDir!, "03-implement-log.md"))).toBe(
+      expect(existsSync(join(result.runDir!, "03-driving-tdd.md"))).toBe(
         true,
       );
       expect(existsSync(join(result.runDir!, "06-commit.txt"))).toBe(false);
@@ -502,7 +504,7 @@ describe("fresh SDK session per stage (AC-10)", () => {
       const sessionIds = [
         persisted.stages["clarify-assess"].sessionId,
         persisted.stages["sketching-design"].sessionId,
-        persisted.stages.implement.sessionId,
+        persisted.stages["driving-tdd"].sessionId,
         persisted.stages["code-reviewing"].sessionId,
         persisted.stages["code-improving"].sessionId,
         persisted.stages["auto-commit"].sessionId,
@@ -510,7 +512,7 @@ describe("fresh SDK session per stage (AC-10)", () => {
       expect(new Set(sessionIds).size).toBe(6);
       expect(persisted.stages["clarify-assess"].sessionId).toBe("sess_clarify");
       expect(persisted.stages["sketching-design"].sessionId).toBe("sess_sketch");
-      expect(persisted.stages.implement.sessionId).toBe("sess_impl");
+      expect(persisted.stages["driving-tdd"].sessionId).toBe("sess_impl");
       expect(persisted.stages["code-reviewing"].sessionId).toBe("sess_review");
       expect(persisted.stages["code-improving"].sessionId).toBe("sess_improve");
       expect(persisted.stages["auto-commit"].sessionId).toBe("sess_commit");
@@ -518,7 +520,7 @@ describe("fresh SDK session per stage (AC-10)", () => {
   });
 });
 
-describe("03-implement-log.md is verbatim finalText (AC-8)", () => {
+describe("03-driving-tdd.md is verbatim finalText (AC-8)", () => {
   it("writes the agent's finalText byte-for-byte — no validator, no trailing newline added", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const runDir = seedPausedRun(cwd);
@@ -544,18 +546,18 @@ describe("03-implement-log.md is verbatim finalText (AC-8)", () => {
       );
       if (!result.ok) throw new Error(result.reason);
 
-      const raw = readFileSync(join(runDir, "03-implement-log.md"));
+      const raw = readFileSync(join(runDir, "03-driving-tdd.md"));
       expect(raw.toString("utf8")).toBe(implementLog);
       // Last byte must NOT be the newline we never added.
       expect(raw[raw.length - 1]).not.toBe(0x0a);
 
       // implement stage in the default workflow has no validator.
-      expect(implementConfig().validate).toBeUndefined();
+      expect(drivingTddConfig().validate).toBeUndefined();
     });
   });
 });
 
-describe("runStage translates implement tool_use/tool_result blocks to AgentEvents (AC-7)", () => {
+describe("runStage translates driving-tdd tool_use/tool_result blocks to AgentEvents (AC-7)", () => {
   it("Read → tool_use with file_path brief; Edit → tool_use with file_path brief; tool_result resolves name from tool_use_id and reports ok=true", async () => {
     await withTmpDir(async (runDir) => {
       const events: import("../../src/workflow/stage.js").AgentEvent[] = [];
@@ -635,12 +637,15 @@ describe("runStage translates implement tool_use/tool_result blocks to AgentEven
         runId: RUN_ID,
         reporter,
         signal: new AbortController().signal,
+        // S-3 AC-1: driving-tdd's user-prompt template references both spec
+        // and sketch — the interpolation needs both paths.
         artifactPaths: {
           "clarify-assess": join(runDir, "01-clarify-assess.md"),
+          "sketching-design": join(runDir, "02-sketching-design.md"),
         },
       };
       const recording = recordingScriptedQuery([[{ messages }]]);
-      await runStage(implementConfig(), ctx, { createQueryFn: recording });
+      await runStage(drivingTddConfig(), ctx, { createQueryFn: recording });
 
       const toolUses = events.filter((e) => e.type === "tool_use");
       expect(toolUses.map((e) => e.type === "tool_use" && e.name)).toEqual([
@@ -665,7 +670,7 @@ describe("runStage translates implement tool_use/tool_result blocks to AgentEven
 });
 
 describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () => {
-  it("noPause: true drives clarify-assess → sketching-design → implement → code-reviewing → code-improving → auto-commit; commit fires once with the auto-commit finalText", async () => {
+  it("noPause: true drives clarify-assess → sketching-design → driving-tdd → code-reviewing → code-improving → auto-commit; commit fires once with the auto-commit finalText", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const implementLog =
         "## Files changed\n\n- src/Foo.tsx — added logout button\n";
@@ -705,7 +710,7 @@ describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () 
       );
       expect(persisted.stages["clarify-assess"].status).toBe("completed");
       expect(persisted.stages["sketching-design"].status).toBe("completed");
-      expect(persisted.stages.implement.status).toBe("completed");
+      expect(persisted.stages["driving-tdd"].status).toBe("completed");
       expect(persisted.stages["code-reviewing"].status).toBe("completed");
       expect(persisted.stages["code-improving"].status).toBe("completed");
       expect(persisted.stages["auto-commit"].status).toBe("completed");
@@ -719,7 +724,7 @@ describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () 
         readFileSync(join(result.runDir, "02-sketching-design.md"), "utf8"),
       ).toBe(sketchLog);
       expect(
-        readFileSync(join(result.runDir, "03-implement-log.md"), "utf8"),
+        readFileSync(join(result.runDir, "03-driving-tdd.md"), "utf8"),
       ).toBe(implementLog);
       expect(
         readFileSync(join(result.runDir, "04-code-review.md"), "utf8"),
@@ -802,7 +807,7 @@ describe("RunSummary.perStage covers all 6 stages on the proceed happy path (S-0
       expect(stages).toEqual([
         "clarify-assess",
         "sketching-design",
-        "implement",
+        "driving-tdd",
         "code-reviewing",
         "code-improving",
         "auto-commit",
@@ -866,7 +871,7 @@ describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
 });
 
 describe("runner skips trailing stages when tree is clean (S-006 AC-5, updated for S-003 cascade and S-2 sketching-design)", () => {
-  it("clean tree before code-reviewing → code-reviewing/code-improving/auto-commit all skipped; clarify-assess + sketching-design + implement call the SDK; no deps.commit; no artifacts for the skipped stages", async () => {
+  it("clean tree before code-reviewing → code-reviewing/code-improving/auto-commit all skipped; clarify-assess + sketching-design + driving-tdd call the SDK; no deps.commit; no artifacts for the skipped stages", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // Pre-commit a baseline .gitignore so runWorkflow's
       // appendPraxisToGitignore is a no-op AND there is a HEAD already; the
@@ -931,14 +936,14 @@ describe("runner skips trailing stages when tree is clean (S-006 AC-5, updated f
   });
 });
 
-describe("runStage implement option forwarding (AC-6)", () => {
-  it("forwards model, permissionMode 'bypassPermissions', settingSources, signal, interpolated initialUserPrompt, and the implement system prompt; allowedTools omitted", async () => {
+describe("runStage driving-tdd option forwarding (AC-6)", () => {
+  it("forwards model, permissionMode 'bypassPermissions', settingSources, signal, interpolated initialUserPrompt, and the driving-tdd system prompt; allowedTools omitted", async () => {
     await withTmpDir(async (runDir) => {
       const recording = recordingScriptedQuery([
-        [{ messages: happyImplementMessages() }],
+        [{ messages: happyDrivingTddMessages() }],
       ]);
-      const ctx = makeImplementCtx(runDir);
-      const result = await runStage(implementConfig(), ctx, {
+      const ctx = makeDrivingTddCtx(runDir);
+      const result = await runStage(drivingTddConfig(), ctx, {
         createQueryFn: recording,
       });
 
@@ -946,13 +951,13 @@ describe("runStage implement option forwarding (AC-6)", () => {
       const input = recording.calls[0].input;
       expect(input.model).toBe("claude-opus-4-7");
       expect(input.permissionMode).toBe("bypassPermissions");
-      // implement deliberately omits allowedTools (config has no key) so the
+      // driving-tdd deliberately omits allowedTools (config has no key) so the
       // SDK defaults to all tools.
       expect(input.allowedTools).toBeUndefined();
       expect(input.settingSources).toEqual(["user", "project"]);
       expect(input.signal).toBeInstanceOf(AbortSignal);
-      // System prompt comes from src/config/prompts/implement.md.
-      expect(input.systemPrompt).toMatch(/implement/i);
+      // System prompt comes from src/config/prompts/driving-tdd.md.
+      expect(input.systemPrompt).toMatch(/driving-tdd/i);
       expect(input.systemPrompt).toMatch(/bypassPermissions/);
       // Initial user prompt is interpolated against {{artifacts.clarify-assess.path}}.
       expect(input.initialUserPrompt).toContain(

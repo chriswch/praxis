@@ -27,9 +27,9 @@ import { withTempRepo } from "../support/tmp-repo.js";
  * No new runner code needed; the assertion lives entirely in the test.
  */
 
-function implementConfig() {
-  const cfg = defaultWorkflow.workflow.find((s) => s.id === "implement");
-  if (!cfg) throw new Error("implement stage missing from defaultWorkflow");
+function drivingTddConfig() {
+  const cfg = defaultWorkflow.workflow.find((s) => s.id === "driving-tdd");
+  if (!cfg) throw new Error("driving-tdd stage missing from defaultWorkflow");
   return cfg;
 }
 
@@ -118,7 +118,7 @@ function fsMutatingQuery(
   };
 }
 
-describe("implement fs mutation observation (AC-9)", () => {
+describe("driving-tdd fs mutation observation (AC-9)", () => {
   it("runStage sees filesystem mutations the seam performs alongside tool_use blocks", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const targetPath = join(cwd, "src", "Logout.tsx");
@@ -134,13 +134,18 @@ describe("implement fs mutation observation (AC-9)", () => {
         runId: "2026-04-25-1430-7af2",
         reporter: new LineReporter(),
         signal: new AbortController().signal,
-        artifactPaths: { "clarify-assess": join(cwd, "01-clarify-assess.md") },
+        // S-3 AC-1: driving-tdd's user-prompt template references both the
+        // clarify-assess spec AND the sketching-design sketch.
+        artifactPaths: {
+          "clarify-assess": join(cwd, "01-clarify-assess.md"),
+          "sketching-design": join(cwd, "02-sketching-design.md"),
+        },
       };
 
       // File doesn't exist before the stage runs.
       expect(existsSync(targetPath)).toBe(false);
 
-      await runStage(implementConfig(), ctx, {
+      await runStage(drivingTddConfig(), ctx, {
         createQueryFn: fsMutatingQuery(targetPath, targetContent, "sess_fs"),
       });
 

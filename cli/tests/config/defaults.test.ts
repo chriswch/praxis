@@ -13,13 +13,14 @@ describe("defaultWorkflow", () => {
     expect(result.success).toBe(true);
   });
 
-  // S-2 AC-1: 6-stage shape with sketching-design inserted between
-  // clarify-assess and implement.
+  // S-2 AC-1 + S-3 AC-1: 6-stage shape; the third stage is `driving-tdd`
+  // (formerly `implement`) — same shape, but invokes the praxis:driving-tdd
+  // skill against both the clarify-assess spec and sketching-design sketch.
   it("has the six required stage ids in order", () => {
     expect(defaultWorkflow.workflow.map((s) => s.id)).toEqual([
       "clarify-assess",
       "sketching-design",
-      "implement",
+      "driving-tdd",
       "code-reviewing",
       "code-improving",
       "auto-commit",
@@ -42,7 +43,7 @@ describe("defaultWorkflow", () => {
     );
     expect(byId["clarify-assess"].model).toBe("claude-opus-4-7");
     expect(byId["sketching-design"].model).toBe("claude-opus-4-7");
-    expect(byId.implement.model).toBe("claude-opus-4-7");
+    expect(byId["driving-tdd"].model).toBe("claude-opus-4-7");
     expect(byId["code-reviewing"].model).toBe("claude-opus-4-7");
     expect(byId["code-improving"].model).toBe("claude-opus-4-7");
     expect(byId["auto-commit"].model).toBe("claude-haiku-4-5-20251001");
@@ -57,8 +58,9 @@ describe("defaultWorkflow", () => {
     expect(byId["sketching-design"].outputArtifact).toBe(
       "02-sketching-design.md",
     );
-    // S-2 AC-2: trailing four artifacts renumbered 02→03, 03→04, 04→05, 05→06.
-    expect(byId.implement.outputArtifact).toBe("03-implement-log.md");
+    // S-2 AC-2 + S-3 AC-1: trailing four artifacts numbered 03→06; slot 03 is
+    // now `03-driving-tdd.md` (renamed from `03-implement-log.md`).
+    expect(byId["driving-tdd"].outputArtifact).toBe("03-driving-tdd.md");
     expect(byId["code-reviewing"].outputArtifact).toBe("04-code-review.md");
     expect(byId["code-improving"].outputArtifact).toBe("05-code-improve.md");
     expect(byId["auto-commit"].outputArtifact).toBe("06-commit.txt");
@@ -70,7 +72,7 @@ describe("defaultWorkflow", () => {
     );
     expect(byId["clarify-assess"].pauseAfter).toBe(true);
     expect(byId["sketching-design"].pauseAfter ?? false).toBe(false);
-    expect(byId.implement.pauseAfter ?? false).toBe(false);
+    expect(byId["driving-tdd"].pauseAfter ?? false).toBe(false);
     expect(byId["code-reviewing"].pauseAfter ?? false).toBe(false);
     expect(byId["code-improving"].pauseAfter ?? false).toBe(false);
     expect(byId["auto-commit"].pauseAfter ?? false).toBe(false);
@@ -84,7 +86,8 @@ describe("defaultWorkflow", () => {
     // S-2 AC-1: sketching-design has no validator (the skill's three valid
     // output shapes — sketch / skipped / spec-issue — all pass through).
     expect(byId["sketching-design"].validate).toBeUndefined();
-    expect(byId.implement.validate).toBeUndefined();
+    // S-3 AC-1: driving-tdd has no validator (skill owns final-message shape).
+    expect(byId["driving-tdd"].validate).toBeUndefined();
     // S-002 AC-2: code-reviewing wires the Decision-H2 validator.
     expect(byId["code-reviewing"].validate).toBe(validateCodeReviewArtifact);
     expect(byId["code-improving"].validate).toBeUndefined();
@@ -102,12 +105,16 @@ describe("defaultWorkflow", () => {
     );
   });
 
-  it("implement uses bypassPermissions and no allowedTools restriction", () => {
+  it("driving-tdd uses bypassPermissions and no allowedTools restriction", () => {
     const byId = Object.fromEntries(
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
-    expect(byId.implement.permissionMode).toBe("bypassPermissions");
-    expect(byId.implement.allowedTools).toBeUndefined();
+    expect(byId["driving-tdd"].permissionMode).toBe("bypassPermissions");
+    expect(byId["driving-tdd"].allowedTools).toBeUndefined();
+    expect(byId["driving-tdd"].timeoutMs).toBe(1_800_000);
+    expect(byId["driving-tdd"].systemPrompt).toEqual({
+      file: "driving-tdd.md",
+    });
   });
 
   it("auto-commit uses default permission with Bash-only allowlist", () => {
@@ -231,18 +238,23 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
     expect(rendered).not.toContain("Required artifact schema");
   });
 
-  it("implement references the clarify-assess artifact path", () => {
+  it("driving-tdd references the clarify-assess + sketching-design artifact paths and names the praxis:driving-tdd skill", () => {
     const rendered = buildUserPrompt(
-      stageById("implement"),
+      stageById("driving-tdd"),
       ctx({
-        artifactPaths: { "clarify-assess": "/run/dir/01-clarify-assess.md" },
+        artifactPaths: {
+          "clarify-assess": "/run/dir/01-clarify-assess.md",
+          "sketching-design": "/run/dir/02-sketching-design.md",
+        },
       }),
     );
-    expect(rendered).toContain("Read /run/dir/01-clarify-assess.md");
-    expect(rendered).toContain("implement the plan");
-    expect(rendered).toContain("Edit files in the current working directory");
+    expect(rendered).toContain("/run/dir/01-clarify-assess.md");
+    expect(rendered).toContain("/run/dir/02-sketching-design.md");
+    expect(rendered).toContain("praxis:driving-tdd");
+    expect(rendered).toContain("/run/dir");
+    expect(rendered).toContain("03-driving-tdd.md");
     // System prompt content must NOT leak into the user prompt.
-    const sys = loadSystemPrompt(stageById("implement"));
+    const sys = loadSystemPrompt(stageById("driving-tdd"));
     expect(rendered).not.toBe(sys);
     expect(rendered).not.toContain("User-prompt template");
   });
@@ -339,6 +351,30 @@ describe("S-002 prompt-file smoke tests", () => {
     expect(text).toContain("praxis:code-improving");
     expect(text).toContain("{{artifacts.code-reviewing.path}}");
     expect(text).toContain("bypassPermissions");
+  });
+
+  // S-3 AC-2: driving-tdd.md exists, names the praxis:driving-tdd skill,
+  // references both the clarify-assess spec AND the sketching-design sketch
+  // tokens, acknowledges per-AC commits, and writes its final message to
+  // 03-driving-tdd.md.
+  it("driving-tdd.md exists and references the praxis:driving-tdd skill + both spec/sketch tokens + per-AC commits + 03-driving-tdd.md", () => {
+    const path = join(promptsDir, "driving-tdd.md");
+    expect(existsSync(path)).toBe(true);
+    const text = readFileSync(path, "utf8");
+    expect(text).toContain("praxis:driving-tdd");
+    expect(text).toContain("{{artifacts.clarify-assess.path}}");
+    expect(text).toContain("{{artifacts.sketching-design.path}}");
+    expect(text).toContain("bypassPermissions");
+    expect(text).toContain("03-driving-tdd.md");
+    // Per-AC commits acknowledgement (skill owns commits, agent doesn't
+    // commit manually).
+    expect(text.toLowerCase()).toContain("per-ac commits");
+  });
+
+  // S-3 AC-2: implement.md must be gone — the rename to driving-tdd.md is
+  // atomic.
+  it("implement.md is no longer on disk", () => {
+    expect(existsSync(join(promptsDir, "implement.md"))).toBe(false);
   });
 
   it("auto-commit.md uses 06-commit.txt, not the old 03/05 numbering", () => {

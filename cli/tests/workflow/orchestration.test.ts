@@ -262,7 +262,7 @@ describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
       // S-2 AC-6: paused after clarify-assess, the next stage is now
       // sketching-design.
       expect(state.stages["sketching-design"].status).toBe("pending");
-      expect(state.stages.implement.status).toBe("pending");
+      expect(state.stages["driving-tdd"].status).toBe("pending");
       expect(state.stages["auto-commit"].status).toBe("pending");
       expect(state.cost.totalTokens).toBe(150); // input + output only
       expect(state.cost.totalUsd).toBeCloseTo(0.012, 5);
@@ -277,13 +277,11 @@ describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
       expect(result.pausedStageId).toBe("clarify-assess");
       expect(result.artifactPath).toBe(artifactPath);
 
-      // Sketching-design / implement / auto-commit artifacts not written.
+      // Sketching-design / driving-tdd / auto-commit artifacts not written.
       expect(existsSync(join(result.runDir, "02-sketching-design.md"))).toBe(
         false,
       );
-      expect(existsSync(join(result.runDir, "03-implement-log.md"))).toBe(
-        false,
-      );
+      expect(existsSync(join(result.runDir, "03-driving-tdd.md"))).toBe(false);
       expect(existsSync(join(result.runDir, "06-commit.txt"))).toBe(false);
     });
   });
