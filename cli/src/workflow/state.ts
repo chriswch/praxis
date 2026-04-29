@@ -41,6 +41,13 @@ export interface State {
   runId: string;
   intent: string;
   startedAt: string;
+  /**
+   * S-1: 40-hex SHA captured by `git rev-parse HEAD` at run start. Persisted
+   * here so `advanceWorkflow` and `retryWorkflow` resume with the original
+   * baseline (no second shell-out) and the `{{baselineSha}}` token expands
+   * identically across the run.
+   */
+  baselineSha: string;
   currentStage: string;
   cost: { totalTokens: number; totalUsd: number };
   stages: Record<string, StageState>;
@@ -50,6 +57,7 @@ export interface InitialStateInput {
   runId: string;
   intent: string;
   startedAt: string;
+  baselineSha: string;
   stageIds: readonly string[];
   currentStage: string;
 }
@@ -67,6 +75,7 @@ export function buildInitialState(input: InitialStateInput): State {
     runId: input.runId,
     intent: input.intent,
     startedAt: input.startedAt,
+    baselineSha: input.baselineSha,
     currentStage: input.currentStage,
     cost: { totalTokens: 0, totalUsd: 0 },
     stages,

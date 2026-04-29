@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readState } from "../../src/workflow/state.js";
+import {
+  buildInitialState,
+  readState,
+  writeState,
+} from "../../src/workflow/state.js";
 
 function withTmpDir<T>(fn: (dir: string) => T): T {
   const dir = mkdtempSync(join(tmpdir(), "praxis-state-read-"));
@@ -95,6 +99,7 @@ describe("readState (AC-2 structural validation)", () => {
         runId: "2026-04-25-1430-7af2",
         intent: "ship it",
         startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
         currentStage: "implement",
         cost: { totalTokens: 150, totalUsd: 0.012 },
         stages: {
@@ -117,6 +122,29 @@ describe("readState (AC-2 structural validation)", () => {
       expect(result.state.runId).toBe("2026-04-25-1430-7af2");
       expect(result.state.stages["clarify-assess"].status).toBe("completed");
       expect(result.state.cost.totalTokens).toBe(150);
+    });
+  });
+});
+
+describe("buildInitialState round-trips baselineSha (AC-1)", () => {
+  it("captures the input baselineSha verbatim and survives writeState → readState", () => {
+    withTmpDir((dir) => {
+      const sha = "abcdef0123456789abcdef0123456789abcdef01";
+      const state = buildInitialState({
+        runId: "2026-04-25-1430-7af2",
+        intent: "ship it",
+        startedAt: "2026-04-25T14:30:12Z",
+        baselineSha: sha,
+        stageIds: ["clarify-assess", "implement"],
+        currentStage: "clarify-assess",
+      });
+      expect(state.baselineSha).toBe(sha);
+
+      writeState(dir, state);
+      const result = readState(dir);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.reason);
+      expect(result.state.baselineSha).toBe(sha);
     });
   });
 });

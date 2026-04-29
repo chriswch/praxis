@@ -104,6 +104,10 @@ export async function runWorkflow(
     runId,
     intent: ctx.intent,
     startedAt: toIsoSeconds(startedAt),
+    // S-1 placeholder: real `git rev-parse HEAD` capture lands in the next
+    // cycle (AC-3). Until then, the field is plumbed through as an empty
+    // string so the type contract holds without yet bisecting the runner.
+    baselineSha: "",
     stageIds,
     currentStage: stageIds[0],
   });
