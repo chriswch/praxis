@@ -28,6 +28,10 @@ export function isWorkingTreeClean(cwd: string): boolean {
  * any non-zero git exit OR stdout that doesn't match the 40-hex commit shape
  * is treated as the "no commits yet" branch — git's stderr varies across
  * versions, so we don't try to thread that through.
+ *
+ * The returned `reason` is the diagnosis only; the matching `git commit
+ * --allow-empty` remediation hint lives on the runner-level failure
+ * (`runWorkflow`) so the diagnosis/fix split mirrors `runPreflight`.
  */
 export function currentHead(
   cwd: string,
@@ -40,8 +44,7 @@ export function currentHead(
   if (result.status !== 0 || !/^[0-9a-f]{40}$/.test(sha)) {
     return {
       ok: false,
-      reason:
-        "this repo has no commits yet — create one first (e.g. 'git commit --allow-empty -m init')",
+      reason: "this repo has no commits yet",
     };
   }
   return { ok: true, sha };
