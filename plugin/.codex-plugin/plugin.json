@@ -1,7 +1,7 @@
 {
   "name": "praxis",
   "version": "1.0.0",
-  "description": "Spec-driven workflows: clarification, slicing, design, implementation, review, improvement, and verification — chained by craft (full TDD) or forge (fast delivery).",
+  "description": "Spec-driven workflows: clarification, slicing, design, implementation, review, improvement, and verification — chained by craft (full TDD, with autopilot mode for end-to-end runs).",
   "author": {
     "name": "chriswch",
     "email": "chriswangwch@gmail.com",
@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "Praxis",
     "shortDescription": "Spec-driven workflows from clarification through verification",
-    "longDescription": "Praxis is a collection of agent skills for spec-driven software engineering. Skills cover clarification, slicing, design, implementation, review, improvement, and verification. Two orchestrator skills — craft (full TDD) and forge (fast delivery) — chain them end-to-end.",
+    "longDescription": "Praxis is a collection of agent skills for spec-driven software engineering. Skills cover clarification, slicing, design, implementation, review, improvement, and verification. The craft orchestrator skill chains them end-to-end — manual by default with checkpoints between stages, or --autopilot for end-to-end runs that stop only on hard blockers.",
     "developerName": "chriswch",
     "category": "Coding",
     "capabilities": [
