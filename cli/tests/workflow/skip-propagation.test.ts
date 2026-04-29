@@ -835,7 +835,7 @@ describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
       // S-2: four SDK invocations now — clarify-assess, sketching-design,
       // implement, code-reviewing.
       expect(recording.calls.length).toBe(4);
-      // Stages 5 and 6 not invoked.
+      // code-improving, verifying-and-adapting, and auto-commit not invoked.
       expect(commit.calls.length).toBe(0);
 
       // Partial 04-code-review.md written verbatim (the bad agent message).
