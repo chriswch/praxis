@@ -33,7 +33,7 @@ export type RunWorkflowContext = {
    * runner advances to the next stage instead of returning paused.
    */
   noPause?: boolean;
-  /** Override the default 5-stage workflow (tests). */
+  /** Override the default 6-stage workflow (tests). */
   config?: PraxisConfig;
   /**
    * Parent abort signal — when fired, the in-flight stage is aborted as
@@ -418,9 +418,10 @@ async function runOneStage(
  * auto-commit). Implement may have made no edits, or recovered to baseline;
  * either way there is nothing to review, improve, or commit. Synthesize a
  * completed stage with stopReason "skipped" — no sessionId/tokens/usd, no
- * artifact written, no deps.commit hand-off. Once stage 3 skips on a clean
- * tree, stages 4 and 5 see the same clean tree on entry and skip too,
- * producing the cascading "skipped" stopReason for all three.
+ * artifact written, no deps.commit hand-off. Once driving-tdd skips on a
+ * clean tree, code-reviewing and code-improving see the same clean tree on
+ * entry and skip too, producing the cascading "skipped" stopReason for all
+ * three.
  *
  * Returns `null` when the stage is not eligible for clean-tree skip, so the
  * caller can move on to the next gate.
@@ -457,7 +458,7 @@ function maybeSkipCleanTree(
  * The code-reviewing stage already validated its `## Decision` H2 (the
  * validator runs there, not here), so the artifact body is one of "proceed"
  * / "skip-improve" by construction. Read it, branch, and either short-
- * circuit stage 4 with stopReason "skipped-trivial" (skip-improve) or return
+ * circuit code-improving with stopReason "skipped-trivial" (skip-improve) or return
  * `null` (proceed) so the caller falls through to a normal SDK dispatch. If
  * the artifact is missing on disk we fail the stage rather than implicitly
  * proceed — the run had a code-reviewing pass and its artifact must exist by
@@ -711,7 +712,7 @@ export type AdvanceWorkflowContext = {
   cwd: string;
   /** Disable pause gates (same semantics as `runWorkflow`'s `--no-pause`). */
   noPause?: boolean;
-  /** Override the default 5-stage workflow (tests). */
+  /** Override the default 6-stage workflow (tests). */
   config?: PraxisConfig;
   /** Parent abort signal — wired to SIGINT by the CLI. */
   signal?: AbortSignal;
@@ -968,7 +969,7 @@ export type RetryWorkflowContext = {
   cwd: string;
   /** Disable pause gates (same semantics as `runWorkflow`'s `--no-pause`). */
   noPause?: boolean;
-  /** Override the default 5-stage workflow (tests). */
+  /** Override the default 6-stage workflow (tests). */
   config?: PraxisConfig;
   /** Parent abort signal — wired to SIGINT by the CLI. */
   signal?: AbortSignal;
@@ -1140,7 +1141,7 @@ export async function retryWorkflow(
   reporter.stageStart(stage, idx + 1, config.workflow.length);
   // S-006: emit the retry headline AFTER stageStart and BEFORE the SDK
   // dispatch so terminal output reads
-  //   [4/5 code-improving] starting…
+  //   [5/6 code-improving] starting…
   //   praxis: retrying code-improving (resume <sess>) — sending "continue" (run <id>)
   // The session id surfaced is the *prior* (failed) one — that is what the
   // SDK is actually being asked to resume.

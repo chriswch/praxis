@@ -67,7 +67,7 @@ export function formatStageEnd(
   result: StageEndResult,
 ): string[] {
   const tag = `[${index}/${total} ${stage.id}]`;
-  // S-006: decision-driven skip on stage 4. Distinct one-liner so operators
+  // S-006: decision-driven skip on code-improving. Distinct one-liner so operators
   // see WHY the stage was skipped — no artifact, no session, just the reason.
   if (result.ok && result.stopReason === "skipped-trivial") {
     return [`${tag} skipped (skip-improve)`];
