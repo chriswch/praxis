@@ -73,7 +73,7 @@ describe("readState (AC-2 structural validation)", () => {
     });
   });
 
-  it("AC-2: returns ok:false naming baselineSha when the field is absent", () => {
+  it("AC-2 (M-2 softening): tolerates absent baselineSha for legacy state.json — returns ok:true with baselineSha undefined", () => {
     withTmpDir((dir) => {
       writeFileSync(
         join(dir, "state.json"),
@@ -88,9 +88,9 @@ describe("readState (AC-2 structural validation)", () => {
         "utf8",
       );
       const result = readState(dir);
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expect(result.reason).toContain("baselineSha");
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.reason);
+      expect(result.state.baselineSha).toBeUndefined();
     });
   });
 
