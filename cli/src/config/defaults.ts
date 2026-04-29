@@ -32,6 +32,16 @@ export const CODE_REVIEWING_ID = "code-reviewing";
  */
 export const CODE_IMPROVING_ID = "code-improving";
 
+/**
+ * Stable id for the built-in verifying-and-adapting stage. The runner's
+ * cascade-skip eligibility set checks `stage.id !== VERIFYING_AND_ADAPTING_ID`
+ * to keep verifying-and-adapting in the no-commit cascade alongside the
+ * existing trio (code-reviewing / code-improving / auto-commit). Same
+ * dispatch-lock rationale as AUTO_COMMIT_ID — pin the literal in
+ * `tests/config/defaults.test.ts` so silent renames fail loudly.
+ */
+export const VERIFYING_AND_ADAPTING_ID = "verifying-and-adapting";
+
 const CLARIFY_ASSESS_USER_PROMPT = [
   "Intent: {{intent}}",
   "",
@@ -76,11 +86,12 @@ const CODE_IMPROVING_USER_PROMPT = [
 ].join("\n");
 
 // Auto-commit emits ONLY a Conventional Commits message; the harness writes
-// it to 06-commit.txt and runs git commit -m.
+// it to 07-commit.txt and runs git commit -m. (S-4 bumped 06 → 07 when the
+// verifying-and-adapting stage took slot 06.)
 const AUTO_COMMIT_USER_PROMPT = [
   "Use `git diff` and `git log -10 --oneline` to read the staged + unstaged changes.",
   "Generate a Conventional-Commits-style message (e.g. `feat:`, `fix:`, `chore:`) describing those changes.",
-  "Your final assistant message must be ONLY the commit message — no explanation, no markdown fences, no preamble. The harness writes it verbatim to 06-commit.txt and passes it to `git commit -m`.",
+  "Your final assistant message must be ONLY the commit message — no explanation, no markdown fences, no preamble. The harness writes it verbatim to 07-commit.txt and passes it to `git commit -m`.",
 ].join("\n");
 
 // S-2: sketching-design stage runs the praxis:sketching-design skill against
@@ -96,8 +107,24 @@ const SKETCHING_DESIGN_USER_PROMPT = [
   "Re-emit the skill's output verbatim as your final assistant message. The skill may return a design sketch, a single line `Skipped — no sketch needed`, or a `## Spec Issue` H2 — pass any of the three through unchanged.",
 ].join("\n");
 
+// S-4: verifying-and-adapting stage runs the praxis:verifying-and-adapting
+// skill against the clarify-assess spec, the driving-tdd summary, and the
+// optional sketching-design sketch. Read-only — no validator, no pauseAfter.
+// The skill returns one of several valid shapes (full verification summary,
+// trivial-skip line, or routing recommendation); the runner has no validator,
+// so all shapes pass through verbatim and live in 06-verifying-and-adapting.md.
+const VERIFYING_AND_ADAPTING_USER_PROMPT = [
+  "Run dir: {{runDir}}",
+  "",
+  "Invoke the `praxis:verifying-and-adapting` skill via the Skill tool against the clarify-assess spec at {{artifacts.clarify-assess.path}}, the driving-tdd summary at {{artifacts.driving-tdd.path}}, and the optional sketching-design sketch at {{artifacts.sketching-design.path}}.",
+  "",
+  "Inspect the per-AC commits the driving-tdd stage landed with `git diff {{baselineSha}}..HEAD` and `git log {{baselineSha}}..HEAD` — the commits are real, walk them.",
+  "",
+  "Re-emit the skill's output verbatim as your final assistant message. The skill may return a verification summary, a trivial-skip line, a routing recommendation, or a spec/slice-impact note — pass whichever it returned through unchanged.",
+].join("\n");
+
 /**
- * Built-in 6-stage workflow.
+ * Built-in 7-stage workflow.
  *
  * - clarify-assess: read-only repo survey, validates the H2 schema, pauses.
  * - sketching-design: read-only design sketch via the praxis:sketching-design
@@ -110,10 +137,15 @@ const SKETCHING_DESIGN_USER_PROMPT = [
  *   validates the `## Decision` H2 (proceed / skip-improve).
  * - code-improving: bypassPermissions, all tools, no validator; runs the
  *   praxis:code-improving skill against the review artifact.
+ * - verifying-and-adapting: read-only verify-and-adapt via the
+ *   praxis:verifying-and-adapting skill; no validator (the skill's multiple
+ *   valid output shapes — verification summary / trivial-skip / routing
+ *   recommendation / spec/slice-impact note — all pass through verbatim).
  * - auto-commit: Bash-only, default permissions, no pause.
  *
  * Models pinned: Opus 4.7 for clarify-assess, sketching-design, driving-tdd,
- * code-reviewing, and code-improving; Haiku 4.5 for auto-commit.
+ * code-reviewing, code-improving, and verifying-and-adapting; Haiku 4.5 for
+ * auto-commit.
  */
 export const defaultWorkflow: PraxisConfig = {
   version: 1,
@@ -170,6 +202,16 @@ export const defaultWorkflow: PraxisConfig = {
       outputArtifact: "05-code-improve.md",
     },
     {
+      id: VERIFYING_AND_ADAPTING_ID,
+      systemPrompt: { file: "verifying-and-adapting.md" },
+      userPromptTemplate: VERIFYING_AND_ADAPTING_USER_PROMPT,
+      allowedTools: ["Read", "Glob", "Grep", "Bash", "Skill"],
+      permissionMode: "default",
+      model: "claude-opus-4-7",
+      timeoutMs: 900_000,
+      outputArtifact: "06-verifying-and-adapting.md",
+    },
+    {
       id: AUTO_COMMIT_ID,
       systemPrompt: { file: "auto-commit.md" },
       userPromptTemplate: AUTO_COMMIT_USER_PROMPT,
@@ -177,7 +219,7 @@ export const defaultWorkflow: PraxisConfig = {
       permissionMode: "default",
       model: "claude-haiku-4-5-20251001",
       timeoutMs: 300_000,
-      outputArtifact: "06-commit.txt",
+      outputArtifact: "07-commit.txt",
     },
   ],
 };

@@ -13,16 +13,19 @@ describe("defaultWorkflow", () => {
     expect(result.success).toBe(true);
   });
 
-  // S-2 AC-1 + S-3 AC-1: 6-stage shape; the third stage is `driving-tdd`
-  // (formerly `implement`) — same shape, but invokes the praxis:driving-tdd
-  // skill against both the clarify-assess spec and sketching-design sketch.
-  it("has the six required stage ids in order", () => {
+  // S-4 AC-1: 7-stage shape; the new `verifying-and-adapting` stage is
+  // inserted at index 5 between `code-improving` and `auto-commit`. It runs
+  // the `praxis:verifying-and-adapting` skill against the clarify-assess
+  // spec + driving-tdd summary (+ optional sketch), is read-only, and has no
+  // validator.
+  it("has the seven required stage ids in order", () => {
     expect(defaultWorkflow.workflow.map((s) => s.id)).toEqual([
       "clarify-assess",
       "sketching-design",
       "driving-tdd",
       "code-reviewing",
       "code-improving",
+      "verifying-and-adapting",
       "auto-commit",
     ]);
   });
@@ -46,6 +49,9 @@ describe("defaultWorkflow", () => {
     expect(byId["driving-tdd"].model).toBe("claude-opus-4-7");
     expect(byId["code-reviewing"].model).toBe("claude-opus-4-7");
     expect(byId["code-improving"].model).toBe("claude-opus-4-7");
+    // S-4 AC-1: verifying-and-adapting uses Opus 4.7 (same family as the other
+    // skill-invoking read-only stages).
+    expect(byId["verifying-and-adapting"].model).toBe("claude-opus-4-7");
     expect(byId["auto-commit"].model).toBe("claude-haiku-4-5-20251001");
   });
 
@@ -63,7 +69,12 @@ describe("defaultWorkflow", () => {
     expect(byId["driving-tdd"].outputArtifact).toBe("03-driving-tdd.md");
     expect(byId["code-reviewing"].outputArtifact).toBe("04-code-review.md");
     expect(byId["code-improving"].outputArtifact).toBe("05-code-improve.md");
-    expect(byId["auto-commit"].outputArtifact).toBe("06-commit.txt");
+    // S-4 AC-1: verifying-and-adapting inserted at slot 06; auto-commit
+    // bumped to slot 07.
+    expect(byId["verifying-and-adapting"].outputArtifact).toBe(
+      "06-verifying-and-adapting.md",
+    );
+    expect(byId["auto-commit"].outputArtifact).toBe("07-commit.txt");
   });
 
   it("only pauses after clarify-assess by default", () => {
@@ -75,6 +86,8 @@ describe("defaultWorkflow", () => {
     expect(byId["driving-tdd"].pauseAfter ?? false).toBe(false);
     expect(byId["code-reviewing"].pauseAfter ?? false).toBe(false);
     expect(byId["code-improving"].pauseAfter ?? false).toBe(false);
+    // S-4 AC-1: verifying-and-adapting has no pauseAfter (auto-advances).
+    expect(byId["verifying-and-adapting"].pauseAfter ?? false).toBe(false);
     expect(byId["auto-commit"].pauseAfter ?? false).toBe(false);
   });
 
@@ -91,6 +104,9 @@ describe("defaultWorkflow", () => {
     // S-002 AC-2: code-reviewing wires the Decision-H2 validator.
     expect(byId["code-reviewing"].validate).toBe(validateCodeReviewArtifact);
     expect(byId["code-improving"].validate).toBeUndefined();
+    // S-4 AC-1: verifying-and-adapting has no validator (skill owns the
+    // multiple valid output shapes; same shape as sketching-design).
+    expect(byId["verifying-and-adapting"].validate).toBeUndefined();
     expect(byId["auto-commit"].validate).toBeUndefined();
   });
 
@@ -170,6 +186,25 @@ describe("defaultWorkflow", () => {
     expect(ci.systemPrompt).toEqual({ file: "code-improving.md" });
   });
 
+  // S-4 AC-1: verifying-and-adapting stage shape — read-only Skill-invoking
+  // (mirrors sketching-design + code-reviewing), no validator, no pauseAfter,
+  // 15-minute timeout.
+  it("verifying-and-adapting uses default permission with the read-only Skill-invoking allowlist", () => {
+    const byId = Object.fromEntries(
+      defaultWorkflow.workflow.map((s) => [s.id, s] as const),
+    );
+    const va = byId["verifying-and-adapting"];
+    expect(va.permissionMode ?? "default").toBe("default");
+    expect([...(va.allowedTools ?? [])].sort()).toEqual(
+      ["Bash", "Glob", "Grep", "Read", "Skill"].sort(),
+    );
+    expect(va.timeoutMs).toBe(900_000);
+    expect(va.systemPrompt).toEqual({ file: "verifying-and-adapting.md" });
+    expect(va.outputArtifact).toBe("06-verifying-and-adapting.md");
+    expect(va.validate).toBeUndefined();
+    expect(va.pauseAfter ?? false).toBe(false);
+  });
+
   // S-002 AC-5: AUTO_COMMIT_ID literal must remain "auto-commit" so the runner
   // dispatch in runner.ts (`stage.id === AUTO_COMMIT_ID`) keeps firing.
   it("AUTO_COMMIT_ID stays 'auto-commit' (runner dispatch lock)", async () => {
@@ -190,6 +225,17 @@ describe("defaultWorkflow", () => {
   it("CODE_IMPROVING_ID stays 'code-improving' (runner dispatch lock)", async () => {
     const { CODE_IMPROVING_ID } = await import("../../src/config/defaults.js");
     expect(CODE_IMPROVING_ID).toBe("code-improving");
+  });
+
+  // S-4 AC-4: VERIFYING_AND_ADAPTING_ID literal must remain
+  // "verifying-and-adapting" so the runner's cascade-skip eligibility check
+  // (`stage.id !== VERIFYING_AND_ADAPTING_ID`) continues to fire. Same
+  // dispatch-lock rationale as AUTO_COMMIT_ID.
+  it("VERIFYING_AND_ADAPTING_ID stays 'verifying-and-adapting' (runner dispatch lock)", async () => {
+    const { VERIFYING_AND_ADAPTING_ID } = await import(
+      "../../src/config/defaults.js"
+    );
+    expect(VERIFYING_AND_ADAPTING_ID).toBe("verifying-and-adapting");
   });
 
   it("rejects a config with zero stages", () => {
@@ -331,6 +377,33 @@ describe("defaultWorkflow user prompts (H-1 regression)", () => {
     const sys = loadSystemPrompt(stageById("sketching-design"));
     expect(rendered).not.toBe(sys);
   });
+
+  // S-4 AC-1/AC-3: verifying-and-adapting user prompt references the
+  // clarify-assess spec, the driving-tdd summary, and the optional
+  // sketching-design sketch by absolute path; names the
+  // praxis:verifying-and-adapting skill; renders runDir + baselineSha.
+  it("verifying-and-adapting names the praxis:verifying-and-adapting skill and references all five interpolation tokens", () => {
+    const rendered = buildUserPrompt(
+      stageById("verifying-and-adapting"),
+      ctx({
+        artifactPaths: {
+          "clarify-assess": "/run/dir/01-clarify-assess.md",
+          "sketching-design": "/run/dir/02-sketching-design.md",
+          "driving-tdd": "/run/dir/03-driving-tdd.md",
+        },
+      }),
+    );
+    expect(rendered).toContain("/run/dir/01-clarify-assess.md");
+    expect(rendered).toContain("/run/dir/03-driving-tdd.md");
+    expect(rendered).toContain("/run/dir/02-sketching-design.md");
+    expect(rendered).toContain("/run/dir");
+    expect(rendered).toContain("BASELINE_SHA");
+    expect(rendered).toContain("praxis:verifying-and-adapting");
+    expect(rendered.toLowerCase()).toContain("skill");
+    // System prompt content must NOT leak into the user prompt.
+    const sys = loadSystemPrompt(stageById("verifying-and-adapting"));
+    expect(rendered).not.toBe(sys);
+  });
 });
 
 /**
@@ -402,12 +475,35 @@ describe("S-002 prompt-file smoke tests", () => {
     expect(existsSync(join(promptsDir, "implement.md"))).toBe(false);
   });
 
-  it("auto-commit.md uses 06-commit.txt, not the old 03/05 numbering", () => {
+  // S-4 AC-2: auto-commit's commit artifact bumped 06 → 07 by the new
+  // verifying-and-adapting stage taking slot 06.
+  it("auto-commit.md uses 07-commit.txt, not the old numbering", () => {
     const path = join(promptsDir, "auto-commit.md");
     const text = readFileSync(path, "utf8");
-    expect(text).toContain("06-commit.txt");
+    expect(text).toContain("07-commit.txt");
     expect(text).not.toContain("03-commit.txt");
     expect(text).not.toContain("05-commit.txt");
+    expect(text).not.toContain("06-commit.txt");
+  });
+
+  // S-4 AC-3: verifying-and-adapting.md exists, instructs invoking the
+  // praxis:verifying-and-adapting skill against the spec + TDD summary +
+  // optional sketch, and acknowledges the read-only / no-validator semantics.
+  it("verifying-and-adapting.md exists and references the praxis:verifying-and-adapting skill + spec/TDD/sketch tokens + read-only constraint", () => {
+    const path = join(promptsDir, "verifying-and-adapting.md");
+    expect(existsSync(path)).toBe(true);
+    const text = readFileSync(path, "utf8");
+    expect(text).toContain("praxis:verifying-and-adapting");
+    expect(text).toContain("{{artifacts.clarify-assess.path}}");
+    expect(text).toContain("{{artifacts.driving-tdd.path}}");
+    expect(text).toContain("{{artifacts.sketching-design.path}}");
+    expect(text).toContain("06-verifying-and-adapting.md");
+    // Read-only constraint mirrors sketching-design's "Do not modify any
+    // files yourself" line.
+    expect(text.toLowerCase()).toContain("read-only");
+    // No-validator semantics — the skill's multiple valid output shapes pass
+    // through verbatim.
+    expect(text.toLowerCase()).toContain("no validator");
   });
 
   // S-2 AC-3: sketching-design.md exists, instructs invoking the

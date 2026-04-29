@@ -5,6 +5,7 @@ import {
   CODE_IMPROVING_ID,
   CODE_REVIEWING_ID,
   defaultWorkflow,
+  VERIFYING_AND_ADAPTING_ID,
 } from "../config/defaults.js";
 import type { PraxisConfig, StageConfig } from "../config/schema.js";
 import { currentHead } from "../git/status.js";
@@ -33,7 +34,7 @@ export type RunWorkflowContext = {
    * runner advances to the next stage instead of returning paused.
    */
   noPause?: boolean;
-  /** Override the default 6-stage workflow (tests). */
+  /** Override the default 7-stage workflow (tests). */
   config?: PraxisConfig;
   /**
    * Parent abort signal — when fired, the in-flight stage is aborted as
@@ -308,7 +309,7 @@ async function runOneStage(
 
   // M-2: compose the artifact's final content BEFORE the first write so each
   // terminal path performs at most one writeFileSync. The auto-commit stage
-  // is special — its final 06-commit.txt is the SHA-prefixed form ONLY when
+  // is special — its final 07-commit.txt is the SHA-prefixed form ONLY when
   // the commit lands; we therefore defer the write past `deps.commit()` and
   // pass through one of three branches:
   //
@@ -340,9 +341,9 @@ async function runOneStage(
   }
 
   // S-006 AC-4/AC-6: hand the message (verbatim finalText) to the git seam.
-  // On {ok:true, sha}, the SHA is prepended onto 06-commit.txt and stamped on
+  // On {ok:true, sha}, the SHA is prepended onto 07-commit.txt and stamped on
   // the stage state. On {ok:false}, the stage is flipped to failed/
-  // commit_failed; 06-commit.txt keeps the agent message only (no SHA prefix).
+  // commit_failed; 07-commit.txt keeps the agent message only (no SHA prefix).
   // Skip path (clean tree pre-stage) is handled at the top of this fn.
   let artifactPath: string;
   if (stage.id === AUTO_COMMIT_ID) {
@@ -375,7 +376,7 @@ async function runOneStage(
       // commitOutcome.skipped === true: commit() saw a clean tree mid-stage.
       // No SHA, no artifact — the agent's message is meaningless without a
       // real commit, and there is no path through which a downstream consumer
-      // expects 06-commit.txt to exist in this state.
+      // expects 07-commit.txt to exist in this state.
       artifactPath = join(runDir, stage.outputArtifact);
     }
     state.stages[stage.id] = stageState;
@@ -413,19 +414,20 @@ async function runOneStage(
 }
 
 /**
- * S-006 AC-5 + S-003 AC-1/AC-2 + S-3 AC-5: skip the SDK call for any of the
- * three trailing stages (code-reviewing, code-improving, auto-commit) when
- * driving-tdd produced no commits — i.e. HEAD has not advanced past the
- * baseline captured at run start. The skill commits per AC, so HEAD is the
- * canonical signal that work landed; a dirty working tree without a commit
- * is noise (the skill discarded a red test, dropped a stray file, etc.) and
- * the trailing stages have nothing real to review, improve, or commit.
+ * S-006 AC-5 + S-003 AC-1/AC-2 + S-3 AC-5 + S-4 AC-5: skip the SDK call for
+ * any of the four trailing stages (code-reviewing, code-improving,
+ * verifying-and-adapting, auto-commit) when driving-tdd produced no commits
+ * — i.e. HEAD has not advanced past the baseline captured at run start. The
+ * skill commits per AC, so HEAD is the canonical signal that work landed; a
+ * dirty working tree without a commit is noise (the skill discarded a red
+ * test, dropped a stray file, etc.) and the trailing stages have nothing
+ * real to review, improve, verify, or commit.
  *
  * Synthesize a completed stage with stopReason "skipped" — no sessionId/
  * tokens/usd, no artifact written, no deps.commit hand-off. Once
- * code-reviewing skips on the unchanged HEAD, code-improving and auto-commit
- * see the same unchanged HEAD on entry and skip too, producing the cascading
- * "skipped" stopReason for all three.
+ * code-reviewing skips on the unchanged HEAD, the trailing stages see the
+ * same unchanged HEAD on entry and skip too, producing the cascading
+ * "skipped" stopReason for all four.
  *
  * Returns `null` when the stage is not eligible for clean-tree skip OR when
  * `currentHead` cannot be resolved — in the unresolvable case we fall through
@@ -443,7 +445,8 @@ function maybeSkipCleanTree(
   if (
     stage.id !== AUTO_COMMIT_ID &&
     stage.id !== CODE_REVIEWING_ID &&
-    stage.id !== CODE_IMPROVING_ID
+    stage.id !== CODE_IMPROVING_ID &&
+    stage.id !== VERIFYING_AND_ADAPTING_ID
   ) {
     return null;
   }
@@ -719,7 +722,7 @@ export type AdvanceWorkflowContext = {
   cwd: string;
   /** Disable pause gates (same semantics as `runWorkflow`'s `--no-pause`). */
   noPause?: boolean;
-  /** Override the default 6-stage workflow (tests). */
+  /** Override the default 7-stage workflow (tests). */
   config?: PraxisConfig;
   /** Parent abort signal — wired to SIGINT by the CLI. */
   signal?: AbortSignal;
@@ -976,7 +979,7 @@ export type RetryWorkflowContext = {
   cwd: string;
   /** Disable pause gates (same semantics as `runWorkflow`'s `--no-pause`). */
   noPause?: boolean;
-  /** Override the default 6-stage workflow (tests). */
+  /** Override the default 7-stage workflow (tests). */
   config?: PraxisConfig;
   /** Parent abort signal — wired to SIGINT by the CLI. */
   signal?: AbortSignal;
@@ -1148,7 +1151,7 @@ export async function retryWorkflow(
   reporter.stageStart(stage, idx + 1, config.workflow.length);
   // S-006: emit the retry headline AFTER stageStart and BEFORE the SDK
   // dispatch so terminal output reads
-  //   [5/6 code-improving] starting…
+  //   [5/7 code-improving] starting…
   //   praxis: retrying code-improving (resume <sess>) — sending "continue" (run <id>)
   // The session id surfaced is the *prior* (failed) one — that is what the
   // SDK is actually being asked to resume.

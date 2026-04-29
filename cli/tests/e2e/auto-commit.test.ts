@@ -133,8 +133,8 @@ describe("praxis run --no-pause lands one real auto-commit on top of the impleme
         encoding: "utf8",
       }).stdout.trim();
 
-      // S-2 6-stage shape: clarify-assess → sketching-design → implement →
-      // code-reviewing → code-improving → auto-commit.
+      // S-4 7-stage shape: clarify-assess → sketching-design → implement →
+      // code-reviewing → code-improving → verifying-and-adapting → auto-commit.
       let call = 0;
       const clarifyRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY) }],
@@ -153,6 +153,9 @@ describe("praxis run --no-pause lands one real auto-commit on top of the impleme
       const improveRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
       ]);
+      const verifyRecorder = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
+      ]);
       const commitRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_commit", "feat: add logout button") }],
       ]);
@@ -167,8 +170,9 @@ describe("praxis run --no-pause lands one real auto-commit on top of the impleme
         }
         if (call === 4) return reviewRecorder(input);
         if (call === 5) return improveRecorder(input);
-        if (call === 6) return commitRecorder(input);
-        throw new Error("unexpected SDK call beyond 6");
+        if (call === 6) return verifyRecorder(input);
+        if (call === 7) return commitRecorder(input);
+        throw new Error("unexpected SDK call beyond 7");
       };
 
       const result = await runWorkflow(
@@ -203,9 +207,9 @@ describe("praxis run --no-pause lands one real auto-commit on top of the impleme
       );
       expect(persisted.stages["auto-commit"].commitSha).toBe(newHead);
 
-      // 06-commit.txt is the SHA-prefixed form.
+      // S-4 AC-2: 07-commit.txt is the SHA-prefixed form.
       const commitArtifact = readFileSync(
-        join(result.runDir, "06-commit.txt"),
+        join(result.runDir, "07-commit.txt"),
         "utf8",
       );
       expect(commitArtifact).toBe(`${newHead}\n\nfeat: add logout button\n`);
@@ -248,6 +252,8 @@ describe("praxis advance lands one real commit (AC-9)", () => {
           },
           "sketching-design": { status: "pending" },
           "driving-tdd": { status: "pending" },
+          // S-4: verifying-and-adapting slot, pending alongside auto-commit.
+          "verifying-and-adapting": { status: "pending" },
           "auto-commit": { status: "pending" },
         },
       };
@@ -258,9 +264,9 @@ describe("praxis advance lands one real commit (AC-9)", () => {
         "utf8",
       );
 
-      // S-2 6-stage shape: advance from paused-after-clarify scripts
+      // S-4 7-stage shape: advance from paused-after-clarify scripts
       // sketching-design → implement → code-reviewing → code-improving →
-      // auto-commit.
+      // verifying-and-adapting → auto-commit.
       let call = 0;
       const sketchRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
@@ -276,6 +282,9 @@ describe("praxis advance lands one real commit (AC-9)", () => {
       const improveRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
       ]);
+      const verifyRecorder = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
+      ]);
       const commitRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_commit", "feat: bar") }],
       ]);
@@ -288,8 +297,9 @@ describe("praxis advance lands one real commit (AC-9)", () => {
         }
         if (call === 3) return reviewRecorder(input);
         if (call === 4) return improveRecorder(input);
-        if (call === 5) return commitRecorder(input);
-        throw new Error("unexpected SDK call beyond 5");
+        if (call === 5) return verifyRecorder(input);
+        if (call === 6) return commitRecorder(input);
+        throw new Error("unexpected SDK call beyond 6");
       };
 
       const result = await advanceWorkflow(

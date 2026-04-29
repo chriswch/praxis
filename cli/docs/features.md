@@ -57,7 +57,7 @@ The `praxis` Claude Code plugin's presence is **not** pre-flighted; a missing pl
 
 ## Workflow stages
 
-Six sequential stages, each running in a fresh Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) session. Stages communicate by writing artifact files; downstream stages reference them by absolute path and the agent reads them via the Read tool.
+Seven sequential stages, each running in a fresh Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) session. Stages communicate by writing artifact files; downstream stages reference them by absolute path and the agent reads them via the Read tool.
 
 ### Stage 0 — intent capture
 
@@ -108,11 +108,11 @@ Everything above `## Decision` is freeform skill output. Schema failure → harn
 
 **Trivial-change short-circuit.** When the change is trivial enough that formal review is wasted ceremony, the agent invokes `praxis:code-reviewing`, takes its built-in condensed/"review skipped" output verbatim, and appends `## Decision: skip-improve` with the skill's one-line rationale carried into `## Summary` (or wherever the condensed form puts it). Stage 4 then takes the decision-driven skip path (see §3.5).
 
-**No-commit skip (S-3).** If HEAD has not advanced past `state.baselineSha` at stage entry (driving-tdd produced no commits — its skill discarded a red test, dropped a stray scratch file, or otherwise did no work that landed), the stage is marked `completed`/`stopReason: "skipped"` — no SDK call, no artifact, no spend. Stages 5 and 6 cascade-skip downstream (they will see the same unchanged HEAD).
+**No-commit skip (S-3 + S-4).** If HEAD has not advanced past `state.baselineSha` at stage entry (driving-tdd produced no commits — its skill discarded a red test, dropped a stray scratch file, or otherwise did no work that landed), the stage is marked `completed`/`stopReason: "skipped"` — no SDK call, no artifact, no spend. Stages 5, 6, and 7 cascade-skip downstream (they will see the same unchanged HEAD); the four-stage cascade is `code-reviewing` → `code-improving` → `verifying-and-adapting` → `auto-commit`.
 
 ### §4.5 — Decision-driven skip on stage 5
 
-When `code-reviewing` ends with `## Decision: skip-improve`, the runner marks `code-improving` `completed`/`stopReason: "skipped-trivial"` without invoking the SDK or writing `05-code-improve.md`. Stage 6 (`auto-commit`) still runs — there are still per-AC commits to land alongside any final-touch tweaks — and `git diff` covers anything still in the working tree.
+When `code-reviewing` ends with `## Decision: skip-improve`, the runner marks `code-improving` `completed`/`stopReason: "skipped-trivial"` without invoking the SDK or writing `05-code-improve.md`. Stages 6 (`verifying-and-adapting`) and 7 (`auto-commit`) still run — there are still per-AC commits to verify and to land final-touch tweaks alongside — and `git diff` covers anything still in the working tree.
 
 ### Stage 5 — `code-improving`
 
@@ -125,17 +125,29 @@ The user prompt directs the agent to invoke the `praxis:code-improving` skill vi
 **Skip paths:**
 
 - **HEAD unchanged from baseline at stage 4 entry** (cascaded from upstream) → `completed`/`stopReason: "skipped"`. No SDK call, no artifact.
-- **Decision = `skip-improve`** on the upstream review → `completed`/`stopReason: "skipped-trivial"`. No SDK call, no artifact. Stage 6 still runs.
+- **Decision = `skip-improve`** on the upstream review → `completed`/`stopReason: "skipped-trivial"`. No SDK call, no artifact. Stages 6 and 7 still run.
 
 **Recovery.** A failed/cancelled `code-improving` is recoverable **only** via `praxis retry <run-id>`. `praxis advance` rejects the failed stage with the scoped error.
 
-### Stage 6 — `auto-commit`
+### Stage 6 — `verifying-and-adapting`
+
+Read-only verify-and-adapt via the `praxis:verifying-and-adapting` skill. `permissionMode: "default"`, allowlist `[Read, Glob, Grep, Bash, Skill]`. Pinned model `claude-opus-4-7`. 15-minute timeout. Auto-advances to `auto-commit`.
+
+The user prompt directs the agent to invoke the `praxis:verifying-and-adapting` skill via the `Skill` tool against the clarify-assess spec at `01-clarify-assess.md`, the driving-tdd summary at `03-driving-tdd.md`, and the optional sketching-design sketch at `02-sketching-design.md`; the skill walks the per-AC commit range via `git diff {{baselineSha}}..HEAD` and `git log {{baselineSha}}..HEAD`, reconciles spec-vs-reality, captures emerged design knowledge, and recommends the next action (done / next slice / rework / escalate). Re-emits the skill's output **verbatim** as the final assistant message.
+
+There is no validator on this stage — the skill's multiple valid output shapes (verification summary, trivial-skip line, routing recommendation, spec/slice-impact note) all pass through to `06-verifying-and-adapting.md` unchanged. Failure modes are the standard timeout / SIGINT path.
+
+**No-commit skip (S-4).** Inherits the same cascade-skip predicate as `code-reviewing` / `code-improving` / `auto-commit` — if HEAD has not advanced past `state.baselineSha` at stage entry, the stage is marked `completed`/`stopReason: "skipped"` (no SDK call, no artifact, no spend).
+
+The downstream `auto-commit` stage does NOT consume this artifact — verification feeds forward to the *next* slice (via the user's review of `06-verifying-and-adapting.md`), not to the next stage in this run.
+
+### Stage 7 — `auto-commit`
 
 Generates a Conventional-Commits message and lands a real commit. `permissionMode: "default"`, allowlist `[Bash]`. Pinned model `claude-haiku-4-5-20251001`. 5-minute timeout.
 
-Pre-stage check (S-3): if HEAD has not advanced past `state.baselineSha` before invoking the stage (driving-tdd produced no commits), the SDK call is skipped entirely; the stage is marked `completed`/`stopReason: "skipped"` (no sessionId/tokens/usd, no `06-commit.txt`, HEAD untouched).
+Pre-stage check (S-3): if HEAD has not advanced past `state.baselineSha` before invoking the stage (driving-tdd produced no commits), the SDK call is skipped entirely; the stage is marked `completed`/`stopReason: "skipped"` (no sessionId/tokens/usd, no `07-commit.txt`, HEAD untouched).
 
-Otherwise, after the agent emits the commit message, the harness runs `git add -A` and `git commit -m <message>` directly (not via the agent). On success, the new HEAD SHA is captured and `06-commit.txt` is written as `<40-char-sha>\n\n<message>\n`; the SHA also lands on `state.stages["auto-commit"].commitSha` and on the run-done line. On commit failure (e.g., missing git identity, pre-commit hook failure), the stage flips to `failed`/`stopReason: "commit_failed"` with git's stderr captured in `error`; `06-commit.txt` keeps the agent message verbatim (no SHA prefix). The user-prompt copy stays generic ("staged + unstaged changes") — `git diff` covers anything driving-tdd left uncommitted plus code-improve edits without per-stage attribution.
+Otherwise, after the agent emits the commit message, the harness runs `git add -A` and `git commit -m <message>` directly (not via the agent). On success, the new HEAD SHA is captured and `07-commit.txt` is written as `<40-char-sha>\n\n<message>\n`; the SHA also lands on `state.stages["auto-commit"].commitSha` and on the run-done line. On commit failure (e.g., missing git identity, pre-commit hook failure), the stage flips to `failed`/`stopReason: "commit_failed"` with git's stderr captured in `error`; `07-commit.txt` keeps the agent message verbatim (no SHA prefix). The user-prompt copy stays generic ("staged + unstaged changes") — `git diff` covers anything driving-tdd left uncommitted plus code-improve edits without per-stage attribution.
 
 > **Git identity required.** `git commit -m` needs `user.email` and `user.name` set, globally (`git config --global user.email …`) or per-repo. Missing identity surfaces as `commit_failed` with git's own actionable message.
 
@@ -177,14 +189,14 @@ Out-of-scope cases exit 1:
 
 Stdout/stderr formatting:
 
-- Stage start — `[N/6 stage-id] starting…` (`…` is U+2026).
-- Stage 0 (synthesised) — `[0/6 intent] captured → 00-intent.txt`.
+- Stage start — `[N/7 stage-id] starting…` (`…` is U+2026).
+- Stage 0 (synthesised) — `[0/7 intent] captured → 00-intent.txt`.
 - Streaming assistant text — wrapped to terminal width (default 80 cols when not a TTY), prefixed ` ›`, 3-space-aligned continuations. Long bodies (> 200 chars) summarised to the first sentence (`/[.!?](\s|$)/`); fallback to the first 200 chars + `…` when no boundary matches. Streaming deltas are coalesced for 100ms and force-flushed before any structural boundary line.
 - Tool use — `  › ToolName(brief)` where `brief` is the tool's salient input (Read/Edit/Write → `file_path`; Glob/Grep → `pattern`; Bash/Task → first 50 chars of `command`/`description`; `Skill` → `input.skill ?? input.name ?? ""`; unknown tools → empty).
 - Tool result — silent on success; `  ✗ ToolName failed` on failure.
 - Errors — written to stderr, multi-line OK; red when stderr is a TTY and `NO_COLOR` is unset.
-- Stage end — artifact path, then `[N/6 stage-id] session: <id> (claude --resume <id> to inspect)`.
-- Stage end (decision-driven skip on `code-improving`) — `[5/6 code-improving] skipped (skip-improve)`. No artifact path, no session id.
+- Stage end — artifact path, then `[N/7 stage-id] session: <id> (claude --resume <id> to inspect)`.
+- Stage end (decision-driven skip on `code-improving`) — `[5/7 code-improving] skipped (skip-improve)`. No artifact path, no session id.
 - Paused — `praxis: paused after <stage-id> — review .praxis/runs/<run-id>/<artifact>, then: praxis advance <run-id>`.
 - Resume (paused) — `praxis: resuming approved plan after <stage-id> (run <run-id>)`.
 - Recover — `praxis: recovering <stage-id> from on-disk artifact; re-validating (run <run-id>)`.
@@ -204,7 +216,8 @@ Each run writes to `<cwd>/.praxis/runs/<run-id>/`:
 - `03-driving-tdd.md` — agent finalText verbatim (always written, even on timeout/SIGINT — partial log preserved). Summarizes TDD cycles completed, ACs covered, files changed, and per-AC commit SHAs.
 - `04-code-review.md` — agent finalText verbatim (always written, even on validator failure). Carries the skill's native review template plus a final `## Decision` H2 (`proceed` | `skip-improve`). Not written on a clean-tree skip.
 - `05-code-improve.md` — agent finalText verbatim (improvement summary). Not written on either skip path (clean-tree or decision-driven `skipped-trivial`).
-- `06-commit.txt` — `<sha>\n\n<message>\n` on commit success; agent message verbatim on commit failure; not written on the skip path.
+- `06-verifying-and-adapting.md` — agent finalText verbatim (verification summary, trivial-skip line, routing recommendation, or spec/slice-impact note — all four pass through unchanged; no validator). Not written on the clean-tree skip path.
+- `07-commit.txt` — `<sha>\n\n<message>\n` on commit success; agent message verbatim on commit failure; not written on the skip path.
 
 Run-id format: `${YYYY-MM-DD-HHMM-UTC}-${4-char-hex}`. `startedAt` is ISO-8601 UTC at second precision.
 
@@ -293,7 +306,7 @@ interface Reporter {
 }
 ```
 
-`stageEnd` carries the persisted `stopReason` so the formatter can branch — currently the only consumer is the `[4/5 code-improving] skipped (skip-improve)` line for `stopReason: "skipped-trivial"`. The plain success / failure paths leave it undefined. `resuming` is invoked via `reporter.resuming?.(...)` so non-CLI reporters can skip it; `sessionId` is required for `kind: "retrying"` and omitted for `"approved"` / `"recovering"`.
+`stageEnd` carries the persisted `stopReason` so the formatter can branch — currently the only consumer is the `[5/7 code-improving] skipped (skip-improve)` line for `stopReason: "skipped-trivial"`. The plain success / failure paths leave it undefined. `resuming` is invoked via `reporter.resuming?.(...)` so non-CLI reporters can skip it; `sessionId` is required for `kind: "retrying"` and omitted for `"approved"` / `"recovering"`.
 
 ---
 
@@ -310,7 +323,7 @@ interface Reporter {
 
 ### Scripted-SDK e2e (in-suite, no real spend)
 
-- `tests/e2e/auto-commit.test.ts` drives all six stages (clarify-assess → sketching-design → driving-tdd → code-reviewing → code-improving → auto-commit) with a scripted SDK, real git, and the production `commit()`. HEAD advances by exactly two commits (driving-tdd's per-AC commit + auto-commit's final bundle); `state.commitSha` matches the new HEAD; `06-commit.txt` carries the SHA-prefixed form.
+- `tests/e2e/auto-commit.test.ts` drives all seven stages (clarify-assess → sketching-design → driving-tdd → code-reviewing → code-improving → verifying-and-adapting → auto-commit) with a scripted SDK, real git, and the production `commit()`. HEAD advances by exactly two commits (driving-tdd's per-AC commit + auto-commit's final bundle); `state.commitSha` matches the new HEAD; `07-commit.txt` carries the SHA-prefixed form.
 - `tests/e2e/retry-flow.test.ts` drives a SIGINT-cancelled `code-improving`, then `praxis retry` resumes the prior SDK session with `initialUserPrompt: "continue"`, the agent's improvement summary lands in `05-code-improve.md`, and `auto-commit` lands one real commit. The persisted `state.json` reflects `retryAttempts === 1` and the sessionId rotation.
 
 ### Real-SDK smoke (live, periodic)
@@ -328,7 +341,9 @@ The full pipeline has been exercised against the real `@anthropic-ai/claude-agen
 - Run `2026-04-28-0924-f628` — `add a small Python script scripts/today.py`. **6349 tokens, $0.6516.** Same shape: full review produced verbatim, decision = `skip-improve`, stage 4 short-circuited, commit `bd25f51` landed.
 - Run `2026-04-28-0928-0849` — `add src/userValidator.ts with email + password validators plus vitest tests`. **9573 tokens, $0.9207.** Five stages ran; `praxis:code-reviewing` skill produced a substantive 5-layer review (data structures, special cases, complexity, breaking changes, practicality) that found zero Critical/High/Medium findings and decided `skip-improve`. Commit `28a3ec4` landed.
 
-**6-stage runs (current shape, S-2 onwards):** No live-SDK smoke captured yet against the 6-stage workflow; scripted-SDK e2e (`tests/e2e/auto-commit.test.ts` and `tests/e2e/retry-flow.test.ts`) drives the full 6-stage pipeline against real git and the production `commit()` seam. Next live smoke against the real SDK should exercise `sketching-design` invoking `praxis:sketching-design`, the artifact landing at `02-sketching-design.md`, and the `[2/6 sketching-design] starting…` reporter line.
+**6-stage runs (legacy, S-2 only):** No live-SDK smoke was captured against the 6-stage workflow before S-4 inserted the verifying-and-adapting stage; scripted-SDK e2e (`tests/e2e/auto-commit.test.ts` and `tests/e2e/retry-flow.test.ts`) drove the full 6-stage pipeline against real git and the production `commit()` seam.
+
+**7-stage runs (current shape, S-4 onwards):** No live-SDK smoke captured yet against the 7-stage workflow; scripted-SDK e2e drives the full 7-stage pipeline. Next live smoke against the real SDK should exercise `verifying-and-adapting` invoking `praxis:verifying-and-adapting`, the artifact landing at `06-verifying-and-adapting.md`, and the `[6/7 verifying-and-adapting] starting…` / `[7/7 auto-commit] starting…` reporter lines.
 
 **`praxis retry` live CLI guards** — exercised against a completed run-id, a malformed run-id, and a non-existent valid-format run-id. All three matched the milestone's spec messages exactly: "run is already complete" / "invalid run-id: <id>. Expected shape …" with exit 1 on the malformed cases.
 

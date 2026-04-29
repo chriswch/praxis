@@ -196,19 +196,24 @@ describe("praxis run --no-pause then praxis retry lands one real commit (S-008)"
         }).stdout.trim(),
       ).toBe(baselineSha);
 
-      // SECOND PASS (retry): code-improving resumes successfully; auto-commit
-      // runs against the still-dirty tree and lands a real commit.
+      // SECOND PASS (retry): code-improving resumes successfully;
+      // verifying-and-adapting runs (S-4); auto-commit runs against the
+      // still-dirty tree and lands a real commit.
       let retryCall = 0;
       const improveResumeRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_improve_retry", IMPROVE_LOG) }],
       ]) as RecordingCreateQueryFn;
+      const verifyRecorder = recordingScriptedQuery([
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
+      ]);
       const commitRecorder = recordingScriptedQuery([
         [{ messages: stageMessages("sess_commit", "feat: add logout button") }],
       ]);
       const retryCreateQueryFn: CreateQueryFn = (input) => {
         retryCall++;
         if (retryCall === 1) return improveResumeRecorder(input);
-        if (retryCall === 2) return commitRecorder(input);
+        if (retryCall === 2) return verifyRecorder(input);
+        if (retryCall === 3) return commitRecorder(input);
         throw new Error(`unexpected SDK call ${retryCall} in retry pass`);
       };
 
@@ -265,8 +270,8 @@ describe("praxis run --no-pause then praxis retry lands one real commit (S-008)"
       expect(finalState.stages["auto-commit"].status).toBe("completed");
       expect(finalState.stages["auto-commit"].commitSha).toBe(newHead);
 
-      // 06-commit.txt is the SHA-prefixed form.
-      expect(readFileSync(join(runDir, "06-commit.txt"), "utf8")).toBe(
+      // S-4 AC-2: 07-commit.txt is the SHA-prefixed form.
+      expect(readFileSync(join(runDir, "07-commit.txt"), "utf8")).toBe(
         `${newHead}\n\nfeat: add logout button\n`,
       );
       // 05-code-improve.md holds the retry's improvement summary.

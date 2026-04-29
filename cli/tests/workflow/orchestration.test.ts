@@ -282,17 +282,18 @@ describe("runWorkflow clarify-assess happy path (AC-5 + AC-8)", () => {
         false,
       );
       expect(existsSync(join(result.runDir, "03-driving-tdd.md"))).toBe(false);
-      expect(existsSync(join(result.runDir, "06-commit.txt"))).toBe(false);
+      // S-4: auto-commit artifact bumped 06 → 07.
+      expect(existsSync(join(result.runDir, "07-commit.txt"))).toBe(false);
     });
   });
 });
 
-// S-2 AC-6: pause-after-clarify; `praxis advance` resumes into
-// sketching-design (the new stage 2 of 6), and the reporter's stageStart for
-// that resume carries (index=2, total=6) so the line reads
-// `[2/6 sketching-design] starting…`.
-describe("S-2 AC-6: pause-after-clarify advances into sketching-design", () => {
-  it("paused run + advance dispatches sketching-design as stage 2/6 (no longer implement at 2/5)", async () => {
+// S-2 AC-6 + S-4 AC-10: pause-after-clarify; `praxis advance` resumes into
+// sketching-design (now stage 2 of 7), and the reporter's stageStart for
+// that resume carries (index=2, total=7) so the line reads
+// `[2/7 sketching-design] starting…`.
+describe("S-2 AC-6 + S-4 AC-10: pause-after-clarify advances into sketching-design", () => {
+  it("paused run + advance dispatches sketching-design as stage 2/7 (regression: now /7 after S-4 inserted verifying-and-adapting)", async () => {
     const { advanceWorkflow } = await import("../../src/workflow/runner.js");
     const { RecordingReporter } = await import(
       "../support/recording-reporter.js"
@@ -379,9 +380,9 @@ describe("S-2 AC-6: pause-after-clarify advances into sketching-design", () => {
       );
       expect(sketchStart).toBeDefined();
       if (sketchStart && sketchStart.kind === "stageStart") {
-        // [2/6 sketching-design] starting…
+        // S-4 AC-10: [2/7 sketching-design] starting…
         expect(sketchStart.index).toBe(2);
-        expect(sketchStart.total).toBe(6);
+        expect(sketchStart.total).toBe(7);
       }
       // 02-sketching-design.md was written by the resumed stage.
       expect(

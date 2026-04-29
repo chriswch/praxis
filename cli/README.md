@@ -1,25 +1,26 @@
 # Praxis CLI
 
-A CLI that drives an AI coding agent through a deterministic, resumable workflow. State your intent in one line; Praxis handles clarification, design, TDD, and commit.
+A CLI that drives an AI coding agent through a deterministic, resumable workflow. State your intent in one line; Praxis handles clarification, design, TDD, verification, and commit.
 
-> **Status: v0.2 shipped.** `praxis run "<intent>"` drives all six stages and lands a real `git commit`; `praxis advance <run-id>` resumes a paused run or recovers a failed/cancelled `clarify-assess` or `code-reviewing` stage from its on-disk artifact; `praxis retry <run-id>` resumes a failed `code-improving` session. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for known gaps and the roadmap.
+> **Status: v0.2 shipped.** `praxis run "<intent>"` drives all seven stages and lands a real `git commit`; `praxis advance <run-id>` resumes a paused run or recovers a failed/cancelled `clarify-assess` or `code-reviewing` stage from its on-disk artifact; `praxis retry <run-id>` resumes a failed `code-improving` session. See [docs/features.md](docs/features.md) for shipped behavior and [docs/backlog.md](docs/backlog.md) for known gaps and the roadmap.
 
 > **Git identity required.** `git commit -m` needs `user.email` and `user.name` set (globally via `git config --global user.email …` or per-repo via `git config user.email …`). On a machine with no identity configured, the auto-commit stage will land in `failed`/`stopReason: "commit_failed"` with git's "Please tell me who you are" error captured as the reason.
 
 ## What it does
 
-Six sequential, artifact-mediated stages, each running in a fresh Claude Agent SDK session:
+Seven sequential, artifact-mediated stages, each running in a fresh Claude Agent SDK session:
 
 1. **`clarify-assess`** — read-only repo survey, restates intent, surfaces gaps, emits a plan with acceptance criteria. Pauses for human review.
 2. **`sketching-design`** — read-only design sketch via the `praxis:sketching-design` skill. Locates affected files and proposes one direction — just enough context to write the first failing test. No validator; the skill may emit a sketch, a "skipped" line, or a `## Spec Issue` H2.
 3. **`driving-tdd`** — full-tools execution against the working tree via the `praxis:driving-tdd` skill. Drives Red → Green → Refactor cycles and lands one commit per acceptance criterion.
 4. **`code-reviewing`** — read-only quality review of the per-AC commits the driving-tdd stage landed (walked via `git diff {{baselineSha}}..HEAD` / `git log {{baselineSha}}..HEAD`) via the `praxis:code-reviewing` skill. Emits a `## Decision` (`proceed` or `skip-improve`) that gates stage 5.
 5. **`code-improving`** — applies fixes from the review via the `praxis:code-improving` skill. Skipped when stage 4's decision is `skip-improve`.
-6. **`auto-commit`** — generates a Conventional-Commits message and runs `git add -A && git commit` to bundle anything the driving-tdd skill left uncommitted. The harness performs the commit directly (not via the agent), captures the new SHA, and prepends it onto `06-commit.txt`. When driving-tdd produced no commits (HEAD unchanged from the baseline), this stage and the two preceding it cascade-skip.
+6. **`verifying-and-adapting`** — read-only verify-and-adapt via the `praxis:verifying-and-adapting` skill. Walks the per-AC commits, reconciles spec-vs-reality, captures emerged design knowledge, and recommends the next action (done / next slice / rework / escalate). No validator; the skill emits a verification summary, a trivial-skip, a routing recommendation, or a spec/slice-impact note.
+7. **`auto-commit`** — generates a Conventional-Commits message and runs `git add -A && git commit` to bundle anything the driving-tdd skill left uncommitted. The harness performs the commit directly (not via the agent), captures the new SHA, and prepends it onto `07-commit.txt`. When driving-tdd produced no commits (HEAD unchanged from the baseline), this stage and the three preceding it cascade-skip.
 
 Stages communicate by writing artifact files to `.praxis/runs/<run-id>/`; downstream stages read them by path. The `clarify-assess` and `code-reviewing` artifacts have fixed H2 schemas validated by the harness.
 
-> **Plugin required.** Stages 2, 3, 4, and 5 invoke skills from the `praxis` Claude Code plugin (`praxis:sketching-design`, `praxis:driving-tdd`, `praxis:code-reviewing`, and `praxis:code-improving`). Install via `/plugin install praxis@<marketplace>` (see `.claude-plugin/marketplace.json` in the repo root). Plugin presence is not pre-flighted — a missing plugin surfaces as a `code-reviewing` validator failure (the agent emits "skill not found" in its final text; the harness flags the schema violation as a normal validator failure).
+> **Plugin required.** Stages 2, 3, 4, 5, and 6 invoke skills from the `praxis` Claude Code plugin (`praxis:sketching-design`, `praxis:driving-tdd`, `praxis:code-reviewing`, `praxis:code-improving`, and `praxis:verifying-and-adapting`). Install via `/plugin install praxis@<marketplace>` (see `.claude-plugin/marketplace.json` in the repo root). Plugin presence is not pre-flighted — a missing plugin surfaces as a `code-reviewing` validator failure (the agent emits "skill not found" in its final text; the harness flags the schema violation as a normal validator failure).
 
 ## Usage
 
@@ -123,12 +124,13 @@ After the run completes, check each:
 - [ ] `.praxis/runs/<run-id>/03-driving-tdd.md` is the agent's verbatim driving-tdd-stage finalText (TDD cycles completed, ACs covered, files changed, per-AC commit SHAs).
 - [ ] `.praxis/runs/<run-id>/04-code-review.md` exists with a valid `## Decision` H2 block whose body trims to `proceed` or `skip-improve`.
 - [ ] `.praxis/runs/<run-id>/05-code-improve.md` exists with the improvement summary verbatim — OR stage 5 was marked `completed`/`stopReason: "skipped-trivial"` because stage 4 returned `skip-improve` (in which case no `05-code-improve.md` is written).
-- [ ] `.praxis/runs/<run-id>/06-commit.txt` starts with a 40-char SHA followed by `\n\n` and the commit message.
-- [ ] `git log -1 --pretty=%H` matches the SHA in `06-commit.txt` and `state.json`'s `stages["auto-commit"].commitSha`.
+- [ ] `.praxis/runs/<run-id>/06-verifying-and-adapting.md` is the agent's verbatim verifying-and-adapting-stage finalText (a verification summary, a trivial-skip line, a routing recommendation, or a spec/slice-impact note — all valid).
+- [ ] `.praxis/runs/<run-id>/07-commit.txt` starts with a 40-char SHA followed by `\n\n` and the commit message.
+- [ ] `git log -1 --pretty=%H` matches the SHA in `07-commit.txt` and `state.json`'s `stages["auto-commit"].commitSha`.
 - [ ] `git log -1 --pretty=%s` is a Conventional-Commits style subject (e.g. `feat: …`, `docs: …`).
 - [ ] The new commit's tree contains the file the intent asked for (here, `CONTRIBUTING.md`).
 - [ ] `state.json` shows every stage `status: "completed"`, each with a populated `sessionId`, `tokens`, `usd`, and `endedAt`; `cost.totalTokens` and `cost.totalUsd` aggregate. Stages skipped via `skipped` / `skipped-trivial` have no `sessionId` / `tokens` / `usd`.
-- [ ] The reporter printed: `[0/6 intent] captured → 00-intent.txt`, `[1/6 clarify-assess] starting…`, `[2/6 sketching-design] starting…`, `[3/6 driving-tdd] starting…`, `[4/6 code-reviewing] starting…`, `[5/6 code-improving] starting…` (or the skip line `[5/6 code-improving] skipped (skip-improve)`), `[6/6 auto-commit] starting…`, and `[run <run-id>] done — commit <sha>, <tokens> tokens, $<usd>`.
+- [ ] The reporter printed: `[0/7 intent] captured → 00-intent.txt`, `[1/7 clarify-assess] starting…`, `[2/7 sketching-design] starting…`, `[3/7 driving-tdd] starting…`, `[4/7 code-reviewing] starting…`, `[5/7 code-improving] starting…` (or the skip line `[5/7 code-improving] skipped (skip-improve)`), `[6/7 verifying-and-adapting] starting…`, `[7/7 auto-commit] starting…`, and `[run <run-id>] done — commit <sha>, <tokens> tokens, $<usd>`.
 - [ ] `.gitignore` contains a single `.praxis/` line (idempotent on re-run).
 - [ ] `claude --resume <session-id>` (one of the printed ids) loads a real transcript, confirming session ids are valid.
 
@@ -136,7 +138,7 @@ After the run completes, check each:
 
 Run each in a fresh throwaway repo. They exercise paths the scripted suite covers in unit form but not against the real SDK.
 
-- **No-commit skip:** Run `--no-pause` against a repo where the driving-tdd stage produces no commits (e.g. an intent like "list the files in src/ and explain each"). Expect: stages `code-reviewing`, `code-improving`, and `auto-commit` all `completed`/`stopReason: "skipped"`, no `04-code-review.md`, `05-code-improve.md`, or `06-commit.txt`, no new commit. (`sketching-design` still runs — it is read-only and not part of the cascade-skip set.)
+- **No-commit skip:** Run `--no-pause` against a repo where the driving-tdd stage produces no commits (e.g. an intent like "list the files in src/ and explain each"). Expect: stages `code-reviewing`, `code-improving`, `verifying-and-adapting`, and `auto-commit` all `completed`/`stopReason: "skipped"`, no `04-code-review.md`, `05-code-improve.md`, `06-verifying-and-adapting.md`, or `07-commit.txt`, no new commit. (`sketching-design` still runs — it is read-only and not part of the cascade-skip set.)
 - **Recovery from validator failure:** During the paused review of `01-clarify-assess.md`, hand-edit the file to violate the H2 schema (e.g. delete the `## Acceptance` heading), then `praxis advance <run-id>`. Expect: exit 1 with the validator reason; restore the file; advance again succeeds with `stopReason: "recovered"` and zero new spend on that stage.
 - **`--allow-dirty` bundling:** In a repo with one pre-existing untracked file, run `praxis run --allow-dirty --no-pause "<intent>"`. Expect: the auto-commit's `git show --name-only HEAD` lists the pre-existing file alongside the intent's new files (documented trade-off).
 - **SIGINT during driving-tdd:** Start `praxis run --no-pause "<long intent>"`, Ctrl-C while driving-tdd is mid-stream. Expect: `state.stages["driving-tdd"].status === "cancelled"`, `stopReason: "sigint"`, partial `03-driving-tdd.md` written, downstream stages not executed.

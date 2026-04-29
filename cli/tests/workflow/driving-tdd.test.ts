@@ -117,6 +117,8 @@ function pausedAfterClarifyState(): State {
       },
       "sketching-design": { status: "pending" },
       "driving-tdd": { status: "pending" },
+      // S-4: verifying-and-adapting slot, pending alongside auto-commit.
+      "verifying-and-adapting": { status: "pending" },
       "auto-commit": { status: "pending" },
     },
   };
@@ -256,21 +258,22 @@ function happyDrivingTddMessages(sessionId = "sess_impl"): SdkMessage[] {
 }
 
 describe("advance from paused clarify-assess runs driving-tdd + auto-commit (AC-2)", () => {
-  it("writes 03-driving-tdd.md verbatim, rewrites 06-commit.txt with the SHA prepended, captures commitSha in state, calls deps.commit with (cwd, finalText)", async () => {
+  it("writes 03-driving-tdd.md verbatim, rewrites 07-commit.txt with the SHA prepended, captures commitSha in state, calls deps.commit with (cwd, finalText)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const runDir = seedPausedRun(cwd);
 
       const implementLog =
         "## Files changed\n\n- src/Foo.tsx — added logout button\n";
       const commitMessage = "feat: add logout button";
-      // S-2 6-stage shape: sketching-design → implement → code-reviewing →
-      // code-improving → auto-commit (clarify-assess already completed in
-      // seedPausedRun).
+      // S-4 7-stage shape: sketching-design → implement → code-reviewing →
+      // code-improving → verifying-and-adapting → auto-commit (clarify-assess
+      // already completed in seedPausedRun).
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", implementLog) }],
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
         [{ messages: stageMessages("sess_commit", commitMessage) }],
       ]);
       const fakeSha = "abcdef0123456789abcdef0123456789abcdef01";
@@ -287,8 +290,9 @@ describe("advance from paused clarify-assess runs driving-tdd + auto-commit (AC-
       expect(readFileSync(join(runDir, "03-driving-tdd.md"), "utf8")).toBe(
         implementLog,
       );
-      // S-006 AC-4: 06-commit.txt rewritten with `<sha>\n\n<message>\n`.
-      expect(readFileSync(join(runDir, "06-commit.txt"), "utf8")).toBe(
+      // S-006 AC-4 + S-4 AC-2: 07-commit.txt rewritten with
+      // `<sha>\n\n<message>\n`.
+      expect(readFileSync(join(runDir, "07-commit.txt"), "utf8")).toBe(
         `${fakeSha}\n\n${commitMessage}\n`,
       );
 
@@ -297,6 +301,9 @@ describe("advance from paused clarify-assess runs driving-tdd + auto-commit (AC-
         readFileSync(join(runDir, "state.json"), "utf8"),
       );
       expect(persisted.stages["driving-tdd"].status).toBe("completed");
+      expect(persisted.stages["verifying-and-adapting"].status).toBe(
+        "completed",
+      );
       expect(persisted.stages["auto-commit"].status).toBe("completed");
       expect(persisted.stages["driving-tdd"].sessionId).toBe("sess_impl");
       expect(persisted.stages["auto-commit"].sessionId).toBe("sess_commit");
@@ -363,8 +370,8 @@ describe("driving-tdd timeout (AC-4)", () => {
       expect(existsSync(join(result.runDir!, "03-driving-tdd.md"))).toBe(
         true,
       );
-      // 06-commit.txt must NOT exist.
-      expect(existsSync(join(result.runDir!, "06-commit.txt"))).toBe(false);
+      // 07-commit.txt must NOT exist.
+      expect(existsSync(join(result.runDir!, "07-commit.txt"))).toBe(false);
 
       // deps.commit was never invoked.
       expect(commit.calls.length).toBe(0);
@@ -426,7 +433,7 @@ describe("driving-tdd SIGINT (AC-5)", () => {
       expect(existsSync(join(result.runDir!, "03-driving-tdd.md"))).toBe(
         true,
       );
-      expect(existsSync(join(result.runDir!, "06-commit.txt"))).toBe(false);
+      expect(existsSync(join(result.runDir!, "07-commit.txt"))).toBe(false);
       expect(commit.calls.length).toBe(0);
       // S-2: three SDK calls — clarify, sketch, implement-hang.
       expect(call).toBe(3);
@@ -437,15 +444,16 @@ describe("driving-tdd SIGINT (AC-5)", () => {
 describe("fresh SDK session per stage (AC-10)", () => {
   it("clarify-assess sessionId is not reused downstream; each stage call gets its own AbortSignal", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
-      // S-2 6-stage shape — each stage gets its own scripted SDK call.
+      // S-4 7-stage shape — each stage gets its own scripted SDK call.
       // S-3 AC-7: implement (call idx 2) commits so HEAD advances past
-      // baselineSha and the trailing three stages dispatch.
+      // baselineSha and the trailing four stages dispatch.
       const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "implement log\n") }],
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
         [{ messages: stageMessages("sess_commit", "chore: noop") }],
       ]);
       const result = await runWorkflow(
@@ -454,12 +462,12 @@ describe("fresh SDK session per stage (AC-10)", () => {
       );
       if (!result.ok) throw new Error(result.reason);
 
-      // Six distinct SDK invocations.
-      expect(recording.calls.length).toBe(6);
+      // S-4: seven distinct SDK invocations.
+      expect(recording.calls.length).toBe(7);
 
       // Each invocation got its own AbortSignal (not shared).
       const sigs = recording.calls.map((c) => c.input.signal);
-      expect(new Set(sigs).size).toBe(6);
+      expect(new Set(sigs).size).toBe(7);
 
       // Distinct sessionIds persisted.
       const persisted = JSON.parse(
@@ -471,14 +479,18 @@ describe("fresh SDK session per stage (AC-10)", () => {
         persisted.stages["driving-tdd"].sessionId,
         persisted.stages["code-reviewing"].sessionId,
         persisted.stages["code-improving"].sessionId,
+        persisted.stages["verifying-and-adapting"].sessionId,
         persisted.stages["auto-commit"].sessionId,
       ];
-      expect(new Set(sessionIds).size).toBe(6);
+      expect(new Set(sessionIds).size).toBe(7);
       expect(persisted.stages["clarify-assess"].sessionId).toBe("sess_clarify");
       expect(persisted.stages["sketching-design"].sessionId).toBe("sess_sketch");
       expect(persisted.stages["driving-tdd"].sessionId).toBe("sess_impl");
       expect(persisted.stages["code-reviewing"].sessionId).toBe("sess_review");
       expect(persisted.stages["code-improving"].sessionId).toBe("sess_improve");
+      expect(persisted.stages["verifying-and-adapting"].sessionId).toBe(
+        "sess_verify",
+      );
       expect(persisted.stages["auto-commit"].sessionId).toBe("sess_commit");
     });
   });
@@ -493,14 +505,15 @@ describe("03-driving-tdd.md is verbatim finalText (AC-8)", () => {
       const implementLog = "## Files changed\n\n- a.ts\n- b.ts";
       expect(implementLog.endsWith("\n")).toBe(false);
 
-      // S-2 6-stage shape: advance from paused-after-clarify must script
+      // S-4 7-stage shape: advance from paused-after-clarify must script
       // sketching-design → implement → code-reviewing → code-improving →
-      // auto-commit.
+      // verifying-and-adapting → auto-commit.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", implementLog) }],
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
         [{ messages: stageMessages("sess_commit", "chore: noop") }],
       ]);
       const result = await advanceWorkflow(
@@ -633,17 +646,18 @@ describe("runStage translates driving-tdd tool_use/tool_result blocks to AgentEv
   });
 });
 
-describe("S-3 AC-10: scripted 6-stage e2e records [3/6 driving-tdd] on the reporter", () => {
-  it("recording reporter sees stageStart for driving-tdd at index=3, total=6", async () => {
+describe("S-4 AC-9: scripted 7-stage e2e records [3/7 driving-tdd] and [6/7 verifying-and-adapting] and [7/7 auto-commit] on the reporter", () => {
+  it("recording reporter sees stageStart for driving-tdd at index=3, total=7; verifying-and-adapting at 6/7; auto-commit at 7/7", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // S-3 AC-7: implement (call idx 2) commits so HEAD advances and the
-      // trailing three stages dispatch.
+      // trailing four stages dispatch.
       const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
         [{ messages: stageMessages("sess_impl", "## TDD log\n\n- AC-1 green\n") }],
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
         [{ messages: stageMessages("sess_commit", "feat: x") }],
       ]);
       const reporter = new RecordingReporter();
@@ -656,37 +670,50 @@ describe("S-3 AC-10: scripted 6-stage e2e records [3/6 driving-tdd] on the repor
       const stageStarts = reporter.calls.flatMap((c) =>
         c.kind === "stageStart" ? [c] : [],
       );
-      // Six stageStart events total, one per stage, in workflow order.
+      // S-4: seven stageStart events total, one per stage, in workflow order.
       expect(stageStarts.map((s) => s.stageId)).toEqual([
         "clarify-assess",
         "sketching-design",
         "driving-tdd",
         "code-reviewing",
         "code-improving",
+        "verifying-and-adapting",
         "auto-commit",
       ]);
-      // The driving-tdd stage MUST be reported as 3 of 6 — the line is what
-      // the user sees on the terminal, and a regression here would surface
-      // as a stale `[3/5 implement]` from the pre-S-2/S-3 days.
+      // The driving-tdd stage MUST be reported as 3 of 7.
       const drivingTddStart = stageStarts.find(
         (s) => s.stageId === "driving-tdd",
       );
       expect(drivingTddStart).toBeDefined();
       expect(drivingTddStart!.index).toBe(3);
-      expect(drivingTddStart!.total).toBe(6);
+      expect(drivingTddStart!.total).toBe(7);
+      // S-4 AC-9: verifying-and-adapting at 6/7, auto-commit at 7/7.
+      const verifyStart = stageStarts.find(
+        (s) => s.stageId === "verifying-and-adapting",
+      );
+      expect(verifyStart).toBeDefined();
+      expect(verifyStart!.index).toBe(6);
+      expect(verifyStart!.total).toBe(7);
+      const autoCommitStart = stageStarts.find(
+        (s) => s.stageId === "auto-commit",
+      );
+      expect(autoCommitStart).toBeDefined();
+      expect(autoCommitStart!.index).toBe(7);
+      expect(autoCommitStart!.total).toBe(7);
     });
   });
 });
 
-describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () => {
-  it("noPause: true drives clarify-assess → sketching-design → driving-tdd → code-reviewing → code-improving → auto-commit; commit fires once with the auto-commit finalText", async () => {
+describe("runWorkflow --no-pause runs all 7 stages in one shot (AC-3, S-2, S-4)", () => {
+  it("noPause: true drives clarify-assess → sketching-design → driving-tdd → code-reviewing → code-improving → verifying-and-adapting → auto-commit; commit fires once with the auto-commit finalText", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const implementLog =
         "## Files changed\n\n- src/Foo.tsx — added logout button\n";
       const commitMessage = "feat: add logout button";
       const sketchLog = "## Sketch\n\n- start at src/Foo.tsx\n";
+      const verifyLog = "## Verification\n\n- all ACs covered\n";
       // S-3 AC-7: implement (call idx 2) commits so HEAD advances past
-      // baselineSha and the trailing three stages dispatch.
+      // baselineSha and the trailing four stages dispatch.
       const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         // clarify-assess: emit a valid artifact so the validator passes.
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
@@ -698,6 +725,8 @@ describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () 
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         // code-improving.
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        // S-4: verifying-and-adapting.
+        [{ messages: stageMessages("sess_verify", verifyLog) }],
         // auto-commit.
         [{ messages: stageMessages("sess_commit", commitMessage) }],
       ]);
@@ -710,8 +739,8 @@ describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () 
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
       expect(result.paused).toBe(false);
 
-      // S-2: all six SDK stages executed.
-      expect(recording.calls.length).toBe(6);
+      // S-4: all seven SDK stages executed.
+      expect(recording.calls.length).toBe(7);
 
       // Per-stage state.json transitions.
       const persisted = JSON.parse(
@@ -722,9 +751,12 @@ describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () 
       expect(persisted.stages["driving-tdd"].status).toBe("completed");
       expect(persisted.stages["code-reviewing"].status).toBe("completed");
       expect(persisted.stages["code-improving"].status).toBe("completed");
+      expect(persisted.stages["verifying-and-adapting"].status).toBe(
+        "completed",
+      );
       expect(persisted.stages["auto-commit"].status).toBe("completed");
 
-      // Artifacts written verbatim — except 06-commit.txt which the runner
+      // Artifacts written verbatim — except 07-commit.txt which the runner
       // rewrites with the SHA prepended (S-006 AC-4).
       expect(
         readFileSync(join(result.runDir, "01-clarify-assess.md"), "utf8"),
@@ -741,8 +773,16 @@ describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () 
       expect(
         readFileSync(join(result.runDir, "05-code-improve.md"), "utf8"),
       ).toBe(IMPROVE_LOG);
+      // S-4 AC-1: verifying-and-adapting artifact landed verbatim.
+      expect(
+        readFileSync(
+          join(result.runDir, "06-verifying-and-adapting.md"),
+          "utf8",
+        ),
+      ).toBe(verifyLog);
       const expectedSha = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
-      expect(readFileSync(join(result.runDir, "06-commit.txt"), "utf8")).toBe(
+      // S-4 AC-2: auto-commit artifact bumped 06 → 07.
+      expect(readFileSync(join(result.runDir, "07-commit.txt"), "utf8")).toBe(
         `${expectedSha}\n\n${commitMessage}\n`,
       );
       expect(persisted.stages["auto-commit"].commitSha).toBe(expectedSha);
@@ -757,7 +797,7 @@ describe("runWorkflow --no-pause runs all 6 stages in one shot (AC-3, S-2)", () 
 describe("RunSummary.commitSha plumbed from auto-commit state (S-006 AC-7)", () => {
   it("summarize() reads state.stages['auto-commit'].commitSha and surfaces it on runDone's RunSummary", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
-      // S-2 6-stage shape. S-3 AC-7: implement commits so HEAD advances and
+      // S-4 7-stage shape. S-3 AC-7: implement commits so HEAD advances and
       // cascade dispatches.
       const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
@@ -765,6 +805,7 @@ describe("RunSummary.commitSha plumbed from auto-commit state (S-006 AC-7)", () 
         [{ messages: stageMessages("sess_impl", "log\n") }],
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
         [{ messages: stageMessages("sess_commit", "feat: x") }],
       ]);
       const sha = "1234567890abcdef1234567890abcdef12345678";
@@ -786,8 +827,8 @@ describe("RunSummary.commitSha plumbed from auto-commit state (S-006 AC-7)", () 
   });
 });
 
-describe("RunSummary.perStage covers all 6 stages on the proceed happy path (S-006, S-2)", () => {
-  it("runDone receives a perStage row for every stage that ran (6 SDK calls → 6 entries with tokens + sessionId)", async () => {
+describe("RunSummary.perStage covers all 7 stages on the proceed happy path (S-006, S-2, S-4)", () => {
+  it("runDone receives a perStage row for every stage that ran (7 SDK calls → 7 entries with tokens + sessionId)", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // S-3 AC-7: implement commits so HEAD advances and cascade dispatches.
       const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
@@ -796,6 +837,7 @@ describe("RunSummary.perStage covers all 6 stages on the proceed happy path (S-0
         [{ messages: stageMessages("sess_impl", "log\n") }],
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
         [{ messages: stageMessages("sess_commit", "feat: x") }],
       ]);
       const reporter = new RecordingReporter();
@@ -810,15 +852,15 @@ describe("RunSummary.perStage covers all 6 stages on the proceed happy path (S-0
         throw new Error("runDone never fired");
       }
       const stages = Object.keys(runDone.summary.perStage);
-      // All six stages appear in the per-stage breakdown — summarize() is
-      // driven by state.stages, so this auto-grows with workflow.length and
-      // does not need any production change beyond the 6-stage default.
+      // S-4: all seven stages appear in the per-stage breakdown — summarize()
+      // is driven by state.stages, so this auto-grows with workflow.length.
       expect(stages).toEqual([
         "clarify-assess",
         "sketching-design",
         "driving-tdd",
         "code-reviewing",
         "code-improving",
+        "verifying-and-adapting",
         "auto-commit",
       ]);
       for (const id of stages) {
@@ -831,10 +873,10 @@ describe("RunSummary.perStage covers all 6 stages on the proceed happy path (S-0
 });
 
 describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
-  it("deps.commit returns {ok:false, reason} → state.json shows status:failed, stopReason:commit_failed, error:reason; 06-commit.txt is the agent message only", async () => {
+  it("deps.commit returns {ok:false, reason} → state.json shows status:failed, stopReason:commit_failed, error:reason; 07-commit.txt is the agent message only", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       const commitMessage = "feat: nope";
-      // S-2 6-stage shape. S-3 AC-7: implement commits so HEAD advances and
+      // S-4 7-stage shape. S-3 AC-7: implement commits so HEAD advances and
       // cascade dispatches all the way through auto-commit (which then fails).
       const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
@@ -842,6 +884,7 @@ describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
         [{ messages: stageMessages("sess_impl", "log\n") }],
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
+        [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],
         [{ messages: stageMessages("sess_commit", commitMessage) }],
       ]);
       const reason = "git commit failed: pre-commit hook rejected";
@@ -868,8 +911,8 @@ describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
       // No SHA captured on failure.
       expect(ac.commitSha).toBeUndefined();
 
-      // 06-commit.txt holds the agent message only — no SHA prefix.
-      expect(readFileSync(join(result.runDir!, "06-commit.txt"), "utf8")).toBe(
+      // S-4 AC-2: 07-commit.txt holds the agent message only — no SHA prefix.
+      expect(readFileSync(join(result.runDir!, "07-commit.txt"), "utf8")).toBe(
         commitMessage,
       );
 
@@ -879,8 +922,8 @@ describe("runner surfaces commit failure as commit_failed (S-006 AC-6)", () => {
   });
 });
 
-describe("runner skips trailing stages when tree is clean (S-006 AC-5, updated for S-003 cascade and S-2 sketching-design)", () => {
-  it("clean tree before code-reviewing → code-reviewing/code-improving/auto-commit all skipped; clarify-assess + sketching-design + driving-tdd call the SDK; no deps.commit; no artifacts for the skipped stages", async () => {
+describe("runner skips trailing stages when tree is clean (S-006 AC-5, updated for S-003 cascade, S-2 sketching-design, and S-4 verifying-and-adapting)", () => {
+  it("clean tree before code-reviewing → code-reviewing/code-improving/verifying-and-adapting/auto-commit all skipped; clarify-assess + sketching-design + driving-tdd call the SDK; no deps.commit; no artifacts for the skipped stages", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       // Pre-commit a baseline .gitignore so runWorkflow's
       // appendPraxisToGitignore is a no-op AND there is a HEAD already; the
@@ -894,10 +937,10 @@ describe("runner skips trailing stages when tree is clean (S-006 AC-5, updated f
         encoding: "utf8",
       }).stdout.trim();
 
-      // S-003 cascade: clean tree at code-reviewing entry skips
-      // code-reviewing, code-improving, AND auto-commit. S-2 AC-8:
-      // sketching-design is NOT in the clean-tree skip set, so it still
-      // dispatches an SDK call.
+      // S-003 cascade + S-4 AC-5/AC-6: clean tree at code-reviewing entry
+      // skips code-reviewing, code-improving, verifying-and-adapting, AND
+      // auto-commit. S-2 AC-8: sketching-design is NOT in the clean-tree skip
+      // set, so it still dispatches an SDK call.
       const recording = recordingScriptedQuery([
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
@@ -911,9 +954,9 @@ describe("runner skips trailing stages when tree is clean (S-006 AC-5, updated f
       );
       if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
 
-      // S-2: three SDK invocations — clarify-assess, sketching-design,
-      // implement. code-reviewing/code-improving/auto-commit all
-      // short-circuit via the cascading clean-tree skip introduced in S-003.
+      // S-4: three SDK invocations — clarify-assess, sketching-design,
+      // implement. code-reviewing/code-improving/verifying-and-adapting/
+      // auto-commit all short-circuit via the cascading clean-tree skip.
       expect(recording.calls.length).toBe(3);
       // deps.commit must not be called when auto-commit is skipped.
       expect(commit.calls.length).toBe(0);
@@ -921,7 +964,12 @@ describe("runner skips trailing stages when tree is clean (S-006 AC-5, updated f
       const persisted = JSON.parse(
         readFileSync(join(result.runDir, "state.json"), "utf8"),
       );
-      for (const id of ["code-reviewing", "code-improving", "auto-commit"]) {
+      for (const id of [
+        "code-reviewing",
+        "code-improving",
+        "verifying-and-adapting",
+        "auto-commit",
+      ]) {
         const stage = persisted.stages[id];
         expect(stage.status).toBe("completed");
         expect(stage.stopReason).toBe("skipped");
@@ -933,7 +981,10 @@ describe("runner skips trailing stages when tree is clean (S-006 AC-5, updated f
       // No artifacts produced for skipped stages.
       expect(existsSync(join(result.runDir, "04-code-review.md"))).toBe(false);
       expect(existsSync(join(result.runDir, "05-code-improve.md"))).toBe(false);
-      expect(existsSync(join(result.runDir, "06-commit.txt"))).toBe(false);
+      expect(
+        existsSync(join(result.runDir, "06-verifying-and-adapting.md")),
+      ).toBe(false);
+      expect(existsSync(join(result.runDir, "07-commit.txt"))).toBe(false);
 
       // HEAD did not move.
       const headAfter = spawnSync("git", ["rev-parse", "HEAD"], {
