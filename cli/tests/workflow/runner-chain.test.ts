@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { PraxisConfig } from "../../src/config/schema.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
-import { readChainLedger } from "../../src/workflow/chain.js";
+import {
+  buildInitialChainLedger,
+  readChainLedger,
+  writeChainLedger,
+} from "../../src/workflow/chain.js";
 import {
   appendPraxisToGitignore,
   runPreflight,
@@ -437,6 +441,233 @@ describe("runWorkflow chain bootstrap (AC-S2-9..AC-S2-17)", () => {
       expect(read.ledger.iterationsCompleted).toBe(0);
       // Chain itself still in_progress; CLI sets terminal status, not runner.
       expect(read.ledger.status).toBe("in_progress");
+    });
+  });
+});
+
+/**
+ * S-003 AC-S3-5 / AC-S3-7 / AC-S3-8 — iter-2+ preflight skip and the
+ * complementary iter-1-still-runs-both invariant. Uses spies on the two
+ * Deps slots so we can count call counts directly.
+ */
+describe("runWorkflow iter 2+ preflight skip (S-003 AC-S3-5/AC-S3-7/AC-S3-8)", () => {
+  function spyDeps(opts: {
+    createQueryFn: CreateQueryFn;
+    runPreflightImpl?: Deps["runPreflight"];
+    appendPraxisToGitignoreImpl?: Deps["appendPraxisToGitignore"];
+  }): Deps & {
+    runPreflightCalls: Array<{ cwd: string; allowDirty: boolean }>;
+    appendPraxisToGitignoreCalls: string[];
+  } {
+    const runPreflightCalls: Array<{ cwd: string; allowDirty: boolean }> = [];
+    const appendPraxisToGitignoreCalls: string[] = [];
+    const deps = pinnedDeps({
+      createQueryFn: opts.createQueryFn,
+    }) as Deps & {
+      runPreflightCalls: Array<{ cwd: string; allowDirty: boolean }>;
+      appendPraxisToGitignoreCalls: string[];
+    };
+    deps.runPreflight = (cwd, options) => {
+      runPreflightCalls.push({ cwd, allowDirty: options.allowDirty });
+      return opts.runPreflightImpl?.(cwd, options) ?? { ok: true as const };
+    };
+    deps.appendPraxisToGitignore = (cwd) => {
+      appendPraxisToGitignoreCalls.push(cwd);
+      opts.appendPraxisToGitignoreImpl?.(cwd);
+    };
+    deps.runPreflightCalls = runPreflightCalls;
+    deps.appendPraxisToGitignoreCalls = appendPraxisToGitignoreCalls;
+    return deps;
+  }
+
+  it("AC-S3-8: iter 1 calls runPreflight AND appendPraxisToGitignore exactly once", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const deps = spyDeps({
+        createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+      });
+      const result = await runWorkflow(
+        {
+          intent: "ship it",
+          cwd,
+          allowDirty: true,
+          config: oneStagePauseConfig,
+          chain: {
+            chainId: CHAIN_ID,
+            iterationIndex: 1,
+            iterationsTotal: 3,
+            flags: { allowDirty: true, noPause: false },
+          },
+        },
+        deps,
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+      expect(deps.runPreflightCalls).toHaveLength(1);
+      expect(deps.runPreflightCalls[0]).toEqual({
+        cwd,
+        allowDirty: true,
+      });
+      expect(deps.appendPraxisToGitignoreCalls).toEqual([cwd]);
+    });
+  });
+
+  it("AC-S3-5 + AC-S3-7: iter 2 calls NEITHER runPreflight NOR appendPraxisToGitignore", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Seed the ledger as iter 1 would have left it; iter 2 reads + appends.
+      const seeded = buildInitialChainLedger({
+        chainId: CHAIN_ID,
+        intent: "ship it",
+        iterationsTotal: 3,
+        flags: { allowDirty: true, noPause: false },
+        createdAt: "2026-05-02T14:25:00Z",
+      });
+      writeChainLedger(cwd, {
+        ...seeded,
+        iterations: [
+          {
+            index: 1,
+            runId: "2026-05-02-1425-aaaa",
+            status: "completed",
+            commitSha: "feedface".repeat(5),
+          },
+        ],
+        iterationsCompleted: 1,
+      });
+      const deps = spyDeps({
+        createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+      });
+      const result = await runWorkflow(
+        {
+          intent: "ship it",
+          cwd,
+          allowDirty: true,
+          config: oneStagePauseConfig,
+          chain: {
+            chainId: CHAIN_ID,
+            iterationIndex: 2, // mid-chain
+            iterationsTotal: 3,
+            flags: { allowDirty: true, noPause: false },
+          },
+        },
+        deps,
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+      expect(deps.runPreflightCalls).toHaveLength(0);
+      expect(deps.appendPraxisToGitignoreCalls).toHaveLength(0);
+    });
+  });
+
+  it("standalone runs (no chain) still call both preflight gates exactly once", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const deps = spyDeps({
+        createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+      });
+      const result = await runWorkflow(
+        {
+          intent: "ship it",
+          cwd,
+          allowDirty: true,
+          config: oneStagePauseConfig,
+          // No chain — back-compat path; preflight + gitignore both run.
+        },
+        deps,
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+      expect(deps.runPreflightCalls).toHaveLength(1);
+      expect(deps.appendPraxisToGitignoreCalls).toHaveLength(1);
+    });
+  });
+});
+
+/**
+ * S-003 — `bootstrapChainOnIterationStart` branches on iter index. Iter 1
+ * builds the initial ledger and appends entry 1 in one shot (existing
+ * S-002 behavior). Iter 2+ MUST read the ledger written by iter 1, append
+ * entry K against it, and write back — preserving the prior entries. A
+ * missing ledger on iter 2+ is unrecoverable and throws (the runner has
+ * no way to reconstruct the chain context).
+ */
+describe("bootstrapChainOnIterationStart iter-2+ branch (S-003)", () => {
+  it("iter 2 reads the existing ledger and appends entry 2 (entry 1 preserved)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Pre-stage a ledger with iter 1 already completed (mimicking what
+      // iter 1's runner would have left on disk).
+      const seeded = buildInitialChainLedger({
+        chainId: CHAIN_ID,
+        intent: "ship it",
+        iterationsTotal: 2,
+        flags: { allowDirty: true, noPause: false },
+        createdAt: "2026-05-02T14:25:00Z",
+      });
+      writeChainLedger(cwd, {
+        ...seeded,
+        iterations: [
+          {
+            index: 1,
+            runId: "2026-05-02-1425-aaaa",
+            status: "completed",
+            commitSha: "feedface".repeat(5),
+          },
+        ],
+        iterationsCompleted: 1,
+      });
+
+      const result = await runWorkflow(
+        {
+          intent: "ship it",
+          cwd,
+          allowDirty: true,
+          config: oneStagePauseConfig,
+          chain: {
+            chainId: CHAIN_ID,
+            iterationIndex: 2,
+            iterationsTotal: 2,
+            flags: { allowDirty: true, noPause: false },
+          },
+        },
+        pinnedDeps({
+          createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+        }),
+      );
+      if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+      const read = readChainLedger(cwd, CHAIN_ID);
+      if (!read.ok) throw new Error(read.reason);
+      expect(read.ledger.iterations).toHaveLength(2);
+      // Iter 1 entry preserved verbatim.
+      expect(read.ledger.iterations[0]).toMatchObject({
+        index: 1,
+        runId: "2026-05-02-1425-aaaa",
+        status: "completed",
+      });
+      // Iter 2 entry appended with this run's runId.
+      expect(read.ledger.iterations[1].index).toBe(2);
+      expect(read.ledger.iterations[1].runId).toBe(ITER1_RUN_ID);
+    });
+  });
+
+  it("iter 2+ throws when the ledger is missing on disk (unrecoverable)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // No ledger on disk. Iter 2+ has no way to reconstruct the chain;
+      // the runner must throw rather than silently rebuild.
+      await expect(
+        runWorkflow(
+          {
+            intent: "ship it",
+            cwd,
+            allowDirty: true,
+            config: oneStagePauseConfig,
+            chain: {
+              chainId: CHAIN_ID,
+              iterationIndex: 2,
+              iterationsTotal: 2,
+              flags: { allowDirty: true, noPause: false },
+            },
+          },
+          pinnedDeps({
+            createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+          }),
+        ),
+      ).rejects.toThrow(/chain ledger.*not found/i);
     });
   });
 });

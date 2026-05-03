@@ -217,15 +217,19 @@ export async function runWorkflow(
 }
 
 /**
- * S-002 AC-S2-9 + AC-S2-10: write the chain ledger on iteration start. Called
- * once between `writeState(runDir, state)` and `reporter.stage0()` so a
- * SIGINT during stage 1 (clarify-assess) leaves the ledger with one
- * `running` entry on disk — matching the spec's AC-5 chronology.
+ * S-002 AC-S2-9 + AC-S2-10 + S-003: write the chain ledger on iteration
+ * start. Called once between `writeState(runDir, state)` and
+ * `reporter.stage0()` so a SIGINT during stage 1 (clarify-assess) leaves the
+ * ledger with one `running` entry on disk — matching the spec's AC-5
+ * chronology.
  *
- * For iter 1, builds the initial ledger and appends the iter-1 entry in a
- * single write. Future iterations (S-3) will append against the existing
- * ledger; the helper stays single-purpose for this slice (S-002 ships only
- * the N=1 path end-to-end).
+ * Branches on `chain.iterationIndex`:
+ *   - iter 1 → build the initial ledger and append the iter-1 entry in a
+ *     single write (the standalone N=1 / chain-start path).
+ *   - iter 2+ → read the existing ledger (written by iter 1's runner),
+ *     append the iter-K entry against it, and write back. Throws when the
+ *     ledger is missing — that state is unrecoverable from inside the
+ *     runner (the chain context lives only in memory at iter 1's CLI).
  */
 function bootstrapChainOnIterationStart(
   cwd: string,
@@ -235,15 +239,26 @@ function bootstrapChainOnIterationStart(
   deps: Deps,
 ): void {
   const now = toIsoSeconds(deps.clock());
-  const initial = buildInitialChainLedger({
-    chainId: chain.chainId,
-    intent,
-    iterationsTotal: chain.iterationsTotal,
-    flags: chain.flags,
-    createdAt: now,
-  });
+  const base =
+    chain.iterationIndex === 1
+      ? buildInitialChainLedger({
+          chainId: chain.chainId,
+          intent,
+          iterationsTotal: chain.iterationsTotal,
+          flags: chain.flags,
+          createdAt: now,
+        })
+      : (() => {
+          const read = readChainLedger(cwd, chain.chainId);
+          if (!read.ok) {
+            throw new Error(
+              `bootstrapChainOnIterationStart: cannot start iteration ${chain.iterationIndex} — ${read.reason}`,
+            );
+          }
+          return read.ledger;
+        })();
   const withIteration = appendIteration(
-    initial,
+    base,
     {
       index: chain.iterationIndex,
       runId,
