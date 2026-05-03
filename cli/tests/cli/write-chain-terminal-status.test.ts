@@ -98,7 +98,7 @@ describe("writeChainTerminalStatus AC-S6-4 (default → aborted)", () => {
     });
   });
 
-  it("S-006 helper: result.status='cancelled' → ledger flips to 'cancelled'", async () => {
+  it("AC-S6-3: result.status='cancelled' (SIGINT) → ledger flips to 'cancelled'", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       seedRunningLedger(cwd);
       const result: RunWorkflowResult = {

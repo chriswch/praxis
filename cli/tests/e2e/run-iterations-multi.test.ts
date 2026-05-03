@@ -347,3 +347,97 @@ describe("praxis run --iterations 3 end-to-end (S-003 AC-S3-1..AC-S3-4, AC-S3-12
     });
   });
 });
+
+/**
+ * S-006 AC-S6-1 e2e — iter 2 of 3 fails through the real runner; the chain
+ * ledger flips to 'aborted' and iter 3 never starts. Drives the full path
+ * from the CLI's runRun → launchRemainingIterations → real runWorkflow →
+ * writeChainTerminalStatus, verifying the on-disk shape end-to-end.
+ *
+ * Iter 1 succeeds normally (7 stages with the same scripts the AC-S3-1 suite
+ * uses). Iter 2's clarify-assess script is rigged to emit an artifact body
+ * the validator rejects on both attempts, so the runner returns the failure
+ * shape with status='failed'. The CLI's chain helper then writes 'aborted'
+ * to the ledger.
+ */
+const INVALID_CLARIFY = `Not a valid intent artifact — missing all required H2 sections.\n`;
+
+describe("praxis run --iterations 3 — iter 2 fails → ledger 'aborted' (S-006 AC-S6-1)", () => {
+  it("iter 1 completes, iter 2's clarify-assess validator rejects → chain status 'aborted'; iter 3 never starts", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Iter 1: full 7-stage happy path. Iter 2: clarify-assess emits an
+      // invalid artifact, validator rejects on attempts 1 + 2 → run fails.
+      // Iter 3 must NOT dispatch any SDK calls.
+      const allScripts: Array<Array<{ messages: SdkMessage[] }>> = [];
+      // Iter 1 — 7 successful stage scripts (same shape as the AC-S3-1 suite).
+      allScripts.push(...scriptsForIteration(1));
+      // Iter 2 — clarify-assess gets two attempts emitting invalid bodies.
+      // The validator's retry path consumes the corrective pushUserMessage so
+      // attempt 2's script lands in the same call's stream.
+      allScripts.push([
+        { messages: stageMessages("sess_clarify_iter2_a1", INVALID_CLARIFY) },
+        { messages: stageMessages("sess_clarify_iter2_a2", INVALID_CLARIFY) },
+      ]);
+      // (Stages 2-7 of iter 2 + all of iter 3 must NOT dispatch.)
+
+      // Iter 1's driving-tdd is at call index 2 within the iteration; across
+      // the chain that is just call 2 (we only successfully dispatch iter 1's
+      // 7 calls + iter 2's 1 call before the run fails).
+      const inner = recordingScriptedQueryWithCommitOn(cwd, -1, allScripts);
+      let callCount = 0;
+      const commitIndices = new Set([2]); // Only iter 1's driving-tdd commits.
+      const createQueryFn: CreateQueryFn = (input) => {
+        const myIdx = callCount++;
+        if (commitIndices.has(myIdx)) {
+          const filename = `iter-marker-${myIdx}.txt`;
+          writeFileSync(
+            join(cwd, filename),
+            `marker for call ${myIdx}\n`,
+            "utf8",
+          );
+          spawnSync("git", ["add", filename], { cwd });
+          spawnSync("git", ["commit", "-m", `tdd-marker-${myIdx}`], { cwd });
+          writeFileSync(
+            join(cwd, `iter-extra-${myIdx}.txt`),
+            `extra ${myIdx}\n`,
+            "utf8",
+          );
+        }
+        return inner(input);
+      };
+
+      const result = await runRun(
+        {
+          intent: "ship the multi-iter test",
+          allowDirty: true,
+          noPause: true,
+          iterations: 3,
+        },
+        cwd,
+        new AbortController().signal,
+        buildDeps(createQueryFn),
+      );
+      expect(result.ok).toBe(false);
+
+      // Locate the ledger and assert terminal status.
+      const chainsDir = join(cwd, ".praxis", "chains");
+      const chainFiles = readdirSync(chainsDir).filter((f) =>
+        f.endsWith(".json"),
+      );
+      expect(chainFiles).toHaveLength(1);
+      const chainId = chainFiles[0].replace(/\.json$/, "");
+      const read = readChainLedger(cwd, chainId);
+      if (!read.ok) throw new Error(read.reason);
+      // S-006 AC-S6-1: chain flipped to 'aborted'.
+      expect(read.ledger.status).toBe("aborted");
+      // Iter 1 completed; iter 2 entry on disk as 'running' (runner never
+      // patched it because executeStages took the failed branch). Iter 3
+      // never appended.
+      expect(read.ledger.iterations).toHaveLength(2);
+      expect(read.ledger.iterations[0].status).toBe("completed");
+      expect(read.ledger.iterations[0].commitSha).toMatch(/^[0-9a-f]{40}$/);
+      expect(read.ledger.iterations[1].status).toBe("running");
+      expect(read.ledger.iterations[1].commitSha).toBeUndefined();
+    });
+  });
+});
