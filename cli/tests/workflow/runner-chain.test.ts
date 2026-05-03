@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { runAdvance } from "../../src/cli.js";
 import type { PraxisConfig } from "../../src/config/schema.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
 import {
@@ -13,12 +14,16 @@ import {
   appendPraxisToGitignore,
   runPreflight,
 } from "../../src/workflow/preflight.js";
-import { runWorkflow } from "../../src/workflow/runner.js";
+import {
+  type RunWorkflowResult,
+  runWorkflow,
+} from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
   Deps,
   SdkMessage,
 } from "../../src/workflow/stage.js";
+import { type State, writeState } from "../../src/workflow/state.js";
 import { scriptedQuery } from "../support/scripted-query.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
@@ -668,6 +673,141 @@ describe("bootstrapChainOnIterationStart iter-2+ branch (S-003)", () => {
           }),
         ),
       ).rejects.toThrow(/chain ledger.*not found/i);
+    });
+  });
+});
+
+/**
+ * S-004 AC-S4-8 — when `runAdvance` auto-launches iter K+1 after a paused
+ * iter K resumes, the runner's preflight + .gitignore touch MUST be skipped
+ * (same predicate as S-003 AC-S3-5/AC-S3-7, just reached via the advance
+ * path instead of `runRun`'s top-level loop). Locks the contract that the
+ * advance auto-launch routes through the same `iterationIndex > 1` skip
+ * branch and doesn't accidentally reintroduce a duplicate preflight call
+ * from outside the runner.
+ */
+describe("runAdvance auto-launched iter skips preflight (S-004 AC-S4-8)", () => {
+  it("auto-launched iter K+1 never calls runPreflight or appendPraxisToGitignore", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const PAUSED_RUN_ID = "2026-05-02-1430-aaaa";
+      const NEXT_RUN_ID = "2026-05-02-1442-bbbb";
+
+      // Seed iter 1's state.json (chain-stamped) and the chain ledger with
+      // iter 1 entry — mimicking the post-pause on-disk shape.
+      const runDir = join(cwd, ".praxis", "runs", PAUSED_RUN_ID);
+      mkdirSync(runDir, { recursive: true });
+      const state: State = {
+        runId: PAUSED_RUN_ID,
+        intent: "ship it",
+        startedAt: "2026-05-02T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+        currentStage: "auto-commit",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          "clarify-assess": { status: "completed", sessionId: "sess" },
+        },
+      };
+      writeState(runDir, state);
+      const seeded = buildInitialChainLedger({
+        chainId: CHAIN_ID,
+        intent: "ship it",
+        iterationsTotal: 2,
+        flags: { allowDirty: true, noPause: true },
+        createdAt: "2026-05-02T14:25:00Z",
+      });
+      writeChainLedger(cwd, {
+        ...seeded,
+        iterations: [{ index: 1, runId: PAUSED_RUN_ID, status: "running" }],
+      });
+
+      // Spy advanceWorkflow: just patches iter 1 to completed with a SHA so
+      // the chain-aware tail decides to launch K+1 (not stop on cascade-skip
+      // or final-iter-completed). No state.json mutation needed — advance
+      // already wrote it during seeding.
+      const FAKE_SHA = "abcdef0011112222333344445555666677778888";
+      const advanceSpy = async (runId: string): Promise<RunWorkflowResult> => {
+        const r = readChainLedger(cwd, CHAIN_ID);
+        if (!r.ok) throw new Error(r.reason);
+        const updated = r.ledger.iterations.map((e) =>
+          e.index === 1
+            ? { ...e, status: "completed" as const, commitSha: FAKE_SHA }
+            : e,
+        );
+        writeChainLedger(cwd, {
+          ...r.ledger,
+          iterations: updated,
+          iterationsCompleted: 1,
+        });
+        return { ok: true, runId, runDir, paused: false };
+      };
+
+      // Spy preflight + gitignore — count calls. Pass real runWorkflow as
+      // dispatch so the auto-launch goes through the runner's actual
+      // preflight predicate, not a stub.
+      const runPreflightCalls: Array<{ cwd: string; allowDirty: boolean }> = [];
+      const appendPraxisToGitignoreCalls: string[] = [];
+
+      // Custom pinnedDeps with spy preflight slots — overrides the imported
+      // production `runPreflight` / `appendPraxisToGitignore` so the call
+      // counts isolate to *this* test's auto-launched iter.
+      const baseDeps = pinnedDeps({
+        // Iter 2 needs a config; we route runWorkflow through the same
+        // single-stage pause config so the test stays focused on preflight.
+        // (The iter 2 stage will pause and the loop will exit; but
+        // pauseAfter doesn't run preflight — we get to assert the count.)
+        createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+      });
+      const deps = {
+        ...baseDeps,
+        runPreflight: (
+          c: string,
+          opts: { allowDirty: boolean },
+        ): { ok: true } => {
+          runPreflightCalls.push({ cwd: c, allowDirty: opts.allowDirty });
+          return { ok: true } as const;
+        },
+        appendPraxisToGitignore: (c: string): void => {
+          appendPraxisToGitignoreCalls.push(c);
+        },
+        advanceWorkflow: advanceSpy,
+        runWorkflow: async (
+          ctx: Parameters<typeof runWorkflow>[0],
+        ): Promise<RunWorkflowResult> => {
+          // Override the iter-2 config so the real runner's preflight branch
+          // dispatches: a fresh runWorkflow with the iter-2 chain context.
+          // Using the test's `oneStagePauseConfig` keeps stage execution
+          // bounded (one stage, then pause).
+          return runWorkflow(
+            { ...ctx, config: oneStagePauseConfig },
+            // Hand back the SAME deps so preflight spy counts capture iter 2.
+            // Stamp NEXT_RUN_ID via fixed clock+rng — pinnedDeps already does
+            // this (clock=1430+12s, rng=7af2), so the runId would clash with
+            // PAUSED_RUN_ID. Override the rng for iter 2 to avoid the clash.
+            { ...deps, rng: () => new Uint8Array([0xbb, 0xbb]) },
+          );
+        },
+      };
+
+      await runAdvance(
+        { runId: PAUSED_RUN_ID, noPause: true },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+
+      // Auto-launched iter 2 must have skipped both preflight gates.
+      expect(runPreflightCalls).toEqual([]);
+      expect(appendPraxisToGitignoreCalls).toEqual([]);
+      // Confirm iter 2 actually ran (otherwise the assertion above is vacuous):
+      // ledger should have a 2nd entry now.
+      const final = readChainLedger(cwd, CHAIN_ID);
+      if (!final.ok) throw new Error(final.reason);
+      expect(final.ledger.iterations).toHaveLength(2);
+      expect(final.ledger.iterations[1].index).toBe(2);
+      // Lint silences unused locals in test scopes; tighten sentinel binding:
+      expect(NEXT_RUN_ID).toMatch(/^\d{4}-\d{2}-\d{2}-\d{4}-[0-9a-f]{4}$/);
     });
   });
 });

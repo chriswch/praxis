@@ -886,6 +886,38 @@ function ensureBaselineSha(
   return { ok: true, sha: head.sha };
 }
 
+/**
+ * S-004: rebuild a `RunChainContext` from the resumed run's `state.json` +
+ * the chain ledger so `advanceWorkflow`'s `executeStages` invocation patches
+ * the iteration entry on success-return — same `recordChainIterationOnSuccess`
+ * the multi-iteration `runWorkflow` path runs.
+ *
+ * Returns `undefined` for non-chain runs (state.json without `chainId`),
+ * legacy chain runs missing `iterationIndex`, or any ledger-read failure
+ * (logged to stderr but not fatal — the resumed run can still complete; the
+ * chain just won't get a clean ledger update from this CLI process).
+ */
+function recoverChainContextFromState(
+  state: State,
+  cwd: string,
+): RunChainContext | undefined {
+  if (state.chainId === undefined) return undefined;
+  if (state.iterationIndex === undefined) return undefined;
+  const read = readChainLedger(cwd, state.chainId);
+  if (!read.ok) {
+    process.stderr.write(
+      `praxis: failed to read chain ledger ${state.chainId} on resume: ${read.reason}\n`,
+    );
+    return undefined;
+  }
+  return {
+    chainId: state.chainId,
+    iterationIndex: state.iterationIndex,
+    iterationsTotal: read.ledger.iterationsTotal,
+    flags: read.ledger.flags,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Advance
 // ---------------------------------------------------------------------------
@@ -953,12 +985,19 @@ export async function advanceWorkflow(
   // loop context unconditionally — no per-stage shape check.
   // S-1 AC-5: read `baselineSha` straight off state — advance does NOT
   // shell out to `git rev-parse HEAD` again on the happy path.
+  // S-004: recover chain context from state.json + the ledger so
+  // `executeStages` invokes `recordChainIterationOnSuccess` on the resumed
+  // iter's success-return — same shape `runWorkflow` propagates from
+  // `RunWorkflowContext.chain`. Without this, an `advance` finishing a
+  // paused chain iter would leave the iteration entry stuck in 'running'.
+  const chainForResume = recoverChainContextFromState(state, ctx.cwd);
   const loopCtx: LoopContext = {
     intent: state.intent,
     cwd: ctx.cwd,
     baselineSha: baselineSha.sha,
     noPause: ctx.noPause,
     signal: ctx.signal,
+    chain: chainForResume,
   };
 
   // Resume-point scan: first non-completed stage in workflow order. Hand-
