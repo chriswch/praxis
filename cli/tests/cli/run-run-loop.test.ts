@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runRun } from "../../src/cli.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
+import type { Reporter } from "../../src/ui/reporter.js";
 import {
   appendIteration,
   buildInitialChainLedger,
@@ -19,6 +20,7 @@ import type {
   RunWorkflowResult,
 } from "../../src/workflow/runner.js";
 import type { CreateQueryFn, Deps } from "../../src/workflow/stage.js";
+import { RecordingReporter } from "../support/recording-reporter.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
 /**
@@ -52,6 +54,7 @@ function pinnedDeps(
     ctx: RunWorkflowContext,
     deps: Deps,
   ) => Promise<RunWorkflowResult>,
+  opts: { reporter?: Reporter } = {},
 ): Deps & {
   runWorkflow: (
     ctx: RunWorkflowContext,
@@ -62,7 +65,7 @@ function pinnedDeps(
     clock: () => new Date("2026-05-02T14:30:12Z"),
     rng: (n) => new Uint8Array([0x9f, 0x3c]).slice(0, n),
     createQueryFn: noopQueryFn(),
-    reporter: new LineReporter(),
+    reporter: opts.reporter ?? new LineReporter(),
     commit: () => ({ ok: true, skipped: true }),
     runPreflight,
     appendPraxisToGitignore,
@@ -442,6 +445,262 @@ describe("runRun mid-chain failure (K>=2) → ledger 'aborted' (S-006 AC-S6-9)",
       // Iter 1 completed, iter 2 entry on disk as 'running' (we don't flip
       // the iteration entry — only the chain status). Iter 3 never appended.
       expect(read.ledger.iterations).toHaveLength(2);
+    });
+  });
+});
+
+/**
+ * S-007 — `runRun` chain-end emit. After `handleIterationOutcome` flips the
+ * chain ledger to `completed` (final iter landed clean) or `completed-early`
+ * (auto-commit cascade-skipped), the CLI must emit `reporter.chainEnd?.(...)`
+ * so operators see the chain's final shape on stdout. The emit lives just
+ * after the `setChainStatus` writeChainLedger call.
+ */
+describe("runRun chainEnd emit on completed (S-007 AC-S7-7)", () => {
+  it("AC-S7-7: N=3 happy path → reporter.chainEnd fires once with status='completed', K=N", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const reporter = new RecordingReporter();
+      const { fn } = happyRunWorkflowSpy(cwd, STUB_RUN_IDS);
+      const deps = pinnedDeps(fn, { reporter });
+      const result = await runRun(
+        {
+          intent: "ship the chain",
+          allowDirty: true,
+          noPause: true,
+          iterations: 3,
+        },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      expect(result.ok).toBe(true);
+      const ends = reporter.calls.filter((c) => c.kind === "chainEnd");
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        kind: "chainEnd",
+        status: "completed",
+        iterationsCompleted: 3,
+        iterationsTotal: 3,
+      });
+      // chainStart is emitted by the real runner (covered by
+      // tests/workflow/runner-chain.test.ts); this CLI-level test stubs the
+      // dispatcher, so we only assert chainEnd here.
+    });
+  });
+});
+
+describe("runRun chainEnd emit on cascade-skip (S-007 AC-S7-8)", () => {
+  it("auto-commit cascade-skip → ledger flips to 'completed-early'; reporter.chainEnd fires with that status", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Iter 1: writes a 'completed' entry WITHOUT commitSha (simulates
+      // cascade-skip on auto-commit). Iter 2 should never start.
+      let calls = 0;
+      const cascadeSpy = async (
+        ctx: RunWorkflowContext,
+        _deps: Deps,
+      ): Promise<RunWorkflowResult> => {
+        calls += 1;
+        if (!ctx.chain) throw new Error("expected chain context");
+        const seeded = buildInitialChainLedger({
+          chainId: ctx.chain.chainId,
+          intent: ctx.intent,
+          iterationsTotal: ctx.chain.iterationsTotal,
+          flags: ctx.chain.flags,
+          createdAt: "2026-05-02T14:30:12Z",
+        });
+        const next = appendIteration(
+          seeded,
+          {
+            index: 1,
+            runId: STUB_RUN_IDS[0],
+            status: "completed",
+            // no commitSha — cascade-skip shape.
+          },
+          "2026-05-02T14:30:12Z",
+        );
+        writeChainLedger(cwd, { ...next, iterationsCompleted: 1 });
+        return {
+          ok: true,
+          runId: STUB_RUN_IDS[0],
+          runDir: `/tmp/${STUB_RUN_IDS[0]}`,
+          paused: false,
+        };
+      };
+      const reporter = new RecordingReporter();
+      const deps = pinnedDeps(cascadeSpy, { reporter });
+      const result = await runRun(
+        {
+          intent: "ship the chain",
+          allowDirty: true,
+          noPause: true,
+          iterations: 3,
+        },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      expect(result.ok).toBe(true);
+      // Only iter 1 ran.
+      expect(calls).toBe(1);
+      const ends = reporter.calls.filter((c) => c.kind === "chainEnd");
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        kind: "chainEnd",
+        status: "completed-early",
+        iterationsCompleted: 1,
+        iterationsTotal: 3,
+      });
+    });
+  });
+});
+
+describe("runRun chainEnd emit on aborted (S-007 AC-S7-9)", () => {
+  it("AC-S7-9: iter 1 fails → reporter.chainEnd fires with status='aborted'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const failingSpy = async (
+        ctx: RunWorkflowContext,
+        _deps: Deps,
+      ): Promise<RunWorkflowResult> => {
+        if (!ctx.chain) throw new Error("expected chain context");
+        const seeded = buildInitialChainLedger({
+          chainId: ctx.chain.chainId,
+          intent: ctx.intent,
+          iterationsTotal: ctx.chain.iterationsTotal,
+          flags: ctx.chain.flags,
+          createdAt: "2026-05-02T14:30:12Z",
+        });
+        const next = appendIteration(
+          seeded,
+          { index: 1, runId: STUB_RUN_IDS[0], status: "running" },
+          "2026-05-02T14:30:12Z",
+        );
+        writeChainLedger(cwd, next);
+        return {
+          ok: false,
+          reason: "validator_failed: bad artifact",
+          runId: STUB_RUN_IDS[0],
+          runDir: `/tmp/${STUB_RUN_IDS[0]}`,
+          failedStageId: "clarify-assess",
+          status: "failed",
+          chainId: ctx.chain.chainId,
+          iterationIndex: 1,
+        };
+      };
+      const reporter = new RecordingReporter();
+      const deps = pinnedDeps(failingSpy, { reporter });
+      const result = await runRun(
+        {
+          intent: "ship the chain",
+          allowDirty: false,
+          noPause: true,
+          iterations: 3,
+        },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      expect(result.ok).toBe(false);
+      const ends = reporter.calls.filter((c) => c.kind === "chainEnd");
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        kind: "chainEnd",
+        status: "aborted",
+        // Iter 1 failed before recording any 'completed' entry; ledger reads 0.
+        iterationsCompleted: 0,
+        iterationsTotal: 3,
+      });
+    });
+  });
+});
+
+describe("runRun chainEnd emit on cancelled (S-007 AC-S7-10)", () => {
+  it("AC-S7-10: iter 1 SIGINT → reporter.chainEnd fires with status='cancelled'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const cancelSpy = async (
+        ctx: RunWorkflowContext,
+        _deps: Deps,
+      ): Promise<RunWorkflowResult> => {
+        if (!ctx.chain) throw new Error("expected chain context");
+        const seeded = buildInitialChainLedger({
+          chainId: ctx.chain.chainId,
+          intent: ctx.intent,
+          iterationsTotal: ctx.chain.iterationsTotal,
+          flags: ctx.chain.flags,
+          createdAt: "2026-05-02T14:30:12Z",
+        });
+        const next = appendIteration(
+          seeded,
+          { index: 1, runId: STUB_RUN_IDS[0], status: "running" },
+          "2026-05-02T14:30:12Z",
+        );
+        writeChainLedger(cwd, next);
+        return {
+          ok: false,
+          reason: "cancelled by user (SIGINT)",
+          runId: STUB_RUN_IDS[0],
+          runDir: `/tmp/${STUB_RUN_IDS[0]}`,
+          failedStageId: "clarify-assess",
+          status: "cancelled",
+          chainId: ctx.chain.chainId,
+          iterationIndex: 1,
+        };
+      };
+      const reporter = new RecordingReporter();
+      const deps = pinnedDeps(cancelSpy, { reporter });
+      const result = await runRun(
+        {
+          intent: "ship the chain",
+          allowDirty: false,
+          noPause: true,
+          iterations: 3,
+        },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      expect(result.ok).toBe(false);
+      const ends = reporter.calls.filter((c) => c.kind === "chainEnd");
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        kind: "chainEnd",
+        status: "cancelled",
+        iterationsCompleted: 0,
+        iterationsTotal: 3,
+      });
+    });
+  });
+});
+
+describe("runRun standalone (no --iterations) → no chain events emitted (S-007 AC-S7-14 regression)", () => {
+  it("standalone happy path: chainStart and chainEnd never fire", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const standaloneSpy = async (
+        _ctx: RunWorkflowContext,
+        _deps: Deps,
+      ): Promise<RunWorkflowResult> => {
+        return {
+          ok: true,
+          runId: STUB_RUN_IDS[0],
+          runDir: `/tmp/${STUB_RUN_IDS[0]}`,
+          paused: false,
+        };
+      };
+      const reporter = new RecordingReporter();
+      const deps = pinnedDeps(standaloneSpy, { reporter });
+      const result = await runRun(
+        {
+          intent: "standalone",
+          allowDirty: true,
+          noPause: true,
+          // iterations undefined → standalone path; no ledger, no chain events.
+        },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      expect(result.ok).toBe(true);
+      expect(reporter.countOf("chainStart")).toBe(0);
+      expect(reporter.countOf("chainEnd")).toBe(0);
     });
   });
 });

@@ -232,6 +232,7 @@ function handleIterationOutcome(input: {
   k: number;
   iterationsTotal: number;
   clock: () => Date;
+  deps: Deps;
 }): IterationDecision {
   const read = readChainLedger(input.cwd, input.chainId);
   if (!read.ok) {
@@ -254,6 +255,16 @@ function handleIterationOutcome(input: {
       toIsoSeconds(input.clock()),
     );
     writeChainLedger(input.cwd, stamped);
+    // S-007 AC-S7-7/AC-S7-8: emit the chain-end line just after the ledger
+    // landed in its terminal status. iterationsCompleted comes from the
+    // freshly-stamped ledger so the K/N pair matches what an operator would
+    // read from disk.
+    input.deps.reporter.chainEnd?.(
+      input.chainId,
+      "completed-early",
+      stamped.iterationsCompleted,
+      input.iterationsTotal,
+    );
     return { kind: "stop", reason: "completed-early" };
   }
   if (input.k === input.iterationsTotal) {
@@ -263,6 +274,12 @@ function handleIterationOutcome(input: {
       toIsoSeconds(input.clock()),
     );
     writeChainLedger(input.cwd, stamped);
+    input.deps.reporter.chainEnd?.(
+      input.chainId,
+      "completed",
+      stamped.iterationsCompleted,
+      input.iterationsTotal,
+    );
     return { kind: "stop", reason: "completed" };
   }
   return { kind: "continue" };
@@ -332,6 +349,7 @@ async function launchRemainingIterations(input: {
         chainId: input.chainId,
         result,
         clock: input.deps.clock,
+        deps: input.deps,
       });
       return result;
     }
@@ -350,6 +368,7 @@ async function launchRemainingIterations(input: {
       k,
       iterationsTotal: input.iterationsTotal,
       clock: input.deps.clock,
+      deps: input.deps,
     });
     if (decision.kind === "stop") return result;
   }
@@ -476,10 +495,14 @@ export function writeChainTerminalStatus(input: {
   chainId: string | undefined;
   result: RunWorkflowResult;
   clock: () => Date;
+  deps?: Deps;
 }): void {
   if (input.chainId === undefined) return;
   const read = readChainLedger(input.cwd, input.chainId);
   if (!read.ok) {
+    // S-007 AC-S7-15: read-failure path skips chainEnd. The iteration's run is
+    // fine on disk; the chain just can't be progressed further from this CLI
+    // process — emitting a banner with stale K/N would mislead the operator.
     process.stderr.write(
       `praxis: failed to read chain ledger ${input.chainId} for terminal status: ${read.reason}\n`,
     );
@@ -495,6 +518,16 @@ export function writeChainTerminalStatus(input: {
     toIsoSeconds(input.clock()),
   );
   writeChainLedger(input.cwd, stamped);
+  // S-007 AC-S7-9/AC-S7-10: emit the chain-end line ONLY after the ledger
+  // write lands (mirrors the success-path emit in `handleIterationOutcome`).
+  // `deps` is optional so existing callers can be migrated incrementally; the
+  // production callers (runRun + runResume) thread it through.
+  input.deps?.reporter.chainEnd?.(
+    input.chainId,
+    terminalStatus,
+    stamped.iterationsCompleted,
+    stamped.iterationsTotal,
+  );
 }
 
 async function main(argv: string[]): Promise<void> {
@@ -624,6 +657,7 @@ async function runResume<
       chainId: result.chainId,
       result,
       clock: deps.clock,
+      deps,
     });
     process.exit(1);
   }
@@ -666,6 +700,7 @@ async function runResume<
     k: iterationIndex,
     iterationsTotal: ledger.iterationsTotal,
     clock: deps.clock,
+    deps,
   });
   if (decision.kind === "stop") return;
 
