@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { commit } from "./git/commit.js";
 import { LineReporter } from "./ui/line-reporter.js";
 import { isRunId } from "./workflow/run-id.js";
@@ -36,21 +37,51 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-type ParsedArgs = {
+export type ParsedRunArgs = {
   intent: string;
   allowDirty: boolean;
   noPause: boolean;
+  /**
+   * S-002: total iterations for `praxis run --iterations <N>`. `undefined`
+   * when the flag is absent (back-compat — single-run behavior). When set,
+   * always a positive integer (`N >= 1`); `parseRunArgs` rejects 0 /
+   * negative / non-integer / missing-value via `fail(...)` before returning.
+   */
+  iterations?: number;
 };
 
-function parseRunArgs(rest: string[]): ParsedArgs {
+/**
+ * Parse the `praxis run` argv tail. Surface validation only — every failure
+ * goes through `fail(...)`, which writes to stderr and `process.exit(1)`s, so
+ * the CLI never receives a malformed `ParsedRunArgs`. Exported so unit tests
+ * can exercise the `--iterations` validation matrix without spawning the
+ * subprocess.
+ */
+export function parseRunArgs(rest: string[]): ParsedRunArgs {
   let allowDirty = false;
   let noPause = false;
+  let iterations: number | undefined;
   const positional: string[] = [];
-  for (const arg of rest) {
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
     if (arg === "--allow-dirty") {
       allowDirty = true;
     } else if (arg === "--no-pause") {
       noPause = true;
+    } else if (arg === "--iterations") {
+      // S-002: `--iterations <N>`. Validate the value AS the value-form (i.e.
+      // even when missing or another flag follows) so the user sees one
+      // canonical message regardless of how the surface failed.
+      const next = rest[i + 1];
+      if (next === undefined || next.startsWith("--")) {
+        fail("iterations must be a positive integer");
+      }
+      const parsed = Number(next);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        fail("iterations must be a positive integer");
+      }
+      iterations = parsed;
+      i++;
     } else if (arg.startsWith("--")) {
       fail(`unknown flag: ${arg}`);
     } else {
@@ -60,13 +91,13 @@ function parseRunArgs(rest: string[]): ParsedArgs {
   const intent = positional[0];
   if (intent === undefined) {
     fail(
-      'missing intent. Usage: praxis run [--allow-dirty] [--no-pause] "<intent>"',
+      'missing intent. Usage: praxis run [--allow-dirty] [--no-pause] [--iterations <N>] "<intent>"',
     );
   }
   if (intent.trim().length === 0) {
     fail("intent must not be empty or whitespace");
   }
-  return { intent, allowDirty, noPause };
+  return { intent, allowDirty, noPause, iterations };
 }
 
 type ParsedAdvanceArgs = {
@@ -247,9 +278,19 @@ async function runRetry(rest: string[]): Promise<void> {
   process.stdout.write(`${result.runId}\n`);
 }
 
-main(process.argv).catch((err) => {
-  process.stderr.write(
-    `praxis: ${err instanceof Error ? err.message : String(err)}\n`,
-  );
-  process.exit(1);
-});
+// Guard the auto-execution so `import { parseRunArgs } from "./cli.js"`
+// from a unit test (S-002) does NOT bootstrap the whole CLI on module load.
+// The published `bin/praxis` entry still hits this branch via Node's
+// argv[1] resolution, and the dist bundle preserves the same import.meta.url
+// shape.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main(process.argv).catch((err) => {
+    process.stderr.write(
+      `praxis: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    process.exit(1);
+  });
+}
