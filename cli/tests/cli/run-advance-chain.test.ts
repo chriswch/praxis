@@ -1,8 +1,9 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runAdvance } from "../../src/cli.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
+import type { Reporter } from "../../src/ui/reporter.js";
 import {
   appendIteration,
   buildInitialChainLedger,
@@ -21,6 +22,7 @@ import type {
 } from "../../src/workflow/runner.js";
 import type { CreateQueryFn, Deps } from "../../src/workflow/stage.js";
 import { type State, writeState } from "../../src/workflow/state.js";
+import { RecordingReporter } from "../support/recording-reporter.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
 /**
@@ -58,12 +60,13 @@ type RunRunDepsWithSpies = Deps & {
 function pinnedDeps(spies: {
   advanceWorkflow?: RunRunDepsWithSpies["advanceWorkflow"];
   runWorkflow?: RunRunDepsWithSpies["runWorkflow"];
+  reporter?: Reporter;
 }): RunRunDepsWithSpies {
   return {
     clock: () => new Date("2026-05-02T14:42:13Z"),
     rng: (n) => new Uint8Array([0xc3, 0xd4]).slice(0, n),
     createQueryFn: noopQueryFn(),
-    reporter: new LineReporter(),
+    reporter: spies.reporter ?? new LineReporter(),
     commit: () => ({ ok: true, skipped: true }),
     runPreflight,
     appendPraxisToGitignore,
@@ -1010,6 +1013,249 @@ describe("runAdvance auto-launched iter SIGINT → ledger 'cancelled' (S-006 AC-
       const final = readChainLedger(cwd, CHAIN_ID);
       if (!final.ok) throw new Error(final.reason);
       expect(final.ledger.status).toBe("cancelled");
+    });
+  });
+});
+
+/**
+ * S-007 — `runAdvance` reporter wiring. The resume dispatcher
+ * (`advanceWorkflow`) re-enters `executeStages` directly, so the chain banner
+ * must NOT re-fire on the resumed iteration (AC-S7-5). The auto-launched
+ * iter K+1 goes through `runWorkflow` again, so its banner DOES fire — but
+ * that emit lives in the runner; the CLI's job here is just forwarding the
+ * reporter through deps.
+ *
+ * The chainEnd line, by contrast, is the CLI's responsibility — fired after
+ * `handleIterationOutcome` flips the ledger to a terminal status (AC-S7-7) or
+ * after `writeChainTerminalStatus` flips it to aborted/cancelled (AC-S7-9).
+ */
+describe("runAdvance reporter chain events (S-007 AC-S7-5/AC-S7-7)", () => {
+  it("AC-S7-5: resumed iter (advanceWorkflow path) → CLI never invokes reporter.chainStart on its own", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Final-iter pause: iter 2 of 2 already 'running' on disk; advance
+      // completes it cleanly. No auto-launch (K === N), so the only path
+      // that could emit chainStart is the resume dispatcher itself — which
+      // must not.
+      seedRunState(cwd, ITER2_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 2,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 2,
+        iterations: [
+          {
+            index: 1,
+            runId: ITER1_RUN_ID,
+            status: "completed",
+            commitSha: "deadbeef".repeat(5),
+          },
+          { index: 2, runId: ITER2_RUN_ID, status: "running" },
+        ],
+      });
+
+      const FAKE_SHA_2 = "abcdef0011112222333344445555666677778888";
+      const advanceSpy = async (
+        runId: string,
+      ): Promise<RunWorkflowResult> => {
+        const r = readChainLedger(cwd, CHAIN_ID);
+        if (!r.ok) throw new Error(r.reason);
+        const updated = r.ledger.iterations.map((e) =>
+          e.index === 2
+            ? { ...e, status: "completed" as const, commitSha: FAKE_SHA_2 }
+            : e,
+        );
+        writeChainLedger(cwd, {
+          ...r.ledger,
+          iterations: updated,
+          iterationsCompleted: 2,
+        });
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 2,
+        };
+      };
+
+      const reporter = new RecordingReporter();
+      const deps = pinnedDeps({
+        advanceWorkflow: advanceSpy,
+        // runWorkflow not provided — final iter, no auto-launch, so the spy
+        // would never fire anyway. Throw if it does to lock the contract.
+        runWorkflow: async () => {
+          throw new Error("auto-launch must NOT fire when K === N");
+        },
+        reporter,
+      });
+      await runAdvance(
+        { runId: ITER2_RUN_ID, noPause: false },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      // Resume re-enters executeStages directly via advanceWorkflow; the CLI
+      // never invokes reporter.chainStart itself. The advanceWorkflow spy
+      // doesn't either (it returns synthetic results), so chainStart count = 0.
+      expect(reporter.countOf("chainStart")).toBe(0);
+      // chainEnd fires once for the completed final iter (AC-S7-7).
+      expect(reporter.countOf("chainEnd")).toBe(1);
+    });
+  });
+
+  it("AC-S7-7 (advance happy path): chain status flips to completed → reporter.chainEnd fires once", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Mid-chain pause: iter 1 of 2 paused, advance completes it, auto-
+      // launches iter 2. We assert chainEnd fires exactly once at the end.
+      seedRunState(cwd, ITER1_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 2,
+        iterations: [{ index: 1, runId: ITER1_RUN_ID, status: "running" }],
+      });
+
+      const FAKE_SHA_1 = "abcdef0011112222333344445555666677778888";
+      const FAKE_SHA_2 = "deadbeef11112222333344445555666677778888";
+      const advanceSpy = async (
+        runId: string,
+      ): Promise<RunWorkflowResult> => {
+        const r = readChainLedger(cwd, CHAIN_ID);
+        if (!r.ok) throw new Error(r.reason);
+        const updated = r.ledger.iterations.map((e) =>
+          e.index === 1
+            ? { ...e, status: "completed" as const, commitSha: FAKE_SHA_1 }
+            : e,
+        );
+        writeChainLedger(cwd, {
+          ...r.ledger,
+          iterations: updated,
+          iterationsCompleted: 1,
+        });
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
+      };
+      const runSpy = async (
+        ctx: RunWorkflowContext,
+      ): Promise<RunWorkflowResult> => {
+        const r = readChainLedger(cwd, CHAIN_ID);
+        if (!r.ok) throw new Error(r.reason);
+        const k = ctx.chain?.iterationIndex ?? 0;
+        const next = appendIteration(
+          r.ledger,
+          {
+            index: k,
+            runId: ITER2_RUN_ID,
+            status: "completed",
+            commitSha: FAKE_SHA_2,
+          },
+          "2026-05-02T14:42:13Z",
+        );
+        writeChainLedger(cwd, { ...next, iterationsCompleted: k });
+        return {
+          ok: true,
+          runId: ITER2_RUN_ID,
+          runDir: `/tmp/${ITER2_RUN_ID}`,
+          paused: false,
+        };
+      };
+      const reporter = new RecordingReporter();
+      const deps = pinnedDeps({
+        advanceWorkflow: advanceSpy,
+        runWorkflow: runSpy,
+        reporter,
+      });
+      await runAdvance(
+        { runId: ITER1_RUN_ID, noPause: false },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      const ends = reporter.calls.filter((c) => c.kind === "chainEnd");
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        kind: "chainEnd",
+        status: "completed",
+        iterationsCompleted: 2,
+        iterationsTotal: 2,
+      });
+    });
+  });
+});
+
+describe("runAdvance reporter chain events on failure (S-007 AC-S7-9)", () => {
+  it("AC-S7-9: dispatcher returns failed → reporter.chainEnd fires once with status='aborted'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunState(cwd, ITER1_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 3,
+        iterations: [{ index: 1, runId: ITER1_RUN_ID, status: "running" }],
+      });
+      const failingAdvance = async (
+        runId: string,
+      ): Promise<RunWorkflowResult> => {
+        return {
+          ok: false,
+          reason: "validator_failed: bad artifact",
+          runId,
+          runDir: `/tmp/${runId}`,
+          failedStageId: "clarify-assess",
+          status: "failed",
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
+      };
+      const reporter = new RecordingReporter();
+      const deps = pinnedDeps({
+        advanceWorkflow: failingAdvance,
+        reporter,
+      });
+      // runResume calls process.exit(1) on failure; intercept to keep the test alive.
+      const exitSpy = vi
+        .spyOn(process, "exit")
+        // biome-ignore lint/suspicious/noExplicitAny: spy stub.
+        .mockImplementation(((_code?: number) => {
+          throw new Error("process.exit(1)");
+        }) as any);
+      // Swallow stderr noise from the failure-print path.
+      const errSpy = vi
+        .spyOn(process.stderr, "write")
+        .mockImplementation(() => true);
+      try {
+        await expect(
+          runAdvance(
+            { runId: ITER1_RUN_ID, noPause: false },
+            cwd,
+            new AbortController().signal,
+            deps,
+          ),
+        ).rejects.toThrow(/process\.exit\(1\)/);
+      } finally {
+        exitSpy.mockRestore();
+        errSpy.mockRestore();
+      }
+      const ends = reporter.calls.filter((c) => c.kind === "chainEnd");
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        kind: "chainEnd",
+        status: "aborted",
+        iterationsCompleted: 0,
+        iterationsTotal: 3,
+      });
     });
   });
 });

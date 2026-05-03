@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runRetry } from "../../src/cli.js";
 import {
   AUTO_COMMIT_ID,
@@ -8,6 +8,7 @@ import {
   CODE_REVIEWING_ID,
 } from "../../src/config/defaults.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
+import type { Reporter } from "../../src/ui/reporter.js";
 import {
   appendIteration,
   buildInitialChainLedger,
@@ -26,6 +27,7 @@ import type {
 } from "../../src/workflow/runner.js";
 import type { CreateQueryFn, Deps } from "../../src/workflow/stage.js";
 import { type State, writeState } from "../../src/workflow/state.js";
+import { RecordingReporter } from "../support/recording-reporter.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 
 /**
@@ -63,12 +65,13 @@ type RunRunDepsWithSpies = Deps & {
 function pinnedDeps(spies: {
   retryWorkflow?: RunRunDepsWithSpies["retryWorkflow"];
   runWorkflow?: RunRunDepsWithSpies["runWorkflow"];
+  reporter?: Reporter;
 }): RunRunDepsWithSpies {
   return {
     clock: () => new Date("2026-05-02T14:42:13Z"),
     rng: (n) => new Uint8Array([0xc3, 0xd4]).slice(0, n),
     createQueryFn: noopQueryFn(),
-    reporter: new LineReporter(),
+    reporter: spies.reporter ?? new LineReporter(),
     commit: () => ({ ok: true, skipped: true }),
     runPreflight,
     appendPraxisToGitignore,
@@ -891,6 +894,144 @@ describe("runRetry dispatcher failure → ledger 'aborted' (S-006 AC-S6-6)", () 
       const final = readChainLedger(cwd, CHAIN_ID);
       if (!final.ok) throw new Error(final.reason);
       expect(final.ledger.status).toBe("cancelled");
+    });
+  });
+});
+
+/**
+ * S-007 — `runRetry` reporter wiring. Symmetric to the `runAdvance` AC-S7-5
+ * test: `retryWorkflow` re-enters `executeStages` directly, so the chain
+ * banner must NOT re-fire on the resumed iteration. The auto-launched K+1
+ * iteration goes through the runner again, so its banner DOES fire (covered
+ * runner-side in `tests/workflow/runner-chain.test.ts`).
+ */
+describe("runRetry reporter chain events (S-007 AC-S7-6)", () => {
+  it("AC-S7-6: retried iter (retryWorkflow path) → CLI never invokes reporter.chainStart", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Final-iter retry shape: iter 2 of 2 mid-flight, retry completes it.
+      // K === N → no auto-launch, so chainStart should remain at 0.
+      seedRunState(cwd, ITER2_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 2,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 2,
+        iterations: [
+          {
+            index: 1,
+            runId: ITER1_RUN_ID,
+            status: "completed",
+            commitSha: "deadbeef".repeat(5),
+          },
+          { index: 2, runId: ITER2_RUN_ID, status: "running" },
+        ],
+      });
+
+      const FAKE_SHA = "abcdef0011112222333344445555666677778888";
+      const retrySpy = async (
+        runId: string,
+      ): Promise<RunWorkflowResult> => {
+        const r = readChainLedger(cwd, CHAIN_ID);
+        if (!r.ok) throw new Error(r.reason);
+        const updated = r.ledger.iterations.map((e) =>
+          e.index === 2
+            ? { ...e, status: "completed" as const, commitSha: FAKE_SHA }
+            : e,
+        );
+        writeChainLedger(cwd, {
+          ...r.ledger,
+          iterations: updated,
+          iterationsCompleted: 2,
+        });
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 2,
+        };
+      };
+      const reporter = new RecordingReporter();
+      const deps = pinnedDeps({
+        retryWorkflow: retrySpy,
+        runWorkflow: async () => {
+          throw new Error("auto-launch must NOT fire when K === N");
+        },
+        reporter,
+      });
+      await runRetry(
+        { runId: ITER2_RUN_ID, noPause: false },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      expect(reporter.countOf("chainStart")).toBe(0);
+      expect(reporter.countOf("chainEnd")).toBe(1);
+    });
+  });
+});
+
+describe("runRetry reporter chain events on failure (S-007 AC-S7-9)", () => {
+  it("AC-S7-9: retryWorkflow fails → reporter.chainEnd fires once with status='aborted'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunState(cwd, ITER1_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 3,
+        iterations: [{ index: 1, runId: ITER1_RUN_ID, status: "running" }],
+      });
+      const failingRetry = async (
+        runId: string,
+      ): Promise<RunWorkflowResult> => ({
+        ok: false,
+        reason: "session_unresumable",
+        runId,
+        runDir: `/tmp/${runId}`,
+        failedStageId: CODE_IMPROVING_ID,
+        status: "failed",
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      const reporter = new RecordingReporter();
+      const deps = pinnedDeps({
+        retryWorkflow: failingRetry,
+        reporter,
+      });
+      const exitSpy = vi
+        .spyOn(process, "exit")
+        // biome-ignore lint/suspicious/noExplicitAny: spy stub.
+        .mockImplementation(((_code?: number) => {
+          throw new Error("process.exit(1)");
+        }) as any);
+      const errSpy = vi
+        .spyOn(process.stderr, "write")
+        .mockImplementation(() => true);
+      try {
+        await expect(
+          runRetry(
+            { runId: ITER1_RUN_ID, noPause: false },
+            cwd,
+            new AbortController().signal,
+            deps,
+          ),
+        ).rejects.toThrow(/process\.exit\(1\)/);
+      } finally {
+        exitSpy.mockRestore();
+        errSpy.mockRestore();
+      }
+      const ends = reporter.calls.filter((c) => c.kind === "chainEnd");
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        kind: "chainEnd",
+        status: "aborted",
+        iterationsCompleted: 0,
+        iterationsTotal: 3,
+      });
     });
   });
 });
