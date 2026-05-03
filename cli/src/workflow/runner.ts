@@ -15,6 +15,7 @@ import {
   appendIteration,
   buildInitialChainLedger,
   type ChainFlags,
+  type ChainLedger,
   readChainLedger,
   updateIteration,
   writeChainLedger,
@@ -239,24 +240,24 @@ function bootstrapChainOnIterationStart(
   deps: Deps,
 ): void {
   const now = toIsoSeconds(deps.clock());
-  const base =
-    chain.iterationIndex === 1
-      ? buildInitialChainLedger({
-          chainId: chain.chainId,
-          intent,
-          iterationsTotal: chain.iterationsTotal,
-          flags: chain.flags,
-          createdAt: now,
-        })
-      : (() => {
-          const read = readChainLedger(cwd, chain.chainId);
-          if (!read.ok) {
-            throw new Error(
-              `bootstrapChainOnIterationStart: cannot start iteration ${chain.iterationIndex} — ${read.reason}`,
-            );
-          }
-          return read.ledger;
-        })();
+  let base: ChainLedger;
+  if (chain.iterationIndex === 1) {
+    base = buildInitialChainLedger({
+      chainId: chain.chainId,
+      intent,
+      iterationsTotal: chain.iterationsTotal,
+      flags: chain.flags,
+      createdAt: now,
+    });
+  } else {
+    const read = readChainLedger(cwd, chain.chainId);
+    if (!read.ok) {
+      throw new Error(
+        `bootstrapChainOnIterationStart: cannot start iteration ${chain.iterationIndex} — ${read.reason}`,
+      );
+    }
+    base = read.ledger;
+  }
   const withIteration = appendIteration(
     base,
     {
