@@ -299,7 +299,13 @@ export async function runRun(
       return result;
     }
     const entry = read.ledger.iterations.find((e) => e.index === k);
-    if (entry && entry.commitSha === undefined) {
+    if (!entry) {
+      process.stderr.write(
+        `praxis: chain ledger ${chainId} is missing iteration ${k} entry after runner returned ok\n`,
+      );
+      return result;
+    }
+    if (entry.commitSha === undefined) {
       const stamped = setChainStatus(
         read.ledger,
         "completed-early",
