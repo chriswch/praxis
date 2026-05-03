@@ -9,9 +9,8 @@ import {
   CODE_REVIEWING_ID,
 } from "../../src/config/defaults.js";
 import type { PraxisConfig } from "../../src/config/schema.js";
-import type { Reporter } from "../../src/ui/reporter.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
-import { RecordingReporter } from "../support/recording-reporter.js";
+import type { Reporter } from "../../src/ui/reporter.js";
 import {
   buildInitialChainLedger,
   readChainLedger,
@@ -31,6 +30,7 @@ import type {
   SdkMessage,
 } from "../../src/workflow/stage.js";
 import { type State, writeState } from "../../src/workflow/state.js";
+import { RecordingReporter } from "../support/recording-reporter.js";
 import { scriptedQuery } from "../support/scripted-query.js";
 import { withTempRepo } from "../support/tmp-repo.js";
 

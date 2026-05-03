@@ -929,9 +929,7 @@ describe("runRetry reporter chain events (S-007 AC-S7-6)", () => {
       });
 
       const FAKE_SHA = "abcdef0011112222333344445555666677778888";
-      const retrySpy = async (
-        runId: string,
-      ): Promise<RunWorkflowResult> => {
+      const retrySpy = async (runId: string): Promise<RunWorkflowResult> => {
         const r = readChainLedger(cwd, CHAIN_ID);
         if (!r.ok) throw new Error(r.reason);
         const updated = r.ledger.iterations.map((e) =>
@@ -1002,12 +1000,9 @@ describe("runRetry reporter chain events on failure (S-007 AC-S7-9)", () => {
         retryWorkflow: failingRetry,
         reporter,
       });
-      const exitSpy = vi
-        .spyOn(process, "exit")
-        // biome-ignore lint/suspicious/noExplicitAny: spy stub.
-        .mockImplementation(((_code?: number) => {
-          throw new Error("process.exit(1)");
-        }) as any);
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+        throw new Error("process.exit(1)");
+      }) as () => never);
       const errSpy = vi
         .spyOn(process.stderr, "write")
         .mockImplementation(() => true);

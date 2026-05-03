@@ -1055,9 +1055,7 @@ describe("runAdvance reporter chain events (S-007 AC-S7-5/AC-S7-7)", () => {
       });
 
       const FAKE_SHA_2 = "abcdef0011112222333344445555666677778888";
-      const advanceSpy = async (
-        runId: string,
-      ): Promise<RunWorkflowResult> => {
+      const advanceSpy = async (runId: string): Promise<RunWorkflowResult> => {
         const r = readChainLedger(cwd, CHAIN_ID);
         if (!r.ok) throw new Error(r.reason);
         const updated = r.ledger.iterations.map((e) =>
@@ -1121,9 +1119,7 @@ describe("runAdvance reporter chain events (S-007 AC-S7-5/AC-S7-7)", () => {
 
       const FAKE_SHA_1 = "abcdef0011112222333344445555666677778888";
       const FAKE_SHA_2 = "deadbeef11112222333344445555666677778888";
-      const advanceSpy = async (
-        runId: string,
-      ): Promise<RunWorkflowResult> => {
+      const advanceSpy = async (runId: string): Promise<RunWorkflowResult> => {
         const r = readChainLedger(cwd, CHAIN_ID);
         if (!r.ok) throw new Error(r.reason);
         const updated = r.ledger.iterations.map((e) =>
@@ -1225,12 +1221,9 @@ describe("runAdvance reporter chain events on failure (S-007 AC-S7-9)", () => {
         reporter,
       });
       // runResume calls process.exit(1) on failure; intercept to keep the test alive.
-      const exitSpy = vi
-        .spyOn(process, "exit")
-        // biome-ignore lint/suspicious/noExplicitAny: spy stub.
-        .mockImplementation(((_code?: number) => {
-          throw new Error("process.exit(1)");
-        }) as any);
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+        throw new Error("process.exit(1)");
+      }) as () => never);
       // Swallow stderr noise from the failure-print path.
       const errSpy = vi
         .spyOn(process.stderr, "write")

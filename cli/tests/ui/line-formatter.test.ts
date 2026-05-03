@@ -279,12 +279,7 @@ describe("formatRunDone (H-1) — headline verb branches on status", () => {
 describe("formatChainStart (S-007 AC-S7-3) — chain banner", () => {
   it("emits `praxis: [chain <short> · iteration K/N] starting run <runId>` with the last 4 chainId chars", () => {
     expect(
-      formatChainStart(
-        "2026-05-02-1430-9f3c",
-        1,
-        3,
-        "2026-05-02-1430-7af2",
-      ),
+      formatChainStart("2026-05-02-1430-9f3c", 1, 3, "2026-05-02-1430-7af2"),
     ).toEqual([
       "praxis: [chain 9f3c · iteration 1/3] starting run 2026-05-02-1430-7af2",
     ]);
@@ -322,9 +317,7 @@ describe("formatChainEnd (S-007 AC-S7-11) — chain-end line", () => {
   it("uses the spec status word verbatim for completed-early", () => {
     expect(
       formatChainEnd("2026-05-02-1430-9f3c", "completed-early", 1, 3),
-    ).toEqual([
-      "praxis: [chain 9f3c] completed-early after 1/3 iterations",
-    ]);
+    ).toEqual(["praxis: [chain 9f3c] completed-early after 1/3 iterations"]);
   });
 
   it("renders aborted with the iterations-completed count, not the failed iter index", () => {

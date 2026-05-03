@@ -344,6 +344,27 @@ describe("praxis run --iterations 3 end-to-end (S-003 AC-S3-1..AC-S3-4, AC-S3-12
       // a real run-dir on disk and was written in the order indexed). The
       // direct stdout-capture assertion lives in the run-run-loop unit
       // test; here we lean on the on-disk evidence for the e2e smoke.
+
+      // S-007 AC-S7-1/AC-S7-2/AC-S7-7: the chain banner lands on stdout
+      // once per iteration, and the chain-end line lands once at completion.
+      // Use the chain-id's last 4 chars as the short label (matches
+      // formatChainStart / formatChainEnd).
+      const short = chainId.slice(-4);
+      const bannerPattern = new RegExp(
+        `praxis: \\[chain ${short} · iteration \\d/3\\] starting run \\d{4}-\\d{2}-\\d{2}-\\d{4}-[0-9a-f]{4}`,
+      );
+      const banners = stdout.split("\n").filter((l) => bannerPattern.test(l));
+      expect(banners).toHaveLength(3);
+      // The K values are 1, 2, 3 in order.
+      expect(banners[0]).toContain("iteration 1/3");
+      expect(banners[1]).toContain("iteration 2/3");
+      expect(banners[2]).toContain("iteration 3/3");
+      // Chain-end line lands exactly once with status='completed' and K==N.
+      const endPattern = new RegExp(
+        `praxis: \\[chain ${short}\\] completed after 3/3 iterations`,
+      );
+      const ends = stdout.split("\n").filter((l) => endPattern.test(l));
+      expect(ends).toHaveLength(1);
     });
   });
 });
@@ -406,17 +427,32 @@ describe("praxis run --iterations 3 — iter 2 fails → ledger 'aborted' (S-006
         return inner(input);
       };
 
-      const result = await runRun(
-        {
-          intent: "ship the multi-iter test",
-          allowDirty: true,
-          noPause: true,
-          iterations: 3,
-        },
-        cwd,
-        new AbortController().signal,
-        buildDeps(createQueryFn),
-      );
+      // Capture stdout so we can assert the S-007 chain-end line lands on
+      // the abort path. Restore in finally to avoid leaking the patch.
+      const stdoutChunks: string[] = [];
+      const origWrite = process.stdout.write.bind(process.stdout);
+      // biome-ignore lint/suspicious/noExplicitAny: minimal patch shape.
+      process.stdout.write = ((chunk: any, ...rest: any[]): boolean => {
+        stdoutChunks.push(typeof chunk === "string" ? chunk : String(chunk));
+        return origWrite(chunk, ...rest);
+      }) as typeof process.stdout.write;
+
+      let result: Awaited<ReturnType<typeof runRun>>;
+      try {
+        result = await runRun(
+          {
+            intent: "ship the multi-iter test",
+            allowDirty: true,
+            noPause: true,
+            iterations: 3,
+          },
+          cwd,
+          new AbortController().signal,
+          buildDeps(createQueryFn),
+        );
+      } finally {
+        process.stdout.write = origWrite;
+      }
       expect(result.ok).toBe(false);
 
       // Locate the ledger and assert terminal status.
@@ -438,6 +474,22 @@ describe("praxis run --iterations 3 — iter 2 fails → ledger 'aborted' (S-006
       expect(read.ledger.iterations[0].commitSha).toMatch(/^[0-9a-f]{40}$/);
       expect(read.ledger.iterations[1].status).toBe("running");
       expect(read.ledger.iterations[1].commitSha).toBeUndefined();
+
+      // S-007 AC-S7-9: chain-end line lands on stdout once with status
+      // 'aborted', K=1 (only iter 1 completed), N=3.
+      const stdout = stdoutChunks.join("");
+      const short = chainId.slice(-4);
+      const endPattern = new RegExp(
+        `praxis: \\[chain ${short}\\] aborted after 1/3 iterations`,
+      );
+      expect(stdout).toMatch(endPattern);
+      // S-007 AC-S7-1/AC-S7-2: chain banner lands on stdout for iter 1 + 2;
+      // iter 3 never starts so no banner for it.
+      const bannerPattern = new RegExp(
+        `praxis: \\[chain ${short} · iteration \\d/3\\] starting run`,
+      );
+      const banners = stdout.split("\n").filter((l) => bannerPattern.test(l));
+      expect(banners).toHaveLength(2);
     });
   });
 });

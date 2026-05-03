@@ -156,12 +156,7 @@ describe("LineReporter (AC-2/7/8/10/11/12)", () => {
 describe("LineReporter chain banner + chain-end (S-007)", () => {
   it("chainStart writes the formatted banner + newline to stdout", () => {
     const { reporter, out } = makeReporter();
-    reporter.chainStart(
-      "2026-05-02-1430-9f3c",
-      1,
-      3,
-      "2026-05-02-1430-7af2",
-    );
+    reporter.chainStart("2026-05-02-1430-9f3c", 1, 3, "2026-05-02-1430-7af2");
     expect(out.text()).toBe(
       "praxis: [chain 9f3c · iteration 1/3] starting run 2026-05-02-1430-7af2\n",
     );
@@ -180,12 +175,7 @@ describe("LineReporter chain banner + chain-end (S-007)", () => {
     try {
       const { reporter, out } = makeReporter({ cols: 80 });
       reporter.stageEvent({ type: "assistant_text", text: "wrapping up" });
-      reporter.chainStart(
-        "2026-05-02-1430-9f3c",
-        2,
-        3,
-        "2026-05-02-1442-bbbb",
-      );
+      reporter.chainStart("2026-05-02-1430-9f3c", 2, 3, "2026-05-02-1442-bbbb");
       const text = out.text();
       const partialIdx = text.indexOf(" › wrapping up");
       const bannerIdx = text.indexOf("praxis: [chain 9f3c");
