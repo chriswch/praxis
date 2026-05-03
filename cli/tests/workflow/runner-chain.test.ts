@@ -9,7 +9,9 @@ import {
   CODE_REVIEWING_ID,
 } from "../../src/config/defaults.js";
 import type { PraxisConfig } from "../../src/config/schema.js";
+import type { Reporter } from "../../src/ui/reporter.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
+import { RecordingReporter } from "../support/recording-reporter.js";
 import {
   buildInitialChainLedger,
   readChainLedger,
@@ -120,12 +122,13 @@ function pinnedDeps(opts: {
   bytes?: Uint8Array;
   createQueryFn: CreateQueryFn;
   commit?: Deps["commit"];
+  reporter?: Reporter;
 }): Deps {
   return {
     clock: () => opts.date ?? new Date("2026-05-02T14:30:12Z"),
     rng: (n) => (opts.bytes ?? new Uint8Array([0x7a, 0xf2])).slice(0, n),
     createQueryFn: opts.createQueryFn,
-    reporter: new LineReporter(),
+    reporter: opts.reporter ?? new LineReporter(),
     commit: opts.commit ?? (() => ({ ok: true, skipped: true })),
     runPreflight,
     appendPraxisToGitignore,
@@ -1211,6 +1214,155 @@ describe("RunWorkflowFailure carries chain identity (S-006 AC-S6-13)", () => {
       if (result.ok) throw new Error("expected failure");
       expect(result.chainId).toBe(CHAIN_ID);
       expect(result.iterationIndex).toBe(2);
+    });
+  });
+});
+
+/**
+ * S-007 — `runWorkflow` emits `reporter.chainStart?.(chainId, k, n, runId)`
+ * once per iteration when `ctx.chain !== undefined`. Lives on `runWorkflow`'s
+ * entry path (NOT inside `executeStages`) so advance/retry resume tails do
+ * not re-emit the banner on every continuation.
+ */
+describe("runWorkflow chainStart emit (S-007 AC-S7-1/AC-S7-2)", () => {
+  it("AC-S7-1: iter 1 with ctx.chain set → reporter.chainStart fires once with iter=1", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const reporter = new RecordingReporter();
+      const result = await runWorkflow(
+        {
+          intent: "ship the chain",
+          cwd,
+          allowDirty: true,
+          config: oneStagePauseConfig,
+          chain: {
+            chainId: CHAIN_ID,
+            iterationIndex: 1,
+            iterationsTotal: 3,
+            flags: { allowDirty: true, noPause: false },
+          },
+        },
+        pinnedDeps({
+          createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+          reporter,
+        }),
+      );
+      if (!result.ok) throw new Error(result.reason);
+      const banners = reporter.calls.filter((c) => c.kind === "chainStart");
+      expect(banners).toHaveLength(1);
+      expect(banners[0]).toMatchObject({
+        kind: "chainStart",
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+        iterationsTotal: 3,
+        runId: ITER1_RUN_ID,
+      });
+    });
+  });
+
+  it("AC-S7-2: iter 2 with ctx.chain set → reporter.chainStart fires with iter=2", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Seed iter-1 entry so iter 2 can append.
+      const seeded = buildInitialChainLedger({
+        chainId: CHAIN_ID,
+        intent: "ship the chain",
+        iterationsTotal: 3,
+        flags: { allowDirty: true, noPause: false },
+        createdAt: "2026-05-02T14:25:00Z",
+      });
+      writeChainLedger(cwd, {
+        ...seeded,
+        iterations: [
+          {
+            index: 1,
+            runId: "2026-05-02-1425-aaaa",
+            status: "completed",
+            commitSha: "feedface".repeat(5),
+          },
+        ],
+        iterationsCompleted: 1,
+      });
+
+      const reporter = new RecordingReporter();
+      const result = await runWorkflow(
+        {
+          intent: "ship the chain",
+          cwd,
+          allowDirty: true,
+          config: oneStagePauseConfig,
+          chain: {
+            chainId: CHAIN_ID,
+            iterationIndex: 2,
+            iterationsTotal: 3,
+            flags: { allowDirty: true, noPause: false },
+          },
+        },
+        pinnedDeps({
+          createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+          reporter,
+        }),
+      );
+      if (!result.ok) throw new Error(result.reason);
+      const banners = reporter.calls.filter((c) => c.kind === "chainStart");
+      expect(banners).toHaveLength(1);
+      expect(banners[0]).toMatchObject({
+        kind: "chainStart",
+        chainId: CHAIN_ID,
+        iterationIndex: 2,
+        iterationsTotal: 3,
+      });
+    });
+  });
+
+  it("standalone runs (no ctx.chain) → reporter.chainStart never fires", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const reporter = new RecordingReporter();
+      const result = await runWorkflow(
+        {
+          intent: "standalone",
+          cwd,
+          allowDirty: true,
+          config: oneStagePauseConfig,
+        },
+        pinnedDeps({
+          createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+          reporter,
+        }),
+      );
+      if (!result.ok) throw new Error(result.reason);
+      expect(reporter.countOf("chainStart")).toBe(0);
+    });
+  });
+
+  it("chainStart fires BEFORE the first stageStart (banner precedes stage 1 dispatch)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const reporter = new RecordingReporter();
+      const result = await runWorkflow(
+        {
+          intent: "ship it",
+          cwd,
+          allowDirty: true,
+          config: oneStagePauseConfig,
+          chain: {
+            chainId: CHAIN_ID,
+            iterationIndex: 1,
+            iterationsTotal: 1,
+            flags: { allowDirty: true, noPause: false },
+          },
+        },
+        pinnedDeps({
+          createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+          reporter,
+        }),
+      );
+      if (!result.ok) throw new Error(result.reason);
+      const bannerIdx = reporter.calls.findIndex(
+        (c) => c.kind === "chainStart",
+      );
+      const firstStageStart = reporter.calls.findIndex(
+        (c) => c.kind === "stageStart",
+      );
+      expect(bannerIdx).toBeGreaterThanOrEqual(0);
+      expect(firstStageStart).toBeGreaterThan(bannerIdx);
     });
   });
 });

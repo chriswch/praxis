@@ -226,6 +226,18 @@ export async function runWorkflow(
   // running entry.
   if (ctx.chain) {
     bootstrapChainOnIterationStart(ctx.cwd, ctx.chain, ctx.intent, runId, deps);
+    // S-007 AC-S7-1/AC-S7-2: emit the chain banner once per iteration AFTER
+    // the per-iteration ledger entry is on disk and BEFORE the first stage
+    // dispatches. Lives in `runWorkflow`'s entry path (NOT in
+    // `executeStages`) — advance/retry resume tails re-enter `executeStages`
+    // directly, so emitting it here keeps the banner from re-firing on every
+    // resume continuation.
+    reporter.chainStart?.(
+      ctx.chain.chainId,
+      ctx.chain.iterationIndex,
+      ctx.chain.iterationsTotal,
+      runId,
+    );
   }
 
   // AC-3: synthetic stage-0 line `[0/N intent] captured → 00-intent.txt`.
