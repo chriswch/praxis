@@ -1,7 +1,5 @@
 {
-  "name": "praxis-local",
-  "owner": { "name": "chriswch" },
-  "plugins": [
-    { "name": "praxis", "source": "./plugin" }
-  ]
+    "name": "chriswch-atelier",
+    "owner": { "name": "chriswch" },
+    "plugins": [{ "name": "praxis", "source": "./plugin" }]
 }
