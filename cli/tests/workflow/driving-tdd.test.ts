@@ -373,9 +373,7 @@ describe("driving-tdd timeout (AC-4)", () => {
       expect(persisted.stages["auto-commit"].status).toBe("pending");
 
       // Partial log written (empty in this test, but the file exists).
-      expect(existsSync(join(result.runDir!, "03-driving-tdd.md"))).toBe(
-        true,
-      );
+      expect(existsSync(join(result.runDir!, "03-driving-tdd.md"))).toBe(true);
       // 07-commit.txt must NOT exist.
       expect(existsSync(join(result.runDir!, "07-commit.txt"))).toBe(false);
 
@@ -436,9 +434,7 @@ describe("driving-tdd SIGINT (AC-5)", () => {
       expect(persisted.stages["driving-tdd"].stopReason).toBe("sigint");
       expect(persisted.stages["auto-commit"].status).toBe("pending");
 
-      expect(existsSync(join(result.runDir!, "03-driving-tdd.md"))).toBe(
-        true,
-      );
+      expect(existsSync(join(result.runDir!, "03-driving-tdd.md"))).toBe(true);
       expect(existsSync(join(result.runDir!, "07-commit.txt"))).toBe(false);
       expect(commit.calls.length).toBe(0);
       // S-2: three SDK calls — clarify, sketch, implement-hang.
@@ -490,7 +486,9 @@ describe("fresh SDK session per stage (AC-10)", () => {
       ];
       expect(new Set(sessionIds).size).toBe(7);
       expect(persisted.stages["clarify-assess"].sessionId).toBe("sess_clarify");
-      expect(persisted.stages["sketching-design"].sessionId).toBe("sess_sketch");
+      expect(persisted.stages["sketching-design"].sessionId).toBe(
+        "sess_sketch",
+      );
       expect(persisted.stages["driving-tdd"].sessionId).toBe("sess_impl");
       expect(persisted.stages["code-reviewing"].sessionId).toBe("sess_review");
       expect(persisted.stages["code-improving"].sessionId).toBe("sess_improve");
@@ -660,7 +658,14 @@ describe("S-4 AC-9: scripted 7-stage e2e records [3/7 driving-tdd] and [6/7 veri
       const recording = recordingScriptedQueryWithCommitOn(cwd, 2, [
         [{ messages: stageMessages("sess_clarify", VALID_CLARIFY_ARTIFACT) }],
         [{ messages: stageMessages("sess_sketch", "## Sketch\n\nok\n") }],
-        [{ messages: stageMessages("sess_impl", "## TDD log\n\n- AC-1 green\n") }],
+        [
+          {
+            messages: stageMessages(
+              "sess_impl",
+              "## TDD log\n\n- AC-1 green\n",
+            ),
+          },
+        ],
         [{ messages: stageMessages("sess_review", REVIEW_PROCEED) }],
         [{ messages: stageMessages("sess_improve", IMPROVE_LOG) }],
         [{ messages: stageMessages("sess_verify", "## Verification\n\nok\n") }],

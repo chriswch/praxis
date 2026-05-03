@@ -101,7 +101,11 @@ function implementWithSideEffect(
           spawnSync("git", ["commit", "-m", "implement: per-AC"], { cwd });
           // Drop a SECOND uncommitted file so production auto-commit has
           // something dirty to capture in its own commit.
-          writeFileSync(join(cwd, `${filename}.note`), "auto-commit me\n", "utf8");
+          writeFileSync(
+            join(cwd, `${filename}.note`),
+            "auto-commit me\n",
+            "utf8",
+          );
         }
         for (const m of stageMessages(
           sessionId,

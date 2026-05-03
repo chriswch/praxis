@@ -92,7 +92,11 @@ function implementWithSideEffect(
           spawnSync("git", ["add", filename], { cwd });
           spawnSync("git", ["commit", "-m", "implement: per-AC"], { cwd });
           // Trailing dirty file for production auto-commit to land.
-          writeFileSync(join(cwd, `${filename}.note`), "auto-commit me\n", "utf8");
+          writeFileSync(
+            join(cwd, `${filename}.note`),
+            "auto-commit me\n",
+            "utf8",
+          );
         }
         for (const m of stageMessages(
           sessionId,

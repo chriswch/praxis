@@ -865,9 +865,7 @@ describe("S-003 AC-7: validator terminal failure on code-reviewing", () => {
         "validator_failed",
       );
       expect(persisted.stages["code-improving"].status).toBe("pending");
-      expect(persisted.stages["verifying-and-adapting"].status).toBe(
-        "pending",
-      );
+      expect(persisted.stages["verifying-and-adapting"].status).toBe("pending");
       expect(persisted.stages["auto-commit"].status).toBe("pending");
     });
   });

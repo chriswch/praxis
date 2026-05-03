@@ -369,14 +369,18 @@ describe("S-2 AC-6 + S-4 AC-10: pause-after-clarify advances into sketching-desi
       // design got the (2, 6) stageStart before the recording exhausts.
       let _err: unknown;
       try {
-        await advanceWorkflow(first.runId, { cwd, noPause: true }, {
-          ...deps(
-            recording2,
-            new Date("2026-04-25T14:35:00Z"),
-            new Uint8Array([0x01, 0x02]),
-          ),
-          reporter: reporter2,
-        });
+        await advanceWorkflow(
+          first.runId,
+          { cwd, noPause: true },
+          {
+            ...deps(
+              recording2,
+              new Date("2026-04-25T14:35:00Z"),
+              new Uint8Array([0x01, 0x02]),
+            ),
+            reporter: reporter2,
+          },
+        );
       } catch (e) {
         _err = e; // expected — the trailing stages have no script and throw.
       }
@@ -391,9 +395,9 @@ describe("S-2 AC-6 + S-4 AC-10: pause-after-clarify advances into sketching-desi
         expect(sketchStart.total).toBe(7);
       }
       // 02-sketching-design.md was written by the resumed stage.
-      expect(
-        existsSync(join(first.runDir, "02-sketching-design.md")),
-      ).toBe(true);
+      expect(existsSync(join(first.runDir, "02-sketching-design.md"))).toBe(
+        true,
+      );
     });
   });
 });
