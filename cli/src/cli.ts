@@ -3,9 +3,16 @@ import { randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { commit } from "./git/commit.js";
 import { LineReporter } from "./ui/line-reporter.js";
+import {
+  generateChainId,
+  readChainLedger,
+  setChainStatus,
+  writeChainLedger,
+} from "./workflow/chain.js";
 import { isRunId } from "./workflow/run-id.js";
 import {
   advanceWorkflow,
+  type RunChainContext,
   type RunWorkflowResult,
   retryWorkflow,
   runWorkflow,
@@ -158,6 +165,83 @@ function parseRetryArgs(rest: string[]): ParsedRetryArgs {
   return { runId, noPause };
 }
 
+/**
+ * S-002: orchestrate one `praxis run` invocation against pre-parsed args.
+ * Extracted from `main()` so unit/e2e tests can drive it with stubbed
+ * `Deps` (the production CLI hard-wires the real Anthropic SDK, which
+ * needs network credentials). All stdout/stderr writes happen inside the
+ * helper; callers just hand it `parsed`, `cwd`, a SIGINT-shaped
+ * `AbortSignal`, and `Deps`.
+ *
+ * When `parsed.iterations` is set, the helper generates a chain-id once via
+ * `generateChainId(deps.clock(), deps.rng(2))`, builds the per-iteration
+ * `RunChainContext` from it (along with `iterationsTotal` and the inherited
+ * `flags`), passes it onto `runWorkflow`, and on success patches the chain
+ * ledger to `status: "completed"` (S-2 AC-S2-22). Failure / pause leave the
+ * chain `in_progress` for later slices to close out.
+ */
+export async function runRun(
+  parsed: ParsedRunArgs,
+  cwd: string,
+  signal: AbortSignal,
+  deps: Deps,
+): Promise<RunWorkflowResult> {
+  const chain: RunChainContext | undefined =
+    parsed.iterations !== undefined
+      ? {
+          chainId: generateChainId(deps.clock(), deps.rng(2)),
+          iterationIndex: 1,
+          iterationsTotal: parsed.iterations,
+          flags: { allowDirty: parsed.allowDirty, noPause: parsed.noPause },
+        }
+      : undefined;
+
+  const result = await runWorkflow(
+    {
+      intent: parsed.intent,
+      cwd,
+      allowDirty: parsed.allowDirty,
+      noPause: parsed.noPause,
+      signal,
+      chain,
+    },
+    deps,
+  );
+
+  // S-002 AC-S2-22: on a clean success, the CLI is the chain-status owner —
+  // flip the ledger from `in_progress` to `completed` and write back. Pause
+  // and failure paths leave the ledger as-is for later slices (S-006 will
+  // close out aborted/cancelled).
+  if (chain && result.ok && !result.paused) {
+    const read = readChainLedger(cwd, chain.chainId);
+    if (read.ok) {
+      const next = setChainStatus(
+        read.ledger,
+        "completed",
+        deps
+          .clock()
+          .toISOString()
+          .replace(/\.\d{3}Z$/, "Z"),
+      );
+      writeChainLedger(cwd, next);
+    } else {
+      process.stderr.write(
+        `praxis: failed to read chain ledger ${chain.chainId} for terminal status: ${read.reason}\n`,
+      );
+    }
+  }
+
+  if (!result.ok) {
+    process.stderr.write(`praxis: ${result.reason}\n`);
+    if (result.remediation) {
+      process.stderr.write(`${result.remediation}\n`);
+    }
+  } else {
+    process.stdout.write(`${result.runId}\n`);
+  }
+  return result;
+}
+
 async function main(argv: string[]): Promise<void> {
   const args = argv.slice(2);
   const [command, ...rest] = args;
@@ -171,10 +255,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command !== "run") {
     fail(
-      `unknown command: ${command ?? "(missing)"}. Usage: praxis run [--allow-dirty] [--no-pause] "<intent>" | praxis advance [--no-pause] <run-id> | praxis retry [--no-pause] <run-id>`,
+      `unknown command: ${command ?? "(missing)"}. Usage: praxis run [--allow-dirty] [--no-pause] [--iterations <N>] "<intent>" | praxis advance [--no-pause] <run-id> | praxis retry [--no-pause] <run-id>`,
     );
   }
-  const { intent, allowDirty, noPause } = parseRunArgs(rest);
+  const parsed = parseRunArgs(rest);
 
   // SIGINT: abort the in-flight stage so it surfaces a `cancelled` status
   // instead of leaving the SDK process running. The Node default
@@ -186,27 +270,16 @@ async function main(argv: string[]): Promise<void> {
 
   let result: RunWorkflowResult;
   try {
-    result = await runWorkflow(
-      {
-        intent,
-        cwd: process.cwd(),
-        allowDirty,
-        noPause,
-        signal: sigintAbort.signal,
-      },
+    result = await runRun(
+      parsed,
+      process.cwd(),
+      sigintAbort.signal,
       buildDefaultDeps(),
     );
   } finally {
     process.removeListener("SIGINT", onSigint);
   }
-  if (!result.ok) {
-    process.stderr.write(`praxis: ${result.reason}\n`);
-    if (result.remediation) {
-      process.stderr.write(`${result.remediation}\n`);
-    }
-    process.exit(1);
-  }
-  process.stdout.write(`${result.runId}\n`);
+  if (!result.ok) process.exit(1);
 }
 
 async function runAdvance(rest: string[]): Promise<void> {

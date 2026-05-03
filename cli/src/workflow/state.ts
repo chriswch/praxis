@@ -209,10 +209,7 @@ export function readState(runDir: string): ReadStateResult {
       reason: "state.json is missing or invalid field: chainId",
     };
   }
-  if (
-    "iterationIndex" in parsed &&
-    typeof parsed.iterationIndex !== "number"
-  ) {
+  if ("iterationIndex" in parsed && typeof parsed.iterationIndex !== "number") {
     return {
       ok: false,
       reason: "state.json is missing or invalid field: iterationIndex",
