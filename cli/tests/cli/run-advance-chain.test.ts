@@ -838,3 +838,178 @@ describe("runAdvance state.chainId round-trip (AC-S4-1)", () => {
     });
   });
 });
+
+/**
+ * S-006 AC-S6-5 — when `advanceWorkflow` returns a failure on a chain-bound
+ * resume, the chain ledger's `status` must flip to `aborted` (or `cancelled`
+ * when the underlying failure was a SIGINT) before the CLI exits. Mirrors
+ * the orchestrator's resolution: helper invocation goes in `runResume`'s
+ * `!result.ok` branch, keyed off `result.chainId` (threaded by the runner
+ * via S-6 AC-S6-13).
+ */
+describe("runAdvance dispatcher failure → ledger 'aborted' (S-006 AC-S6-5)", () => {
+  it("AC-S6-5: advanceWorkflow returns failure on a chain-bound resume → ledger flips to 'aborted'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunState(cwd, ITER1_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 3,
+        iterations: [{ index: 1, runId: ITER1_RUN_ID, status: "running" }],
+      });
+
+      const advanceSpy = async (runId: string): Promise<RunWorkflowResult> => {
+        // Recovery failure: dispatcher returns the failure shape with chain
+        // identity threaded onto it (per S-6 AC-S6-13).
+        return {
+          ok: false,
+          reason: "artifact missing for stage clarify-assess",
+          runId,
+          runDir: `/tmp/${runId}`,
+          failedStageId: "clarify-assess",
+          status: "failed",
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
+      };
+      const runSpy = async (): Promise<RunWorkflowResult> => {
+        throw new Error(
+          "runWorkflow must NOT fire — advance dispatcher itself failed",
+        );
+      };
+      const deps = pinnedDeps({
+        advanceWorkflow: advanceSpy,
+        runWorkflow: runSpy,
+      });
+      // process.exit(1) surfaces as throw via vitest.
+      await expect(
+        runAdvance(
+          { runId: ITER1_RUN_ID, noPause: false },
+          cwd,
+          new AbortController().signal,
+          deps,
+        ),
+      ).rejects.toThrow(/process\.exit.*1/);
+
+      const final = readChainLedger(cwd, CHAIN_ID);
+      if (!final.ok) throw new Error(final.reason);
+      expect(final.ledger.status).toBe("aborted");
+    });
+  });
+
+  it("AC-S6-5 (cancelled variant): advanceWorkflow returns status='cancelled' → ledger flips to 'cancelled'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunState(cwd, ITER1_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 3,
+        iterations: [{ index: 1, runId: ITER1_RUN_ID, status: "running" }],
+      });
+
+      const advanceSpy = async (runId: string): Promise<RunWorkflowResult> => ({
+        ok: false,
+        reason: "cancelled by user (SIGINT)",
+        runId,
+        runDir: `/tmp/${runId}`,
+        failedStageId: "clarify-assess",
+        status: "cancelled",
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      const deps = pinnedDeps({
+        advanceWorkflow: advanceSpy,
+        runWorkflow: async (): Promise<RunWorkflowResult> => {
+          throw new Error("runWorkflow must NOT fire");
+        },
+      });
+      await expect(
+        runAdvance(
+          { runId: ITER1_RUN_ID, noPause: false },
+          cwd,
+          new AbortController().signal,
+          deps,
+        ),
+      ).rejects.toThrow(/process\.exit.*1/);
+
+      const final = readChainLedger(cwd, CHAIN_ID);
+      if (!final.ok) throw new Error(final.reason);
+      expect(final.ledger.status).toBe("cancelled");
+    });
+  });
+});
+
+/**
+ * S-006 AC-S6-8 — auto-launched K+1 inside `runAdvance`'s tail returns
+ * status='cancelled' (SIGINT mid-iteration). The shared
+ * `launchRemainingIterations` helper must flip the chain to 'cancelled'.
+ * Companion to AC-S6-7 (which covers the default 'aborted' case via the
+ * existing AC-S4-10 test, now updated).
+ */
+describe("runAdvance auto-launched iter SIGINT → ledger 'cancelled' (S-006 AC-S6-8)", () => {
+  it("AC-S6-8: paused iter 1 → advance → iter 2 cancelled → ledger flips to 'cancelled'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunState(cwd, ITER1_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 3,
+        iterations: [{ index: 1, runId: ITER1_RUN_ID, status: "running" }],
+      });
+
+      const FAKE_SHA = "abcdef0011112222333344445555666677778888";
+      const advanceSpy = async (runId: string): Promise<RunWorkflowResult> => {
+        const r = readChainLedger(cwd, CHAIN_ID);
+        if (!r.ok) throw new Error(r.reason);
+        const updated = r.ledger.iterations.map((e) =>
+          e.index === 1
+            ? { ...e, status: "completed" as const, commitSha: FAKE_SHA }
+            : e,
+        );
+        writeChainLedger(cwd, {
+          ...r.ledger,
+          iterations: updated,
+          iterationsCompleted: 1,
+        });
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
+      };
+      const runSpy = async (): Promise<RunWorkflowResult> => ({
+        ok: false,
+        reason: "cancelled by user (SIGINT)",
+        runId: ITER2_RUN_ID,
+        runDir: `/tmp/${ITER2_RUN_ID}`,
+        failedStageId: "clarify-assess",
+        status: "cancelled",
+      });
+      const deps = pinnedDeps({
+        advanceWorkflow: advanceSpy,
+        runWorkflow: runSpy,
+      });
+      await expect(
+        runAdvance(
+          { runId: ITER1_RUN_ID, noPause: false },
+          cwd,
+          new AbortController().signal,
+          deps,
+        ),
+      ).rejects.toThrow(/process\.exit.*1/);
+
+      const final = readChainLedger(cwd, CHAIN_ID);
+      if (!final.ok) throw new Error(final.reason);
+      expect(final.ledger.status).toBe("cancelled");
+    });
+  });
+});

@@ -800,3 +800,97 @@ describe("runRetry AC-S5-1 round-trip smoke", () => {
     });
   });
 });
+
+/**
+ * S-006 AC-S6-6 — when `retryWorkflow` returns a failure on a chain-bound
+ * resume, the chain ledger's `status` must flip to `aborted` (or `cancelled`
+ * when the underlying failure was a SIGINT) before the CLI exits. Symmetric
+ * with AC-S6-5 (advance) — both share the `runResume` helper.
+ */
+describe("runRetry dispatcher failure → ledger 'aborted' (S-006 AC-S6-6)", () => {
+  it("AC-S6-6: retryWorkflow returns failure on a chain-bound resume → ledger flips to 'aborted'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunState(cwd, ITER1_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 3,
+        iterations: [{ index: 1, runId: ITER1_RUN_ID, status: "running" }],
+      });
+
+      const retrySpy = async (runId: string): Promise<RunWorkflowResult> => ({
+        ok: false,
+        reason: "session_unresumable",
+        runId,
+        runDir: `/tmp/${runId}`,
+        failedStageId: CODE_IMPROVING_ID,
+        status: "failed",
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      const deps = pinnedDeps({
+        retryWorkflow: retrySpy,
+        runWorkflow: async (): Promise<RunWorkflowResult> => {
+          throw new Error("runWorkflow must NOT fire — retry itself failed");
+        },
+      });
+      await expect(
+        runRetry(
+          { runId: ITER1_RUN_ID, noPause: false },
+          cwd,
+          new AbortController().signal,
+          deps,
+        ),
+      ).rejects.toThrow(/process\.exit.*1/);
+
+      const final = readChainLedger(cwd, CHAIN_ID);
+      if (!final.ok) throw new Error(final.reason);
+      expect(final.ledger.status).toBe("aborted");
+    });
+  });
+
+  it("AC-S6-6 (cancelled variant): retryWorkflow returns status='cancelled' → ledger flips to 'cancelled'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunState(cwd, ITER1_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      seedChainLedger(cwd, {
+        chainId: CHAIN_ID,
+        iterationsTotal: 3,
+        iterations: [{ index: 1, runId: ITER1_RUN_ID, status: "running" }],
+      });
+
+      const retrySpy = async (runId: string): Promise<RunWorkflowResult> => ({
+        ok: false,
+        reason: "cancelled by user (SIGINT)",
+        runId,
+        runDir: `/tmp/${runId}`,
+        failedStageId: CODE_IMPROVING_ID,
+        status: "cancelled",
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
+      const deps = pinnedDeps({
+        retryWorkflow: retrySpy,
+        runWorkflow: async (): Promise<RunWorkflowResult> => {
+          throw new Error("runWorkflow must NOT fire");
+        },
+      });
+      await expect(
+        runRetry(
+          { runId: ITER1_RUN_ID, noPause: false },
+          cwd,
+          new AbortController().signal,
+          deps,
+        ),
+      ).rejects.toThrow(/process\.exit.*1/);
+
+      const final = readChainLedger(cwd, CHAIN_ID);
+      if (!final.ok) throw new Error(final.reason);
+      expect(final.ledger.status).toBe("cancelled");
+    });
+  });
+});
