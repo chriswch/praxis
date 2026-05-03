@@ -502,15 +502,20 @@ async function main(argv: string[]): Promise<void> {
 }
 
 /**
- * S-004: orchestrate one `praxis advance <run-id>` invocation. Mirrors `runRun`
- * — exported for unit-test injection of `advanceWorkflow` / `runWorkflow` via
- * the optional `RunRunDeps` slots. Keeps the `void` return shape (the spec
- * doesn't bubble a result up to `main`); all stderr / stdout / exit are owned
- * inside the helper.
+ * S-004 / S-005: shared chain-aware resume tail used by both `runAdvance` and
+ * `runRetry`. Both commands have identical post-success orchestration — print
+ * the runId, gate on pause / non-chain, recover the ledger, run cascade-skip
+ * detection, and (on `continue`) hand off to `launchRemainingIterations`. The
+ * only per-command differences are the dispatcher (`advanceWorkflow` vs
+ * `retryWorkflow`) and a stderr message fragment ("after advance" vs "after
+ * retry"), both threaded in by the wrapper.
  *
- * The chain-aware tail fires only when the resumed run's `state.json` has a
+ * Keeps the `void` return shape (the spec doesn't bubble a result up to
+ * `main`); all stderr / stdout / exit are owned inside the helper.
+ *
+ * Chain-aware tail fires only when the resumed run's `state.json` has a
  * `chainId`. For non-chain runs, behavior is identical to the pre-S-004 CLI:
- * call `advanceWorkflow`, print the runId, exit 1 on failure.
+ * dispatch, print the runId, exit 1 on failure.
  *
  * For chain runs, after a successful non-paused resume:
  *   - read the chain ledger to recover `iterationsTotal` + `flags`,
@@ -519,24 +524,25 @@ async function main(argv: string[]): Promise<void> {
  *   - if the decision is `continue`, hand off to `launchRemainingIterations`
  *     starting at K+1 — symmetric with the multi-iteration `runRun` branch.
  */
-export async function runAdvance(
-  parsed: ParsedAdvanceArgs,
+async function runResume<
+  Ctx extends { cwd: string; noPause?: boolean; signal?: AbortSignal },
+>(
+  parsed: { runId: string; noPause: boolean },
   cwd: string,
   signal: AbortSignal,
   deps: RunRunDeps,
+  dispatcher: (
+    runId: string,
+    ctx: Ctx,
+    deps: Deps,
+  ) => Promise<RunWorkflowResult>,
+  kindLabel: "advance" | "retry",
 ): Promise<void> {
-  // S-004: tests inject advanceWorkflow / runWorkflow via the optional Deps
-  // slots. Production leaves both undefined and falls back to the real imports.
-  const advanceDispatch = deps.advanceWorkflow ?? advanceWorkflow;
   const runDispatch = deps.runWorkflow ?? runWorkflow;
 
-  const result = await advanceDispatch(
+  const result = await dispatcher(
     parsed.runId,
-    {
-      cwd,
-      noPause: parsed.noPause,
-      signal,
-    },
+    { cwd, noPause: parsed.noPause, signal } as Ctx,
     deps,
   );
   if (!result.ok) {
@@ -549,21 +555,21 @@ export async function runAdvance(
   process.stdout.write(`${result.runId}\n`);
 
   // Pause path: the resumed run paused again on a downstream stage. Nothing
-  // more to do — the user advances again to push past the next pause. The
-  // ledger entry already reflects 'running'.
+  // more to do — the user advances/retries again to push past the next pause.
+  // The ledger entry already reflects 'running'.
   if (result.paused) return;
 
-  // S-004 AC-S4-6: non-chain back-compat. The runner threads `chainId` onto
-  // its success result (M-2) — absent → standalone (non-chain) resume, no
-  // chain-aware tail.
+  // S-004 AC-S4-6 / S-005 AC-S5-3: non-chain back-compat. The runner threads
+  // `chainId` onto its success result whenever the resumed run was chain-
+  // bound — absent → standalone (non-chain) resume, no chain-aware tail.
   const { chainId, iterationIndex } = result;
   if (chainId === undefined) return; // Non-chain run; we're done.
 
-  // S-004 AC-S4-2/AC-S4-7/AC-S4-5: chain-aware tail. The runner threads BOTH
-  // chainId and iterationIndex onto the success result whenever the resumed
-  // run was chain-bound (spec AC-7 — both fields are stamped together on
-  // every iteration's state.json), so a defensive iterationIndex-from-ledger
-  // fallback would only fire on shapes v1 doesn't produce.
+  // S-004 AC-S4-2/AC-S4-7/AC-S4-5 + S-005 AC-S5-2/AC-S5-4/AC-S5-5: chain-
+  // aware tail. The runner threads BOTH chainId and iterationIndex on every
+  // chain-bound iteration's state.json (spec AC-7), so a defensive
+  // iterationIndex-from-ledger fallback would only fire on shapes v1 doesn't
+  // produce.
   if (iterationIndex === undefined) {
     process.stderr.write(
       `praxis: chain run ${parsed.runId} returned without an iterationIndex\n`,
@@ -573,7 +579,7 @@ export async function runAdvance(
   const readLedger = readChainLedger(cwd, chainId);
   if (!readLedger.ok) {
     process.stderr.write(
-      `praxis: failed to read chain ledger ${chainId} after advance: ${readLedger.reason}\n`,
+      `praxis: failed to read chain ledger ${chainId} after ${kindLabel}: ${readLedger.reason}\n`,
     );
     return;
   }
@@ -588,10 +594,10 @@ export async function runAdvance(
   });
   if (decision.kind === "stop") return;
 
-  // S-004 AC-S4-2: auto-launch the remaining iterations starting at K+1.
-  // Flags come from the LEDGER (ledger-of-record per spec AC-19/AC-20), not
-  // from this `advance` invocation's argv — the chain was started with the
-  // user's original `--allow-dirty` / `--no-pause` choice.
+  // Auto-launch the remaining iterations starting at K+1. Flags come from
+  // the LEDGER (ledger-of-record per spec AC-19/AC-20), not from this
+  // resume invocation's argv — the chain was started with the user's
+  // original `--allow-dirty` / `--no-pause` choice.
   const next = await launchRemainingIterations({
     cwd,
     intent: ledger.intent,
@@ -607,23 +613,31 @@ export async function runAdvance(
 }
 
 /**
- * S-005: orchestrate one `praxis retry <run-id>` invocation. Mirrors `runAdvance`
- * — exported for unit-test injection of `retryWorkflow` / `runWorkflow` via
- * the optional `RunRunDeps` slots. Keeps the `void` return shape (the spec
- * doesn't bubble a result up to `main`); all stderr / stdout / exit are owned
- * inside the helper.
- *
- * The chain-aware tail fires only when the resumed run's `state.json` has a
- * `chainId`. For non-chain runs, behavior is identical to the pre-S-005 CLI:
- * call `retryWorkflow`, print the runId, exit 1 on failure.
- *
- * For chain runs, after a successful non-paused resume:
- *   - read the chain ledger to recover `iterationsTotal` + `flags`,
- *   - call `handleIterationOutcome` on the resumed iter K to detect cascade-
- *     skip / final-iter-completed, and
- *   - if the decision is `continue`, hand off to `launchRemainingIterations`
- *     starting at K+1 — symmetric with the multi-iteration `runRun` /
- *     `runAdvance` branches.
+ * S-004: orchestrate one `praxis advance <run-id>` invocation. Thin wrapper
+ * over {@link runResume} — exported for unit-test injection of
+ * `advanceWorkflow` / `runWorkflow` via the optional `RunRunDeps` slots.
+ */
+export async function runAdvance(
+  parsed: ParsedAdvanceArgs,
+  cwd: string,
+  signal: AbortSignal,
+  deps: RunRunDeps,
+): Promise<void> {
+  const dispatcher = deps.advanceWorkflow ?? advanceWorkflow;
+  await runResume<AdvanceWorkflowContext>(
+    parsed,
+    cwd,
+    signal,
+    deps,
+    dispatcher,
+    "advance",
+  );
+}
+
+/**
+ * S-005: orchestrate one `praxis retry <run-id>` invocation. Thin wrapper
+ * over {@link runResume} — exported for unit-test injection of
+ * `retryWorkflow` / `runWorkflow` via the optional `RunRunDeps` slots.
  */
 export async function runRetry(
   parsed: ParsedRetryArgs,
@@ -631,85 +645,15 @@ export async function runRetry(
   signal: AbortSignal,
   deps: RunRunDeps,
 ): Promise<void> {
-  // S-005: tests inject retryWorkflow / runWorkflow via the optional Deps
-  // slots. Production leaves both undefined and falls back to the real imports.
-  const retryDispatch = deps.retryWorkflow ?? retryWorkflow;
-  const runDispatch = deps.runWorkflow ?? runWorkflow;
-
-  const result = await retryDispatch(
-    parsed.runId,
-    {
-      cwd,
-      noPause: parsed.noPause,
-      signal,
-    },
-    deps,
-  );
-  if (!result.ok) {
-    process.stderr.write(`praxis: ${result.reason}\n`);
-    if (result.remediation) {
-      process.stderr.write(`${result.remediation}\n`);
-    }
-    process.exit(1);
-  }
-  process.stdout.write(`${result.runId}\n`);
-
-  // Pause path: the resumed run paused on a downstream stage. Nothing more
-  // to do — the user advances/retries again to push past the next pause. The
-  // ledger entry already reflects 'running'.
-  if (result.paused) return;
-
-  // S-005 AC-S5-3: non-chain back-compat. The runner threads `chainId` onto
-  // its success result (mirroring S-004 M-2) — absent → standalone (non-chain)
-  // resume, no chain-aware tail.
-  const { chainId, iterationIndex } = result;
-  if (chainId === undefined) return; // Non-chain run; we're done.
-
-  // S-005 AC-S5-2/AC-S5-4/AC-S5-5: chain-aware tail. The runner threads BOTH
-  // chainId and iterationIndex onto the success result whenever the resumed
-  // run was chain-bound (spec AC-7 — both fields are stamped together on
-  // every iteration's state.json), so a defensive iterationIndex-from-ledger
-  // fallback would only fire on shapes v1 doesn't produce.
-  if (iterationIndex === undefined) {
-    process.stderr.write(
-      `praxis: chain run ${parsed.runId} returned without an iterationIndex\n`,
-    );
-    return;
-  }
-  const readLedger = readChainLedger(cwd, chainId);
-  if (!readLedger.ok) {
-    process.stderr.write(
-      `praxis: failed to read chain ledger ${chainId} after retry: ${readLedger.reason}\n`,
-    );
-    return;
-  }
-  const ledger = readLedger.ledger;
-
-  const decision = handleIterationOutcome({
+  const dispatcher = deps.retryWorkflow ?? retryWorkflow;
+  await runResume<RetryWorkflowContext>(
+    parsed,
     cwd,
-    chainId,
-    k: iterationIndex,
-    iterationsTotal: ledger.iterationsTotal,
-    clock: deps.clock,
-  });
-  if (decision.kind === "stop") return;
-
-  // S-005 AC-S5-2: auto-launch the remaining iterations starting at K+1.
-  // Flags come from the LEDGER (ledger-of-record per spec AC-19/AC-20), not
-  // from this `retry` invocation's argv — the chain was started with the
-  // user's original `--allow-dirty` / `--no-pause` choice.
-  const next = await launchRemainingIterations({
-    cwd,
-    intent: ledger.intent,
     signal,
     deps,
-    dispatch: runDispatch,
-    chainId,
-    flags: ledger.flags,
-    iterationsTotal: ledger.iterationsTotal,
-    startIndex: iterationIndex + 1,
-  });
-  if (!next.ok) process.exit(1);
+    dispatcher,
+    "retry",
+  );
 }
 
 // Guard the auto-execution so `import { parseRunArgs } from "./cli.js"`
