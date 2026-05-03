@@ -435,6 +435,57 @@ function toIsoSeconds(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+/**
+ * S-006 — flip the chain ledger's `status` to its terminal value when an
+ * iteration's runner / resume dispatcher returned a failure shape. Owned by
+ * the CLI (not the runner) because the chain-loop policy is the CLI's
+ * concern; the runner only owns one iteration's lifecycle.
+ *
+ * Behaviour:
+ *   - `chainId` undefined → return silently. Standalone (non-chain) runs
+ *     never have a ledger to update; the helper stays a no-op so callers
+ *     can invoke it unconditionally on any failure path without branching.
+ *   - `readChainLedger` failure → write a single-line stderr warning and
+ *     return. Throwing here would mask the underlying iteration failure with
+ *     a runner-side stack trace; the iteration's run-dir is fine on disk and
+ *     the chain status is recoverable by hand. (Mirrors the same defensive
+ *     posture in `recordChainIterationOnSuccess` on the success-path.)
+ *   - terminal status: `result.status === "cancelled" ? "cancelled" : "aborted"`.
+ *     SIGINT-triggered failures land as `cancelled` (spec §4); every other
+ *     failure (validator, timeout, commit_failed, recovery failures, missing
+ *     state.json, etc.) lands as `aborted`.
+ *
+ * Pure-ish — performs disk I/O on the chain ledger only; never touches the
+ * iteration's `state.json` or run-dir. Exported so unit tests can exercise
+ * each branch in isolation; production callers go through `runRun` /
+ * `runResume` / `launchRemainingIterations`.
+ */
+export function writeChainTerminalStatus(input: {
+  cwd: string;
+  chainId: string | undefined;
+  result: RunWorkflowResult;
+  clock: () => Date;
+}): void {
+  if (input.chainId === undefined) return;
+  const read = readChainLedger(input.cwd, input.chainId);
+  if (!read.ok) {
+    process.stderr.write(
+      `praxis: failed to read chain ledger ${input.chainId} for terminal status: ${read.reason}\n`,
+    );
+    return;
+  }
+  const terminalStatus =
+    !input.result.ok && input.result.status === "cancelled"
+      ? "cancelled"
+      : "aborted";
+  const stamped = setChainStatus(
+    read.ledger,
+    terminalStatus,
+    toIsoSeconds(input.clock()),
+  );
+  writeChainLedger(input.cwd, stamped);
+}
+
 async function main(argv: string[]): Promise<void> {
   const args = argv.slice(2);
   const [command, ...rest] = args;
