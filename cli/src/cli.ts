@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { commit } from "./git/commit.js";
 import { LineReporter } from "./ui/line-reporter.js";
 import {
+  type ChainFlags,
   generateChainId,
   readChainLedger,
   setChainStatus,
@@ -12,6 +14,7 @@ import {
 import { appendPraxisToGitignore, runPreflight } from "./workflow/preflight.js";
 import { isRunId } from "./workflow/run-id.js";
 import {
+  type AdvanceWorkflowContext,
   advanceWorkflow,
   type RunChainContext,
   type RunWorkflowContext,
@@ -21,17 +24,24 @@ import {
 } from "./workflow/runner.js";
 import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
 import type { Deps } from "./workflow/stage.js";
+import { readState } from "./workflow/state.js";
 
 /**
- * S-003: optional `runWorkflow` injection seam used by `runRun` so tests can
- * substitute a spy that records each iteration's `RunWorkflowContext`. The
- * production `buildDefaultDeps` leaves it undefined; `runRun` falls back to
- * the real `runWorkflow` import. Lives only on the CLI surface — the runner
- * itself never reads this field.
+ * S-003 + S-004: optional injection seams used by `runRun` / `runAdvance` so
+ * tests can substitute spies that record the per-iteration `RunWorkflowContext`
+ * (or the resumed `AdvanceWorkflowContext`) without spinning up the real
+ * 7-stage workflow. Production `buildDefaultDeps` leaves both undefined; the
+ * orchestrators fall back to the real imports. Lives only on the CLI surface
+ * — the runner itself never reads these fields.
  */
 type RunRunDeps = Deps & {
   runWorkflow?: (
     ctx: RunWorkflowContext,
+    deps: Deps,
+  ) => Promise<RunWorkflowResult>;
+  advanceWorkflow?: (
+    runId: string,
+    ctx: AdvanceWorkflowContext,
     deps: Deps,
   ) => Promise<RunWorkflowResult>;
 };
@@ -184,6 +194,160 @@ function parseRetryArgs(rest: string[]): ParsedRetryArgs {
 }
 
 /**
+ * S-004: post-iteration decision for the chain loop. `stop` ends the loop
+ * (either because the chain reached a terminal status or because something
+ * went wrong with the ledger); `continue` lets the next iteration launch.
+ */
+type IterationDecision =
+  | { kind: "stop"; reason: string }
+  | { kind: "continue" };
+
+/**
+ * S-004: post-iteration cascade — runs after iter K's runner returned `ok`
+ * and emitted its run-id. Reads the chain ledger, verifies the iter-K entry
+ * exists, and decides:
+ *
+ *   - missing/unreadable ledger or missing iter-K entry → log to stderr and
+ *     return `stop` (the iteration's run is fine on disk; the chain just
+ *     can't be progressed further from this CLI process).
+ *   - iter-K entry has no `commitSha` → auto-commit cascade-skipped; flip
+ *     the chain to `completed-early` and return `stop`. (Spec AC-11.)
+ *   - K === iterationsTotal → final iter landed cleanly; flip the chain to
+ *     `completed` and return `stop`. (Spec AC-6.)
+ *   - otherwise → `continue` so the loop launches iter K+1.
+ *
+ * Pure-ish — performs disk I/O on the chain ledger only; never touches the
+ * iteration's `state.json` or run-dir. Lives in `cli.ts` (not the runner)
+ * because the chain-loop policy is the CLI's concern; the runner only owns
+ * one iteration's lifecycle.
+ */
+function handleIterationOutcome(input: {
+  cwd: string;
+  chainId: string;
+  k: number;
+  iterationsTotal: number;
+  clock: () => Date;
+}): IterationDecision {
+  const read = readChainLedger(input.cwd, input.chainId);
+  if (!read.ok) {
+    process.stderr.write(
+      `praxis: failed to read chain ledger ${input.chainId} for cascade-skip check: ${read.reason}\n`,
+    );
+    return { kind: "stop", reason: read.reason };
+  }
+  const entry = read.ledger.iterations.find((e) => e.index === input.k);
+  if (!entry) {
+    process.stderr.write(
+      `praxis: chain ledger ${input.chainId} is missing iteration ${input.k} entry after runner returned ok\n`,
+    );
+    return { kind: "stop", reason: "missing iteration entry" };
+  }
+  if (entry.commitSha === undefined) {
+    const stamped = setChainStatus(
+      read.ledger,
+      "completed-early",
+      toIsoSeconds(input.clock()),
+    );
+    writeChainLedger(input.cwd, stamped);
+    return { kind: "stop", reason: "completed-early" };
+  }
+  if (input.k === input.iterationsTotal) {
+    const stamped = setChainStatus(
+      read.ledger,
+      "completed",
+      toIsoSeconds(input.clock()),
+    );
+    writeChainLedger(input.cwd, stamped);
+    return { kind: "stop", reason: "completed" };
+  }
+  return { kind: "continue" };
+}
+
+/**
+ * S-004: drive the chain loop K = `startIndex`..`iterationsTotal`. For each
+ * iteration, build a fresh `RunChainContext`, dispatch via the supplied
+ * `dispatch` (production runWorkflow or a test spy), emit the iteration's
+ * runId on stdout (S-3 AC-S3-1), and consult `handleIterationOutcome` to
+ * decide whether to launch the next iteration.
+ *
+ * Used by both:
+ *   - `runRun` for the top-level multi-iteration branch (`startIndex: 1`),
+ *     and
+ *   - `runAdvance` for the chain-aware tail after a paused iter resumes
+ *     (`startIndex: K + 1`, where K was the resumed iteration).
+ *
+ * Returns the final `RunWorkflowResult` so callers can branch on
+ * success/failure for exit code + stderr handling.
+ */
+async function launchRemainingIterations(input: {
+  cwd: string;
+  intent: string;
+  signal: AbortSignal;
+  deps: Deps;
+  dispatch: (ctx: RunWorkflowContext, deps: Deps) => Promise<RunWorkflowResult>;
+  chainId: string;
+  flags: ChainFlags;
+  iterationsTotal: number;
+  startIndex: number;
+}): Promise<RunWorkflowResult> {
+  let lastResult: RunWorkflowResult | undefined;
+  for (let k = input.startIndex; k <= input.iterationsTotal; k++) {
+    const chain: RunChainContext = {
+      chainId: input.chainId,
+      iterationIndex: k,
+      iterationsTotal: input.iterationsTotal,
+      flags: input.flags,
+    };
+    const result = await input.dispatch(
+      {
+        intent: input.intent,
+        cwd: input.cwd,
+        allowDirty: input.flags.allowDirty,
+        noPause: input.flags.noPause,
+        signal: input.signal,
+        chain,
+      },
+      input.deps,
+    );
+    lastResult = result;
+
+    if (!result.ok) {
+      process.stderr.write(`praxis: ${result.reason}\n`);
+      if (result.remediation) {
+        process.stderr.write(`${result.remediation}\n`);
+      }
+      // Failure path: ledger stays in_progress; S-006 closes out aborted.
+      return result;
+    }
+
+    process.stdout.write(`${result.runId}\n`);
+
+    if (result.paused) {
+      // Pause path: the iteration paused on a stage boundary. The ledger
+      // stays in_progress — the next `praxis advance` resumes here.
+      return result;
+    }
+
+    const decision = handleIterationOutcome({
+      cwd: input.cwd,
+      chainId: input.chainId,
+      k,
+      iterationsTotal: input.iterationsTotal,
+      clock: input.deps.clock,
+    });
+    if (decision.kind === "stop") return result;
+  }
+  // Unreachable in practice — the loop either returns mid-iteration or
+  // `handleIterationOutcome` returns `stop` on K === iterationsTotal.
+  return (
+    lastResult ?? {
+      ok: false,
+      reason: "praxis: internal error — iteration loop exited without a result",
+    }
+  );
+}
+
+/**
  * S-002 + S-003: orchestrate one `praxis run` invocation against pre-parsed
  * args. Extracted from `main()` so unit/e2e tests can drive it with stubbed
  * `Deps` (the production CLI hard-wires the real Anthropic SDK, which
@@ -245,98 +409,21 @@ export async function runRun(
   }
 
   const chainId = generateChainId(deps.clock(), deps.rng(2));
-  const flags = { allowDirty: parsed.allowDirty, noPause: parsed.noPause };
-  const total = parsed.iterations;
-
-  let lastResult: RunWorkflowResult | undefined;
-  for (let k = 1; k <= total; k++) {
-    const chain: RunChainContext = {
-      chainId,
-      iterationIndex: k,
-      iterationsTotal: total,
-      flags,
-    };
-    const result = await dispatch(
-      {
-        intent: parsed.intent,
-        cwd,
-        allowDirty: parsed.allowDirty,
-        noPause: parsed.noPause,
-        signal,
-        chain,
-      },
-      deps,
-    );
-    lastResult = result;
-
-    if (!result.ok) {
-      process.stderr.write(`praxis: ${result.reason}\n`);
-      if (result.remediation) {
-        process.stderr.write(`${result.remediation}\n`);
-      }
-      // Failure path: ledger stays in_progress; S-004/S-006 close out aborted.
-      return result;
-    }
-
-    process.stdout.write(`${result.runId}\n`);
-
-    if (result.paused) {
-      // Pause path: the iteration paused on a stage boundary. The ledger
-      // stays in_progress — S-004 wires `praxis advance` to auto-launch
-      // the next iteration once the user advances past the pause.
-      return result;
-    }
-
-    // S-003 AC-S3-11 (cascade-skip detection): the runner just wrote the
-    // iteration entry as 'completed'. If the entry has no commitSha, the
-    // auto-commit stage cascade-skipped (no driving-tdd commits) — flip the
-    // chain to completed-early and break. Iters K+1..N never start.
-    const read = readChainLedger(cwd, chainId);
-    if (!read.ok) {
-      process.stderr.write(
-        `praxis: failed to read chain ledger ${chainId} for cascade-skip check: ${read.reason}\n`,
-      );
-      return result;
-    }
-    const entry = read.ledger.iterations.find((e) => e.index === k);
-    if (!entry) {
-      process.stderr.write(
-        `praxis: chain ledger ${chainId} is missing iteration ${k} entry after runner returned ok\n`,
-      );
-      return result;
-    }
-    if (entry.commitSha === undefined) {
-      const stamped = setChainStatus(
-        read.ledger,
-        "completed-early",
-        toIsoSeconds(deps.clock()),
-      );
-      writeChainLedger(cwd, stamped);
-      return result;
-    }
-
-    // S-002 AC-S2-22 / S-003 AC-S3-10: on the final iteration's clean success,
-    // flip the chain to 'completed'. Earlier iterations leave it in_progress
-    // until either the loop completes or cascade-skip / failure short-circuits.
-    if (k === total) {
-      const stamped = setChainStatus(
-        read.ledger,
-        "completed",
-        toIsoSeconds(deps.clock()),
-      );
-      writeChainLedger(cwd, stamped);
-    }
-  }
-
-  // Unreachable in practice — the loop either returns mid-iteration or
-  // completes the K === total branch above. Keeping the typed return so TS
-  // narrows the callers' RunWorkflowResult.
-  return (
-    lastResult ?? {
-      ok: false,
-      reason: "praxis: internal error — iteration loop exited without a result",
-    }
-  );
+  const flags: ChainFlags = {
+    allowDirty: parsed.allowDirty,
+    noPause: parsed.noPause,
+  };
+  return launchRemainingIterations({
+    cwd,
+    intent: parsed.intent,
+    signal,
+    deps,
+    dispatch,
+    chainId,
+    flags,
+    iterationsTotal: parsed.iterations,
+    startIndex: 1,
+  });
 }
 
 function toIsoSeconds(date: Date): string {
@@ -347,7 +434,20 @@ async function main(argv: string[]): Promise<void> {
   const args = argv.slice(2);
   const [command, ...rest] = args;
   if (command === "advance") {
-    await runAdvance(rest);
+    const parsed = parseAdvanceArgs(rest);
+    const sigintAbort = new AbortController();
+    const onSigint = () => sigintAbort.abort("sigint");
+    process.once("SIGINT", onSigint);
+    try {
+      await runAdvance(
+        parsed,
+        process.cwd(),
+        sigintAbort.signal,
+        buildDefaultDeps(),
+      );
+    } finally {
+      process.removeListener("SIGINT", onSigint);
+    }
     return;
   }
   if (command === "retry") {
@@ -383,30 +483,44 @@ async function main(argv: string[]): Promise<void> {
   if (!result.ok) process.exit(1);
 }
 
-async function runAdvance(rest: string[]): Promise<void> {
-  // Parse first so unknown flags / bad run-ids surface before any disk I/O.
-  const { runId, noPause } = parseAdvanceArgs(rest);
+/**
+ * S-004: orchestrate one `praxis advance <run-id>` invocation. Mirrors `runRun`
+ * — exported for unit-test injection of `advanceWorkflow` / `runWorkflow` via
+ * the optional `RunRunDeps` slots. Keeps the `void` return shape (the spec
+ * doesn't bubble a result up to `main`); all stderr / stdout / exit are owned
+ * inside the helper.
+ *
+ * The chain-aware tail fires only when the resumed run's `state.json` has a
+ * `chainId`. For non-chain runs, behavior is identical to the pre-S-004 CLI:
+ * call `advanceWorkflow`, print the runId, exit 1 on failure.
+ *
+ * For chain runs, after a successful non-paused resume:
+ *   - read the chain ledger to recover `iterationsTotal` + `flags`,
+ *   - call `handleIterationOutcome` on the resumed iter K to detect cascade-
+ *     skip / final-iter-completed, and
+ *   - if the decision is `continue`, hand off to `launchRemainingIterations`
+ *     starting at K+1 — symmetric with the multi-iteration `runRun` branch.
+ */
+export async function runAdvance(
+  parsed: ParsedAdvanceArgs,
+  cwd: string,
+  signal: AbortSignal,
+  deps: RunRunDeps,
+): Promise<void> {
+  // S-004: tests inject advanceWorkflow / runWorkflow via the optional Deps
+  // slots. Production leaves both undefined and falls back to the real imports.
+  const advanceDispatch = deps.advanceWorkflow ?? advanceWorkflow;
+  const runDispatch = deps.runWorkflow ?? runWorkflow;
 
-  // SIGINT mirrors `praxis run` — abort the in-flight stage so it surfaces a
-  // `cancelled` status rather than killing the SDK process orphan.
-  const sigintAbort = new AbortController();
-  const onSigint = () => sigintAbort.abort("sigint");
-  process.once("SIGINT", onSigint);
-
-  let result: RunWorkflowResult;
-  try {
-    result = await advanceWorkflow(
-      runId,
-      {
-        cwd: process.cwd(),
-        noPause,
-        signal: sigintAbort.signal,
-      },
-      buildDefaultDeps(),
-    );
-  } finally {
-    process.removeListener("SIGINT", onSigint);
-  }
+  const result = await advanceDispatch(
+    parsed.runId,
+    {
+      cwd,
+      noPause: parsed.noPause,
+      signal,
+    },
+    deps,
+  );
   if (!result.ok) {
     process.stderr.write(`praxis: ${result.reason}\n`);
     if (result.remediation) {
@@ -415,6 +529,77 @@ async function runAdvance(rest: string[]): Promise<void> {
     process.exit(1);
   }
   process.stdout.write(`${result.runId}\n`);
+
+  // Pause path: the resumed run paused again on a downstream stage. Nothing
+  // more to do — the user advances again to push past the next pause. The
+  // ledger entry already reflects 'running'.
+  if (result.paused) return;
+
+  // S-004 AC-S4-6: non-chain back-compat. The resumed run's state.json has no
+  // chainId → no chain-aware tail. (state.json was already read by the runner;
+  // reading it once more here is a small price for keeping the chain-aware
+  // logic out of the runner itself.)
+  const runDir = join(cwd, ".praxis", "runs", parsed.runId);
+  const readSt = readState(runDir);
+  if (!readSt.ok) {
+    // Defensive: the runner already returned ok, so state.json must be
+    // readable. Surface the unexpected read failure on stderr but don't exit
+    // — the resumed run itself succeeded.
+    process.stderr.write(
+      `praxis: failed to re-read state.json after advance: ${readSt.reason}\n`,
+    );
+    return;
+  }
+  const chainId = readSt.state.chainId;
+  if (chainId === undefined) return; // Non-chain run; we're done.
+
+  // S-004 AC-S4-2/AC-S4-7/AC-S4-5: chain-aware tail. Recover iterationsTotal
+  // and flags from the ledger; the resumed iter's index comes from state.json
+  // (or, defensively, from the ledger entry whose runId matches the resumed
+  // runId — covers AC-S4-1's missing-iterationIndex defense).
+  const readLedger = readChainLedger(cwd, chainId);
+  if (!readLedger.ok) {
+    process.stderr.write(
+      `praxis: failed to read chain ledger ${chainId} after advance: ${readLedger.reason}\n`,
+    );
+    return;
+  }
+  const ledger = readLedger.ledger;
+  const iterationIndex =
+    readSt.state.iterationIndex ??
+    ledger.iterations.find((e) => e.runId === parsed.runId)?.index;
+  if (iterationIndex === undefined) {
+    process.stderr.write(
+      `praxis: chain ledger ${chainId} has no iteration entry for run ${parsed.runId}\n`,
+    );
+    return;
+  }
+
+  const decision = handleIterationOutcome({
+    cwd,
+    chainId,
+    k: iterationIndex,
+    iterationsTotal: ledger.iterationsTotal,
+    clock: deps.clock,
+  });
+  if (decision.kind === "stop") return;
+
+  // S-004 AC-S4-2: auto-launch the remaining iterations starting at K+1.
+  // Flags come from the LEDGER (ledger-of-record per spec AC-19/AC-20), not
+  // from this `advance` invocation's argv — the chain was started with the
+  // user's original `--allow-dirty` / `--no-pause` choice.
+  const next = await launchRemainingIterations({
+    cwd,
+    intent: ledger.intent,
+    signal,
+    deps,
+    dispatch: runDispatch,
+    chainId,
+    flags: ledger.flags,
+    iterationsTotal: ledger.iterationsTotal,
+    startIndex: iterationIndex + 1,
+  });
+  if (!next.ok) process.exit(1);
 }
 
 async function runRetry(rest: string[]): Promise<void> {
