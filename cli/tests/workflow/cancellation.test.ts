@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { PraxisConfig, StageConfig } from "../../src/config/schema.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import { runWorkflow } from "../../src/workflow/runner.js";
 import type { StageContext } from "../../src/workflow/stage.js";
 import { runStage } from "../../src/workflow/stage.js";
@@ -106,6 +110,9 @@ describe("runWorkflow SIGINT (cancelled status)", () => {
           rng: (n) => new Uint8Array([0x7a, 0xf2]).slice(0, n),
           createQueryFn: hangingQuery("sess_sigint_runner"),
           reporter: new LineReporter(),
+          commit: () => ({ ok: true, skipped: true }),
+          runPreflight,
+          appendPraxisToGitignore,
         },
       );
       expect(result.ok).toBe(false);

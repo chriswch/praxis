@@ -9,6 +9,7 @@ import {
   setChainStatus,
   writeChainLedger,
 } from "./workflow/chain.js";
+import { appendPraxisToGitignore, runPreflight } from "./workflow/preflight.js";
 import { isRunId } from "./workflow/run-id.js";
 import {
   advanceWorkflow,
@@ -36,6 +37,8 @@ function buildDefaultDeps(): Deps {
     createQueryFn: sdkCreateQueryFn,
     reporter: new LineReporter({ color, cols }),
     commit,
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 

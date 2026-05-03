@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { commit as productionCommit } from "../../src/git/commit.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import { retryWorkflow, runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
@@ -108,6 +112,8 @@ function buildDeps(createQueryFn: CreateQueryFn): Deps {
     createQueryFn,
     reporter: new LineReporter(),
     commit: productionCommit,
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 

@@ -4,6 +4,10 @@ import { describe, expect, it } from "vitest";
 import { runRun } from "../../src/cli.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
 import { readChainLedger } from "../../src/workflow/chain.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import type {
   CreateQueryFn,
   Deps,
@@ -81,6 +85,8 @@ function buildStubDeps(): Deps {
     createQueryFn,
     reporter: new LineReporter(),
     commit: () => ({ ok: true, skipped: true }),
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 

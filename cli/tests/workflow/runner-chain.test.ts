@@ -5,6 +5,10 @@ import { describe, expect, it } from "vitest";
 import type { PraxisConfig } from "../../src/config/schema.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
 import { readChainLedger } from "../../src/workflow/chain.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import { runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
@@ -109,6 +113,8 @@ function pinnedDeps(opts: {
     createQueryFn: opts.createQueryFn,
     reporter: new LineReporter(),
     commit: opts.commit ?? (() => ({ ok: true, skipped: true })),
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 

@@ -7,6 +7,10 @@ import {
   CODE_REVIEWING_ID,
 } from "../../src/config/defaults.js";
 import type { PraxisConfig } from "../../src/config/schema.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import { retryWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
@@ -191,6 +195,8 @@ function deps(
     createQueryFn,
     reporter,
     commit: () => ({ ok: true, skipped: true }),
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 

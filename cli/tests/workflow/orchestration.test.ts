@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { defaultWorkflow } from "../../src/config/defaults.js";
 import { LineReporter } from "../../src/ui/line-reporter.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import { runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
@@ -222,6 +226,8 @@ function deps(
     // S-005: orchestration tests stop after clarify-assess pauses, so the
     // commit seam is never invoked — but include it for shape completeness.
     commit: () => ({ ok: true, skipped: true }),
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 

@@ -1,6 +1,10 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { PraxisConfig } from "../../src/config/schema.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import { runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
@@ -60,6 +64,8 @@ function deps(createQueryFn: CreateQueryFn, reporter: RecordingReporter): Deps {
     reporter,
     // S-005: reporter tests don't reach the auto-commit stage; satisfy shape.
     commit: () => ({ ok: true, skipped: true }),
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 
@@ -308,6 +314,9 @@ describe("runWorkflow stage 0 reporting (AC-3)", () => {
           rng: (n) => new Uint8Array([0x7a, 0xf2]).slice(0, n),
           createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
           reporter,
+          commit: () => ({ ok: true, skipped: true }),
+          runPreflight,
+          appendPraxisToGitignore,
         },
       );
       if (!result.ok) throw new Error(result.reason);

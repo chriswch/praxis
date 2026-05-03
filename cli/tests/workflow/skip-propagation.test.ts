@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { defaultWorkflow } from "../../src/config/defaults.js";
 import type { PraxisConfig } from "../../src/config/schema.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import { advanceWorkflow, runWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
@@ -104,6 +108,8 @@ function buildDeps(
     createQueryFn,
     reporter,
     commit,
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 

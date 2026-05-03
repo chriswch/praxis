@@ -136,6 +136,16 @@ export type CommitFn = (
   | { ok: true; skipped: true }
   | { ok: false; reason: string };
 
+/**
+ * Pre-flight result shape for the `runPreflight` Deps slot. Mirrors the
+ * production `runPreflight` return shape from `src/workflow/preflight.ts` —
+ * re-declared here so tests can inject spies without importing the
+ * preflight module's full surface.
+ */
+export type PreflightResult =
+  | { ok: true }
+  | { ok: false; reason: string; remediation?: string };
+
 /** Dependencies threaded through the workflow for substitution in tests. */
 export type Deps = {
   clock: () => Date;
@@ -145,6 +155,23 @@ export type Deps = {
   reporter: Reporter;
   /** Auto-commit hand-off (S-005). Called only on auto-commit success. */
   commit: CommitFn;
+  /**
+   * S-003 AC-S3-5/AC-S3-8: pre-flight gate (`git work tree`, dirty-tree).
+   * Production wires the real `runPreflight` from `src/workflow/preflight.ts`
+   * via `buildDefaultDeps`; tests inject spies to assert call counts (iter 1
+   * → called once; iter 2+ → not called).
+   */
+  runPreflight: (
+    cwd: string,
+    options: { allowDirty: boolean },
+  ) => PreflightResult;
+  /**
+   * S-003 AC-S3-7/AC-S3-8: idempotently ensure `<cwd>/.gitignore` contains a
+   * `.praxis/` line. Production wires the real `appendPraxisToGitignore` from
+   * `src/workflow/preflight.ts`; tests inject spies to assert iter 2+ does
+   * NOT touch `.gitignore` (already done by iter 1).
+   */
+  appendPraxisToGitignore: (cwd: string) => void;
 };
 
 // Two layouts to support:

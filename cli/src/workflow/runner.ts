@@ -19,7 +19,6 @@ import {
   updateIteration,
   writeChainLedger,
 } from "./chain.js";
-import { appendPraxisToGitignore, runPreflight } from "./preflight.js";
 import { formatRunId } from "./run-id.js";
 import type { Deps, StageContext, StageResult } from "./stage.js";
 import { runStage } from "./stage.js";
@@ -116,15 +115,24 @@ export async function runWorkflow(
   const config = ctx.config ?? defaultWorkflow;
   const reporter = deps.reporter;
 
-  const preflight = runPreflight(ctx.cwd, {
-    allowDirty: ctx.allowDirty ?? false,
-  });
-  if (!preflight.ok) {
-    return {
-      ok: false,
-      reason: preflight.reason,
-      remediation: preflight.remediation,
-    };
+  // S-003 AC-S3-5/AC-S3-7: skip preflight + .gitignore touch on iter 2+. The
+  // tree is clean by construction (post-commit) and .gitignore was already
+  // touched up by iter 1 via the same `runWorkflow` entry. Iter 1 (and every
+  // standalone, no-chain run) always goes through both gates.
+  const isMidChainIteration =
+    ctx.chain !== undefined && ctx.chain.iterationIndex > 1;
+
+  if (!isMidChainIteration) {
+    const preflight = deps.runPreflight(ctx.cwd, {
+      allowDirty: ctx.allowDirty ?? false,
+    });
+    if (!preflight.ok) {
+      return {
+        ok: false,
+        reason: preflight.reason,
+        remediation: preflight.remediation,
+      };
+    }
   }
 
   // S-1 AC-3/AC-4: capture `git rev-parse HEAD` exactly once, AFTER preflight
@@ -141,7 +149,9 @@ export async function runWorkflow(
     };
   }
 
-  appendPraxisToGitignore(ctx.cwd);
+  if (!isMidChainIteration) {
+    deps.appendPraxisToGitignore(ctx.cwd);
+  }
 
   const startedAt = deps.clock();
   const runId = formatRunId(startedAt, deps.rng(2));

@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { PraxisConfig } from "../../src/config/schema.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import { advanceWorkflow } from "../../src/workflow/runner.js";
 import type {
   CreateQueryFn,
@@ -163,6 +167,8 @@ function deps(
     // S-005: advance tests never reach the auto-commit stage, but we satisfy
     // the `Deps.commit` slot so the runner contract isn't lying about shape.
     commit: () => ({ ok: true, skipped: true }),
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 

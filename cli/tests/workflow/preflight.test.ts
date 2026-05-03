@@ -24,6 +24,9 @@ function pinnedDeps(date: Date, bytes: Uint8Array): Deps {
     rng: (n) => bytes.slice(0, n),
     createQueryFn: scriptedQuery([]),
     reporter: new LineReporter(),
+    commit: () => ({ ok: true, skipped: true }),
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 

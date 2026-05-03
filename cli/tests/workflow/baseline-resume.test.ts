@@ -9,6 +9,10 @@ import {
 } from "../../src/config/defaults.js";
 import type { PraxisConfig } from "../../src/config/schema.js";
 import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
+import {
   advanceWorkflow,
   retryWorkflow,
   runWorkflow,
@@ -111,6 +115,8 @@ function deps(createQueryFn: CreateQueryFn): Deps {
     createQueryFn,
     reporter: new RecordingReporter(),
     commit: () => ({ ok: true, skipped: true }),
+    runPreflight,
+    appendPraxisToGitignore,
   };
 }
 
