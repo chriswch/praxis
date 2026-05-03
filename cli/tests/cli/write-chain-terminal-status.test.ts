@@ -7,8 +7,32 @@ import {
   readChainLedger,
   writeChainLedger,
 } from "../../src/workflow/chain.js";
+import {
+  appendPraxisToGitignore,
+  runPreflight,
+} from "../../src/workflow/preflight.js";
 import type { RunWorkflowResult } from "../../src/workflow/runner.js";
+import type { CreateQueryFn, Deps } from "../../src/workflow/stage.js";
+import { RecordingReporter } from "../support/recording-reporter.js";
 import { withTempRepo } from "../support/tmp-repo.js";
+
+function noopQueryFn(): CreateQueryFn {
+  return () => {
+    throw new Error("noopQueryFn: should not be called in this test");
+  };
+}
+
+function depsWithReporter(reporter: RecordingReporter): Deps {
+  return {
+    clock: () => new Date("2026-05-02T14:42:13Z"),
+    rng: (n) => new Uint8Array([0x9f, 0x3c]).slice(0, n),
+    createQueryFn: noopQueryFn(),
+    reporter,
+    commit: () => ({ ok: true, skipped: true }),
+    runPreflight,
+    appendPraxisToGitignore,
+  };
+}
 
 /**
  * S-006 — `writeChainTerminalStatus` helper. Standalone CLI helper that flips
@@ -184,6 +208,145 @@ describe("writeChainTerminalStatus AC-S6-10 (standalone runs do not call helper)
         result,
         clock: FROZEN_CLOCK,
       });
+    });
+  });
+});
+
+describe("writeChainTerminalStatus chainEnd emit (S-007 AC-S7-9/AC-S7-10)", () => {
+  it("AC-S7-9: aborted → reporter.chainEnd fires once with status='aborted' after the ledger write", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunningLedger(cwd);
+      const reporter = new RecordingReporter();
+      const result: RunWorkflowResult = {
+        ok: false,
+        reason: "validator_failed",
+        runId: "2026-05-02-1430-aaaa",
+        status: "failed",
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      };
+      writeChainTerminalStatus({
+        cwd,
+        chainId: CHAIN_ID,
+        result,
+        clock: FROZEN_CLOCK,
+        deps: depsWithReporter(reporter),
+      });
+      const ends = reporter.calls.filter((c) => c.kind === "chainEnd");
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        kind: "chainEnd",
+        chainId: CHAIN_ID,
+        status: "aborted",
+        iterationsCompleted: 0,
+        iterationsTotal: 3,
+      });
+    });
+  });
+
+  it("AC-S7-10: cancelled → reporter.chainEnd fires once with status='cancelled'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunningLedger(cwd);
+      const reporter = new RecordingReporter();
+      const result: RunWorkflowResult = {
+        ok: false,
+        reason: "cancelled by user (SIGINT)",
+        runId: "2026-05-02-1430-aaaa",
+        status: "cancelled",
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      };
+      writeChainTerminalStatus({
+        cwd,
+        chainId: CHAIN_ID,
+        result,
+        clock: FROZEN_CLOCK,
+        deps: depsWithReporter(reporter),
+      });
+      const ends = reporter.calls.filter((c) => c.kind === "chainEnd");
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        kind: "chainEnd",
+        status: "cancelled",
+      });
+    });
+  });
+
+  it("chainId undefined → chainEnd never fires (back-compat for standalone runs)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const reporter = new RecordingReporter();
+      const result: RunWorkflowResult = {
+        ok: false,
+        reason: "standalone run failed",
+        runId: "2026-05-02-1430-aaaa",
+        status: "failed",
+      };
+      writeChainTerminalStatus({
+        cwd,
+        chainId: undefined,
+        result,
+        clock: FROZEN_CLOCK,
+        deps: depsWithReporter(reporter),
+      });
+      expect(reporter.countOf("chainEnd")).toBe(0);
+    });
+  });
+
+  it("deps omitted → no throw; ledger still flips (back-compat for callers not yet threading deps)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      seedRunningLedger(cwd);
+      const result: RunWorkflowResult = {
+        ok: false,
+        reason: "validator_failed",
+        status: "failed",
+        chainId: CHAIN_ID,
+      };
+      // No deps field — must not throw, must still write the terminal status.
+      writeChainTerminalStatus({
+        cwd,
+        chainId: CHAIN_ID,
+        result,
+        clock: FROZEN_CLOCK,
+      });
+      const read = readChainLedger(cwd, CHAIN_ID);
+      if (!read.ok) throw new Error(read.reason);
+      expect(read.ledger.status).toBe("aborted");
+    });
+  });
+});
+
+describe("writeChainTerminalStatus AC-S7-15 (read failure → no chainEnd)", () => {
+  it("AC-S7-15: ledger missing on disk → reporter.chainEnd never fires (read-failure path skips emit)", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Don't seed a ledger — readChainLedger will return { ok: false }.
+      const reporter = new RecordingReporter();
+      const result: RunWorkflowResult = {
+        ok: false,
+        reason: "validator_failed",
+        runId: "2026-05-02-1430-aaaa",
+        status: "failed",
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      };
+      // Swallow stderr so the test output stays quiet; the AC-S6-12 suite
+      // already covers the stderr-line assertion.
+      const writeSpy = vi
+        .spyOn(process.stderr, "write")
+        .mockImplementation(() => true);
+      try {
+        writeChainTerminalStatus({
+          cwd,
+          chainId: CHAIN_ID,
+          result,
+          clock: FROZEN_CLOCK,
+          deps: depsWithReporter(reporter),
+        });
+      } finally {
+        writeSpy.mockRestore();
+      }
+      // Critical: chainEnd must NOT fire on the read-failure path. Emitting a
+      // banner with stale K/N would mislead the operator about chain state.
+      expect(reporter.countOf("chainEnd")).toBe(0);
     });
   });
 });
