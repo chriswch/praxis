@@ -54,6 +54,19 @@ export interface State {
    * via `writeState` so subsequent reads stay on the fast path.
    */
   baselineSha?: string;
+  /**
+   * S-002: chain-id stamped on every iteration's state.json when the run is
+   * part of a `praxis run --iterations <N>` chain. Matches
+   * `<cwd>/.praxis/chains/<chainId>.json`. Absent on standalone runs (back-
+   * compat with single-iteration `praxis run`).
+   */
+  chainId?: string;
+  /**
+   * S-002: 1-based monotonic position of this run within its chain. Matches
+   * the `iterations[].index` entry in the chain ledger. Absent on standalone
+   * runs (paired with `chainId`).
+   */
+  iterationIndex?: number;
   currentStage: string;
   cost: { totalTokens: number; totalUsd: number };
   stages: Record<string, StageState>;
@@ -66,6 +79,10 @@ export interface InitialStateInput {
   baselineSha: string;
   stageIds: readonly string[];
   currentStage: string;
+  /** S-002: chainId for chain-member runs; omitted for standalone. */
+  chainId?: string;
+  /** S-002: 1-based iteration index for chain-member runs. */
+  iterationIndex?: number;
 }
 
 /**
@@ -77,7 +94,7 @@ export function buildInitialState(input: InitialStateInput): State {
   for (const id of input.stageIds) {
     stages[id] = { status: "pending" };
   }
-  return {
+  const state: State = {
     runId: input.runId,
     intent: input.intent,
     startedAt: input.startedAt,
@@ -86,6 +103,14 @@ export function buildInitialState(input: InitialStateInput): State {
     cost: { totalTokens: 0, totalUsd: 0 },
     stages,
   };
+  // S-002: stamp chain context on the state only when both fields are
+  // supplied. `JSON.stringify` drops `undefined`-valued keys so the
+  // standalone-run shape on disk stays byte-identical to pre-S-002 runs.
+  if (input.chainId !== undefined) state.chainId = input.chainId;
+  if (input.iterationIndex !== undefined) {
+    state.iterationIndex = input.iterationIndex;
+  }
+  return state;
 }
 
 /** Persist `state.json` (pretty-printed, trailing newline) to the run dir. */
@@ -172,6 +197,25 @@ export function readState(runDir: string): ReadStateResult {
     return {
       ok: false,
       reason: "state.json is missing or invalid field: baselineSha",
+    };
+  }
+  // S-002: `chainId` and `iterationIndex` are optional (absent on standalone
+  // runs and on every pre-S-002 state.json); a *present-but-wrong-type* value
+  // is rejected with a field-specific reason — same shape as the baselineSha
+  // legacy-missing-vs-bad split above.
+  if ("chainId" in parsed && typeof parsed.chainId !== "string") {
+    return {
+      ok: false,
+      reason: "state.json is missing or invalid field: chainId",
+    };
+  }
+  if (
+    "iterationIndex" in parsed &&
+    typeof parsed.iterationIndex !== "number"
+  ) {
+    return {
+      ok: false,
+      reason: "state.json is missing or invalid field: iterationIndex",
     };
   }
   const cost = parsed.cost;

@@ -193,3 +193,107 @@ describe("buildInitialState round-trips baselineSha (AC-1)", () => {
     });
   });
 });
+
+describe("S-002 chain stamps on State (AC-S2-18..AC-S2-21)", () => {
+  const sampleStateBase = {
+    runId: "2026-05-02-1430-a1b2",
+    intent: "ship the chain ledger",
+    startedAt: "2026-05-02T14:30:12Z",
+    baselineSha: "0123456789abcdef0123456789abcdef01234567",
+    currentStage: "clarify-assess",
+    cost: { totalTokens: 0, totalUsd: 0 },
+    stages: { "clarify-assess": { status: "pending" } },
+  };
+
+  it("AC-S2-18: buildInitialState stamps chainId + iterationIndex when provided", () => {
+    const state = buildInitialState({
+      runId: "2026-05-02-1430-a1b2",
+      intent: "ship the chain ledger",
+      startedAt: "2026-05-02T14:30:12Z",
+      baselineSha: "0123456789abcdef0123456789abcdef01234567",
+      stageIds: ["clarify-assess"],
+      currentStage: "clarify-assess",
+      chainId: "2026-05-02-1430-9f3c",
+      iterationIndex: 1,
+    });
+    expect(state.chainId).toBe("2026-05-02-1430-9f3c");
+    expect(state.iterationIndex).toBe(1);
+  });
+
+  it("AC-S2-19: buildInitialState omits chain fields when absent (back-compat)", () => {
+    const state = buildInitialState({
+      runId: "2026-05-02-1430-a1b2",
+      intent: "ship the chain ledger",
+      startedAt: "2026-05-02T14:30:12Z",
+      baselineSha: "0123456789abcdef0123456789abcdef01234567",
+      stageIds: ["clarify-assess"],
+      currentStage: "clarify-assess",
+    });
+    expect(state.chainId).toBeUndefined();
+    expect(state.iterationIndex).toBeUndefined();
+  });
+
+  it("AC-S2-20: readState rejects non-string chainId", () => {
+    withTmpDir((dir) => {
+      writeFileSync(
+        join(dir, "state.json"),
+        JSON.stringify({ ...sampleStateBase, chainId: 12345 }),
+        "utf8",
+      );
+      const result = readState(dir);
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.reason).toContain("chainId");
+    });
+  });
+
+  it("AC-S2-20: readState rejects non-number iterationIndex", () => {
+    withTmpDir((dir) => {
+      writeFileSync(
+        join(dir, "state.json"),
+        JSON.stringify({ ...sampleStateBase, iterationIndex: "first" }),
+        "utf8",
+      );
+      const result = readState(dir);
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.reason).toContain("iterationIndex");
+    });
+  });
+
+  it("AC-S2-20: readState tolerates absent chain fields (back-compat with non-chain runs)", () => {
+    withTmpDir((dir) => {
+      writeFileSync(
+        join(dir, "state.json"),
+        JSON.stringify(sampleStateBase),
+        "utf8",
+      );
+      const result = readState(dir);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.reason);
+      expect(result.state.chainId).toBeUndefined();
+      expect(result.state.iterationIndex).toBeUndefined();
+    });
+  });
+
+  it("AC-S2-21: readState round-trips state with chain fields", () => {
+    withTmpDir((dir) => {
+      const state = buildInitialState({
+        runId: "2026-05-02-1430-a1b2",
+        intent: "ship the chain ledger",
+        startedAt: "2026-05-02T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
+        stageIds: ["clarify-assess"],
+        currentStage: "clarify-assess",
+        chainId: "2026-05-02-1430-9f3c",
+        iterationIndex: 2,
+      });
+      writeState(dir, state);
+      const result = readState(dir);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.reason);
+      expect(result.state.chainId).toBe("2026-05-02-1430-9f3c");
+      expect(result.state.iterationIndex).toBe(2);
+    });
+  });
+});
