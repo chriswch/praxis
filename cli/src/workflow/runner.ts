@@ -114,6 +114,22 @@ export type RunWorkflowFailure = {
   failedStageId?: string;
   /** "cancelled" when SIGINT aborted the run; "failed" otherwise. */
   status?: "failed" | "cancelled";
+  /**
+   * S-006 AC-S6-13: chain id when the failed run was part of a `--iterations`
+   * chain. Mirrors `RunWorkflowSuccess.chainId` (S-004 M-2) so `runRun` /
+   * `runResume` can drive the chain ledger to its terminal status (aborted /
+   * cancelled) without a state.json re-read. Absent on standalone runs and
+   * pre-bootstrap failures (preflight, currentHead — those return before any
+   * chain context is established).
+   */
+  chainId?: string;
+  /**
+   * S-006 AC-S6-13: 1-based iteration index when the failed run was part of a
+   * chain. Pairs with `chainId` — both are populated together (from
+   * `ctx.chain` in `executeStages`, from `state.chainId`/`state.iterationIndex`
+   * after recovery in `advanceWorkflow` / `retryWorkflow`).
+   */
+  iterationIndex?: number;
 };
 
 export type RunWorkflowResult = RunWorkflowSuccess | RunWorkflowFailure;
@@ -366,6 +382,11 @@ async function executeStages(
         runDir,
         failedStageId: outcome.stageId,
         status: outcome.status,
+        // S-006 AC-S6-13: thread chain identity onto the failure result so
+        // `runRun` / `runResume` can drive the ledger to its terminal status
+        // without a state.json re-read. Absent on standalone runs.
+        chainId: ctx.chain?.chainId,
+        iterationIndex: ctx.chain?.iterationIndex,
       };
     }
   }
@@ -1040,6 +1061,10 @@ export async function advanceWorkflow(
       reason: "run is already complete",
       runId,
       runDir,
+      // S-006 AC-S6-13: post-recovery failures carry chain identity so the
+      // CLI can drive the ledger's terminal status from `runResume`.
+      chainId: chainForResume?.chainId,
+      iterationIndex: chainForResume?.iterationIndex,
     };
   }
 
@@ -1055,6 +1080,8 @@ export async function advanceWorkflow(
       reason: "run is already complete",
       runId,
       runDir,
+      chainId: chainForResume?.chainId,
+      iterationIndex: chainForResume?.iterationIndex,
     };
   }
   const status: Exclude<typeof rawStatus, "completed"> = rawStatus;
@@ -1066,6 +1093,8 @@ export async function advanceWorkflow(
       runId,
       runDir,
       failedStageId: stage.id,
+      chainId: chainForResume?.chainId,
+      iterationIndex: chainForResume?.iterationIndex,
     };
   }
 
@@ -1098,6 +1127,8 @@ export async function advanceWorkflow(
       runId,
       runDir,
       failedStageId: stage.id,
+      chainId: chainForResume?.chainId,
+      iterationIndex: chainForResume?.iterationIndex,
     };
   }
 
@@ -1121,6 +1152,8 @@ export async function advanceWorkflow(
         runDir,
         failedStageId: stage.id,
         status: "failed",
+        chainId: chainForResume?.chainId,
+        iterationIndex: chainForResume?.iterationIndex,
       };
     }
     reporter.resuming?.("recovering", runId, stage.id);
@@ -1135,6 +1168,8 @@ export async function advanceWorkflow(
         runDir,
         failedStageId: stage.id,
         status: "failed",
+        chainId: chainForResume?.chainId,
+        iterationIndex: chainForResume?.iterationIndex,
       };
     }
     return executeStages(
@@ -1230,6 +1265,12 @@ export type RetryWorkflowContext = {
  * {@link retryWorkflow}. Persists the merged stage state, emits the
  * canonical `stageEnd` + `runDone` lifecycle, and returns the matching
  * {@link RunWorkflowFailure}.
+ *
+ * S-006 AC-S6-13: pulls `chainId` / `iterationIndex` straight off `state` so
+ * the failure shape carries chain identity for chain-bound retries (CLI's
+ * `runResume` uses these to drive the ledger's terminal status). Standalone
+ * retries leave both fields undefined — `state.chainId` is `undefined` for
+ * non-chain runs.
  */
 function finalizeRetryFailure(
   state: State,
@@ -1259,6 +1300,8 @@ function finalizeRetryFailure(
     runDir,
     failedStageId,
     status,
+    chainId: state.chainId,
+    iterationIndex: state.iterationIndex,
   };
 }
 
@@ -1306,6 +1349,12 @@ export async function retryWorkflow(
       remediation: baselineSha.remediation,
       runId,
       runDir,
+      // S-006 AC-S6-13: chain-bound retry failures carry chain identity
+      // straight off state.json so the CLI can drive the ledger's terminal
+      // status without a second read. Standalone retries leave both fields
+      // undefined (state.chainId is absent on non-chain runs).
+      chainId: state.chainId,
+      iterationIndex: state.iterationIndex,
     };
   }
 
@@ -1319,6 +1368,8 @@ export async function retryWorkflow(
       reason: "run is already complete",
       runId,
       runDir,
+      chainId: state.chainId,
+      iterationIndex: state.iterationIndex,
     };
   }
 
@@ -1330,6 +1381,8 @@ export async function retryWorkflow(
       runId,
       runDir,
       failedStageId: stage.id,
+      chainId: state.chainId,
+      iterationIndex: state.iterationIndex,
     };
   }
 
@@ -1341,6 +1394,8 @@ export async function retryWorkflow(
       runId,
       runDir,
       failedStageId: stage.id,
+      chainId: state.chainId,
+      iterationIndex: state.iterationIndex,
     };
   }
   if (prior.status !== "failed" && prior.status !== "cancelled") {
@@ -1350,6 +1405,8 @@ export async function retryWorkflow(
       runId,
       runDir,
       failedStageId: stage.id,
+      chainId: state.chainId,
+      iterationIndex: state.iterationIndex,
     };
   }
 

@@ -978,3 +978,239 @@ describe("runRetry auto-launched iter skips preflight (S-005 AC-S5-6)", () => {
     });
   });
 });
+
+/**
+ * S-006 AC-S6-13 — `RunWorkflowFailure` carries the chain identity (chainId +
+ * iterationIndex) of the iteration that failed, mirroring the M-2 pattern
+ * already in place for `RunWorkflowSuccess`. The CLI's
+ * `writeChainTerminalStatus` helper uses these fields to drive the chain
+ * ledger to its terminal status (aborted / cancelled) without re-reading
+ * state.json.
+ *
+ * Covers all three failure-return sites:
+ *   - `executeStages`'s failed branch (chain stamped from ctx.chain).
+ *   - `advanceWorkflow`'s post-recovery failure return (chain recovered from
+ *     state.json via `recoverChainContextFromState`).
+ *   - `retryWorkflow`'s `finalizeRetryFailure` (chain read directly off the
+ *     resumed run's state.json — `state.chainId` / `state.iterationIndex`).
+ */
+describe("RunWorkflowFailure carries chain identity (S-006 AC-S6-13)", () => {
+  /**
+   * Two-stage workflow where stage 1 (noop) commits a marker so HEAD advances
+   * past baseline (so the auto-commit stage doesn't clean-tree-skip), then
+   * stage 2 is the canonical `auto-commit` id. We inject a `deps.commit` stub
+   * that returns `{ ok: false, reason: ... }` so the runner takes the
+   * `commit_failed` branch — `runOneStage` calls `failStage` and
+   * `executeStages` returns its failed-branch shape.
+   */
+  const noopThenFailingCommitConfig: PraxisConfig = {
+    version: 1,
+    workflow: [
+      {
+        id: "noop",
+        systemPrompt: { file: "clarify-assess.md" },
+        userPromptTemplate: "{{intent}}",
+        outputArtifact: "noop.md",
+      },
+      {
+        id: "auto-commit",
+        systemPrompt: { file: "auto-commit.md" },
+        userPromptTemplate: "{{intent}}",
+        outputArtifact: "07-commit.txt",
+      },
+    ],
+  };
+
+  function commitAdvancingQuery(cwd: string): CreateQueryFn {
+    let call = 0;
+    return (_input) => {
+      call++;
+      if (call === 1) {
+        // Real commit so HEAD advances past baselineSha → auto-commit doesn't
+        // clean-tree-skip.
+        writeFileSync(join(cwd, "marker-fail.txt"), "marker\n", "utf8");
+        spawnSync("git", ["add", "marker-fail.txt"], { cwd });
+        spawnSync("git", ["commit", "-m", "marker"], { cwd });
+      }
+      return {
+        pushUserMessage() {},
+        stream: (async function* () {
+          for (const m of noopMessages(`sess_${call}`)) yield m;
+        })(),
+      };
+    };
+  }
+
+  it("AC-S6-13a: executeStages failure carries chainId + iterationIndex from ctx.chain", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const result = await runWorkflow(
+        {
+          intent: "ship it",
+          cwd,
+          allowDirty: true,
+          noPause: true,
+          config: noopThenFailingCommitConfig,
+          chain: {
+            chainId: CHAIN_ID,
+            iterationIndex: 1,
+            iterationsTotal: 2,
+            flags: { allowDirty: true, noPause: true },
+          },
+        },
+        pinnedDeps({
+          createQueryFn: commitAdvancingQuery(cwd),
+          commit: () => ({ ok: false, reason: "test-injected commit failure" }),
+        }),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("expected failure");
+      expect(result.chainId).toBe(CHAIN_ID);
+      expect(result.iterationIndex).toBe(1);
+      expect(result.status).toBe("failed");
+    });
+  });
+
+  it("AC-S6-13b: standalone (no chain) failure leaves chainId/iterationIndex undefined", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const result = await runWorkflow(
+        {
+          intent: "ship it",
+          cwd,
+          allowDirty: true,
+          noPause: true,
+          config: noopThenFailingCommitConfig,
+          // No `chain` field — back-compat path; failure carries no chain id.
+        },
+        pinnedDeps({
+          createQueryFn: commitAdvancingQuery(cwd),
+          commit: () => ({ ok: false, reason: "test-injected commit failure" }),
+        }),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("expected failure");
+      expect(result.chainId).toBeUndefined();
+      expect(result.iterationIndex).toBeUndefined();
+    });
+  });
+
+  it("AC-S6-13c: advanceWorkflow's post-recovery failure carries chainId + iterationIndex from state.json", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const PAUSED_RUN_ID = "2026-05-02-1430-aaaa";
+      const runDir = join(cwd, ".praxis", "runs", PAUSED_RUN_ID);
+      mkdirSync(runDir, { recursive: true });
+      // Stage previously failed; recovery will fail because the artifact is
+      // missing on disk (recoverFailedStage's existsSync gate).
+      const state: State = {
+        runId: PAUSED_RUN_ID,
+        intent: "ship it",
+        startedAt: "2026-05-02T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
+        chainId: CHAIN_ID,
+        iterationIndex: 2,
+        currentStage: "fail-stage",
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          "fail-stage": {
+            status: "failed",
+            sessionId: "sess_failed",
+            error: "stage failed",
+          },
+        },
+      };
+      writeState(runDir, state);
+      const seeded = buildInitialChainLedger({
+        chainId: CHAIN_ID,
+        intent: "ship it",
+        iterationsTotal: 2,
+        flags: { allowDirty: true, noPause: true },
+        createdAt: "2026-05-02T14:25:00Z",
+      });
+      writeChainLedger(cwd, {
+        ...seeded,
+        iterations: [
+          {
+            index: 1,
+            runId: "2026-05-02-1425-cccc",
+            status: "completed",
+            commitSha: "feedface".repeat(5),
+          },
+          { index: 2, runId: PAUSED_RUN_ID, status: "running" },
+        ],
+        iterationsCompleted: 1,
+      });
+
+      const noopConfig: PraxisConfig = {
+        version: 1,
+        workflow: [
+          {
+            id: "fail-stage",
+            systemPrompt: { file: "clarify-assess.md" },
+            userPromptTemplate: "{{intent}}",
+            outputArtifact: "fail.md",
+          },
+        ],
+      };
+
+      const { advanceWorkflow } = await import("../../src/workflow/runner.js");
+      const result = await advanceWorkflow(
+        PAUSED_RUN_ID,
+        { cwd, noPause: true, config: noopConfig },
+        pinnedDeps({
+          createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+        }),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("expected failure");
+      expect(result.chainId).toBe(CHAIN_ID);
+      expect(result.iterationIndex).toBe(2);
+    });
+  });
+
+  it("AC-S6-13d: retryWorkflow's finalizeRetryFailure carries chainId + iterationIndex from state.json", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      const FAILED_RUN_ID = "2026-05-02-1430-aaaa";
+      const runDir = join(cwd, ".praxis", "runs", FAILED_RUN_ID);
+      mkdirSync(runDir, { recursive: true });
+      // session-unresumable shape: code-improving failed with no sessionId
+      // → retryWorkflow goes through finalizeRetryFailure on the up-front
+      // guard branch.
+      const state: State = {
+        runId: FAILED_RUN_ID,
+        intent: "ship it",
+        startedAt: "2026-05-02T14:30:12Z",
+        baselineSha: "0123456789abcdef0123456789abcdef01234567",
+        chainId: CHAIN_ID,
+        iterationIndex: 2,
+        currentStage: CODE_IMPROVING_ID,
+        cost: { totalTokens: 0, totalUsd: 0 },
+        stages: {
+          "clarify-assess": { status: "completed", sessionId: "sess" },
+          "sketching-design": { status: "completed", sessionId: "sess" },
+          "driving-tdd": { status: "completed", sessionId: "sess" },
+          [CODE_REVIEWING_ID]: { status: "completed", sessionId: "sess" },
+          [CODE_IMPROVING_ID]: {
+            status: "failed",
+            // sessionId omitted to trigger the up-front session_unresumable
+            // guard inside retryWorkflow.
+            error: "validator_failed",
+          },
+          [AUTO_COMMIT_ID]: { status: "pending" },
+        },
+      };
+      writeState(runDir, state);
+
+      const { retryWorkflow } = await import("../../src/workflow/runner.js");
+      const result = await retryWorkflow(
+        FAILED_RUN_ID,
+        { cwd, noPause: true },
+        pinnedDeps({
+          createQueryFn: scriptedQuery([{ messages: noopMessages() }]),
+        }),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("expected failure");
+      expect(result.chainId).toBe(CHAIN_ID);
+      expect(result.iterationIndex).toBe(2);
+    });
+  });
+});
