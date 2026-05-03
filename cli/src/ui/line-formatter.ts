@@ -1,6 +1,10 @@
 import type { StageConfig } from "../config/schema.js";
 import type { AgentEvent } from "../workflow/stage.js";
-import type { RunSummary, StageEndResult } from "./reporter.js";
+import type {
+  ChainTerminalStatus,
+  RunSummary,
+  StageEndResult,
+} from "./reporter.js";
 
 /**
  * Pure formatters for `LineReporter` output. Each function returns the lines
@@ -87,6 +91,43 @@ export function formatStageEnd(
     lines.push(`${tag} failed: ${result.error ?? "stage failed"}`);
   }
   return lines;
+}
+
+/**
+ * S-007 AC-S7-3: chain banner emitted once per iteration of a chain run. The
+ * `<short>` is the last 4 chars of the chain-id (mirrors the run-id tail); the
+ * separator is the literal middle-dot character `·` (U+00B7) — not `-` and
+ * not `|` — to match the spec's typographic shape.
+ */
+export function formatChainStart(
+  chainId: string,
+  iterationIndex: number,
+  iterationsTotal: number,
+  runId: string,
+): string[] {
+  const short = chainId.slice(-4);
+  return [
+    `praxis: [chain ${short} · iteration ${iterationIndex}/${iterationsTotal}] starting run ${runId}`,
+  ];
+}
+
+/**
+ * S-007 AC-S7-11: chain-end line emitted once per chain when its lifecycle
+ * reaches a terminal status. `iterationsCompleted` is the count of fully-
+ * landed iterations from the ledger — for `aborted`/`cancelled` mid-chain that
+ * is the K-1 (or fewer) iterations whose entries carry a `commitSha`, NOT the
+ * failed iteration's index.
+ */
+export function formatChainEnd(
+  chainId: string,
+  status: ChainTerminalStatus,
+  iterationsCompleted: number,
+  iterationsTotal: number,
+): string[] {
+  const short = chainId.slice(-4);
+  return [
+    `praxis: [chain ${short}] ${status} after ${iterationsCompleted}/${iterationsTotal} iterations`,
+  ];
 }
 
 /** AC-11: replaces the old direct `process.stdout.write` in runner.ts. */

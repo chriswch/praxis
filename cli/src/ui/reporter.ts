@@ -8,6 +8,17 @@ import type { AgentEvent } from "../workflow/stage.js";
  */
 export type RunStatus = "completed" | "paused" | "failed" | "cancelled";
 
+/**
+ * S-007: terminal status surfaced on the chain-end Reporter line. Mirrors the
+ * subset of `ChainStatus` (workflow/chain.ts) that a chain can land on at
+ * stop time — `in_progress` is not a terminal value, so it is excluded.
+ */
+export type ChainTerminalStatus =
+  | "completed"
+  | "completed-early"
+  | "aborted"
+  | "cancelled";
+
 export interface RunSummary {
   commitSha?: string;
   cost: { totalTokens: number; totalUsd: number };
@@ -63,5 +74,33 @@ export interface Reporter {
     runId: string,
     stageId: string,
     sessionId?: string,
+  ): void;
+  /**
+   * S-007: chain banner emitted once per iteration of a `praxis run --iterations <N>`
+   * chain, between the per-iteration `writeState` and the first stage dispatch.
+   * Optional so non-CLI Reporters (tests, alternative surfaces) can skip it;
+   * the runner invokes via `reporter.chainStart?.(...)`. The runner only emits
+   * this on its entry path (`runWorkflow`), NOT inside `executeStages` —
+   * advance/retry resume paths re-enter `executeStages` directly and must not
+   * re-emit the banner on every continuation.
+   */
+  chainStart?(
+    chainId: string,
+    iterationIndex: number,
+    iterationsTotal: number,
+    runId: string,
+  ): void;
+  /**
+   * S-007: chain-end line emitted once per chain when its lifecycle reaches a
+   * terminal status. Fired from `cli.ts` (the chain-loop policy lives in the
+   * CLI) immediately after the corresponding `setChainStatus` ledger write
+   * lands successfully — read-failure paths do not emit. Optional on the
+   * Reporter interface so non-CLI Reporters can skip it.
+   */
+  chainEnd?(
+    chainId: string,
+    status: ChainTerminalStatus,
+    iterationsCompleted: number,
+    iterationsTotal: number,
   ): void;
 }

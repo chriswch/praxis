@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { StageConfig } from "../../src/config/schema.js";
 import {
   formatAssistantText,
+  formatChainEnd,
+  formatChainStart,
   formatError,
   formatPaused,
   formatRunDone,
@@ -271,6 +273,71 @@ describe("formatRunDone (H-1) — headline verb branches on status", () => {
     expect(formatRunDone("r-1", summary("cancelled"))[0]).toBe(
       "[run r-1] cancelled — 100 tokens, $0.0050",
     );
+  });
+});
+
+describe("formatChainStart (S-007 AC-S7-3) — chain banner", () => {
+  it("emits `praxis: [chain <short> · iteration K/N] starting run <runId>` with the last 4 chainId chars", () => {
+    expect(
+      formatChainStart(
+        "2026-05-02-1430-9f3c",
+        1,
+        3,
+        "2026-05-02-1430-7af2",
+      ),
+    ).toEqual([
+      "praxis: [chain 9f3c · iteration 1/3] starting run 2026-05-02-1430-7af2",
+    ]);
+  });
+
+  it("uses the literal middle-dot character (U+00B7) as the separator", () => {
+    const lines = formatChainStart(
+      "abcd-efgh-ijkl-mnop",
+      2,
+      5,
+      "2026-05-02-1442-bbbb",
+    );
+    expect(lines).toHaveLength(1);
+    // The separator is U+00B7 — not '-' and not '|'.
+    expect(lines[0]).toContain(" · ");
+    expect(lines[0]).not.toMatch(/iteration \d+\/\d+ ?[-|]/);
+  });
+
+  it("renders the iteration index and total verbatim (K/N)", () => {
+    expect(
+      formatChainStart("xxxxxxxxxxxx9f3c", 7, 12, "2026-05-02-1500-cccc"),
+    ).toEqual([
+      "praxis: [chain 9f3c · iteration 7/12] starting run 2026-05-02-1500-cccc",
+    ]);
+  });
+});
+
+describe("formatChainEnd (S-007 AC-S7-11) — chain-end line", () => {
+  it("emits `praxis: [chain <short>] <status> after K/N iterations` for completed", () => {
+    expect(formatChainEnd("2026-05-02-1430-9f3c", "completed", 3, 3)).toEqual([
+      "praxis: [chain 9f3c] completed after 3/3 iterations",
+    ]);
+  });
+
+  it("uses the spec status word verbatim for completed-early", () => {
+    expect(
+      formatChainEnd("2026-05-02-1430-9f3c", "completed-early", 1, 3),
+    ).toEqual([
+      "praxis: [chain 9f3c] completed-early after 1/3 iterations",
+    ]);
+  });
+
+  it("renders aborted with the iterations-completed count, not the failed iter index", () => {
+    // Iter 2 fails → iterationsCompleted = 1 (only iter 1 finished).
+    expect(formatChainEnd("xxxxxxxxxxxx9f3c", "aborted", 1, 3)).toEqual([
+      "praxis: [chain 9f3c] aborted after 1/3 iterations",
+    ]);
+  });
+
+  it("renders cancelled (SIGINT) with the same shape", () => {
+    expect(formatChainEnd("xxxxxxxxxxxx9f3c", "cancelled", 0, 5)).toEqual([
+      "praxis: [chain 9f3c] cancelled after 0/5 iterations",
+    ]);
   });
 });
 
