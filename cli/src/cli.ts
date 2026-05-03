@@ -321,7 +321,18 @@ async function launchRemainingIterations(input: {
       if (result.remediation) {
         process.stderr.write(`${result.remediation}\n`);
       }
-      // Failure path: ledger stays in_progress; S-006 closes out aborted.
+      // S-006 AC-S6-1/AC-S6-2/AC-S6-7/AC-S6-8/AC-S6-9: flip the chain ledger
+      // to its terminal status (aborted by default, cancelled when the
+      // failure was a SIGINT) before bailing out. Uses the in-memory
+      // `chainId` from the loop scope — `launchRemainingIterations` is the
+      // single chokepoint for runRun's multi-iter branch AND advance/retry's
+      // auto-launch tail, so one helper invocation covers both surfaces.
+      writeChainTerminalStatus({
+        cwd: input.cwd,
+        chainId: input.chainId,
+        result,
+        clock: input.deps.clock,
+      });
       return result;
     }
 
@@ -601,6 +612,19 @@ async function runResume<
     if (result.remediation) {
       process.stderr.write(`${result.remediation}\n`);
     }
+    // S-006 AC-S6-5/AC-S6-6: when the resume dispatcher (advance / retry)
+    // returns a failure on a chain-bound run, flip the chain ledger to its
+    // terminal status before exiting. Uses `result.chainId` (threaded by
+    // the runner via S-6 AC-S6-13's RunWorkflowFailure extension) so we
+    // don't re-read state.json. Standalone (non-chain) resume failures land
+    // with `result.chainId === undefined`; the helper's chainId-undefined
+    // branch makes the call a no-op for that case.
+    writeChainTerminalStatus({
+      cwd,
+      chainId: result.chainId,
+      result,
+      clock: deps.clock,
+    });
     process.exit(1);
   }
   process.stdout.write(`${result.runId}\n`);

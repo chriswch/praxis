@@ -576,8 +576,8 @@ describe("runRetry retry itself fails (AC-S5-8)", () => {
   });
 });
 
-describe("runRetry auto-launched iter fails (AC-S5-9)", () => {
-  it("failed iter 1 → retry → iter 2 launches and fails → ledger stays in_progress (chain not aborted)", async () => {
+describe("runRetry auto-launched iter fails (AC-S5-9 + S-006 AC-S6-7)", () => {
+  it("failed iter 1 → retry → iter 2 launches and fails → ledger flips to 'aborted'", async () => {
     await withTempRepo(async ({ dir: cwd }) => {
       seedRunState(cwd, ITER1_RUN_ID, {
         chainId: CHAIN_ID,
@@ -630,7 +630,7 @@ describe("runRetry auto-launched iter fails (AC-S5-9)", () => {
       });
       // A failed auto-launched iter exits 1 (vitest surfaces process.exit as
       // a throw). The CRITICAL invariant we're locking is the on-disk shape
-      // BEFORE the exit — chain stays in_progress, iter 2 was never recorded.
+      // BEFORE the exit — chain flips to 'aborted', iter 2 was never recorded.
       await expect(
         runRetry(
           { runId: ITER1_RUN_ID, noPause: false },
@@ -640,12 +640,13 @@ describe("runRetry auto-launched iter fails (AC-S5-9)", () => {
         ),
       ).rejects.toThrow(/process\.exit.*1/);
 
-      // Per spec §4: failed iter does NOT flip the chain to 'aborted'
-      // here — that wiring belongs to S-006 (user gives up). Loop just
-      // stops; ledger sits at in_progress.
+      // S-006 AC-S6-7: every iteration failure inside `launchRemainingIterations`
+      // flips the chain to its terminal status. Default failure → 'aborted'.
+      // (User can still recover via `praxis advance/retry <iter-2 run-id>` —
+      // a successful recovery overwrites this status via handleIterationOutcome.)
       const final = readChainLedger(cwd, CHAIN_ID);
       if (!final.ok) throw new Error(final.reason);
-      expect(final.ledger.status).toBe("in_progress");
+      expect(final.ledger.status).toBe("aborted");
       // Iter 1 already counted; iter 2 entry was never appended by our spy.
       expect(final.ledger.iterationsCompleted).toBe(1);
     });

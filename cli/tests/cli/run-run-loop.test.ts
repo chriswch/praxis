@@ -214,3 +214,234 @@ describe("runRun multi-iteration loop (AC-S3-9: flags carried forward)", () => {
     });
   });
 });
+
+/**
+ * S-006 — `runRun` chain termination paths. The chain ledger is the source
+ * of truth for the chain's terminal status; on iteration failure the loop
+ * must flip the on-disk ledger to either `aborted` (validator/timeout/
+ * commit_failed/etc.) or `cancelled` (SIGINT). Failure of iter 1 vs. mid-
+ * chain (K=2..N) both share the same termination shape because both go
+ * through `launchRemainingIterations`'s `!result.ok` branch.
+ */
+describe("runRun chain failure → ledger 'aborted' (S-006 AC-S6-1)", () => {
+  it("AC-S6-1: iter 1 fails → ledger flips to 'aborted'; iters 2..N never start", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      // Spy iter 1: writes the running entry to the ledger then returns the
+      // failure shape (the real runner does both during executeStages).
+      let calls = 0;
+      const failingSpy = async (
+        ctx: RunWorkflowContext,
+        _deps: Deps,
+      ): Promise<RunWorkflowResult> => {
+        calls += 1;
+        if (!ctx.chain) throw new Error("expected chain context");
+        // Mimic runner: write the iter-1 entry as 'running' before returning.
+        const seeded = buildInitialChainLedger({
+          chainId: ctx.chain.chainId,
+          intent: ctx.intent,
+          iterationsTotal: ctx.chain.iterationsTotal,
+          flags: ctx.chain.flags,
+          createdAt: "2026-05-02T14:30:12Z",
+        });
+        const next = appendIteration(
+          seeded,
+          { index: 1, runId: STUB_RUN_IDS[0], status: "running" },
+          "2026-05-02T14:30:12Z",
+        );
+        writeChainLedger(cwd, next);
+        return {
+          ok: false,
+          reason: "validator_failed: bad artifact",
+          runId: STUB_RUN_IDS[0],
+          runDir: `/tmp/${STUB_RUN_IDS[0]}`,
+          failedStageId: "clarify-assess",
+          status: "failed",
+          chainId: ctx.chain.chainId,
+          iterationIndex: 1,
+        };
+      };
+      const deps = pinnedDeps(failingSpy);
+      const result = await runRun(
+        {
+          intent: "ship the chain",
+          allowDirty: false,
+          noPause: true,
+          iterations: 3,
+        },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      expect(result.ok).toBe(false);
+      // Only iter 1 ran — iters 2..N never started.
+      expect(calls).toBe(1);
+      // Ledger flipped to 'aborted'.
+      const chainsDir = join(cwd, ".praxis", "chains");
+      const dirEntries = await import("node:fs").then((fs) =>
+        fs.readdirSync(chainsDir),
+      );
+      expect(dirEntries).toHaveLength(1);
+      const chainId = dirEntries[0].replace(/\.json$/, "");
+      const read = readChainLedger(cwd, chainId);
+      if (!read.ok) throw new Error(read.reason);
+      expect(read.ledger.status).toBe("aborted");
+    });
+  });
+});
+
+describe("runRun chain SIGINT → ledger 'cancelled' (S-006 AC-S6-2)", () => {
+  it("AC-S6-2: iter 1 returns status='cancelled' (SIGINT) → ledger flips to 'cancelled'", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      let calls = 0;
+      const cancelledSpy = async (
+        ctx: RunWorkflowContext,
+        _deps: Deps,
+      ): Promise<RunWorkflowResult> => {
+        calls += 1;
+        if (!ctx.chain) throw new Error("expected chain context");
+        const seeded = buildInitialChainLedger({
+          chainId: ctx.chain.chainId,
+          intent: ctx.intent,
+          iterationsTotal: ctx.chain.iterationsTotal,
+          flags: ctx.chain.flags,
+          createdAt: "2026-05-02T14:30:12Z",
+        });
+        const next = appendIteration(
+          seeded,
+          { index: 1, runId: STUB_RUN_IDS[0], status: "running" },
+          "2026-05-02T14:30:12Z",
+        );
+        writeChainLedger(cwd, next);
+        return {
+          ok: false,
+          reason: "cancelled by user (SIGINT)",
+          runId: STUB_RUN_IDS[0],
+          runDir: `/tmp/${STUB_RUN_IDS[0]}`,
+          failedStageId: "clarify-assess",
+          status: "cancelled",
+          chainId: ctx.chain.chainId,
+          iterationIndex: 1,
+        };
+      };
+      const deps = pinnedDeps(cancelledSpy);
+      const result = await runRun(
+        {
+          intent: "ship the chain",
+          allowDirty: false,
+          noPause: true,
+          iterations: 3,
+        },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      expect(result.ok).toBe(false);
+      expect(calls).toBe(1);
+      const dirEntries = await import("node:fs").then((fs) =>
+        fs.readdirSync(join(cwd, ".praxis", "chains")),
+      );
+      const chainId = dirEntries[0].replace(/\.json$/, "");
+      const read = readChainLedger(cwd, chainId);
+      if (!read.ok) throw new Error(read.reason);
+      expect(read.ledger.status).toBe("cancelled");
+    });
+  });
+});
+
+describe("runRun mid-chain failure (K>=2) → ledger 'aborted' (S-006 AC-S6-9)", () => {
+  it("AC-S6-9: iter 1 succeeds, iter 2 fails → ledger flips to 'aborted'; iter 3 never starts", async () => {
+    await withTempRepo(async ({ dir: cwd }) => {
+      let calls = 0;
+      const dispatch = async (
+        ctx: RunWorkflowContext,
+        _deps: Deps,
+      ): Promise<RunWorkflowResult> => {
+        calls += 1;
+        if (!ctx.chain) throw new Error("expected chain context");
+        const k = ctx.chain.iterationIndex;
+        if (k === 1) {
+          // Iter 1: writes a completed entry with a real-looking commit SHA so
+          // the loop's cascade-skip predicate keeps going to iter 2.
+          const seeded = buildInitialChainLedger({
+            chainId: ctx.chain.chainId,
+            intent: ctx.intent,
+            iterationsTotal: ctx.chain.iterationsTotal,
+            flags: ctx.chain.flags,
+            createdAt: "2026-05-02T14:30:12Z",
+          });
+          const withIter1 = appendIteration(
+            seeded,
+            {
+              index: 1,
+              runId: STUB_RUN_IDS[0],
+              status: "completed",
+              commitSha: "abcdef00".repeat(5),
+            },
+            "2026-05-02T14:30:12Z",
+          );
+          writeChainLedger(cwd, {
+            ...withIter1,
+            iterationsCompleted: 1,
+          });
+          return {
+            ok: true,
+            runId: STUB_RUN_IDS[0],
+            runDir: `/tmp/${STUB_RUN_IDS[0]}`,
+            paused: false,
+            chainId: ctx.chain.chainId,
+            iterationIndex: 1,
+          };
+        }
+        if (k === 2) {
+          // Iter 2: writes the running entry (mimicking the runner) then
+          // returns a failure. launchRemainingIterations should detect this
+          // and flip the ledger to 'aborted' (NOT loop on to iter 3).
+          const r = readChainLedger(cwd, ctx.chain.chainId);
+          if (!r.ok) throw new Error(r.reason);
+          const next = appendIteration(
+            r.ledger,
+            { index: 2, runId: STUB_RUN_IDS[1], status: "running" },
+            "2026-05-02T14:30:12Z",
+          );
+          writeChainLedger(cwd, next);
+          return {
+            ok: false,
+            reason: "validator_failed: bad artifact",
+            runId: STUB_RUN_IDS[1],
+            runDir: `/tmp/${STUB_RUN_IDS[1]}`,
+            failedStageId: "clarify-assess",
+            status: "failed",
+            chainId: ctx.chain.chainId,
+            iterationIndex: 2,
+          };
+        }
+        throw new Error(`runWorkflow must NOT fire for iter ${k}`);
+      };
+      const deps = pinnedDeps(dispatch);
+      const result = await runRun(
+        {
+          intent: "ship the chain",
+          allowDirty: false,
+          noPause: true,
+          iterations: 3,
+        },
+        cwd,
+        new AbortController().signal,
+        deps,
+      );
+      expect(result.ok).toBe(false);
+      // Only iter 1 + iter 2 ran; iter 3 never started.
+      expect(calls).toBe(2);
+      const dirEntries = await import("node:fs").then((fs) =>
+        fs.readdirSync(join(cwd, ".praxis", "chains")),
+      );
+      const chainId = dirEntries[0].replace(/\.json$/, "");
+      const read = readChainLedger(cwd, chainId);
+      if (!read.ok) throw new Error(read.reason);
+      expect(read.ledger.status).toBe("aborted");
+      // Iter 1 completed, iter 2 entry on disk as 'running' (we don't flip
+      // the iteration entry — only the chain status). Iter 3 never appended.
+      expect(read.ledger.iterations).toHaveLength(2);
+    });
+  });
+});

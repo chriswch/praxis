@@ -226,7 +226,10 @@ describe("praxis run --iterations + praxis retry auto-launch (S-005 AC-S5-1, AC-
       const chainId = chainFiles[0].replace(/\.json$/, "");
       const midRead = readChainLedger(cwd, chainId);
       if (!midRead.ok) throw new Error(midRead.reason);
-      expect(midRead.ledger.status).toBe("in_progress");
+      // S-006 AC-S6-2: SIGINT mid-iteration flips the chain to 'cancelled'.
+      // (The retry below resumes the iteration; on success
+      // handleIterationOutcome overwrites this with 'completed'.)
+      expect(midRead.ledger.status).toBe("cancelled");
       expect(midRead.ledger.iterations).toHaveLength(1);
       // Iteration 1 entry was written 'running' on stage 1 dispatch and never
       // patched (the runner's success-return path didn't fire — code-improving
