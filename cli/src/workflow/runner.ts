@@ -161,6 +161,12 @@ export async function runWorkflow(
         ok: false,
         reason: preflight.reason,
         remediation: preflight.remediation,
+        // S-006 AC-S6-13: chain-bound preflight failures carry chain identity
+        // straight off `ctx.chain` so the CLI can drive the ledger's terminal
+        // status without a second read. Standalone runs (no chain context)
+        // leave both fields undefined.
+        chainId: ctx.chain?.chainId,
+        iterationIndex: ctx.chain?.iterationIndex,
       };
     }
   }
@@ -176,6 +182,11 @@ export async function runWorkflow(
       reason: head.reason,
       remediation:
         "Create a baseline commit first, e.g. 'git commit --allow-empty -m init'.",
+      // S-006 AC-S6-13: same chain-identity threading as the preflight branch
+      // above — an empty-repo failure on a chain run still needs to drive the
+      // ledger's terminal status.
+      chainId: ctx.chain?.chainId,
+      iterationIndex: ctx.chain?.iterationIndex,
     };
   }
 
@@ -1026,6 +1037,13 @@ export async function advanceWorkflow(
       remediation: baselineSha.remediation,
       runId,
       runDir,
+      // S-006 AC-S6-13: chain-bound advance failures carry chain identity
+      // straight off state.json so the CLI can drive the ledger's terminal
+      // status without a second read. Standalone advances leave both fields
+      // undefined (state.chainId is absent on non-chain runs). Mirrors the
+      // identical site in `retryWorkflow` below.
+      chainId: state.chainId,
+      iterationIndex: state.iterationIndex,
     };
   }
 
