@@ -11,6 +11,14 @@ import type { PraxisConfig, StageConfig } from "../config/schema.js";
 import { currentHead } from "../git/status.js";
 import type { Reporter, RunStatus, RunSummary } from "../ui/reporter.js";
 import { writeArtifact, writeIntent } from "./artifacts.js";
+import {
+  appendIteration,
+  buildInitialChainLedger,
+  type ChainFlags,
+  readChainLedger,
+  updateIteration,
+  writeChainLedger,
+} from "./chain.js";
 import { appendPraxisToGitignore, runPreflight } from "./preflight.js";
 import { formatRunId } from "./run-id.js";
 import type { Deps, StageContext, StageResult } from "./stage.js";
@@ -23,6 +31,27 @@ import {
   writeState,
 } from "./state.js";
 import { parseReviewDecision } from "./validator.js";
+
+/**
+ * S-002: per-iteration chain context threaded onto `RunWorkflowContext` when
+ * `praxis run --iterations <N>` is in flight. The CLI generates a `chainId`
+ * once at chain start, computes the per-iteration `iterationIndex`, and
+ * passes the same `iterationsTotal` / `flags` along with each iteration's
+ * `runWorkflow` call. The runner owns all on-disk ledger I/O — when present,
+ * it writes the initial empty-iterations ledger and the iter-K entry in one
+ * shot before stage 1 dispatches (spec AC-5), then patches the entry to
+ * `completed` (with `commitSha` from the auto-commit stage when available)
+ * on the success-return path. Absence keeps the standalone `praxis run` flow
+ * untouched.
+ */
+export type RunChainContext = {
+  chainId: string;
+  /** 1-based monotonic position of this iteration within the chain. */
+  iterationIndex: number;
+  /** Total iterations the chain was started with (matches the ledger). */
+  iterationsTotal: number;
+  flags: ChainFlags;
+};
 
 export type RunWorkflowContext = {
   intent: string;
@@ -42,6 +71,13 @@ export type RunWorkflowContext = {
    * inject directly to exercise cancellation.
    */
   signal?: AbortSignal;
+  /**
+   * S-002: chain context for `praxis run --iterations <N>`. When set, the
+   * runner stamps `chainId` + `iterationIndex` onto state.json, writes the
+   * chain ledger before stage 1 runs, and patches the iteration entry on
+   * success. Absent on standalone runs (back-compat).
+   */
+  chain?: RunChainContext;
 };
 
 export type RunWorkflowSuccess = {
@@ -122,8 +158,24 @@ export async function runWorkflow(
     baselineSha: head.sha,
     stageIds,
     currentStage: stageIds[0],
+    // S-002: stamp chain context on state when present so an external
+    // observer reading state.json mid-iteration can correlate it to the
+    // ledger. `buildInitialState` drops the keys when undefined, keeping
+    // the on-disk shape byte-identical for standalone runs.
+    chainId: ctx.chain?.chainId,
+    iterationIndex: ctx.chain?.iterationIndex,
   });
   writeState(runDir, state);
+
+  // S-002 AC-S2-10 (spec AC-5): write the chain ledger AFTER the run-dir +
+  // state.json land but BEFORE the first stage dispatches. The runner owns
+  // the on-disk ledger — CLI only generates the chainId and computes flags.
+  // One shot writes both the initial empty-iterations ledger AND the iter-K
+  // entry so a SIGINT during stage 1 leaves a self-consistent file with one
+  // running entry.
+  if (ctx.chain) {
+    bootstrapChainOnIterationStart(ctx.cwd, ctx.chain, ctx.intent, runId, deps);
+  }
 
   // AC-3: synthetic stage-0 line `[0/N intent] captured → 00-intent.txt`.
   // Optional on the Reporter interface (no StageConfig for the agentless
@@ -140,6 +192,7 @@ export async function runWorkflow(
     baselineSha: head.sha,
     noPause: ctx.noPause,
     signal: ctx.signal,
+    chain: ctx.chain,
   };
   return executeStages(
     state,
@@ -151,6 +204,44 @@ export async function runWorkflow(
     runId,
     0,
   );
+}
+
+/**
+ * S-002 AC-S2-9 + AC-S2-10: write the chain ledger on iteration start. Called
+ * once between `writeState(runDir, state)` and `reporter.stage0()` so a
+ * SIGINT during stage 1 (clarify-assess) leaves the ledger with one
+ * `running` entry on disk — matching the spec's AC-5 chronology.
+ *
+ * For iter 1, builds the initial ledger and appends the iter-1 entry in a
+ * single write. Future iterations (S-3) will append against the existing
+ * ledger; the helper stays single-purpose for this slice (S-002 ships only
+ * the N=1 path end-to-end).
+ */
+function bootstrapChainOnIterationStart(
+  cwd: string,
+  chain: RunChainContext,
+  intent: string,
+  runId: string,
+  deps: Deps,
+): void {
+  const now = toIsoSeconds(deps.clock());
+  const initial = buildInitialChainLedger({
+    chainId: chain.chainId,
+    intent,
+    iterationsTotal: chain.iterationsTotal,
+    flags: chain.flags,
+    createdAt: now,
+  });
+  const withIteration = appendIteration(
+    initial,
+    {
+      index: chain.iterationIndex,
+      runId,
+      status: "running",
+    },
+    now,
+  );
+  writeChainLedger(cwd, withIteration);
 }
 
 type StepOutcome =
@@ -180,6 +271,12 @@ type LoopContext = {
   baselineSha: string;
   noPause?: boolean;
   signal?: AbortSignal;
+  /**
+   * S-002: chain context, propagated from `runWorkflow`. `executeStages`
+   * patches the iteration entry on success-return; advance/retry resume
+   * paths leave it undefined for the moment (later slices wire those in).
+   */
+  chain?: RunChainContext;
 };
 
 async function executeStages(
@@ -229,8 +326,57 @@ async function executeStages(
     }
   }
 
+  // S-002 AC-S2-12 / AC-S2-13: on success-return, patch the iteration entry
+  // to `completed`, carrying the auto-commit SHA when the stage produced
+  // one. Cascade-skip leaves `state.stages[AUTO_COMMIT_ID]?.commitSha`
+  // undefined; `updateIteration` accepts a partial patch and the ledger
+  // shape leaves `commitSha` optional, so omitting it is the right shape
+  // for the no-real-commit path.
+  if (ctx.chain) {
+    recordChainIterationOnSuccess(ctx.cwd, ctx.chain, state, deps);
+  }
   reporter.runDone(runId, summarize(state, "completed"));
   return { ok: true, runId, runDir, paused: false };
+}
+
+/**
+ * S-002 AC-S2-12 + AC-S2-13: patch the in-flight iteration entry to
+ * `completed` on the runner's success-return path. Reads the chain ledger
+ * back from disk (the only other writer in this iteration's lifetime is the
+ * runner itself, so the read-modify-write is safe within one CLI process per
+ * the spec's §9 note), patches the entry via `updateIteration`, and writes
+ * back.
+ *
+ * Pulls `commitSha` off `state.stages[AUTO_COMMIT_ID]` when present —
+ * cascade-skip and other no-real-commit paths leave it undefined and
+ * `commitSha` is optional on the entry.
+ */
+function recordChainIterationOnSuccess(
+  cwd: string,
+  chain: RunChainContext,
+  state: State,
+  deps: Deps,
+): void {
+  const read = readChainLedger(cwd, chain.chainId);
+  if (!read.ok) {
+    // Defensive: the ledger was written by us at iteration start. If it's
+    // somehow gone, surface the read failure on stderr but do not throw —
+    // the run itself succeeded and the chain status is recoverable by hand.
+    process.stderr.write(
+      `praxis: failed to update chain ledger ${chain.chainId}: ${read.reason}\n`,
+    );
+    return;
+  }
+  const commitSha = state.stages[AUTO_COMMIT_ID]?.commitSha;
+  const patch: Parameters<typeof updateIteration>[2] = { status: "completed" };
+  if (commitSha !== undefined) patch.commitSha = commitSha;
+  const next = updateIteration(
+    read.ledger,
+    chain.iterationIndex,
+    patch,
+    toIsoSeconds(deps.clock()),
+  );
+  writeChainLedger(cwd, next);
 }
 
 async function runOneStage(
