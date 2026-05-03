@@ -153,6 +153,66 @@ describe("LineReporter (AC-2/7/8/10/11/12)", () => {
   });
 });
 
+describe("LineReporter chain banner + chain-end (S-007)", () => {
+  it("chainStart writes the formatted banner + newline to stdout", () => {
+    const { reporter, out } = makeReporter();
+    reporter.chainStart(
+      "2026-05-02-1430-9f3c",
+      1,
+      3,
+      "2026-05-02-1430-7af2",
+    );
+    expect(out.text()).toBe(
+      "praxis: [chain 9f3c · iteration 1/3] starting run 2026-05-02-1430-7af2\n",
+    );
+  });
+
+  it("chainEnd writes the formatted chain-end line + newline to stdout", () => {
+    const { reporter, out } = makeReporter();
+    reporter.chainEnd("2026-05-02-1430-9f3c", "completed", 3, 3);
+    expect(out.text()).toBe(
+      "praxis: [chain 9f3c] completed after 3/3 iterations\n",
+    );
+  });
+
+  it("chainStart flushes any buffered assistant_text first (S-007 AC-S7-14)", () => {
+    vi.useFakeTimers();
+    try {
+      const { reporter, out } = makeReporter({ cols: 80 });
+      reporter.stageEvent({ type: "assistant_text", text: "wrapping up" });
+      reporter.chainStart(
+        "2026-05-02-1430-9f3c",
+        2,
+        3,
+        "2026-05-02-1442-bbbb",
+      );
+      const text = out.text();
+      const partialIdx = text.indexOf(" › wrapping up");
+      const bannerIdx = text.indexOf("praxis: [chain 9f3c");
+      expect(partialIdx).toBeGreaterThanOrEqual(0);
+      expect(bannerIdx).toBeGreaterThan(partialIdx);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("chainEnd flushes any buffered assistant_text first", () => {
+    vi.useFakeTimers();
+    try {
+      const { reporter, out } = makeReporter({ cols: 80 });
+      reporter.stageEvent({ type: "assistant_text", text: "trailing" });
+      reporter.chainEnd("2026-05-02-1430-9f3c", "aborted", 1, 3);
+      const text = out.text();
+      const partialIdx = text.indexOf(" › trailing");
+      const endIdx = text.indexOf("praxis: [chain 9f3c] aborted");
+      expect(partialIdx).toBeGreaterThanOrEqual(0);
+      expect(endIdx).toBeGreaterThan(partialIdx);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("LineReporter assistant_text coalescing (AC-6)", () => {
   beforeEach(() => {
     vi.useFakeTimers();

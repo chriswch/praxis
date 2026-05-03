@@ -4,6 +4,8 @@ import type { AgentEvent } from "../workflow/stage.js";
 import { EventBuffer, type Scheduler } from "./event-buffer.js";
 import {
   formatAssistantText,
+  formatChainEnd,
+  formatChainStart,
   formatError,
   formatPaused,
   formatResuming,
@@ -14,7 +16,12 @@ import {
   formatToolResult,
   formatToolUse,
 } from "./line-formatter.js";
-import type { Reporter, RunSummary, StageEndResult } from "./reporter.js";
+import type {
+  ChainTerminalStatus,
+  Reporter,
+  RunSummary,
+  StageEndResult,
+} from "./reporter.js";
 
 const DEFAULT_COLS = 80;
 const COALESCE_MS = 100;
@@ -139,6 +146,43 @@ export class LineReporter implements Reporter {
   ): void {
     this.buffer.flush();
     this.writeAll(this.stdout, formatResuming(kind, runId, stageId, sessionId));
+  }
+
+  /**
+   * S-007: chain banner emitted by `runWorkflow` between `writeState` and the
+   * first stage dispatch when `ctx.chain !== undefined`. Optional on the
+   * Reporter interface; runner calls it via `reporter.chainStart?.(...)`.
+   */
+  chainStart(
+    chainId: string,
+    iterationIndex: number,
+    iterationsTotal: number,
+    runId: string,
+  ): void {
+    this.buffer.flush();
+    this.writeAll(
+      this.stdout,
+      formatChainStart(chainId, iterationIndex, iterationsTotal, runId),
+    );
+  }
+
+  /**
+   * S-007: chain-end line emitted by `cli.ts` (the chain-loop policy lives in
+   * the CLI) immediately after the corresponding `setChainStatus` ledger write
+   * succeeds. Optional on the Reporter interface; CLI invokes via
+   * `reporter.chainEnd?.(...)`.
+   */
+  chainEnd(
+    chainId: string,
+    status: ChainTerminalStatus,
+    iterationsCompleted: number,
+    iterationsTotal: number,
+  ): void {
+    this.buffer.flush();
+    this.writeAll(
+      this.stdout,
+      formatChainEnd(chainId, status, iterationsCompleted, iterationsTotal),
+    );
   }
 
   private writeAll(stream: Writable, lines: string[]): void {

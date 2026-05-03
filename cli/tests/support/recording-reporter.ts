@@ -1,5 +1,6 @@
 import type { StageConfig } from "../../src/config/schema.js";
 import type {
+  ChainTerminalStatus,
   Reporter,
   RunSummary,
   StageEndResult,
@@ -23,6 +24,20 @@ export type RecordedCall =
       runId: string;
       stageId: string;
       sessionId?: string;
+    }
+  | {
+      kind: "chainStart";
+      chainId: string;
+      iterationIndex: number;
+      iterationsTotal: number;
+      runId: string;
+    }
+  | {
+      kind: "chainEnd";
+      chainId: string;
+      status: ChainTerminalStatus;
+      iterationsCompleted: number;
+      iterationsTotal: number;
     };
 
 export class RecordingReporter implements Reporter {
@@ -54,6 +69,34 @@ export class RecordingReporter implements Reporter {
       runId,
       stageId,
       sessionId,
+    });
+  }
+  chainStart(
+    chainId: string,
+    iterationIndex: number,
+    iterationsTotal: number,
+    runId: string,
+  ): void {
+    this.calls.push({
+      kind: "chainStart",
+      chainId,
+      iterationIndex,
+      iterationsTotal,
+      runId,
+    });
+  }
+  chainEnd(
+    chainId: string,
+    status: ChainTerminalStatus,
+    iterationsCompleted: number,
+    iterationsTotal: number,
+  ): void {
+    this.calls.push({
+      kind: "chainEnd",
+      chainId,
+      status,
+      iterationsCompleted,
+      iterationsTotal,
     });
   }
   countOf(kind: RecordedCall["kind"]): number {
