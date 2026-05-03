@@ -15,6 +15,7 @@ import { isRunId } from "./workflow/run-id.js";
 import {
   type AdvanceWorkflowContext,
   advanceWorkflow,
+  type RetryWorkflowContext,
   type RunChainContext,
   type RunWorkflowContext,
   type RunWorkflowResult,
@@ -25,12 +26,13 @@ import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
 import type { Deps } from "./workflow/stage.js";
 
 /**
- * S-003 + S-004: optional injection seams used by `runRun` / `runAdvance` so
- * tests can substitute spies that record the per-iteration `RunWorkflowContext`
- * (or the resumed `AdvanceWorkflowContext`) without spinning up the real
- * 7-stage workflow. Production `buildDefaultDeps` leaves both undefined; the
- * orchestrators fall back to the real imports. Lives only on the CLI surface
- * — the runner itself never reads these fields.
+ * S-003 + S-004 + S-005: optional injection seams used by `runRun` /
+ * `runAdvance` / `runRetry` so tests can substitute spies that record the
+ * per-iteration `RunWorkflowContext` (or the resumed `AdvanceWorkflowContext`
+ * / `RetryWorkflowContext`) without spinning up the real 7-stage workflow.
+ * Production `buildDefaultDeps` leaves all three undefined; the orchestrators
+ * fall back to the real imports. Lives only on the CLI surface — the runner
+ * itself never reads these fields.
  */
 type RunRunDeps = Deps & {
   runWorkflow?: (
@@ -40,6 +42,11 @@ type RunRunDeps = Deps & {
   advanceWorkflow?: (
     runId: string,
     ctx: AdvanceWorkflowContext,
+    deps: Deps,
+  ) => Promise<RunWorkflowResult>;
+  retryWorkflow?: (
+    runId: string,
+    ctx: RetryWorkflowContext,
     deps: Deps,
   ) => Promise<RunWorkflowResult>;
 };
@@ -162,7 +169,7 @@ function parseAdvanceArgs(rest: string[]): ParsedAdvanceArgs {
   return { runId, noPause };
 }
 
-type ParsedRetryArgs = {
+export type ParsedRetryArgs = {
   runId: string;
   noPause: boolean;
 };
@@ -449,7 +456,20 @@ async function main(argv: string[]): Promise<void> {
     return;
   }
   if (command === "retry") {
-    await runRetry(rest);
+    const parsed = parseRetryArgs(rest);
+    const sigintAbort = new AbortController();
+    const onSigint = () => sigintAbort.abort("sigint");
+    process.once("SIGINT", onSigint);
+    try {
+      await runRetry(
+        parsed,
+        process.cwd(),
+        sigintAbort.signal,
+        buildDefaultDeps(),
+      );
+    } finally {
+      process.removeListener("SIGINT", onSigint);
+    }
     return;
   }
   if (command !== "run") {
@@ -586,31 +606,45 @@ export async function runAdvance(
   if (!next.ok) process.exit(1);
 }
 
-async function runRetry(rest: string[]): Promise<void> {
-  // Parse first so unknown flags / bad run-ids surface before any disk I/O.
-  const { runId, noPause } = parseRetryArgs(rest);
+/**
+ * S-005: orchestrate one `praxis retry <run-id>` invocation. Mirrors `runAdvance`
+ * — exported for unit-test injection of `retryWorkflow` / `runWorkflow` via
+ * the optional `RunRunDeps` slots. Keeps the `void` return shape (the spec
+ * doesn't bubble a result up to `main`); all stderr / stdout / exit are owned
+ * inside the helper.
+ *
+ * The chain-aware tail fires only when the resumed run's `state.json` has a
+ * `chainId`. For non-chain runs, behavior is identical to the pre-S-005 CLI:
+ * call `retryWorkflow`, print the runId, exit 1 on failure.
+ *
+ * For chain runs, after a successful non-paused resume:
+ *   - read the chain ledger to recover `iterationsTotal` + `flags`,
+ *   - call `handleIterationOutcome` on the resumed iter K to detect cascade-
+ *     skip / final-iter-completed, and
+ *   - if the decision is `continue`, hand off to `launchRemainingIterations`
+ *     starting at K+1 — symmetric with the multi-iteration `runRun` /
+ *     `runAdvance` branches.
+ */
+export async function runRetry(
+  parsed: ParsedRetryArgs,
+  cwd: string,
+  signal: AbortSignal,
+  deps: RunRunDeps,
+): Promise<void> {
+  // S-005: tests inject retryWorkflow / runWorkflow via the optional Deps
+  // slots. Production leaves both undefined and falls back to the real imports.
+  const retryDispatch = deps.retryWorkflow ?? retryWorkflow;
+  const runDispatch = deps.runWorkflow ?? runWorkflow;
 
-  // SIGINT mirrors `praxis run` / `praxis advance` — abort the in-flight stage
-  // so it surfaces a `cancelled` status rather than killing the SDK process
-  // orphan.
-  const sigintAbort = new AbortController();
-  const onSigint = () => sigintAbort.abort("sigint");
-  process.once("SIGINT", onSigint);
-
-  let result: RunWorkflowResult;
-  try {
-    result = await retryWorkflow(
-      runId,
-      {
-        cwd: process.cwd(),
-        noPause,
-        signal: sigintAbort.signal,
-      },
-      buildDefaultDeps(),
-    );
-  } finally {
-    process.removeListener("SIGINT", onSigint);
-  }
+  const result = await retryDispatch(
+    parsed.runId,
+    {
+      cwd,
+      noPause: parsed.noPause,
+      signal,
+    },
+    deps,
+  );
   if (!result.ok) {
     process.stderr.write(`praxis: ${result.reason}\n`);
     if (result.remediation) {
@@ -619,6 +653,63 @@ async function runRetry(rest: string[]): Promise<void> {
     process.exit(1);
   }
   process.stdout.write(`${result.runId}\n`);
+
+  // Pause path: the resumed run paused on a downstream stage. Nothing more
+  // to do — the user advances/retries again to push past the next pause. The
+  // ledger entry already reflects 'running'.
+  if (result.paused) return;
+
+  // S-005 AC-S5-3: non-chain back-compat. The runner threads `chainId` onto
+  // its success result (mirroring S-004 M-2) — absent → standalone (non-chain)
+  // resume, no chain-aware tail.
+  const { chainId, iterationIndex } = result;
+  if (chainId === undefined) return; // Non-chain run; we're done.
+
+  // S-005 AC-S5-2/AC-S5-4/AC-S5-5: chain-aware tail. The runner threads BOTH
+  // chainId and iterationIndex onto the success result whenever the resumed
+  // run was chain-bound (spec AC-7 — both fields are stamped together on
+  // every iteration's state.json), so a defensive iterationIndex-from-ledger
+  // fallback would only fire on shapes v1 doesn't produce.
+  if (iterationIndex === undefined) {
+    process.stderr.write(
+      `praxis: chain run ${parsed.runId} returned without an iterationIndex\n`,
+    );
+    return;
+  }
+  const readLedger = readChainLedger(cwd, chainId);
+  if (!readLedger.ok) {
+    process.stderr.write(
+      `praxis: failed to read chain ledger ${chainId} after retry: ${readLedger.reason}\n`,
+    );
+    return;
+  }
+  const ledger = readLedger.ledger;
+
+  const decision = handleIterationOutcome({
+    cwd,
+    chainId,
+    k: iterationIndex,
+    iterationsTotal: ledger.iterationsTotal,
+    clock: deps.clock,
+  });
+  if (decision.kind === "stop") return;
+
+  // S-005 AC-S5-2: auto-launch the remaining iterations starting at K+1.
+  // Flags come from the LEDGER (ledger-of-record per spec AC-19/AC-20), not
+  // from this `retry` invocation's argv — the chain was started with the
+  // user's original `--allow-dirty` / `--no-pause` choice.
+  const next = await launchRemainingIterations({
+    cwd,
+    intent: ledger.intent,
+    signal,
+    deps,
+    dispatch: runDispatch,
+    chainId,
+    flags: ledger.flags,
+    iterationsTotal: ledger.iterationsTotal,
+    startIndex: iterationIndex + 1,
+  });
+  if (!next.ok) process.exit(1);
 }
 
 // Guard the auto-execution so `import { parseRunArgs } from "./cli.js"`

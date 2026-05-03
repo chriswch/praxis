@@ -1507,12 +1507,23 @@ export async function retryWorkflow(
     error: undefined,
   });
 
+  // S-005: recover chain context from state.json + the ledger so
+  // `executeStages` invokes `recordChainIterationOnSuccess` on the resumed
+  // iter's success-return — same shape `runWorkflow` propagates from
+  // `RunWorkflowContext.chain` and `advanceWorkflow` recovers via
+  // `recoverChainContextFromState`. Without this, a `retry` finishing a
+  // failed/cancelled chain iter's code-improving stage would leave the
+  // iteration entry stuck in 'running'. Also threads chainId / iterationIndex
+  // onto the success result via the M-2 changes in `executeStages`, letting
+  // `runRetry` drive the chain-aware tail without a state.json re-read.
+  const chainForResume = recoverChainContextFromState(state, ctx.cwd);
   const loopCtx: LoopContext = {
     intent: state.intent,
     cwd: ctx.cwd,
     baselineSha: baselineSha.sha,
     noPause: ctx.noPause,
     signal: ctx.signal,
+    chain: chainForResume,
   };
   return executeStages(
     state,
