@@ -740,7 +740,16 @@ describe("runAdvance auto-launched iter skips preflight (S-004 AC-S4-8)", () => 
           iterations: updated,
           iterationsCompleted: 1,
         });
-        return { ok: true, runId, runDir, paused: false };
+        // S-004 M-2: spy mirrors the runner threading chain identity onto the
+        // success result.
+        return {
+          ok: true,
+          runId,
+          runDir,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
       };
 
       // Spy preflight + gitignore — count calls. Pass real runWorkflow as

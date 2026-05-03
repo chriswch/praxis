@@ -90,6 +90,19 @@ export type RunWorkflowSuccess = {
   pausedStageId?: string;
   /** When `paused`, the absolute artifact path written for the pausing stage. */
   artifactPath?: string;
+  /**
+   * S-004: chain id when this run was part of a `--iterations` chain. Populated
+   * from `RunChainContext.chainId`; absent on standalone runs. Lets the CLI
+   * decide whether to drive the chain-aware tail without a state.json re-read.
+   */
+  chainId?: string;
+  /**
+   * S-004: 1-based iteration index when this run was part of a chain. Populated
+   * from `RunChainContext.iterationIndex`; absent on standalone runs. Pairs
+   * with `chainId` — both fields are stamped together (per spec AC-7) or
+   * neither is.
+   */
+  iterationIndex?: number;
 };
 
 export type RunWorkflowFailure = {
@@ -337,6 +350,11 @@ async function executeStages(
         paused: true,
         pausedStageId: outcome.stageId,
         artifactPath: outcome.artifactPath,
+        // S-004 M-2: thread chain identity onto the success result so callers
+        // (notably runAdvance) can drive the chain-aware tail without a
+        // state.json re-read. Absent on standalone runs (back-compat).
+        chainId: ctx.chain?.chainId,
+        iterationIndex: ctx.chain?.iterationIndex,
       };
     }
     if (outcome.kind === "failed") {
@@ -362,7 +380,17 @@ async function executeStages(
     recordChainIterationOnSuccess(ctx.cwd, ctx.chain, state, deps);
   }
   reporter.runDone(runId, summarize(state, "completed"));
-  return { ok: true, runId, runDir, paused: false };
+  return {
+    ok: true,
+    runId,
+    runDir,
+    paused: false,
+    // S-004 M-2: thread chain identity onto the success result so callers
+    // (notably runAdvance) can drive the chain-aware tail without a
+    // state.json re-read. Absent on standalone runs (back-compat).
+    chainId: ctx.chain?.chainId,
+    iterationIndex: ctx.chain?.iterationIndex,
+  };
 }
 
 /**

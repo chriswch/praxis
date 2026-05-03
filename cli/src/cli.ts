@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
-import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { commit } from "./git/commit.js";
 import { LineReporter } from "./ui/line-reporter.js";
@@ -24,7 +23,6 @@ import {
 } from "./workflow/runner.js";
 import { sdkCreateQueryFn } from "./workflow/sdk-create-query.js";
 import type { Deps } from "./workflow/stage.js";
-import { readState } from "./workflow/state.js";
 
 /**
  * S-003 + S-004: optional injection seams used by `runRun` / `runAdvance` so
@@ -535,28 +533,23 @@ export async function runAdvance(
   // ledger entry already reflects 'running'.
   if (result.paused) return;
 
-  // S-004 AC-S4-6: non-chain back-compat. The resumed run's state.json has no
-  // chainId → no chain-aware tail. (state.json was already read by the runner;
-  // reading it once more here is a small price for keeping the chain-aware
-  // logic out of the runner itself.)
-  const runDir = join(cwd, ".praxis", "runs", parsed.runId);
-  const readSt = readState(runDir);
-  if (!readSt.ok) {
-    // Defensive: the runner already returned ok, so state.json must be
-    // readable. Surface the unexpected read failure on stderr but don't exit
-    // — the resumed run itself succeeded.
+  // S-004 AC-S4-6: non-chain back-compat. The runner threads `chainId` onto
+  // its success result (M-2) — absent → standalone (non-chain) resume, no
+  // chain-aware tail.
+  const { chainId, iterationIndex } = result;
+  if (chainId === undefined) return; // Non-chain run; we're done.
+
+  // S-004 AC-S4-2/AC-S4-7/AC-S4-5: chain-aware tail. The runner threads BOTH
+  // chainId and iterationIndex onto the success result whenever the resumed
+  // run was chain-bound (spec AC-7 — both fields are stamped together on
+  // every iteration's state.json), so a defensive iterationIndex-from-ledger
+  // fallback would only fire on shapes v1 doesn't produce.
+  if (iterationIndex === undefined) {
     process.stderr.write(
-      `praxis: failed to re-read state.json after advance: ${readSt.reason}\n`,
+      `praxis: chain run ${parsed.runId} returned without an iterationIndex\n`,
     );
     return;
   }
-  const chainId = readSt.state.chainId;
-  if (chainId === undefined) return; // Non-chain run; we're done.
-
-  // S-004 AC-S4-2/AC-S4-7/AC-S4-5: chain-aware tail. Recover iterationsTotal
-  // and flags from the ledger; the resumed iter's index comes from state.json
-  // (or, defensively, from the ledger entry whose runId matches the resumed
-  // runId — covers AC-S4-1's missing-iterationIndex defense).
   const readLedger = readChainLedger(cwd, chainId);
   if (!readLedger.ok) {
     process.stderr.write(
@@ -565,15 +558,6 @@ export async function runAdvance(
     return;
   }
   const ledger = readLedger.ledger;
-  const iterationIndex =
-    readSt.state.iterationIndex ??
-    ledger.iterations.find((e) => e.runId === parsed.runId)?.index;
-  if (iterationIndex === undefined) {
-    process.stderr.write(
-      `praxis: chain ledger ${chainId} has no iteration entry for run ${parsed.runId}\n`,
-    );
-    return;
-  }
 
   const decision = handleIterationOutcome({
     cwd,

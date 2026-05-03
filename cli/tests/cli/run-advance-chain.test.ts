@@ -215,7 +215,17 @@ describe("runAdvance chain happy path (AC-S4-2)", () => {
           iterations: updated,
           iterationsCompleted: 1,
         });
-        return { ok: true, runId, runDir: `/tmp/${runId}`, paused: false };
+        // S-004 M-2: runner threads chain identity onto the success result;
+        // the spy mirrors that so runAdvance can drive the chain-aware tail
+        // without re-reading state.json.
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
       };
       const runSpy = async (
         ctx: RunWorkflowContext,
@@ -300,7 +310,16 @@ describe("runAdvance multi-pause (AC-S4-3)", () => {
           iterations: updated,
           iterationsCompleted: 1,
         });
-        return { ok: true, runId, runDir: `/tmp/${runId}`, paused: false };
+        // S-004 M-2: spy mirrors the runner threading chain identity onto the
+        // success result.
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
       };
       const runSpy = async (
         ctx: RunWorkflowContext,
@@ -384,7 +403,16 @@ describe("runAdvance final-iter-pause (AC-S4-5)", () => {
           iterations: updated,
           iterationsCompleted: 2,
         });
-        return { ok: true, runId, runDir: `/tmp/${runId}`, paused: false };
+        // S-004 M-2: spy mirrors the runner threading chain identity onto the
+        // success result.
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 2,
+        };
       };
       const runSpy = async (
         ctx: RunWorkflowContext,
@@ -443,7 +471,16 @@ describe("runAdvance cascade-skip on resumed iter (AC-S4-7)", () => {
           iterations: updated,
           iterationsCompleted: 1,
         });
-        return { ok: true, runId, runDir: `/tmp/${runId}`, paused: false };
+        // S-004 M-2: spy mirrors the runner threading chain identity onto the
+        // success result.
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
       };
       const runSpy = async (
         ctx: RunWorkflowContext,
@@ -503,7 +540,16 @@ describe("runAdvance flag inheritance (AC-S4-9)", () => {
           iterations: updated,
           iterationsCompleted: 1,
         });
-        return { ok: true, runId, runDir: `/tmp/${runId}`, paused: false };
+        // S-004 M-2: spy mirrors the runner threading chain identity onto the
+        // success result.
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
       };
       const runSpy = async (
         ctx: RunWorkflowContext,
@@ -578,7 +624,16 @@ describe("runAdvance auto-launched iter fails (AC-S4-10)", () => {
           iterations: updated,
           iterationsCompleted: 1,
         });
-        return { ok: true, runId, runDir: `/tmp/${runId}`, paused: false };
+        // S-004 M-2: spy mirrors the runner threading chain identity onto the
+        // success result.
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
       };
       const runSpy = async (): Promise<RunWorkflowResult> => {
         // Iter 2 fails outright — runner returns failure shape.
@@ -652,7 +707,16 @@ describe("runAdvance failed-iter recovery + auto-launch (AC-S4-4)", () => {
           iterations: updated,
           iterationsCompleted: 1,
         });
-        return { ok: true, runId, runDir: `/tmp/${runId}`, paused: false };
+        // S-004 M-2: spy mirrors the runner threading chain identity onto the
+        // success result.
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
       };
       const runSpy = async (
         ctx: RunWorkflowContext,
@@ -708,13 +772,18 @@ describe("runAdvance state.chainId round-trip (AC-S4-1)", () => {
     // chain context propagates onto K+1's runWorkflow ctx. AC-S4-1 narrows on
     // the round-trip itself: a state.json missing chainId means non-chain
     // (covered by AC-S4-6 above); a state.json WITH chainId triggers the
-    // chain-aware tail. We exercise the missing-iterationIndex defense too.
+    // chain-aware tail.
     await withTempRepo(async ({ dir: cwd }) => {
-      // Seed a chainId-stamped state but iterationIndex absent — defensive
-      // behavior: runAdvance should still treat it as chain-bound (chainId
-      // is the ledger key) but recover iterationIndex from the ledger entry
-      // matching this runId.
-      seedRunState(cwd, ITER1_RUN_ID, { chainId: CHAIN_ID });
+      // Seed a chain-bound state. Per spec AC-7, chainId and iterationIndex
+      // are always stamped together on a chain iteration's state.json — the
+      // runner's recoverChainContextFromState bails if either is missing, and
+      // the CLI relies on the runner threading both fields onto the success
+      // result (S-004 M-2). N=1 single-iter chain → ledger flips to completed
+      // after iter 1's resume; no K+1 to launch.
+      seedRunState(cwd, ITER1_RUN_ID, {
+        chainId: CHAIN_ID,
+        iterationIndex: 1,
+      });
       seedChainLedger(cwd, {
         chainId: CHAIN_ID,
         iterationsTotal: 1,
@@ -735,7 +804,16 @@ describe("runAdvance state.chainId round-trip (AC-S4-1)", () => {
           iterations: updated,
           iterationsCompleted: 1,
         });
-        return { ok: true, runId, runDir: `/tmp/${runId}`, paused: false };
+        // S-004 M-2: spy mirrors the runner threading chain identity onto the
+        // success result.
+        return {
+          ok: true,
+          runId,
+          runDir: `/tmp/${runId}`,
+          paused: false,
+          chainId: CHAIN_ID,
+          iterationIndex: 1,
+        };
       };
       const runSpy = async (): Promise<RunWorkflowResult> => {
         throw new Error(
