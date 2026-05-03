@@ -129,7 +129,7 @@ describe("praxis run --iterations <N> CLI surface (AC-S2-23)", () => {
 });
 
 describe("praxis run --iterations 1 end-to-end (AC-S2-22)", () => {
-  it("writes a chain ledger with iterationsTotal: 1 and ends status: 'completed'", async () => {
+  it("writes a chain ledger with iterationsTotal: 1 and ends status: 'completed-early' on cascade-skip", async () => {
     await withTempRepo(async ({ dir }) => {
       const result = await runRun(
         {
@@ -160,9 +160,13 @@ describe("praxis run --iterations 1 end-to-end (AC-S2-22)", () => {
       expect(read.ledger.iterations).toHaveLength(1);
       expect(read.ledger.iterations[0].index).toBe(1);
       expect(read.ledger.iterations[0].status).toBe("completed");
-      // AC-S2-22 invariant: chain-level terminal status flips to "completed"
-      // on the success-return path of runRun (the CLI seam).
-      expect(read.ledger.status).toBe("completed");
+      // AC-S2-22 + S-003 AC-S3-11: with the noop stub commit (no real SHA),
+      // every stage cascade-skips and the auto-commit entry has no commitSha.
+      // S-003's runRun loop detects that and flips the chain to
+      // "completed-early" rather than the all-iters-succeeded "completed".
+      // The "completed" path is covered by the multi-iteration real-commit
+      // e2e (run-iterations-multi.test.ts).
+      expect(read.ledger.status).toBe("completed-early");
       expect(read.ledger.iterationsCompleted).toBe(1);
       // updatedAt advanced past createdAt at least conceptually — both are
       // ISO-second precision so they may match when the stub clock is fixed.
