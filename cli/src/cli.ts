@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { commit } from "./git/commit.js";
 import { LineReporter } from "./ui/line-reporter.js";
@@ -768,17 +769,23 @@ export async function runRetry(
 
 // Guard the auto-execution so `import { parseRunArgs } from "./cli.js"`
 // from a unit test (S-002) does NOT bootstrap the whole CLI on module load.
-// The published `bin/praxis` entry still hits this branch via Node's
-// argv[1] resolution, and the dist bundle preserves the same import.meta.url
-// shape.
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
-  main(process.argv).catch((err) => {
-    process.stderr.write(
-      `praxis: ${err instanceof Error ? err.message : String(err)}\n`,
-    );
-    process.exit(1);
-  });
+// `process.argv[1]` is whatever path was used to invoke the script (often a
+// symlink, e.g. ~/.nvm/.../bin/praxis), but Node's ESM loader resolves
+// symlinks for `import.meta.url` — so canonicalise argv[1] via realpathSync
+// before comparing, otherwise npm-linked bins silently no-op.
+if (process.argv[1]) {
+  let argvUrl: string | undefined;
+  try {
+    argvUrl = pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    argvUrl = undefined;
+  }
+  if (argvUrl !== undefined && import.meta.url === argvUrl) {
+    main(process.argv).catch((err) => {
+      process.stderr.write(
+        `praxis: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      process.exit(1);
+    });
+  }
 }
