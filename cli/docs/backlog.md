@@ -106,5 +106,10 @@ Until one of those triggers, the existing helper is small (~5 lines), tested, an
 - `--branch` flag for workflow branches.
 - Optional auto-stash for `--allow-dirty`.
 - `praxis show <run-id>` and `praxis list`.
+- `praxis chain show <chain-id>` and `praxis chain list` (today: read `.praxis/chains/<id>.json` directly).
+- `praxis chain cancel` (today: stop running `advance` / `retry` and the chain sits at `in_progress` or `aborted`).
+- Per-chain cost cap.
+- Cross-CLI-session chain resume when no run is paused (today: re-run `praxis run --iterations <remaining> "<intent>"` manually).
+- Convergence-style iteration (re-assessing intent per iteration) — separate feature, not a flag on `--iterations`.
 - Optional TUI reporter.
 - Interactive ≤ 3 clarifying-questions sub-step in `clarify-assess` (asked on stdin before plan emission). Pause gate becomes "approve plan" instead of "edit artifact".

@@ -14,6 +14,7 @@ Flags:
 
 - `--allow-dirty` — proceed when the working tree has uncommitted changes. Pre-existing dirt will be bundled into the auto-commit by `git add -A` (documented trade-off).
 - `--no-pause` — disable all `pauseAfter` gates; full autopilot through every stage.
+- `--iterations <N>` — repeat the same intent across `N` back-to-back full 7-stage runs ("a chain"). Positive integer; `0`, negatives, and non-integers are rejected with `iterations must be a positive integer`. `N === 1` is accepted and still writes a chain ledger. See "Iteration chains" below.
 
 Empty / whitespace / missing intent fails closed with exit 1 and no `.praxis/` side effects.
 
@@ -29,6 +30,8 @@ Pre-flight does NOT run on `advance`: the run dir is already initialised and `.g
 
 Exits 1 with `not in a resumable state` for `pending` / `running` stages, or `already complete` for fully-completed runs. Exits 1 with the `praxis retry` hint when the failed stage is `code-improving`.
 
+When the run carries a `chainId`, `advance` is chain-aware: after the current run reaches `completed`, the same process auto-launches the next iteration (see "Iteration chains").
+
 ### `praxis retry <run-id>`
 
 Resumes a failed or cancelled `code-improving` SDK session by passing `resume: <prior sessionId>` and `initialUserPrompt: "continue"`. Scoped to `code-improving` only — every other stage exits 1 with `retry only supports code-improving for now; for <stage-id> use praxis advance | fresh praxis run`. Validates the run-id format before any disk read.
@@ -38,6 +41,8 @@ Flags:
 - `--no-pause` — same autopilot semantics as on `run` / `advance`.
 
 Pre-flight does NOT run on `retry`. Tokens and USD accumulate into the existing stage entry; `state.stages["code-improving"].retryAttempts` increments per call. Retry is unbounded. When the SDK signals an unresumable session mid-stream (or when the prior `sessionId` is missing), the stage flips to `failed`/`stopReason: "session_unresumable"`.
+
+When the run carries a `chainId`, `retry` is chain-aware: a successful retry flips the run to `completed` and the same process auto-launches the next iteration (see "Iteration chains").
 
 ---
 
@@ -185,6 +190,60 @@ Out-of-scope cases exit 1:
 
 ---
 
+## Iteration chains (`--iterations <N>`)
+
+`praxis run --iterations <N> "<intent>"` repeats the same intent across `N` back-to-back full 7-stage runs — a "chain" — each iteration committing on top of its predecessor. The flag composes with `--allow-dirty` / `--no-pause`; both are persisted in the chain ledger and inherited by every subsequent iteration. `praxis advance` and `praxis retry` discover chain membership via `state.json.chainId` and need no new flag.
+
+### Chain ledger
+
+**Path:** `.praxis/chains/<chain-id>.json`. The `<chain-id>` uses the same `YYYY-MM-DD-HHMM-<hex4>` shape as run-ids, generated independently of any iteration's run-id (no equality required). The ledger is created after iter 1's run dir exists but before iter 1's first stage runs. It is append-mostly — each iteration entry is added when its run starts, mutated on terminal status, never deleted.
+
+```jsonc
+{
+  "chainId": "2026-05-02-1430-9f3c",
+  "intent": "<verbatim>",
+  "iterationsTotal": 5,
+  "iterationsCompleted": 2,
+  "flags": { "allowDirty": false, "noPause": false },
+  "status": "in_progress" | "completed" | "completed-early" | "aborted" | "cancelled",
+  "createdAt": "2026-05-02T14:30:00Z",
+  "updatedAt": "2026-05-02T14:42:13Z",
+  "iterations": [
+    { "index": 1, "runId": "2026-05-02-1430-a1b2", "status": "completed", "commitSha": "<40-char>" },
+    { "index": 2, "runId": "2026-05-02-1442-c3d4", "status": "completed", "commitSha": "<40-char>" },
+    { "index": 3, "runId": "2026-05-02-1455-e5f6", "status": "running" }
+  ]
+}
+```
+
+Each chain run also stamps optional `chainId` and `iterationIndex` (1-based) onto its `state.json`.
+
+### Lifecycle
+
+- Iter K's `auto-commit` SHA becomes the baseline for iter K+1 — just `currentHead(cwd)` at iter K+1's `runWorkflow` entry, the same path the first iteration uses.
+- Iter 2+ does NOT call `runPreflight` and does NOT touch `.gitignore` (already done by iter 1).
+- Each iteration gets a fresh run-id and `.praxis/runs/<id>/` directory.
+- Auto-launch happens within the single CLI process. After a run reaches a non-paused terminal state (`completed`), the process checks `state.chainId`; if the chain has remaining iterations and is still `in_progress`, it immediately launches the next iteration via the same `runWorkflow` entry point.
+- A pause within an iteration exits the process as today; chain status remains `in_progress`. Running `praxis advance <paused-run-id>` finishes the run AND auto-launches the next iteration. Same for `praxis retry` against a failed `code-improving`.
+
+### Termination
+
+| Trigger | Chain status | Process exit |
+|---|---|---|
+| Iteration N completes successfully (commit lands) | `completed` | 0 |
+| Any iteration's `auto-commit` cascade-skips (driving-tdd produced no commits) | `completed-early` | 0 |
+| Any iteration ends `failed` (validator, timeout, `commit_failed`, etc.) | `aborted` | 1 |
+| SIGINT mid-iteration | `cancelled` | 1 (SIGINT-style) |
+| Iteration ends `cancelled` (non-SIGINT path) | `cancelled` | 1 |
+
+After a chain terminates, `status` and `updatedAt` are written to the ledger; iter K's run-level state is independent and already persisted.
+
+A failed/cancelled iteration's run can still be recovered via `praxis advance` or `praxis retry`. On successful recovery, the run flips to `completed` and the chain auto-launches the next iteration; the chain reaches `aborted` only when the user gives up on recovery.
+
+> **Note on intent reuse.** Each iteration sees the previous iteration's commit. Use intents that naturally produce multiple commits, or expect early termination via cascade-skip (`completed-early`).
+
+---
+
 ## Reporter (`LineReporter`)
 
 Stdout/stderr formatting:
@@ -201,6 +260,8 @@ Stdout/stderr formatting:
 - Resume (paused) — `praxis: resuming approved plan after <stage-id> (run <run-id>)`.
 - Recover — `praxis: recovering <stage-id> from on-disk artifact; re-validating (run <run-id>)`.
 - Retry — `praxis: retrying <stage-id> (resume <sessionId>) — sending "continue" (run <run-id>)` (em-dash, ASCII straight quotes around `continue`). Emitted via the extended `Reporter.resuming` first-arg union (`"approved" | "recovering" | "retrying"`).
+- Chain iteration start — `praxis: [chain <short> · iteration <K>/<N>] starting run <run-id>`. Emitted before the first stage line of each iteration. `<short>` is the last 4 hex chars of the chain-id. Non-chain runs (no `--iterations`) emit no banner.
+- Chain end — `praxis: [chain <short>] <status> after <K>/<N> iterations`. Emitted once when the chain terminates.
 - Run done — `[run <run-id>] done|paused|failed|cancelled — commit <sha>, <tokens> tokens, $<usd>` plus a per-stage breakdown with each `sessionId`. Headline branches on terminal status.
 
 ---
@@ -209,7 +270,7 @@ Stdout/stderr formatting:
 
 Each run writes to `<cwd>/.praxis/runs/<run-id>/`:
 
-- `state.json` — pretty-printed JSON, trailing newline. Per-stage entries carry `status`, `endedAt`, `stopReason`, `sessionId`, `tokens` (`input` / `output` / `cacheRead` / `cacheCreate`), `usd`, optional `error`, optional `retryAttempts` (serialized when > 0; only `code-improving`), and (for `auto-commit`) optional `commitSha`. Top-level `cost.totalTokens` aggregates `input + output` only — cache tokens are recorded per-stage but excluded from the running total. `cost.totalUsd` is the sum of per-stage `usd`. `currentStage` tracks the in-flight or next-to-run stage. `stopReason` values include: `end_turn`, `skipped` (clean-tree skip), `skipped-trivial` (decision-driven skip on `code-improving`), `recovered`, `commit_failed`, `validator_failed`, `timeout`, `sigint`, `session_unresumable`.
+- `state.json` — pretty-printed JSON, trailing newline. Per-stage entries carry `status`, `endedAt`, `stopReason`, `sessionId`, `tokens` (`input` / `output` / `cacheRead` / `cacheCreate`), `usd`, optional `error`, optional `retryAttempts` (serialized when > 0; only `code-improving`), and (for `auto-commit`) optional `commitSha`. Top-level `cost.totalTokens` aggregates `input + output` only — cache tokens are recorded per-stage but excluded from the running total. `cost.totalUsd` is the sum of per-stage `usd`. `currentStage` tracks the in-flight or next-to-run stage. `stopReason` values include: `end_turn`, `skipped` (clean-tree skip), `skipped-trivial` (decision-driven skip on `code-improving`), `recovered`, `commit_failed`, `validator_failed`, `timeout`, `sigint`, `session_unresumable`. Optional `chainId` and `iterationIndex` (1-based) are stamped when the run is part of a chain; both are omitted otherwise.
 - `00-intent.txt` — raw intent verbatim.
 - `01-clarify-assess.md` — agent finalText verbatim (always written, even on validator failure).
 - `02-sketching-design.md` — agent finalText verbatim (design sketch, `Skipped — no sketch needed` line, or `## Spec Issue` H2 — all three pass through unchanged; no validator).
@@ -218,6 +279,8 @@ Each run writes to `<cwd>/.praxis/runs/<run-id>/`:
 - `05-code-improve.md` — agent finalText verbatim (improvement summary). Not written on either skip path (clean-tree or decision-driven `skipped-trivial`).
 - `06-verifying-and-adapting.md` — agent finalText verbatim (verification summary, trivial-skip line, routing recommendation, or spec/slice-impact note — all four pass through unchanged; no validator). Not written on the clean-tree skip path.
 - `07-commit.txt` — `<sha>\n\n<message>\n` on commit success; agent message verbatim on commit failure; not written on the skip path.
+
+Chain runs additionally write a single ledger at `<cwd>/.praxis/chains/<chain-id>.json` (see "Iteration chains" above) — one ledger per chain, shared across all iterations.
 
 Run-id format: `${YYYY-MM-DD-HHMM-UTC}-${4-char-hex}`. `startedAt` is ISO-8601 UTC at second precision.
 
@@ -318,40 +381,3 @@ interface Reporter {
 - Prompt `.md` files in `src/config/prompts/` are copied into `dist/config/prompts/` by tsdown's `copy` step; the runtime loader resolves them via a layout-detection helper that handles both the bundled (dist) and source-via-tsx (src) directory shapes. Locked by a build-smoke regression test.
 - Tests run on Vitest. Layout: `tests/` mirrors `src/`, plus `tests/e2e/`. Real fs and real git in `mkdtemp` temp dirs (cleaned per-test). The SDK is the only seam stubbed — every test scripts SDK message streams via `tests/support/scripted-query.ts`, so the suite makes no real API calls and incurs no cost. Suite size: 193 tests across 25 files, all green.
 - Lint and format are handled by **Biome** (single Rust binary, replaces ESLint + Prettier). `npm run lint` checks; `npm run format` applies fixes. Configured to match the codebase's existing style (2-space indent, double quotes, trailing commas). Tests have `noNonNullAssertion` relaxed via override since `!` on known-defined fixture values is idiomatic.
-
-## End-to-end validation
-
-### Scripted-SDK e2e (in-suite, no real spend)
-
-- `tests/e2e/auto-commit.test.ts` drives all seven stages (clarify-assess → sketching-design → driving-tdd → code-reviewing → code-improving → verifying-and-adapting → auto-commit) with a scripted SDK, real git, and the production `commit()`. HEAD advances by exactly two commits (driving-tdd's per-AC commit + auto-commit's final bundle); `state.commitSha` matches the new HEAD; `07-commit.txt` carries the SHA-prefixed form.
-- `tests/e2e/retry-flow.test.ts` drives a SIGINT-cancelled `code-improving`, then `praxis retry` resumes the prior SDK session with `initialUserPrompt: "continue"`, the agent's improvement summary lands in `05-code-improve.md`, and `auto-commit` lands one real commit. The persisted `state.json` reflects `retryAttempts === 1` and the sessionId rotation.
-
-### Real-SDK smoke (live, periodic)
-
-The full pipeline has been exercised against the real `@anthropic-ai/claude-agent-sdk` against the tsdown bundle.
-
-**Pre-5-stage runs (legacy 3-stage shape):**
-
-- Run `2026-04-26-1413-dc71` — `add a top-level CONTRIBUTING.md` against a throwaway repo, ~3.8K tokens, $0.36. All stages completed with distinct session ids; the SHA-prefixed commit artifact matched the new HEAD. (Pre-dates the 5-stage rename; the run wrote the commit artifact under the legacy filename slot.)
-- Run `2026-04-26-1521-4b4e` — `add PRAXIS_SMOKE.txt`, post-tsdown-migration verification, ~4.4K tokens, $0.36. Same shape; confirmed the bundled-layout path resolution works end-to-end against the real SDK.
-
-**5-stage runs (legacy shape, pre-S-2):**
-
-- Run `2026-04-28-0921-e8f4` — `add a top-level NOTES.md` against a throwaway repo. **5425 tokens, $0.7244.** Five stages ran; `praxis:code-reviewing` skill invoked successfully via the `Skill` tool, emitted a "review skipped" trivial-change short-circuit; `## Decision: skip-improve` parsed correctly; stage 4 marked `completed`/`stopReason: "skipped-trivial"` (no SDK call, no `04-code-improve.md`); stage 5 ran and landed commit `c9dbd8e`. `05-commit.txt` is the SHA-prefixed form. The `[4/5 code-improving] skipped (skip-improve)` reporter line emitted as designed.
-- Run `2026-04-28-0924-f628` — `add a small Python script scripts/today.py`. **6349 tokens, $0.6516.** Same shape: full review produced verbatim, decision = `skip-improve`, stage 4 short-circuited, commit `bd25f51` landed.
-- Run `2026-04-28-0928-0849` — `add src/userValidator.ts with email + password validators plus vitest tests`. **9573 tokens, $0.9207.** Five stages ran; `praxis:code-reviewing` skill produced a substantive 5-layer review (data structures, special cases, complexity, breaking changes, practicality) that found zero Critical/High/Medium findings and decided `skip-improve`. Commit `28a3ec4` landed.
-
-**6-stage runs (legacy, S-2 only):** No live-SDK smoke was captured against the 6-stage workflow before S-4 inserted the verifying-and-adapting stage; scripted-SDK e2e (`tests/e2e/auto-commit.test.ts` and `tests/e2e/retry-flow.test.ts`) drove the full 6-stage pipeline against real git and the production `commit()` seam.
-
-**7-stage runs (current shape, S-4 onwards):** No live-SDK smoke captured yet against the 7-stage workflow; scripted-SDK e2e drives the full 7-stage pipeline. Next live smoke against the real SDK should exercise `verifying-and-adapting` invoking `praxis:verifying-and-adapting`, the artifact landing at `06-verifying-and-adapting.md`, and the `[6/7 verifying-and-adapting] starting…` / `[7/7 auto-commit] starting…` reporter lines.
-
-**`praxis retry` live CLI guards** — exercised against a completed run-id, a malformed run-id, and a non-existent valid-format run-id. All three matched the milestone's spec messages exactly: "run is already complete" / "invalid run-id: <id>. Expected shape …" with exit 1 on the malformed cases.
-
-**Total live-smoke spend: $2.30 across the three 5-stage runs above.**
-
-**Coverage gaps the live smoke did NOT exercise** (covered by scripted-SDK e2e in `tests/e2e/retry-flow.test.ts` and `tests/workflow/retry.test.ts`):
-
-- `code-improving` actually invoking `praxis:code-improving` with `Decision: proceed` against the live SDK — the `praxis:code-reviewing` skill consistently chose `skip-improve` in the small-throwaway-repo smoke variants because every change was below the trivial threshold.
-- Live retry resume of a failed `code-improving` SDK session — to force this against the real SDK would require either a deliberately-suboptimal implementation or a SIGINT mid-`code-improving`. Both paths are validated end-to-end by `tests/e2e/retry-flow.test.ts` (real git commit + SIGINT-triggered cancel + retry resume) and `tests/workflow/retry.test.ts` (10 mechanic tests pinning `resume`/`continue` wiring, retryAttempts, token/USD accumulation, session_unresumable detection).
-
-See [`../README.md`](../README.md#smoke-run-against-the-real-sdk) for the smoke procedure and checklist.

@@ -5,7 +5,7 @@ import { formatRunId } from "./run-id.js";
 /**
  * Lifecycle status of a chain (`praxis run --iterations <N>`).
  *
- * Mirrors the table in `docs/specs/iterations.md` §4 "Termination":
+ * Mirrors the "Iteration chains → Termination" table in `docs/features.md`:
  *   - `in_progress`     — chain is mid-flight; iter K may be running or paused.
  *   - `completed`       — every iteration up to `iterationsTotal` succeeded.
  *   - `completed-early` — an iteration's auto-commit cascade-skipped, so the
