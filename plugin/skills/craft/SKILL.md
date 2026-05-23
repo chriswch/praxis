@@ -51,15 +51,33 @@ Stop and surface the blocker to the user (do not auto-advance, even in autopilot
 
 On a hard stop, present the blocker verbatim and wait for the user.
 
+## Autopilot invocation directives
+
+In autopilot mode, when invoking **`clarifying-intent`**, include this directive in your invocation prompt:
+
+> Persist your full artifact (Feature Brief or Story-Level Behavioral Spec) to disk at a deterministic path under `docs/` (e.g., `docs/specs/<short-slug>.md` — follow any existing project convention if present). Respond in chat with only:
+>
+> - A status line: one of `proceed` / `open-questions` / `spec-issue`
+> - The artifact path
+> - A one-paragraph summary (< 300 chars)
+>
+> Do not render the full artifact in chat. The next skill in the pipeline will read it from the path.
+
+After `clarifying-intent` returns, pass the artifact **path** (not inline content) as input to the next skill.
+
+In manual mode, do not include this directive — `clarifying-intent` should emit its artifact inline so the user can review it directly.
+
+**Why only `clarifying-intent`?** It is the only Praxis pipeline skill without `context: fork`. The other skills run in their own forked context and return artifacts to the orchestrator as compact tool results, which the orchestrator can hand off without authoring them itself. `clarifying-intent` runs inline in the orchestrator's context: when the orchestrator authors a multi-thousand-character spec directly in its own response, the model tends to treat that response as a completed deliverable and end the turn (`stop_reason: end_turn`), breaking the autopilot chain. Persisting to disk keeps the orchestrator's reply short and the chain alive.
+
 ## Steps
 
-1. **clarifying-intent** — Pass the user request. The skill returns one of:
+1. **clarifying-intent** — Pass the user request (in autopilot, include the persistence directive from *Autopilot invocation directives* above). The skill returns one of:
    - A **trivial change** statement → implement it directly and stop.
    - A **Story-Level Behavioral Spec** → confirm at the spec gate, then go to step 3.
    - A **Feature Brief** → confirm at the spec gate, then go to step 2.
    - **Open questions** → hard-stop (condition 2).
 
-2. **slicing-stories** — Pass the Feature Brief. The skill returns a slice map. Confirm at the slice-map gate, pick the first slice (via the slice-selection gate), and re-invoke **clarifying-intent** with that slice's story to produce a Story-Level Behavioral Spec for it.
+2. **slicing-stories** — Pass the Feature Brief. The skill returns a slice map. Confirm at the slice-map gate, pick the first slice (via the slice-selection gate), and re-invoke **clarifying-intent** with that slice's story to produce a Story-Level Behavioral Spec for it (in autopilot, include the persistence directive on the re-invocation).
 
 3. **sketching-design** — Pass the spec. The skill returns a sketch, marks itself skipped, or returns `## Spec Issue` → hard-stop (condition 3).
 
@@ -71,7 +89,7 @@ On a hard stop, present the blocker verbatim and wait for the user.
 
 7. **verifying-and-adapting** — Pass the spec, AC checklist, feedback log, session summary, optional sketch, and (multi-slice only) slice map. The skill returns a verification summary, optionally an updated spec, and a routing recommendation. Act on the recommendation:
    - **Done** → at the routing gate, the story (or feature) is complete.
-   - **Next slice** → at the routing gate, pick the next slice from the slice map and return to step 3 with a fresh **clarifying-intent** for it.
+   - **Next slice** → at the routing gate, pick the next slice from the slice map and return to step 3 with a fresh **clarifying-intent** for it (in autopilot, include the persistence directive).
    - **Rework** → hard-stop (condition 4).
    - **Escalate** → hard-stop (condition 4).
 
