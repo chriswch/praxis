@@ -1,17 +1,28 @@
 # Question Bank
 
-Use this file when you need extra prompts beyond the core workflow in `SKILL.md`. Prefer asking a small batch (3–7) of the highest-leverage questions, then iterate.
+Prefer a small batch (3–7) of the highest-leverage questions, then iterate. Use Phase A questions before any code reading; move to Phase B once Phase A is confirmed.
 
 ## Table of Contents
-- Generic (start here)
-- Feature / product
-- Bug / incident
-- Engineering task / refactor
-- Data / analytics
-- Writing / communication
-- Integration / API
 
-## Generic (start here)
+- Phase A — Product Space
+  - Generic (start here)
+  - Feature / product
+  - Bug / incident (product side)
+  - Data / analytics
+  - Writing / communication
+- Phase B — System Space
+  - Generic (start here)
+  - Engineering task / refactor
+  - Integration / API
+  - Bug / incident (system side)
+
+---
+
+## Phase A — Product Space
+
+These questions clarify *who*, *why*, and *what success looks like* — never *how*. Do not read code while asking these.
+
+### Generic (start here)
 
 **Goal and success**
 - What outcome are you trying to achieve (not the solution)?
@@ -22,6 +33,11 @@ Use this file when you need extra prompts beyond the core workflow in `SKILL.md`
 - Who is this for (users/stakeholders), and what problem are they experiencing?
 - What is the current state / baseline today?
 - Why now (urgency, deadline, triggering event)?
+
+**Hypothesis and validation**
+- What do we believe will happen if we ship this, and why?
+- What's the cheapest way to find out if we're wrong before building?
+- What would convince you to abandon this idea?
 
 **Scope and slicing**
 - What is in scope vs out of scope for this effort?
@@ -34,67 +50,89 @@ Use this file when you need extra prompts beyond the core workflow in `SKILL.md`
 - What constraints matter (time, budget, platform, policy/compliance, performance, security/privacy)?
 - Are there required tools/stack/approvals?
 
-**Existing behavior and regression**
-- What existing behavior must not break?
-- What existing user flows or systems does this touch?
-- Are there existing tests or contracts that define current correct behavior?
-
 **Examples**
 - Can you provide a concrete example (input/output, screenshot, mock, error message, sample doc)?
 - Are there "bad outcomes" we must avoid?
 
-## Feature / product
+### Feature / product
 
 - Who is the primary user persona and their key job-to-be-done?
 - What are the primary user flows (happy path) and top edge cases?
-- What requirements are functional vs non-functional (latency, accessibility, reliability, privacy)?
 - What is the rollout/release expectation (phased, beta, flags, backwards compatibility)?
-- What analytics/telemetry is needed to confirm success?
-- What existing systems does this touch (dependencies, ownership, constraints)?
-- What existing user-facing behavior must not change (regression boundaries)?
-- Can this feature be delivered as a series of thin vertical slices rather than all at once?
+- What analytics/telemetry would confirm this is being used and valued?
+- Can this feature be delivered as a series of thin vertical slices?
 
-## Bug / incident
+### Bug / incident (product side)
 
-- What is expected vs actual behavior?
-- How can it be reproduced (exact steps), and how often does it happen?
-- What environment(s) are affected (OS, browser, device, version, region)?
-- What errors/logs/stack traces do you have?
-- What changed recently (deploys, config, data, dependencies)?
-- What is the impact and severity (users affected, revenue/SLA, data loss, security)?
+- What is expected vs actual user-facing behavior?
+- What is the impact (users affected, severity, urgency)?
+- Has this happened before? Are there workarounds users are already using?
 
-## Engineering task / refactor
-
-- What is the desired end state (what should be better afterward)?
-- What constraints exist (timebox, risk tolerance, required compatibility)?
-- What parts must remain stable (APIs, behavior, performance)?
-- What tests/verification are required to consider it done?
-- What is the migration/rollout plan (if any)?
-
-**Behavioral edge cases from system knowledge** (ask after exploring the codebase in step 2)
-- Does the current system have implicit behaviors that the spec doesn't mention but that this change would affect? (e.g., cron jobs, notifications, cascading logic)
-- What happens at the boundaries of the existing system when this behavior changes? (e.g., a field used for multiple purposes, a value that other subsystems depend on)
-- Does the spec's proposed solution fully address the stated problem, or does it solve a narrower/different problem?
-
-## Data / analytics
+### Data / analytics
 
 - What decision will this analysis support?
 - What metric definitions should be used (exact formula, inclusions/exclusions)?
-- What time range and granularity (daily/weekly), segments, and cohorts matter?
-- What data sources/tables are in scope, and what are known data quality issues?
+- What time range, granularity, segments, cohorts matter?
 - What output format is needed (query, chart, narrative, dashboard)?
 
-## Writing / communication
+### Writing / communication
 
 - Who is the audience and what do they already know?
 - What is the goal (inform, persuade, align, decide) and the single key takeaway?
 - What constraints exist (length, tone, format, deadline)?
 - What inputs must be incorporated (links, notes, quotes), and what must be avoided?
 
-## Integration / API
+---
+
+## Phase B — System Space
+
+These questions clarify *where the change lands* and *what must not break*. Read code only to observe current behavior — never to evaluate implementation patterns, propose abstractions, or sketch designs.
+
+### Generic (start here)
+
+**Where it lands**
+- Which top-level system flows does this change participate in?
+- What are the entry points (user actions, API calls, scheduled jobs) that exercise this behavior?
+- What systems or services produce or consume the data involved?
+
+**Current behavior** (ask after reading the relevant modules)
+- What does the system currently do at the point of this change?
+- What inputs does it accept? What outputs does it produce? What side effects?
+- What other subsystems depend on this behavior?
+
+**Regression boundaries**
+- What existing behavior must remain unchanged?
+- What user flows or contracts touch this code path?
+- Are there existing tests or contracts that codify current correct behavior?
+
+**Observable signals**
+- If this change worked correctly in production, how would someone running the code know?
+- What user-visible change confirms it?
+- What log line, metric, or system-level effect confirms it?
+- What does failure look like — silent, loud, partial?
+
+### Engineering task / refactor
+
+- What is the desired end-state behavior (what should be different / equivalent afterward)?
+- What parts must remain stable (APIs, behavior, performance)?
+- What is the migration/rollout plan, if any?
+
+**Behavioral edge cases from system knowledge** (ask after observing current behavior)
+- Does the current system have implicit behaviors that the spec doesn't mention but this change would affect? (cron jobs, notifications, cascading logic)
+- What happens at the boundaries when this behavior changes? (a field used for multiple purposes, a value other subsystems depend on)
+- Does the proposed change fully address the stated problem, or does it solve a narrower one?
+
+### Integration / API
 
 - What systems are involved and who owns them?
 - What is the data model and mapping (fields, types, required/optional)?
 - What authentication/authorization model is required?
 - What are the failure modes and retry/idempotency expectations?
-- What are performance limits (rate limits, payload size, latency)?
+- What are the performance limits (rate limits, payload size, latency)?
+
+### Bug / incident (system side)
+
+- Where does the bug surface (which entry point, which user flow)?
+- What logs, stack traces, or telemetry are available?
+- What changed recently (deploys, config, data, dependencies)?
+- How is the bug reproduced, and how often?

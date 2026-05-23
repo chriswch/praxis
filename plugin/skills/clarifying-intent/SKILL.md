@@ -1,6 +1,6 @@
 ---
 name: clarifying-intent
-description: Clarifies ambiguous ideas, features, tasks, user stories, or problems by eliciting intent, constraints, unknowns, risks, and success criteria; asks focused questions; then produces a structured Feature Brief or Story-Level Behavioral Spec with testable acceptance criteria. Use when a request is vague or underspecified, when scoping work, when a user says "I have a rough idea", "help me scope this", "what should we build", "spec this out", or before planning and coding.
+description: Clarifies a request before implementation by working through two phases — product space (who needs this, why, what success looks like) then system space (where it lands in any existing code, what behavior must not break, what observable signals confirm it works). Produces a Feature Brief (feature-sized input) or Story-Level Behavioral Spec (story-sized input) ready for slicing or implementation. Use whenever a request is vague or underspecified, when scoping new work, when adding features to existing code, before any non-trivial planning or coding, or when a user says "I have a rough idea", "help me scope this", "what should we build", or "spec this out".
 allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(find)
 ---
 
@@ -8,130 +8,154 @@ allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(find)
 
 ## Overview
 
-Turn an underspecified request into an actionable, shared understanding. Triage by size: large inputs produce a Feature Brief and get split into stories; small inputs produce a Story-Level Behavioral Spec with testable acceptance criteria ready for TDD.
+Take an underspecified request and produce an actionable, shared understanding by working through two internal phases — product space, then system space. Neither phase discusses implementation patterns, abstractions, file layout, or technology choices below top-level system flow. Those belong to `sketching-design` and `driving-tdd` downstream.
+
+- **Phase A — Product Space**: who needs this, why now, what does success look like, what assumptions need validating. No code reading.
+- **Phase B — System Space**: where this behavior lands in any existing system, what current behavior must not break, what observable signals confirm it works. Code is read only to confirm current system behavior — never to evaluate patterns, abstractions, or file layout.
+
+The phases are sequential. Phase B always runs, but adapts its workload — minimal for greenfield work, substantial for changes to a mature codebase. The reason Phase B always runs even on greenfield: there is almost always *some* system context worth naming (target runtime, deployment shape, observable signals), and forcing the question prevents specs that look complete on paper but have no anchor to a running system.
 
 ## Input
 
 The request to clarify, plus any prior context (a Feature Brief, a story-boundary handoff from a previous slice, an earlier spec). Pass it inline in the prompt, or as a path/handle this skill should read.
 
-When a prior story-boundary handoff is supplied (summary, carry-forward context, changed paths, commit metadata), treat it as bounded seed for the new story. Do not let the handoff widen scope — it informs the next clarification pass; it does not replace the new request.
+When a prior story-boundary handoff is supplied, treat it as bounded seed for the new story. Do not let the handoff widen scope — it informs the next clarification pass; it does not replace the new request.
 
 ## Output
 
 Return one of these inline in the response:
 
-- **Trivial change**: a one-sentence statement of the change. No spec needed.
-- **Feature Brief**: when the input is feature-sized.
-- **Story-Level Behavioral Spec**: when the input is story-sized (or for a single slice picked from a Feature Brief).
+- **Trivial change**: a one-sentence statement of the change. No spec needed, no phases.
+- **Feature Brief**: when the input is feature-sized. Hand off to `slicing-stories` next; Phase B runs per-slice in subsequent invocations.
+- **Story-Level Behavioral Spec**: when the input is story-sized (or for a single slice). Ready for `sketching-design` and TDD.
 - **Open questions**: when blocking unknowns remain — list them, ask the user, and stop.
 
 The caller decides whether to persist the artifact and where.
 
 ## Workflow
 
-1. Triage: assess input size and route.
-   - **Trivial** (< half day, obvious change — typo, rename, config tweak): state the change in one sentence and skip to implementation. No spec needed.
-   - **Small** (1–2 days, single behavior): go directly to step 4 → produce a Story-Level Behavioral Spec.
-   - **Medium** (3–5 days, a few behaviors): clarify at story level → produce a Story-Level Behavioral Spec.
-   - **Large / Epic** (many stories, cross-cutting): clarify at feature level → produce a Feature Brief → recommend splitting into stories via `slicing-stories` → pick one slice → produce a Story-Level Behavioral Spec for that slice.
-   - If unclear, default to feature-level and let the clarification reveal the true size.
+### 1. Triage and route
 
-2. For technical tasks: understand current behavior from the codebase.
-   - Before asking clarifying questions, explore the relevant modules to understand how the system works today. The codebase surfaces questions that no amount of asking the requester will reveal.
-   - Scope: read only the modules directly touched by the change — enough to verify the spec's description of current behavior and to spot behavioral edge cases.
-   - Boundary: you are reading code to ask better questions, not to plan the implementation. Stop when you can describe the current behavior accurately. Mapping code paths to new designs belongs in the downstream design sketch step, not here.
-   - Skip this step for non-technical requests (product ideas, writing, data questions).
+Decide what kind of input you have. If unclear, default to feature-sized and let Phase A reveal the true size.
 
-3. Decide whether clarification is needed.
-   - If you can state the goal, deliverable, constraints, and definition of done with high confidence → skip to step 7 (produce spec). No questioning needed.
-   - Otherwise → continue to step 4 (reflect back and clarify).
+- **Trivial** (< half day, obvious change — typo, rename, config tweak): state the change in one sentence and stop. Skip both phases.
+- **Story-sized** (1–5 days, single user-facing behavior, or a slice from an upstream Feature Brief): run both phases. Phase A may be brief if a clear user story is already supplied; Phase B does the bulk.
+- **Feature-sized / Epic** (many stories, cross-cutting): run Phase A fully, produce a Feature Brief, recommend `slicing-stories`, and stop. Phase B runs per-slice on subsequent invocations.
 
-4. Reflect back the current understanding.
-   - Restate the request in 1–3 bullets.
-   - Call out any assumptions you are currently making.
-   - **Separate problem from solution.** If the request arrives with a proposed solution baked in, explicitly restate the underlying problem separately. Ask: "Is the goal [problem], and the proposal is [solution]?" This prevents speccing a solution without validating that it addresses the right problem.
+### 2. Phase A — Product Space
 
-5. Ask a small batch of high-leverage questions.
-   - Ask 3–7 questions at a time; wait for answers; iterate.
-   - Prioritize blockers (answers that change approach or scope).
-   - Offer options when that reduces ambiguity.
-   - Decision heuristic for unknowns:
-     - **Can't answer by asking?** → Spike (time-boxed throwaway experiment), then resume clarification. Spikes are a first-class tool for de-risking, not a last resort.
-     - **Can answer later without blocking the first slice?** → Defer. Note it as a deferrable unknown and move on (Last Responsible Moment).
-     - **Blocks the approach or scope?** → Resolve now before continuing.
+Goal: shared understanding of who needs this, why now, and what success looks like — without touching code.
 
-6. Track unknowns, risks, and decisions.
-   - Maintain an explicit list of open questions. Classify each as:
-     - **Blocking**: changes approach or scope; must resolve or spike before coding.
-     - **Deferrable**: will clarify during implementation; carry it into the spec as an open unknown (Last Responsible Moment — don't force decisions before you need to).
-   - Note constraints and decisions as they become clear.
+**Boundary**: do not read code in this phase. Do not propose technical solutions. Code-shaped questions ("where does this fit?", "what breaks?") belong to Phase B.
 
-7. Produce the appropriate output.
-   - **Feature-level input** → Feature Brief (goals, scope, constraints, success criteria). Then recommend splitting into vertical slices via `slicing-stories`.
-   - **Story-level input** → Story-Level Behavioral Spec with Given/When/Then acceptance criteria as the primary artifact. These AC become test cases in the downstream TDD step.
-   - While drafting, self-check:
-     - Can a developer write failing tests from the acceptance criteria alone?
-     - Do ACs cover the happy path and at least one error/edge case? (Add boundary cases when the domain involves limits, thresholds, or ranges.)
-     - Are all blocking unknowns resolved or converted to time-boxed spikes?
-     - Is scope small enough for one sprint?
-   - If any answer is "no", iterate before presenting.
+Steps:
 
-8. Confirm with the requester (Definition of Ready).
-   - Present the spec and explicitly ask for confirmation or corrections. This is the single gate — the shared agreement that the story is understood well enough to start work.
-   - If the requester flags gaps, iterate (return to step 5 or adjust the spec directly).
+a. **Distill Background.** If the request includes background context — current state, pain points, considered options, stakeholders — structure these explicitly before asking new questions. This prevents losing context the requester already shared and prevents asking questions they have already answered.
 
-9. Downstream handoff.
-   - **From Feature Brief** → recommend splitting into stories via `slicing-stories`, then pick one slice and produce a Story-Level Behavioral Spec.
-   - **From Story-Level Behavioral Spec** → recommend proceeding to lightweight design sketch (identify which files/modules the change lives in, pick the approach that fits existing patterns), then TDD (Red → Green → Refactor).
-   - **Feedback loop**: If implementation reveals the spec was wrong or incomplete, return here and update the spec before continuing. The spec is a living artifact, not a contract.
-   - See `references/templates.md` for handoff details per template.
+b. **Reflect back and separate problem from solution.** Restate the request in 1–3 bullets, calling out assumptions. If the request arrives with a proposed solution baked in, restate the underlying problem separately and confirm: "Is the goal [problem], and the proposal is [solution]?" This prevents speccing a solution without validating the right problem.
+
+c. **Ask Phase A questions in small batches.** Pull from the Phase A section of `references/question-bank.md`. Ask 3–7 high-leverage questions at a time; wait for answers; iterate. Front-loading a long questionnaire wastes time.
+
+   Decision heuristic for unknowns:
+   - **Can't be answered by asking?** → Spike (time-boxed throwaway experiment). Resume after.
+   - **Can be answered later without blocking the first slice?** → Defer (Last Responsible Moment).
+   - **Blocks scope or approach?** → Resolve now.
+
+d. **Track unknowns and decisions.** Maintain an explicit list of open questions, classified Blocking or Deferrable. Note product decisions with rationale as they emerge — this is what makes a spec readable months later.
+
+e. **Stop Phase A when** you can name who this is for, why now, and what done looks like; you have an explicit hypothesis and validation plan for the highest-risk assumptions; and all blocking unknowns are either resolved or converted to time-boxed spikes.
+
+f. **Manual mode checkpoint.** In manual mode (the default), present the Phase A artifact (Feature Brief or the product-space portion of the Story Spec) and ask for confirmation. Use `AskUserQuestion` when available. In autopilot mode, skip this checkpoint.
+
+If the input triages as Feature-sized, stop here with a Feature Brief and recommend `slicing-stories`. Phase B will run on each slice.
+
+### 3. Phase B — System Space
+
+Goal: shared understanding of where this behavior lands in the running system, what current behavior must not break, and what observable signals confirm it works — without naming implementation patterns, abstractions, or file layout.
+
+**Boundary**: read code only to confirm current system behavior. The output of this phase describes **what** the system does and must do, not **how** it does it. If you find yourself naming files, suggesting patterns, comparing abstractions, or sketching architecture, you have crossed into `sketching-design` territory — stop and produce the spec instead.
+
+This phase always runs. The workload scales with the existing context — see "Phase B Workload Scaling" below.
+
+Steps:
+
+a. **Map system context.** From Phase A, list the user-facing flows this change participates in. For each, identify the system actors involved (services, components, data stores) at the top-level system flow level only.
+
+b. **Confirm current system behavior** (if a system exists). Read the modules directly touched by the change, just enough to describe what they currently do in behavioral terms — inputs, outputs, side effects, dependencies on other subsystems. Stop reading when you can describe the current behavior accurately. Do not map code paths to designs.
+
+   If exploration reveals a Phase A assumption is wrong (the named module does not exist, the behavior is already different, a stated constraint does not hold), surface this back to the user before continuing.
+
+c. **Ask Phase B questions.** Pull from the Phase B section of `references/question-bank.md`. Focus on integration boundaries, regression risk, observable signals, and system-level acceptance.
+
+d. **Draft the Story-Level Behavioral Spec.** Use the template in `references/templates.md`. Fill in Acceptance Criteria (Given/When/Then), Observable Signals, What Must Not Break, and any system-space Decisions & Rationale.
+
+e. **Self-check before presenting:**
+   - Can a developer write failing tests from the acceptance criteria alone?
+   - Do ACs cover the happy path and at least one error/edge case? (Add boundary cases when the domain involves limits, thresholds, or ranges.)
+   - Are observable signals concrete enough that someone running the code could verify them?
+   - Are regression boundaries explicit?
+
+   If any answer is "no", iterate before presenting.
+
+f. **Manual mode checkpoint.** Present the spec and ask for confirmation. In autopilot mode, skip.
+
+### 4. Downstream handoff
+
+- **From Feature Brief** → recommend `slicing-stories`, then re-invoke this skill per slice.
+- **From Story-Level Behavioral Spec** → recommend `sketching-design` (if the implementation path is non-obvious) then `driving-tdd`. Acceptance criteria become test cases.
+- **Feedback loop**: if implementation reveals the spec was wrong or incomplete, return here and update before continuing. The spec is a living artifact, not a contract — that is the feedback loop working, not a failure of clarification.
+
+## Phase B Workload Scaling
+
+Phase B always runs; how much it does depends on what already exists. Quick read-offs:
+
+| Context | Phase B work |
+| --- | --- |
+| Brand new repo, first slice | Confirm runtime / deployment target. Name observable signals. No code reading. |
+| Existing repo, isolated new feature | Read the module(s) the new behavior interacts with. Describe current behavior; list integration points. |
+| Existing repo, change to a core flow | Same plus read callers. Map regression boundaries carefully. |
+| Existing repo, cross-cutting change | Same plus surface related subsystems whose behavior depends on the changed surface. |
+
+If Phase B truly has nothing to do, say so explicitly and move on. Do not manufacture work — but do not skip the question of observable signals either, since "how would you tell this works at runtime?" is valuable on every change.
+
+## Mode Gates
+
+- **Manual mode (default)**: ask for confirmation at the end of Phase A and at the end of Phase B. Present the artifact and the choices.
+- **Autopilot mode**: no checkpoints. Proceed straight through. The only stop conditions are Open Questions (blocking unknowns) and Spec Issues (Phase B finds a Phase A assumption is wrong).
 
 ## Fast Paths
 
-Not every task goes through the full pipeline. Match the input type to the shortest path that produces working, tested code.
+Not every task goes through both phases at full depth. Match the input type to the shortest path:
 
-- **Bug fix**: `clarifying-intent` (reproduce the bug as a Given/When/Then AC) → `driving-tdd` (failing test reproducing the bug → fix → refactor) → done. Skip `sketching-design` and `verifying-and-adapting`.
-- **Refactor**: Ensure existing tests pass → refactor → ensure tests still pass. No spec needed. If tests don't exist, write characterization tests first, then refactor.
-- **Trivial change** (typo, rename, config tweak): State the change → implement → commit → done. No spec, no sketch, no verification.
-- **Small bug with obvious fix**: Write the failing test, fix it, move on. One-sentence spec at most.
+- **Bug fix**: triage → quick Phase A (reproduce the bug as a Given/When/Then) → Phase B (where in the system, what regression risk) → done. Often very short.
+- **Pure refactor**: no spec needed. Ensure existing tests pass → refactor → ensure tests still pass. If tests don't exist, write characterization tests first.
+- **Trivial change**: triage step alone produces a one-sentence statement. No phases.
 
-The full pipeline (`clarifying-intent` → `slicing-stories` → `sketching-design` → `driving-tdd` → `verifying-and-adapting`) is for medium+ features. Don't run every task through it.
+The full pipeline (`clarifying-intent` → `slicing-stories` → `sketching-design` → `driving-tdd` → `verifying-and-adapting`) is for medium+ features. Don't force every task through it.
 
-## Default Output
-
-Use the **Feature Brief** template (feature-level) or **Story-Level Behavioral Spec** template (story-level) from `references/templates.md`. For trivial changes, no artifact is required.
-
-For full templates, question sets, and worked examples, read:
-
-- `references/templates.md`
-- `references/question-bank.md`
-- `references/examples.md`
-
-## Questioning Heuristics
-
-- Ask for concrete examples (inputs/outputs, screenshots/logs, "what would a good result look like?").
-- Confirm scope boundaries early (in-scope / out-of-scope).
-- Challenge scope: "Can this be split into independently deliverable slices?" / "What's the smallest version that delivers value?"
-- Elicit constraints explicitly (time, budget, platform, policies, performance, security/privacy).
-- Surface tradeoffs when constraints conflict; propose 2–3 viable options.
-- Ask what existing behavior must not break (regression awareness for downstream TDD).
-- Stop clarifying when you can write Given/When/Then acceptance criteria covering the happy path and key error cases without guessing, a developer could write failing tests from the spec without asking questions, and all blocking unknowns are resolved or converted to spikes. Continuing beyond this point is waste.
-
-## Splitting Guidance (Feature-Level Only)
+## Splitting Guidance (Feature-Sized Only)
 
 When the input is feature-sized, guide toward vertical slices before speccing in detail:
 
-- Split by **user-facing behavior**, not by technical layer.
-- Each slice should be independently deliverable, testable, and valuable to a real user (INVEST). Apply the litmus test: "If we shipped this slice and stopped, would at least one real user get value from it?"
-- For the first slice, prefer a **walking skeleton**: the thinnest end-to-end path that delivers value to one real user with one real integration. Use real dependencies, not stubs. The skeleton proves the architecture BY delivering value, not instead of it.
-- If you need to validate a technology before committing, that's a **spike** (time-boxed throwaway experiment), not a story slice. Don't put spikes in the slice map.
-- Pick the highest-value or highest-risk slice to spec first (the walking skeleton often is both).
+- Split by **user-facing behavior**, not technical layer.
+- Each slice should be independently deliverable, testable, and valuable to a real user (INVEST). Litmus test: "If we shipped this slice and stopped, would at least one real user get value from it?"
+- For the first slice, prefer a **walking skeleton** — the thinnest end-to-end path with real dependencies. The skeleton proves the architecture *by* delivering value, not instead of it.
+- If you need to validate a technology before committing, that is a **spike** (time-boxed throwaway), not a slice. Spikes do not belong in the slice map.
 - Hand off to `slicing-stories` for the slice map.
 
 ## Guardrails
 
-- Batch questions in groups of 3–7 and iterate; avoid front-loading a long questionnaire.
+- Keep Phase A and Phase B separate. Product-space discussion in Phase A; system-space in Phase B. The phases bleed together in conversation, but the artifacts should not.
+- Phase A asks no code questions. Phase B asks no product strategy questions.
+- In Phase B, code is read to confirm current behavior, never to propose how to implement the change. Naming a file, comparing patterns, or sketching architecture means you have crossed into `sketching-design` territory.
 - Pin down ambiguous terms ("fast", "simple", "secure") by asking what they mean concretely.
-- State assumptions explicitly and confirm them; never fill gaps silently.
-- Clarify at feature level first, split into slices, then spec one slice at a time — not the entire feature at once.
-- The spec is a living artifact, not a contract. When implementation reveals the spec was wrong or incomplete, updating it is expected — that's the agile feedback loop working, not a failure of clarification.
+- State assumptions explicitly and confirm them. Never fill gaps silently.
+- The spec is a living artifact. When implementation reveals the spec was wrong, updating it is expected.
+
+## References
+
+For templates, question banks, and worked examples:
+
+- `references/templates.md` — Feature Brief and Story-Level Behavioral Spec templates, organized by phase.
+- `references/question-bank.md` — Phase A and Phase B question prompts by domain.
+- `references/examples.md` — Worked examples showing the cross-phase flow end-to-end.
