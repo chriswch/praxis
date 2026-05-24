@@ -61,9 +61,16 @@ In autopilot mode, when invoking **`clarifying-intent`**, include this directive
 
 After `clarifying-intent` returns, pass the artifact **path** (not inline content) as input to the next skill.
 
-In manual mode, do not include this directive — `clarifying-intent` should emit its artifact inline so the user can review it directly.
+**Continuation rule for `clarifying-intent` in autopilot**: after `clarifying-intent` emits its short summary, your very next message MUST be a tool call invoking the next pipeline skill — `slicing-stories` if a Feature Brief was produced, `sketching-design` if a Story Spec was produced. **Do not end the turn after the summary.** The summary is an intermediate report, not a final response — the autopilot chain only progresses if you immediately resume with the next stage.
 
-**Why only `clarifying-intent`?** It is the only Praxis pipeline skill without `context: fork`. The other skills run in their own forked context and return artifacts to the orchestrator as compact tool results, which the orchestrator can hand off without authoring them itself. `clarifying-intent` runs inline in the orchestrator's context: when the orchestrator authors a multi-thousand-character spec directly in its own response, the model tends to treat that response as a completed deliverable and end the turn (`stop_reason: end_turn`), breaking the autopilot chain. Persisting to disk keeps the orchestrator's reply short and the chain alive.
+In manual mode, neither rule applies — `clarifying-intent` emits its artifact inline so the user can review it, and gates pause for confirmation.
+
+**Why only `clarifying-intent`?** It is the only Praxis pipeline skill without `context: fork`. The other skills run in their own forked context and return artifacts to the orchestrator as compact tool results, which the orchestrator can hand off without authoring them itself. `clarifying-intent` runs inline in the orchestrator's context, which triggers two distinct end-of-turn patterns in the model:
+
+1. **Long output as completed deliverable** — when the orchestrator authors a multi-thousand-character spec directly in its own response, the model treats that response as a finished answer and ends the turn (`stop_reason: end_turn`). The persistence directive addresses this by keeping the orchestrator's reply short (status + path + summary).
+2. **Completing a bounded skill task** — even with a short response, the model perceives the skill invocation as a discrete task that just finished, so it ends the turn after reporting. The continuation rule addresses this by explicitly requiring the next message to be a tool call.
+
+Both rules are needed: persistence alone leaves trigger #2 active; continuation alone is undermined by the model's tendency to treat long outputs as final. Forked skills don't have either issue because the orchestrator never "becomes" them — their output arrives as a tool result, not as the orchestrator's own authored response.
 
 ### Steps
 
