@@ -1,169 +1,169 @@
-> 「決策科學方法目錄」系列 · D. 問對問題 / 問題框架 · 共 14 個方法。圖例:工程/產品/營運/策略=四軸應用;fit=與軟體/SaaS 契合度(3–5)。
+> Decision-Science Method Catalog · D. Asking the right question / framing · 14 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
-### 第一性原理思考 (First Principles Thinking) · fit 5
-*aka / 出處:* First principles reasoning;回到不可再分的基本真理;亞里斯多德、Elon Musk、Farnam Street 推廣
-- **是什麼**:把複雜問題拆解到「不能再被推導、只能假設成立」的基本元素（first principle），再從這些元素由下往上重新組裝，而不是用類比或既有慣例(by analogy)做漸進改良。
-- **用在決策流程**:做重大技術或架構決策時，先寫下所有被當成『理所當然』的前提，逐一問『這是物理/業務上的硬限制，還是只是慣例？』。只保留真正不可動搖的限制，在其上重新推導方案，避免被現狀錨定。
-- **問對問題**:我憑什麼相信這是真的？這個限制是定律還是習慣？如果從零開始、不繼承任何既有設計，最低限度需要哪些元素？我們其實在優化的是什麼根本量？
-- **軟體工程**:例：團隊一直在『優化現有 N+1 查詢的快取』，用第一性原理會問『這個頁面真正需要的最小資料是什麼』，結論可能是改成單一聚合查詢或預先物化視圖，而非繼續疊快取層。
-- **產品開發**:例：被要求『把結帳頁做得更快』時，拆到底層發現真正成本是『多店家共用結帳但每次都重新計算運費規則』，重構成快取運費矩陣，而非單純前端優化。
-- **營運分析**:例：分析『轉換率低』時，不接受『因為頁面醜』這種既定說法，拆到漏斗每一步的物理事件（曝光→點擊→填表→付款），用事件層級數據重建因果。
-- **策略**:例：評估是否自建金流 vs 串接第三方，回到基本成本結構（每筆交易的真實邊際成本、合規負擔、撥款週期），而非沿用『同業都用某金流』的類比決策。
-- **2026**:2025–2026 常見做法是把 LLM 當『假設拆解器』，要它列出某設計背後所有隱含前提再逐一挑戰；但需自己驗證 LLM 列的前提是否真實，避免它把幻覺當成『基本真理』。
-- 來源:https://fs.blog/first-principles/, https://sahilbloom.substack.com/p/first-principles-thinking
+### First Principles Thinking · fit 5
+*aka / source:* First-principles reasoning; reasoning down to irreducible, foundational truths; traced to Aristotle, popularized by Elon Musk and Farnam Street
+- **What it is**: Decompose a complex problem down to the basic elements that can no longer be derived from anything else and must simply be assumed true (the first principles), then reassemble a solution bottom-up from those elements — rather than reasoning by analogy or incremental improvement on existing convention.
+- **Use in the process**: For a major technical or architecture decision, first write down every premise being taken for granted, then interrogate each one: "Is this a hard physical/business constraint, or just a convention?" Keep only the genuinely immovable constraints and re-derive the solution on top of them, so you are not anchored to the status quo.
+- **Questions to ask**: On what grounds do I believe this is true? Is this constraint a law or a habit? Starting from scratch and inheriting no existing design, what is the minimal set of elements actually required? What fundamental quantity are we really optimizing?
+- **Engineering**: e.g. a team keeps "optimizing the cache for an existing N+1 query"; first principles asks "what is the minimal data this page genuinely needs", and the answer may be a single aggregate query or a precomputed materialized view rather than another cache layer.
+- **Product**: e.g. asked to "make checkout faster", decompose to the root and find the real cost is "multiple stores share one checkout but recompute shipping rules every time", and refactor to a cached shipping-rate matrix instead of just front-end tuning.
+- **Ops**: e.g. analyzing "low conversion", refuse the received wisdom that "the page is ugly", decompose the funnel into its physical events (impression → click → form fill → payment), and rebuild causality from event-level data.
+- **Strategy**: e.g. evaluating build-your-own payments vs. integrating a third party, return to the basic cost structure (true marginal cost per transaction, compliance burden, settlement cycle) instead of the analogy "everyone in our industry uses provider X".
+- **2026**: A common 2025–2026 practice is to use an LLM as a "premise extractor" — have it enumerate every implicit assumption behind a design and then challenge each — but you must verify the premises it lists are real, so it does not pass off a hallucination as a "foundational truth".
+- Sources: https://fs.blog/first-principles/, https://sahilbloom.substack.com/p/first-principles-thinking
 
-### MECE 與 議題樹 / 邏輯樹 (Issue Tree / Logic Tree) · fit 5
-*aka / 出處:* MECE(Mutually Exclusive, Collectively Exhaustive);Issue tree;Logic tree;Hypothesis tree;麥肯錫 (McKinsey) 核心工具;Barbara Minto 金字塔原理相關
-- **是什麼**:MECE 是『彼此互斥、合起來窮盡』的分類原則；issue tree 用 MECE 把一個大問題逐層拆成不重疊也不遺漏的子問題，把難題切成可解的小塊。當每個分枝是可被否證的問句時，它就同時成為假設檢驗結構。
-- **用在決策流程**:面對龐雜問題先畫 issue tree，把它拆成 MECE 的子問題，再對每個子問題排優先序與分工，確保沒有重疊浪費、也沒有漏掉關鍵分枝，讓決策有可追蹤的結構。
-- **問對問題**:這些分類是否互斥、是否窮盡？有沒有重疊（重複算）或缺口（漏掉）？哪個分枝對結果影響最大、最值得先查？每個分枝能不能寫成一個可被否證的問句？
-- **軟體工程**:例：『API p99 延遲過高』拆成 MECE 分枝：網路/閘道、應用層運算、DB 查詢、外部依賴；每枝再下分，逐枝量測排除，避免亂槍打鳥地『先加個快取看看』。
-- **產品開發**:例：『新註冊商家七日留存低』拆成 onboarding 完成度 × 首次成功出單 × 金物流設定完成 × 客服接觸；各枝獨立提假設與驗證。
-- **營運分析**:例：『本月 GMV 下滑』用 MECE 拆成 流量 × 轉換率 × 客單價 × 退款；再把轉換率往下拆成各漏斗步驟，定位是哪一枝在掉。
-- **策略**:例：評估『要不要進軍 POS 市場』，用 issue tree 拆成市場規模、我們的差異化能力、進入成本、與既有 SaaS 的綜效，逐枝量化後做 go/no-go。
-- **2026**:2025–2026 issue tree 常與 LLM 搭配：先讓人定主幹確保 MECE，再用 LLM 補可能漏掉的子分枝（檢核 collectively exhaustive），但分類互斥性仍需人把關以免重複計數。
-- 來源:https://www.craftingcases.com/issue-tree-guide/, https://www.mbacrystalball.com/blog/strategy/mece-framework/, https://www.hackingthecaseinterview.com/pages/issue-trees
+### MECE and the Issue Tree / Logic Tree · fit 5
+*aka / source:* MECE (Mutually Exclusive, Collectively Exhaustive); issue tree; logic tree; hypothesis tree; a core McKinsey tool; related to Barbara Minto's Pyramid Principle
+- **What it is**: MECE is the partitioning rule "mutually exclusive, collectively exhaustive". An issue tree uses MECE to break one big problem layer by layer into non-overlapping, nothing-omitted sub-problems, cutting a hard problem into solvable pieces. When each branch is phrased as a falsifiable question, the tree doubles as a hypothesis-testing structure.
+- **Use in the process**: Facing a sprawling problem, draw an issue tree first, decompose it into MECE sub-problems, then prioritize and assign each sub-problem — ensuring no overlap (wasted effort) and no gaps (missed branches), so the decision has a traceable structure.
+- **Questions to ask**: Are these categories mutually exclusive and collectively exhaustive? Is there overlap (double-counting) or a gap (something omitted)? Which branch has the largest effect on the outcome and is worth investigating first? Can each branch be written as a falsifiable question?
+- **Engineering**: e.g. "API p99 latency is too high" splits into MECE branches: network/gateway, application-layer compute, DB queries, external dependencies; each branch subdivides, and you measure and rule out branch by branch rather than blindly "just adding a cache to see".
+- **Product**: e.g. "low 7-day retention for newly registered merchants" splits into onboarding completion × first successful order × payment/shipping setup completion × support contact; each branch gets its own hypothesis and validation.
+- **Ops**: e.g. "GMV dropped this month" decomposes MECE into traffic × conversion rate × average order value × refunds; then conversion rate splits down into each funnel step to locate which branch is falling.
+- **Strategy**: e.g. evaluating "should we enter the POS market", use an issue tree to split into market size, our differentiating capability, cost of entry, and synergy with the existing SaaS, quantify each branch, then make a go/no-go.
+- **2026**: In 2025–2026 the issue tree is often paired with an LLM: a human sets the trunk to guarantee MECE, then the LLM fills in possibly-missed sub-branches (checking collective exhaustiveness), but a human must still police mutual exclusivity to avoid double-counting.
+- Sources: https://www.craftingcases.com/issue-tree-guide/, https://www.mbacrystalball.com/blog/strategy/mece-framework/, https://www.hackingthecaseinterview.com/pages/issue-trees
 
-### 假設驅動問題解決 (Hypothesis-Driven Problem Solving) · fit 5
-*aka / 出處:* 麥肯錫式 (McKinsey);hypothesis-driven approach;day-one answer;先射箭再驗證
-- **是什麼**:在資料尚未齊全時，先對答案提出一個明確、可被否證的假設，再針對性地蒐集最能驗證或推翻它的資料，避免『先把所有資料分析完再說』的低效；issue tree 提供假設的結構，分析則用來證偽。
-- **用在決策流程**:面對待決問題時，先寫下『我猜根因/最佳解是 X，因為 A、B、C』，然後問『哪一份最小證據最可能推翻 X？』優先去拿那份證據，快速收斂或轉向。
-- **問對問題**:我目前最相信的答案是什麼？它若是錯的，會在哪裡破？哪個分析最快能證偽它？我是在找支持假設的證據，還是在認真嘗試推翻它（避免確認偏誤）？
-- **軟體工程**:例：debug 偶發失敗時不盲讀全部 log，先假設『是某次 deploy 後連線池耗盡』，直接去看該時間點的連線池指標來證偽，命中就深挖、不中就換假設。
-- **產品開發**:例：規劃功能前先寫假設『若提供一鍵匯入既有商品，新商家上架率會 +20%』，用最小可行的灰度或 fake door 測試先驗證，再決定是否全量開發。
-- **營運分析**:例：面對指標異常，先提 2–3 個競爭假設並各自預測『若為真會在哪個切片看到什麼模式』，再去查那個切片，而非把全部維度都 group by 一遍。
-- **策略**:例：策略選題時對『某客群是成長引擎』提假設，設定可證偽的領先指標（如該客群的擴張收入率），用一季數據驗證後再 all-in。
-- **2026**:現代資料/AB 測試文化與此一脈相承（pre-registered hypothesis 防 p-hacking）；2025–2026 LLM 可快速生成多個競爭假設，但人需確保假設可證偽並主動找反證，否則 LLM 易傾向迎合（sycophancy）。
-- 來源:https://medium.com/@IliyanaStareva/8-step-framework-to-problem-solving-from-mckinsey-506823257b48, https://www.craftingcases.com/issue-tree-guide/
+### Hypothesis-Driven Problem Solving · fit 5
+*aka / source:* McKinsey-style; hypothesis-driven approach; "day-one answer"; commit to an answer first, then test it
+- **What it is**: Before the data is complete, state an explicit, falsifiable hypothesis about the answer, then gather specifically the evidence most likely to confirm or refute it — avoiding the inefficiency of "analyze all the data first and then decide". The issue tree supplies the structure of the hypotheses; analysis serves to disconfirm them.
+- **Use in the process**: Facing an open question, write down "I bet the root cause / best solution is X, because A, B, C", then ask "which single smallest piece of evidence is most likely to refute X?" and go get that first, converging or pivoting quickly.
+- **Questions to ask**: What answer do I currently believe most? If it is wrong, where would it break first? Which analysis can falsify it fastest? Am I seeking evidence that supports the hypothesis, or genuinely trying to refute it (guarding against confirmation bias)?
+- **Engineering**: e.g. debugging an intermittent failure, do not read all the logs blindly; first hypothesize "the connection pool was exhausted after a particular deploy" and go straight to the pool metrics at that timestamp to refute it — dig deeper on a hit, swap hypotheses on a miss.
+- **Product**: e.g. before planning a feature, write the hypothesis "offering one-click import of existing products lifts new-merchant listing rate by +20%", validate with a minimal gradual rollout or fake-door test first, then decide whether to build it fully.
+- **Ops**: e.g. for a metric anomaly, propose 2–3 competing hypotheses and have each predict "if true, what pattern would show up in which slice", then go check that slice rather than group-by'ing every dimension.
+- **Strategy**: e.g. when choosing a strategic bet, hypothesize "this segment is the growth engine", set a falsifiable leading indicator (such as that segment's net expansion rate), validate on a quarter of data, then go all-in.
+- **2026**: Modern data / A/B-testing culture is the lineage of this method (a pre-registered hypothesis guards against p-hacking). In 2025–2026 an LLM can quickly generate multiple competing hypotheses, but a human must ensure each is falsifiable and actively seek disconfirming evidence, or the LLM tends toward sycophancy.
+- Sources: https://medium.com/@IliyanaStareva/8-step-framework-to-problem-solving-from-mckinsey-506823257b48, https://www.craftingcases.com/issue-tree-guide/
 
-### 重構問題 (Reframing) — Frame / Reframe / Move Forward · fit 5
-*aka / 出處:* Thomas Wedell-Wedellsborg《What's Your Problem?》(HBR Press, 2020);〈Are You Solving the Right Problems?〉(HBR, 2017);慢電梯問題;七大重構策略
-- **是什麼**:一套快速的問題診斷迴圈：Frame（用『問題在於…』寫下初始框架）→ Reframe（花 5–10 分鐘、最好和他人一起挑戰假設、找更好的問題）→ Move Forward（向利害關係人測試問題後再動手）。重點不是找『真正的問題』，而是看『有沒有更值得解的問題』。經典例子是『電梯太慢』改框成『等待很無聊』後，裝鏡子即解。
-- **用在決策流程**:任何重要決策前先強制跑一輪 reframe：把問題寫成完整句子，刻意找局外人與反例，問『我們是不是把症狀當問題了』，確認框架後再分配資源。
-- **問對問題**:問題真的是我們寫的這個嗎？有沒有更好的問題可解？局外人會怎麼看？有沒有人沒遇到這問題（亮點/正向例外）？我自己是不是問題的一部分？對方真正的目的是什麼（而非他要的方案）？
-- **軟體工程**:例：團隊一直想『加快 CI』，reframe 後發現真正問題是『開發者等回饋時失焦』，解法改成把最快的測試前置 + 失敗即時通知，而非硬投錢買更快的 runner。
-- **產品開發**:例：商家要求『要能匯出更多報表欄位』，用 reframe 與『問對方真正目的』發現他們其實要對帳對得上，重構為提供對帳專用視圖。
-- **營運分析**:例：把『如何降低跳出率』重構為『哪些跳出其實是任務已完成的好跳出』，避免優化錯指標。
-- **策略**:例：把『如何打敗某對手』重構為『我們的客戶真正雇用我們完成什麼工作』，避免陷入功能軍備競賽。
-- **2026**:Wedell-Wedellsborg 2024 在 HBR 再發〈To Solve a Tough Problem, Reframe It〉延續此法；2025 一篇 CHI 研究〈No Evidence for LLMs Being Useful in Problem Reframing〉指出直接用 LLM 重構未必提升 frame 品質，故 reframe 仍應由人主導、LLM 僅輔助發散。
-- 來源:https://hbr.org/2017/01/are-you-solving-the-right-problems, https://www.dukece.com/insights/how-to-solve-the-right-problems/, https://hbr.org/2024/01/to-solve-a-tough-problem-reframe-it, https://dl.acm.org/doi/full/10.1145/3706598.3713273
+### Reframing — Frame / Reframe / Move Forward · fit 5
+*aka / source:* Thomas Wedell-Wedellsborg, *What's Your Problem?* (HBR Press, 2020); "Are You Solving the Right Problems?" (HBR, 2017); the slow-elevator problem; the seven reframing strategies
+- **What it is**: A fast problem-diagnosis loop — Frame (write the initial framing as a "the problem is that…" statement) → Reframe (spend 5–10 minutes, ideally with others, challenging assumptions and looking for a better problem) → Move Forward (test the problem with stakeholders before acting). The point is not to find "the real problem" but to ask "is there a more worthwhile problem to solve". The classic case: "the elevator is too slow" reframed to "waiting is boring", solved by installing mirrors.
+- **Use in the process**: Before any important decision, force one reframing pass: write the problem as a full sentence, deliberately seek outsiders and counterexamples, ask "are we mistaking a symptom for the problem", and confirm the frame before allocating resources.
+- **Questions to ask**: Is the problem really the one we wrote? Is there a better problem to solve? How would an outsider see it? Is there anyone who does not have this problem (a bright spot / positive exception)? Am I myself part of the problem? What is the other party's true objective (as opposed to the solution they asked for)?
+- **Engineering**: e.g. a team keeps trying to "speed up CI"; reframing reveals the real problem is "developers lose focus while waiting for feedback", so the fix becomes front-loading the fastest tests plus instant failure notifications, rather than throwing money at faster runners.
+- **Product**: e.g. a merchant asks to "export more report columns"; reframing plus asking for the true objective reveals they actually need their reconciliation to balance, so you refactor toward a purpose-built reconciliation view.
+- **Ops**: e.g. reframe "how do we reduce bounce rate" into "which bounces are actually good bounces where the task was already completed", avoiding optimizing the wrong metric.
+- **Strategy**: e.g. reframe "how do we beat competitor X" into "what job are our customers really hiring us to do", avoiding a feature arms race.
+- **2026**: Wedell-Wedellsborg's 2024 HBR piece "To Solve a Tough Problem, Reframe It" continues this method. A 2025 CHI study, "No Evidence for LLMs Being Useful in Problem Reframing", found that handing reframing directly to an LLM does not reliably improve frame quality, so reframing should stay human-led with the LLM only assisting divergence.
+- Sources: https://hbr.org/2017/01/are-you-solving-the-right-problems, https://www.dukece.com/insights/how-to-solve-the-right-problems/, https://hbr.org/2024/01/to-solve-a-tough-problem-reframe-it, https://dl.acm.org/doi/full/10.1145/3706598.3713273
 
-### 區分症狀與根因 (Symptom vs Root Cause) · fit 5
-*aka / 出處:* treating symptoms vs root causes;root cause analysis;貫穿 5 Whys / A3 / Fishbone 的判準
-- **是什麼**:一個貫穿所有問題框架方法的核心判準：症狀是問題的外顯表現，根因是若不處理就會反覆製造症狀的系統性來源。只解症狀會讓問題不斷復發；正確診斷要求把分析推到可改變的根因，且每層因果需有證據。
-- **用在決策流程**:在批准對策前，先問『這是在止痛還是在根治』；要求對每個提案標明它打的是症狀還是根因，並設計可驗證『問題不再復發』的後續指標。
-- **問對問題**:這是症狀還是根因？如果只做這個，問題會不會三個月後又回來？我手上的因果是驗證過的事實還是推測？根因是系統性的，還是被歸到了某個人身上（多半代表還沒到底）？
-- **軟體工程**:例：服務常掛就一直重啟（治症狀）vs 找出記憶體洩漏或缺背壓機制的根因（治本）；postmortem 要求列出根因與防復發措施而非只記錄『已重啟恢復』。
-- **產品開發**:例：客訴某步驟卡關就加提示文字（症狀）vs 重新設計該流程或預設值（根因）；避免靠 UI 補丁掩蓋設計缺陷。
-- **營運分析**:例：退款率升高就加強審核（症狀）vs 定位到特定商品/物流/設定問題的根因；用切片分析確認根因而非整體加摩擦。
-- **策略**:例：營收下滑就猛打折促銷（症狀）vs 診斷出價值主張或客群錯配的根因，避免用短期手段掩蓋結構性問題。
-- **2026**:這是評估前述所有方法輸出的試金石；2025–2026 結合可觀測性數據與 LLM 輔助歸因時，更要警惕把『相關性/表面解釋』誤當根因，務必回到證據鏈驗證。
-- 來源:https://en.wikipedia.org/wiki/Five_whys, https://flowfuse.com/blog/2025/12/five-whys-root-cause-analysis-definition-examples/, https://artoflean.com/reference/five-why
+### Symptom vs Root Cause · fit 5
+*aka / source:* Treating symptoms vs. root causes; root cause analysis; the test running through 5 Whys / A3 / fishbone
+- **What it is**: A core test that runs through every problem-framing method. A symptom is the outward manifestation of a problem; the root cause is the systemic source that, left unaddressed, keeps regenerating the symptom. Treating only symptoms makes the problem recur; correct diagnosis pushes the analysis down to a changeable root cause, with evidence required at each causal layer.
+- **Use in the process**: Before approving a countermeasure, ask "is this painkilling or curing", require each proposal to mark whether it targets a symptom or a root cause, and design a follow-up metric that can verify "the problem no longer recurs".
+- **Questions to ask**: Is this a symptom or a root cause? If we only do this, will the problem return in three months? Is the causality in hand a verified fact or a guess? Is the root cause systemic, or has it been pinned on an individual (which usually means we have not yet reached the bottom)?
+- **Engineering**: e.g. a service keeps crashing so it gets restarted repeatedly (symptom) vs. finding the root cause of a memory leak or missing backpressure (cure); the postmortem should list the root cause and recurrence-prevention measures rather than just recording "restarted and recovered".
+- **Product**: e.g. customers get stuck on a step so you add helper text (symptom) vs. redesigning the flow or its defaults (root cause); avoid masking a design flaw with UI patches.
+- **Ops**: e.g. refund rate rises so you tighten review (symptom) vs. locating the root cause in a specific product / logistics / configuration issue; use slice analysis to confirm the root cause rather than adding friction across the board.
+- **Strategy**: e.g. revenue falls so you blast out discounts and promotions (symptom) vs. diagnosing the root cause of a value-proposition or segment mismatch, avoiding short-term tactics that mask a structural problem.
+- **2026**: This is the touchstone for evaluating the outputs of all the methods above. In 2025–2026, when combining observability data with LLM-assisted attribution, be especially wary of mistaking "correlation / a surface explanation" for the root cause — always return to the evidence chain to verify.
+- Sources: https://en.wikipedia.org/wiki/Five_whys, https://flowfuse.com/blog/2025/12/five-whys-root-cause-analysis-definition-examples/, https://artoflean.com/reference/five-why
 
-### 5 Whys 五問法 · fit 4
-*aka / 出處:* Five Whys;豐田生產系統 (TPS);Sakichi Toyoda 發明、Taiichi Ohno 大野耐一 推廣;root cause analysis
-- **是什麼**:從一個具體現象出發，連續追問『為什麼』（典型約五層），穿透表面症狀直到觸及可改變的系統性根因。豐田強調要『現地現物 (gemba)』親眼觀察，且每一層因果要有證據而非只是聽起來合理的推測。
-- **用在決策流程**:在決定『要修什麼』之前先跑一輪 5 Whys，確保投入的對策打在系統性根因而非症狀。若鏈條停在『某人疏忽/手誤』，視為尚未到底——大野耐一的哲學是系統應防止錯誤，而非歸咎個人。
-- **問對問題**:為什麼會發生？這一層是我驗證過的事實還是推測？如果修掉這一層，上一層會不會再次發生？鏈條是否停在『人為疏失』這種症狀層？
-- **軟體工程**:例：線上 500 錯誤 →為什麼？某 worker OOM →為什麼？單筆訂單載入全部歷史出貨 →為什麼？沒分頁 →為什麼？當初資料量小 →根因：缺少資料量成長時的分頁/上限設計，對策是加分頁與守門，而非只調大記憶體。
-- **產品開發**:例：商家抱怨『結帳頁缺超商選項』，逐層追問會落到 shippings.shipping_type / shipping_rules 設定缺失（而非單純 payment_enabled），根因是物流與金流設定分離未串好。
-- **營運分析**:例：本月退款率上升 →為什麼？某 plan 商家集中 →為什麼？該 plan 剛下放某功能 →為什麼觸發退款？功能 callback 兩處來源不一致 →根因鎖定到具體程式路徑，而非泛泛歸因『客服變差』。
-- **策略**:適合戰術/營運層根因；策略層多重交織因果時，5 Whys 易過度線性，需搭配 issue tree。
-- **2026**:2025–2026 業界普遍提醒 5 Whys 的最大坑是『單一線性鏈』與『停在症狀』；衍生出 Many Whys / 結合 Fishbone 的做法，並強調『業餘版是合理推測串成的鏈，專業版是證據串成的鏈』。
-- 來源:https://en.wikipedia.org/wiki/Five_whys, https://artoflean.com/reference/five-why, https://flowfuse.com/blog/2025/12/five-whys-root-cause-analysis-definition-examples/
+### 5 Whys · fit 4
+*aka / source:* Five Whys; Toyota Production System (TPS); invented by Sakichi Toyoda, popularized by Taiichi Ohno; root cause analysis
+- **What it is**: Starting from a concrete phenomenon, ask "why" repeatedly (typically about five layers) to drive through surface symptoms until you reach a changeable systemic root cause. Toyota stresses going to *gemba* to observe firsthand, and requires evidence at each causal layer rather than a merely plausible-sounding guess.
+- **Use in the process**: Before deciding "what to fix", run one 5 Whys pass to ensure the countermeasure hits a systemic root cause rather than a symptom. If the chain stops at "someone was careless / made a manual error", treat it as not yet at the bottom — Ohno's philosophy is that the system should prevent errors, not blame individuals.
+- **Questions to ask**: Why did it happen? At this layer, is this a verified fact or a guess? If we fix this layer, will the layer above recur? Has the chain stopped at the symptom layer of "human error"?
+- **Engineering**: e.g. production 500 error → why? a worker hit OOM → why? a single order loaded all of its shipment history → why? no pagination → why? data volume was small at design time → root cause: no pagination/limit design for data growth, so the countermeasure is to add pagination and guardrails rather than just raising the memory limit.
+- **Product**: e.g. a merchant complains "checkout is missing the convenience-store option"; asking layer by layer lands on missing `shippings.shipping_type` / `shipping_rules` configuration (rather than simply `payment_enabled`), with the root cause being that logistics and payment setup are separated and not wired together.
+- **Ops**: e.g. refund rate rose this month → why? concentrated among merchants on a particular plan → why? that plan just shipped a feature → why does it trigger refunds? the feature's callback comes from two inconsistent sources → root cause pinned to a specific code path, rather than a vague "support got worse".
+- **Strategy**: Suited to tactical/operational root causes; at the strategic layer with many intertwined causes, 5 Whys tends to be too linear and needs to be paired with an issue tree.
+- **2026**: In 2025–2026 the field broadly warns that the biggest pitfalls of 5 Whys are "a single linear chain" and "stopping at the symptom"; derivatives like Many Whys / combining with a fishbone diagram have emerged, with the reminder that "the amateur version is a chain of plausible guesses, the professional version is a chain of evidence".
+- Sources: https://en.wikipedia.org/wiki/Five_whys, https://artoflean.com/reference/five-why, https://flowfuse.com/blog/2025/12/five-whys-root-cause-analysis-definition-examples/
 
-### 豐田 A3 問題解決法 · fit 4
-*aka / 出處:* A3 Problem Solving;A3 Thinking;Toyota Business Practices (TBP);PDCA on one page;Sobek & Smalley 著作系統化
-- **是什麼**:用一張 A3 紙完整走完 PDCA 思考：背景(Background)→現況(Current Condition)→問題陳述→根因分析(常內含 5 Whys/魚骨圖)→目標狀態(Target)→對策(Countermeasures)→追蹤(Follow-up)，強迫從問題到行動的邏輯一氣呵成。
-- **用在決策流程**:把任何重大改善/事故當成一張 A3 來寫：先量化現況與目標的落差，再做根因分析，最後才列對策。決策審查時看的是『問題定義與根因是否站得住』，而非只看解法漂不漂亮。
-- **問對問題**:現況與目標之間量化的落差是多少？根因分析的證據在哪？這個對策對應到哪一條根因？怎麼驗證對策有效（Check 階段的指標）？
-- **軟體工程**:例：把一次嚴重 incident 的 postmortem 用 A3 格式寫：背景（影響多少商家/訂單）、現況數據、5 Whys 根因、修復對策、回歸測試與監控告警作為 follow-up。
-- **產品開發**:例：某功能採用率低，用 A3 把『目前採用率 vs 目標』、使用者卡關點、根因（onboarding 缺引導）、改版對策、上線後追蹤指標一頁講清楚，作為 PRD 的決策附件。
-- **營運分析**:例：客服工單暴增專案，用 A3 統一呈現工單量趨勢圖、分類 Pareto、根因、SOP/產品對策與後續工單下降追蹤，方便跨部門對齊。
-- **策略**:可作為策略提案的單頁論證骨架；但策略不確定性高、選項分歧時，A3 的線性結構需搭配假設驗證法補強。
-- **2026**:A3 的精神（單頁、PDCA、強迫寫清楚現況與根因）仍是現代 incident postmortem / RFC 文化的祖先；2025–2026 常被改寫成 Notion/Confluence 範本並嵌入 dashboard 連結。
-- 來源:https://www.symestic.com/en-us/what-is/a3-problem-solving, https://www.ease.io/blog/a3-reports-and-problem-solving-101/, https://books.google.com/books/about/Understanding_A3_Thinking.html?id=v6G1V9GdJucC
+### Toyota A3 Problem Solving · fit 4
+*aka / source:* A3 problem solving; A3 thinking; Toyota Business Practices (TBP); PDCA on one page; systematized in the books by Sobek and Smalley
+- **What it is**: Use a single A3 sheet to walk the full PDCA thought process: Background → Current Condition → Problem Statement → Root Cause Analysis (often embedding 5 Whys / fishbone) → Target → Countermeasures → Follow-up, forcing a coherent logical line from problem to action.
+- **Use in the process**: Treat any major improvement / incident as one A3: first quantify the gap between current and target condition, then do root cause analysis, and only then list countermeasures. A decision review judges "whether the problem definition and root cause hold up", not just whether the solution looks elegant.
+- **Questions to ask**: What is the quantified gap between current and target condition? Where is the evidence for the root cause analysis? Which root cause does this countermeasure map to? How do we verify the countermeasure works (the metric for the Check phase)?
+- **Engineering**: e.g. write a serious incident's postmortem in A3 format: background (how many merchants/orders affected), current-condition data, 5 Whys root cause, fix countermeasures, with regression tests and monitoring alerts as the follow-up.
+- **Product**: e.g. for a feature with low adoption, use an A3 to lay out "current adoption vs. target", user stuck-points, root cause (onboarding lacks guidance), the redesign countermeasure, and post-launch tracking metrics on one page, as a decision appendix to the PRD.
+- **Ops**: e.g. for a support-ticket-surge project, use an A3 to present ticket-volume trend, a Pareto of categories, root cause, SOP/product countermeasures, and follow-up tracking of ticket decline, to align across teams.
+- **Strategy**: Can serve as a one-page argument skeleton for a strategy proposal; but when strategic uncertainty is high and options diverge, A3's linear structure needs hypothesis-driven testing as reinforcement.
+- **2026**: The spirit of A3 (one page, PDCA, forcing a clear statement of current condition and root cause) is still the ancestor of modern incident-postmortem / RFC culture; in 2025–2026 it is often rewritten as a Notion/Confluence template with embedded dashboard links.
+- Sources: https://www.symestic.com/en-us/what-is/a3-problem-solving, https://www.ease.io/blog/a3-reports-and-problem-solving-101/, https://books.google.com/books/about/Understanding_A3_Thinking.html?id=v6G1V9GdJucC
 
-### 蘇格拉底提問 (Socratic Questioning) · fit 4
-*aka / 出處:* Socratic method;Richard Paul & Linda Elder 六類提問;critical thinking;The Thinker's Guide to Socratic Questioning
-- **是什麼**:透過有系統的追問來釐清思考、暴露隱含假設與證據缺口。Paul & Elder 整理出六類提問：澄清、探究假設、探究理由與證據、探究觀點與立場、探究意涵與後果、對問題本身發問。
-- **用在決策流程**:在會議或評審中，對任何主張用六類提問逐一檢視（你這話什麼意思？背後假設是什麼？證據呢？換個立場會怎樣？會帶來什麼後果？這問題本身問對了嗎？），逼出被跳過的推理。
-- **問對問題**:你說 X 是什麼意思？我們假設了什麼？有什麼證據支持？還有別的看法嗎？這會導致什麼後果？我們一開始問的問題對嗎（對問題發問）？
-- **軟體工程**:例：code review 或設計評審時用蘇式提問挑戰『這裡為何用悲觀鎖』『假設併發量是多少』『有資料支持嗎』，避免『因為大家都這樣寫』式決定。
-- **產品開發**:例：需求澄清時對『使用者想要 X 功能』連續追問『真正的工作是什麼』『憑什麼相信』『有沒有反例』，避免把利害關係人的方案誤當需求。
-- **營運分析**:例：看到一張漂亮的圖表時，追問『這定義怎麼算的』『樣本是誰』『有沒有倖存者偏差』『若反過來解讀呢』，防止被誤導性指標牽著走。
-- **策略**:例：策略討論中對『市場一定會成長』探究假設與證據、再探究『如果不成長的後果』，避免把樂觀預期當前提。
-- **2026**:Socratic 提問是『用 LLM 問對問題』的人類版範本；2025–2026 有人反過來請 LLM 對自己的方案做蘇式拷問，但 AISI 2026 研究指出 LLM 有迎合傾向，需明確要求它扮演質疑者並提供反證。
-- 來源:https://www.criticalthinking.org/files/SocraticQuestioning2006.pdf, https://websites.umich.edu/~elements/5e/probsolv/strategy/cthinking.htm
+### Socratic Questioning · fit 4
+*aka / source:* Socratic method; Richard Paul and Linda Elder's six types of questions; critical thinking; *The Thinker's Guide to Socratic Questioning*
+- **What it is**: Systematic questioning to clarify thinking and expose hidden assumptions and evidence gaps. Paul and Elder organize it into six types of questions: clarifying, probing assumptions, probing reasons and evidence, probing viewpoints and perspectives, probing implications and consequences, and questioning the question itself.
+- **Use in the process**: In a meeting or review, examine any claim through the six question types (What do you mean by that? What are the underlying assumptions? Where is the evidence? What if we took another viewpoint? What consequences would follow? Are we even asking the right question?), forcing out the reasoning that got skipped.
+- **Questions to ask**: What do you mean by X? What are we assuming? What evidence supports it? Is there another view? What consequences would this lead to? Was the question we started with the right one (questioning the question)?
+- **Engineering**: e.g. in code review or design review, use Socratic questioning to challenge "why pessimistic locking here", "what concurrency level are we assuming", "is there data to support it", avoiding "because everyone writes it this way" decisions.
+- **Product**: e.g. during requirement clarification, repeatedly probe "the user wants feature X" with "what is the real job", "on what grounds do we believe it", "are there counterexamples", avoiding mistaking a stakeholder's solution for a requirement.
+- **Ops**: e.g. on seeing a polished chart, probe "how is this defined", "who is the sample", "is there survivorship bias", "what if we read it the other way", to avoid being led by misleading metrics.
+- **Strategy**: e.g. in a strategy discussion, probe the assumptions and evidence behind "the market will surely grow", then probe "the consequences if it does not grow", avoiding treating an optimistic projection as a premise.
+- **2026**: Socratic questioning is the human template for "asking an LLM the right questions"; in 2025–2026 some turn it around and ask an LLM to give their own plan a Socratic interrogation, but research indicates LLMs have a sycophantic tendency, so you must explicitly instruct it to play the skeptic and provide disconfirming evidence.
+- Sources: https://www.criticalthinking.org/files/SocraticQuestioning2006.pdf, https://websites.umich.edu/~elements/5e/probsolv/strategy/cthinking.htm
 
-### 抽象階梯 (Abstraction Laddering) · fit 4
-*aka / 出處:* Why-How laddering;abstraction ladder;LUMA Institute 收錄;problem framing exercise
-- **是什麼**:把問題陳述放在『梯子』中間，往上問『為什麼』得到更抽象、更廣的問題框架，往下問『如何』得到更具體、更接近解法的問題。藉由上下移動找到最適合切入的問題層級。
-- **用在決策流程**:當問題太窄（已經內含解法）或太大（無從下手）時，用 why/how 上下移動，找到『既有意義又可動手』的那一階，再從該階展開選項。
-- **問對問題**:為什麼要解這個問題（往上一階，這真的是目的嗎）？要達成這個更高目的還有別的路嗎？具體要怎麼做（往下一階）？我現在卡在太抽象還是太具體？
-- **軟體工程**:例：工單寫『加一個匯出 CSV 按鈕』，往上問為什麼→『商家要對帳』，發現提供對帳報表或直接串接會計軟體可能更對，重新框定要做的東西。
-- **產品開發**:例：把『做一個 App 推播功能』往上抽象成『如何讓商家及時知道有新訂單』，打開 email/LINE/桌面通知等更多解法空間。
-- **營運分析**:例：把『降低某按鈕跳出率』往上抽象成『如何讓使用者順利完成結帳』，避免局部優化單一指標卻傷害整體漏斗。
-- **策略**:例：把『要不要做訂閱制』往上抽象成『如何提高客戶終身價值與留存』，再往下展開訂閱、年約、加值服務等不同路徑比較。
-- **2026**:是 design thinking 與 product discovery 常備工具；2025–2026 常被嵌入 Miro/FigJam 範本，並用來引導 LLM『先往上抽象列出 5 個不同 framing』再收斂。
-- 來源:https://untools.co/abstraction-laddering/, https://www.luma-institute.com/abstraction-laddering/, https://ixdf.org/literature/topics/why-how-laddering
+### Abstraction Laddering · fit 4
+*aka / source:* Why-How laddering; abstraction ladder; cataloged by the LUMA Institute; problem-framing exercise
+- **What it is**: Place the problem statement in the middle of a "ladder"; ask "why" to move up to a more abstract, broader problem framing, and ask "how" to move down to a more concrete framing closer to a solution. Moving up and down finds the most useful level at which to enter the problem.
+- **Use in the process**: When a problem is too narrow (it already embeds a solution) or too broad (no point of entry), move up and down with why/how to find the rung that is "both meaningful and actionable", then expand options from that rung.
+- **Questions to ask**: Why are we solving this problem (one rung up — is this really the goal)? Are there other paths to that higher goal? How specifically do we do it (one rung down)? Am I currently stuck at being too abstract or too concrete?
+- **Engineering**: e.g. a ticket says "add an export-to-CSV button"; asking why moves up to "the merchant needs to reconcile", revealing that providing a reconciliation report or integrating directly with accounting software may fit better, reframing what to build.
+- **Product**: e.g. abstract "build an app push-notification feature" up to "how do we let merchants know promptly that a new order arrived", opening up more solutions such as email/LINE/desktop notifications.
+- **Ops**: e.g. abstract "reduce the bounce rate on a button" up to "how do we let users complete checkout smoothly", avoiding local optimization of a single metric that hurts the overall funnel.
+- **Strategy**: e.g. abstract "should we offer subscriptions" up to "how do we raise customer lifetime value and retention", then expand down to compare distinct paths such as subscriptions, annual contracts, and add-on services.
+- **2026**: A staple of design thinking and product discovery; in 2025–2026 it is often embedded in Miro/FigJam templates and used to prompt an LLM to "first abstract up and list 5 different framings" before converging.
+- Sources: https://untools.co/abstraction-laddering/, https://www.luma-institute.com/abstraction-laddering/, https://ixdf.org/literature/topics/why-how-laddering
 
-### How Might We（我們可以如何…） · fit 4
-*aka / 出處:* HMW;design thinking 問題定義法;Min Basadur 在 P&G 1970s 引入、IDEO/Google/Facebook 推廣;源於 Parnes/Osborn 創造力研究
-- **是什麼**:把研究中發現的痛點，改寫成『我們可以如何…』開頭的開放式問句，刻意保留適度模糊，既不內建解法、也不過於發散，作為 ideation 的起跑線。
-- **用在決策流程**:從真實使用者洞察出發，先把痛點轉成數個 HMW，再用『不太窄（沒內建解法）／不太寬（仍聚焦核心問題）／針對根因而非症狀／用正向動詞』四項檢核挑出值得發想的問題框架。
-- **問對問題**:這個 HMW 是基於真實研究還是憑空想像？它有沒有偷藏解法？是否太窄或太寬？它打的是根因還是症狀？換個動詞會打開不同空間嗎？
-- **軟體工程**:例：把『開發者抱怨 webhook 常漏收』改寫成『HMW 讓第三方 App 對重要事件有信心一定收得到』，打開重試、補發、對帳 API 等多種技術方案。
-- **產品開發**:例：研究發現新商家對設定金物流沒信心，寫成『HMW 讓商家在開店第一天就確信結帳設定是對的』，引導出引導式檢查清單、預檢與測試下單等點子。
-- **營運分析**:例：把『客服回應太慢』的根因洞察寫成『HMW 讓商家在等待時仍覺得問題正在被處理』，引出自助知識庫、狀態可視化等方向（呼應慢電梯裝鏡子的思路）。
-- **策略**:例：把市場洞察寫成『HMW 讓中小商家不需懂技術也能用上進階行銷』，作為產品線策略發想的共同問題框架。
-- **2026**:NN/g 與 IxDF 在 2026 仍將 HMW 列為問題定義主力工具；2025–2026 常用 LLM 一次生成大量 HMW 變體再人工篩選，但需用上述檢核避免偷藏解法或偏離研究根因。
-- 來源:https://www.nngroup.com/articles/how-might-we-questions/, https://ixdf.org/literature/topics/how-might-we
+### How Might We · fit 4
+*aka / source:* HMW; design-thinking problem-definition method; introduced by Min Basadur at P&G in the 1970s, popularized by IDEO/Google/Facebook; rooted in Parnes/Osborn creativity research
+- **What it is**: Rewrite a pain point found in research into an open-ended question starting "How might we…", deliberately keeping moderate ambiguity — neither embedding a solution nor being too broad — as the starting line for ideation.
+- **Use in the process**: Starting from a real user insight, turn the pain point into several HMW questions, then pick the framings worth ideating on using four checks: not too narrow (no embedded solution), not too broad (still focused on the core problem), targeting the root cause rather than a symptom, and using a positive verb.
+- **Questions to ask**: Is this HMW grounded in real research or made up? Does it sneak in a solution? Is it too narrow or too broad? Does it target a root cause or a symptom? Would a different verb open up a different space?
+- **Engineering**: e.g. rewrite "developers complain webhooks often get missed" into "HMW give third-party apps confidence that important events are guaranteed to be received", opening up multiple technical approaches such as retries, replays, and a reconciliation API.
+- **Product**: e.g. research finds new merchants lack confidence configuring payment and shipping; write "HMW let a merchant be confident on day one that their checkout setup is correct", leading to ideas such as a guided checklist, pre-flight checks, and a test order.
+- **Ops**: e.g. turn the root-cause insight "support responses are too slow" into "HMW make merchants feel the problem is being handled even while they wait", leading to a self-service knowledge base and status visibility (echoing the slow-elevator mirror logic).
+- **Strategy**: e.g. turn a market insight into "HMW let small merchants use advanced marketing without needing technical skills", as a shared problem framing for product-line strategy ideation.
+- **2026**: NN/g and IxDF still list HMW as a primary problem-definition tool in 2026; in 2025–2026 an LLM is often used to generate many HMW variants at once for human filtering, but the four checks above are needed to avoid smuggled-in solutions or drift from the research root cause.
+- Sources: https://www.nngroup.com/articles/how-might-we-questions/, https://ixdf.org/literature/topics/how-might-we
 
-### Framestorming（框架風暴） · fit 4
-*aka / 出處:* Tina Seelig 提出;先框架後發想;framestorming before brainstorming
-- **是什麼**:在 brainstorming（找解法）之前，先 framestorming（找問題框架）——針對同一情境刻意生成多種不同的問題框架與提問角度，挑戰初始假設，確保接下來是在解對的問題。核心口訣：framestorming 先於 brainstorming。
-- **用在決策流程**:啟動任何方案前，先開一場只產出『問題的不同問法』的會議，列出 5–10 種 framing，比較每種框架會打開或遮蔽什麼，選定框架後才進入解法發想。
-- **問對問題**:這個情境還能怎麼問？換成另一個框架會看到什麼新解法、又會忽略什麼？我們是不是太快進入解法模式了？哪個 framing 最值得投資？
-- **軟體工程**:例：面對『系統不穩』，framestorm 出多種問法：『是可用性問題？可觀測性問題？還是變更管理問題？』不同框架導向 SLO、監控、或部署流程等不同投資。
-- **產品開發**:例：對『新商家流失』先 framestorm 出『獲客錯客群？onboarding 太難？價值兌現太慢？』多框架，再針對最有證據的框架做 discovery。
-- **營運分析**:例：分析季度數據前，先列出多種可能的問題框架（成長放緩 vs 結構轉變 vs 季節性），避免一頭栽進單一假設的分析。
-- **策略**:例：策略工作坊先 framestorm『我們在打的到底是哪一場仗』，再進入選項評估，避免全公司高效執行錯的策略框架。
-- **2026**:與 Wedell-Wedellsborg 的 reframe、HMW 高度互補，常一起用；2025–2026『用 AI 一次生成多個 framing、各列出 enables/hides』正是 framestorming 的 LLM 化實作。
-- 來源:https://modelthinkers.com/mental-model/framestorming, https://www.fastcompany.com/3060573/how-brainstorming-questions-not-ideas-sparks-creativity, https://onlydeadfish.co.uk/2026/01/16/using-ai-to-ask-better-questions/
+### Framestorming · fit 4
+*aka / source:* Tina Seelig; framing before ideation; framestorming before brainstorming
+- **What it is**: Before brainstorming (finding solutions), framestorm (find problem framings) — deliberately generate multiple distinct problem framings and angles of inquiry for the same situation, challenging the initial assumption, to ensure you go on to solve the right problem. The mantra: framestorming precedes brainstorming.
+- **Use in the process**: Before launching any solution, hold a session that produces only "different ways to ask the problem", list 5–10 framings, compare what each frame opens up or hides, and only after choosing a frame move into solution ideation.
+- **Questions to ask**: How else could this situation be framed? What new solutions would another frame reveal, and what would it ignore? Did we jump into solution mode too fast? Which framing is most worth investing in?
+- **Engineering**: e.g. facing "the system is unstable", framestorm multiple framings: "is this an availability problem? an observability problem? or a change-management problem?" Different frames point to different investments — SLOs, monitoring, or deployment process.
+- **Product**: e.g. for "new-merchant churn", first framestorm "acquired the wrong segment? onboarding too hard? value realization too slow?", then run discovery on the framing with the most evidence.
+- **Ops**: e.g. before analyzing quarterly data, list multiple possible problem framings (slowing growth vs. structural shift vs. seasonality), to avoid diving headlong into a single-hypothesis analysis.
+- **Strategy**: e.g. a strategy workshop framestorms "which battle are we actually fighting" before entering option evaluation, avoiding the whole company executing the wrong strategic frame efficiently.
+- **2026**: Highly complementary to Wedell-Wedellsborg's reframing and to HMW, and often used together; in 2025–2026 "using AI to generate multiple framings at once, each with its enables/hides listed" is the LLM-ized implementation of framestorming.
+- Sources: https://modelthinkers.com/mental-model/framestorming, https://www.fastcompany.com/3060573/how-brainstorming-questions-not-ideas-sparks-creativity, https://onlydeadfish.co.uk/2026/01/16/using-ai-to-ask-better-questions/
 
-### 問題陳述寫法 5W1H (Problem Statement) · fit 4
-*aka / 出處:* 5W+1H;Who/What/Where/When/Why/How;Lean Six Sigma 問題陳述;Atlassian problem framing play
-- **是什麼**:用記者的 5W（Who/What/Where/When/Why，常加 How）把問題寫成一句簡潔、具體、可量化、但不規定解法（descriptive not prescriptive）的陳述：點出現況、理想狀態與兩者落差，以及為何值得解。
-- **用在決策流程**:任何專案啟動前，要求先交出一句符合 5W1H 的問題陳述並量化影響；無法寫清楚『誰、在什麼情境、落差多大、為何值得解』就不放行進入解法討論，避免假需求。
-- **問對問題**:誰受影響？問題具體是什麼（現況 vs 理想的落差）？在哪裡、何時發生？為何值得解、影響多大（量化）？我是不是不小心把解法寫進問題裡了？
-- **軟體工程**:例：bug ticket 強制用 5W1H：哪些商家(Who)、在結帳第三步(Where)、何種付款組合(When/What)、影響多少訂單(量化 Why)，讓工程師一眼看出複現條件與優先序。
-- **產品開發**:例：PRD 開頭用一句問題陳述取代功能清單，逼團隊先對齊問題與成功度量，再談解法。
-- **營運分析**:例：分析需求單要求附 5W1H 問題陳述與量化影響，避免『幫我拉個數據』式的無頭緒分析。
-- **策略**:例：策略議題用問題陳述把模糊的『成長放緩』收斂成『哪個客群、哪段期間、相對什麼基準、掉了多少』，才能談對策。
-- **2026**:Atlassian、Mural、Figma 等 2026 仍把 problem statement 當 problem framing 第一步；常與 HMW 接力（problem statement 收斂現況、HMW 打開解法空間）。
-- 來源:https://isssp.org/5w1h-writing-an-effective-problem-statement/, https://www.atlassian.com/team-playbook/plays/problem-framing, https://www.isixsigma.com/getting-started/how-to-write-an-effective-problem-statement/
+### Problem Statement (5W1H) · fit 4
+*aka / source:* 5W+1H; Who/What/Where/When/Why/How; Lean Six Sigma problem statement; Atlassian problem-framing play
+- **What it is**: Use the journalist's 5W (Who/What/Where/When/Why, often plus How) to write the problem as one concise, specific, quantifiable statement that does not prescribe a solution (descriptive, not prescriptive): it names the current state, the ideal state, the gap between them, and why it is worth solving.
+- **Use in the process**: Before any project starts, require a one-sentence 5W1H problem statement with quantified impact; if you cannot clearly write "who, in what context, how big the gap, and why it is worth solving", do not let it pass into solution discussion — this avoids phantom requirements.
+- **Questions to ask**: Who is affected? What specifically is the problem (the gap between current and ideal)? Where and when does it happen? Why is it worth solving and how big is the impact (quantified)? Have I accidentally written a solution into the problem?
+- **Engineering**: e.g. a bug ticket is forced into 5W1H: which merchants (Who), at checkout step three (Where), with what payment combination (When/What), affecting how many orders (quantified Why), so an engineer can see the repro conditions and priority at a glance.
+- **Product**: e.g. a PRD opens with a one-sentence problem statement instead of a feature list, forcing the team to align on the problem and success metric before discussing solutions.
+- **Ops**: e.g. analysis request tickets must attach a 5W1H problem statement and quantified impact, avoiding clueless "just pull me some data" analysis.
+- **Strategy**: e.g. a strategic issue uses a problem statement to converge the vague "growth is slowing" into "which segment, which period, relative to what baseline, dropped how much", before any countermeasure can be discussed.
+- **2026**: Atlassian, Mural, and Figma still treat the problem statement as the first step of problem framing in 2026; it often hands off to HMW (the problem statement converges the current state, HMW opens the solution space).
+- Sources: https://isssp.org/5w1h-writing-an-effective-problem-statement/, https://www.atlassian.com/team-playbook/plays/problem-framing, https://www.isixsigma.com/getting-started/how-to-write-an-effective-problem-statement/
 
-### Job Story / Jobs to be Done 工作故事 · fit 4
-*aka / 出處:* When [situation] I want to [motivation] so I can [outcome];Intercom 發明、Alan Klement 命名;JTBD;對比 user story
-- **是什麼**:用『當[情境]，我想要[動機]，以便[結果]』的格式描述使用者要完成的工作，聚焦情境、動機與期望結果，刻意不綁定特定人物角色或解法，避免把方案誤當需求。由 Intercom 產品團隊提出、Alan Klement 命名。
-- **用在決策流程**:決定要不要做某功能前，先把它對應到一條 job story；若寫不出清楚的情境與結果，代表問題沒想清楚。用 job story 比較不同方案是否都服務同一個 job。
-- **問對問題**:使用者在什麼情境下會冒出這個需求？他真正想完成的工作與結果是什麼？我們是不是把某個解法當成了需求？有沒有別的方案能更好地完成同一個 job？
-- **軟體工程**:例：設計通知系統時寫『當我離開電腦但店裡有新訂單時，我想立刻知道，以便不漏單』，這比『做一個推播 API』更能引導正確的技術取捨（送達保證 > 花俏 UI）。
-- **產品開發**:例：用 job story 取代帶角色假設的 user story，避免『身為商家我想要 X』把方案寫死，改聚焦情境與結果，打開設計空間。
-- **營運分析**:例：把功能採用數據對應到背後的 job，分析『哪些 job 已被滿足、哪些情境下使用者仍流失』，而非只看孤立的點擊數。
-- **策略**:例：以『顧客雇用我們的產品來完成什麼 job』作為市場與競品分析的單位，發現真正的競爭者可能是 Excel 或人工，而非同類 SaaS。
-- **2026**:Job story 與 Christensen 的 JTBD 同源但格式由 Intercom 獨立發展；2026 仍是 product discovery 主流寫法，常與 HMW、reframe 串用把『工作』轉成可發想的問題。
-- 來源:https://www.intercom.com/blog/using-job-stories-design-features-ui-ux/, https://jtbd.info/designing-features-using-job-stories-41d20fc7ade6, https://www.mountaingoatsoftware.com/blog/job-stories-offer-a-viable-alternative-to-user-stories
+### Job Story / Jobs to be Done · fit 4
+*aka / source:* "When [situation], I want to [motivation], so I can [outcome]"; originated at Intercom, named by Alan Klement; JTBD; contrasted with the user story
+- **What it is**: Describe the job a user is trying to get done using the format "When [situation], I want to [motivation], so I can [outcome]", focusing on situation, motivation, and expected outcome and deliberately not binding to a specific persona or solution, to avoid mistaking a solution for a requirement. Proposed by the Intercom product team and named by Alan Klement.
+- **Use in the process**: Before deciding whether to build a feature, map it to a job story; if you cannot write a clear situation and outcome, the problem is not thought through. Use the job story to compare whether different solutions all serve the same job.
+- **Questions to ask**: In what situation does this need arise for the user? What is the job and outcome they truly want to accomplish? Are we treating a solution as a requirement? Is there another solution that accomplishes the same job better?
+- **Engineering**: e.g. designing a notification system, write "When I am away from my computer but a new order comes into the store, I want to know immediately, so I can avoid missing the order" — this guides the right technical trade-offs (delivery guarantees > fancy UI) better than "build a push API".
+- **Product**: e.g. use a job story instead of a persona-laden user story, avoiding "as a merchant I want X" hard-coding a solution; refocus on situation and outcome to open up the design space.
+- **Ops**: e.g. map feature-adoption data to the underlying job, analyzing "which jobs are already satisfied, and in which situations users still churn", rather than looking at isolated click counts.
+- **Strategy**: e.g. use "what job do customers hire our product to do" as the unit of market and competitor analysis, discovering the real competitor may be Excel or manual work rather than a peer SaaS.
+- **2026**: The job story shares roots with Christensen's JTBD but its format was developed independently at Intercom; it remains a mainstream product-discovery format in 2026, often chained with HMW and reframing to turn a "job" into an ideatable problem.
+- Sources: https://www.intercom.com/blog/using-job-stories-design-features-ui-ux/, https://jtbd.info/designing-features-using-job-stories-41d20fc7ade6, https://www.mountaingoatsoftware.com/blog/job-stories-offer-a-viable-alternative-to-user-stories
 
-### Hamming 的「重要問題」(Working on Important Problems) · fit 4
-*aka / 出處:* Richard Hamming〈You and Your Research〉(1986, Bell Labs talk);open door vs closed door;'what are the important problems of your field?'
-- **是什麼**:Hamming 主張做研究（與工作）真正的槓桿在於『選對重要的問題』，而非只把手上的問題做快。他觀察『開著門工作』的人雖被打擾、產出較少，卻更能感知什麼問題重要；並提倡定期自問『我所在領域最重要的問題是什麼？我為什麼不在做它？』
-- **用在決策流程**:在 roadmap/季度規劃時，把『這是不是值得做的重要問題』放在『這個方案好不好』之前；定期盤點『領域裡最重要但沒人做的問題』，避免把精力耗在重要性邊緣的事。
-- **問對問題**:我所在領域/產品最重要的問題是什麼？我為什麼不在做它（是真的難，還是只是慣性）？這件事就算做得完美，重要嗎？我有沒有因為『門關著』而錯失了什麼重要訊號？
-- **軟體工程**:例：與其持續微調已經夠用的服務，問『對可靠性/成長真正關鍵但沒人碰的問題是什麼』（如多租戶隔離、資料一致性），把工程精力導向高槓桿處。
-- **產品開發**:例：季度選題時刪掉一堆『有人要但不重要』的小功能，集中在少數真正影響留存或營收的重要問題。
-- **營運分析**:例：先界定『哪一個指標的改善最能改變公司命運』，分析資源優先投入該重要問題，而非把報表越做越多卻越來越邊緣。
-- **策略**:例：把『開著門』制度化（與客服、業務、商家定期交流）以持續感知市場上正在浮現的重要問題，作為策略選題的雷達。
-- **2026**:在 AI 自動化大量執行工作的 2025–2026，『選對重要問題』的相對價值更高——執行被機器加速後，差異化更取決於人選的是不是對的、重要的問題。
-- 來源:https://www.cs.virginia.edu/~robins/YouAndYourResearch.html, https://gwern.net/doc/science/1986-hamming
+### Hamming's "Important Problems" (Working on Important Problems) · fit 4
+*aka / source:* Richard Hamming, "You and Your Research" (1986, Bell Labs talk); open door vs. closed door; "What are the important problems of your field?"
+- **What it is**: Hamming argues the real leverage in research (and work) is "choosing the right important problems", not just doing the problem at hand quickly. He observed that people who "work with their door open" are interrupted and produce less in the short run, yet develop a far better sense of which problems matter; and he urged periodically asking "What are the most important problems in my field? Why am I not working on them?"
+- **Use in the process**: In roadmap / quarterly planning, put "is this a worthwhile, important problem" ahead of "is this solution good"; periodically inventory "the most important but unworked problems in the field" to avoid spending energy on things of marginal importance.
+- **Questions to ask**: What are the most important problems in my field/product? Why am I not working on them (truly hard, or just inertia)? Even done perfectly, would this matter? Have I missed an important signal because my "door was closed"?
+- **Engineering**: e.g. rather than endlessly fine-tuning a service that is already good enough, ask "what is the problem truly critical to reliability/growth that no one is touching" (such as multi-tenant isolation or data consistency), and steer engineering energy toward high-leverage areas.
+- **Product**: e.g. at quarterly selection, cut a pile of "someone-asked-for-it but unimportant" small features and concentrate on the few important problems that truly move retention or revenue.
+- **Ops**: e.g. first identify "which single metric's improvement would most change the company's fate", and prioritize analysis resources on that important problem, rather than producing ever more reports that grow ever more marginal.
+- **Strategy**: e.g. institutionalize "working with the door open" (regular exchange with support, sales, and merchants) to continuously sense the important problems emerging in the market, as a radar for strategic problem selection.
+- **2026**: In 2025–2026, as AI automates large amounts of execution work, the relative value of "choosing the right important problems" rises — once execution is machine-accelerated, differentiation depends more on whether the human picked the right, important problem.
+- Sources: https://www.cs.virginia.edu/~robins/YouAndYourResearch.html, https://gwern.net/doc/science/1986-hamming

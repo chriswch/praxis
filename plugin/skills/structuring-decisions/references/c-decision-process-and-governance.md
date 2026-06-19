@@ -1,169 +1,169 @@
-> 「決策科學方法目錄」系列 · C. 決策流程與治理 · 共 14 個方法。圖例:工程/產品/營運/策略=四軸應用;fit=與軟體/SaaS 契合度(3–5)。
+> Decision-Science Method Catalog · C. Decision process & governance · 14 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
-### WRAP 決策流程 (WRAP Process) · fit 5
-*aka / 出處:* Chip & Dan Heath, 出自《Decisive》(2013)；Widen options / Reality-test assumptions / Attain distance / Prepare to be wrong
-- **是什麼**:Heath 兄弟在《Decisive》提出的四步驟流程，針對四大決策陷阱（窄框架、確認偏誤、短期情緒、過度自信）各設一個對策。核心主張是『流程勝過分析 (process trumps analysis)』——對重要決策而言，有好的流程比在沒有流程下做大量分析更可靠。
-- **用在決策流程**:(W) 拓寬選項：強迫自己跳出『要不要做 A』的二選一，問『有沒有 A 與 B 同時做？還有哪些選項？』；用 vanishing options test（假設這選項消失你會怎麼辦）。(R) 用現實檢驗假設：找反面證據、做小型實驗、問做過的人。(A) 抽離取得距離：問『若是建議朋友我會怎麼說？』、用 10/10/10（10 分鐘/10 個月/10 年後我會怎麼看）。(P) 為犯錯做準備：設定 tripwire（觸發重新評估的指標）、做 pre-mortem。
-- **問對問題**:『我是不是只在 yes/no 一個選項裡打轉？』『我有沒有刻意去找推翻自己的證據？』『如果我把這個選項從桌上拿掉，我會做什麼？』『什麼樣的訊號出現時，我應該承認決策錯了並回頭？』
-- **軟體工程**:選資料庫/搜尋引擎技術選型時不要只比『MySQL vs PostgreSQL』，而是同時擺出『加 Elasticsearch、加讀寫分離、加快取層』等多選項（W）；Reality-test 用 spike/POC 跑真實 query 量測而非看 benchmark 文章（R）；用 tripwire：『若 p99 latency 連續 3 天 > 500ms 就重新評估方案』（P）。
-- **產品開發**:規劃結帳流程改版時，避免只在『要不要加一頁優惠碼輸入』打轉，拓寬成多個流程設計（W）；用 A/B test 或 fake door 檢驗轉換率假設（R）；上線前設定 tripwire『棄單率回升 2% 即 rollback』（P）。
-- **營運分析**:分析某 SaaS 方案商家流失時，先拓寬假設池（價格？功能？客服？競品？），不要鎖死在第一個想到的原因（W）；用 cohort/留存資料反向驗證（R）；事先記下『如果這個原因成立，資料上應該看到什麼』以防確認偏誤（A）。
-- **策略**:決定是否進入新市場（如跨境電商模組）時，用 10/10/10 抽離短期業績壓力（A）；多方案並列而非單一豪賭（W）；為失敗準備退場條件（P）。
-- **2026**:2025/2026 仍是被引用最廣的個人/團隊決策流程之一；AI 可協助『拓寬選項』(W) 與快速找反面證據 (R)，但『取得距離』(A) 與設 tripwire 仍需人判斷。
-- 來源:https://heathbrothers.com/member-content/1-page-summary-of-the-wrap-model/, https://www.gsb.stanford.edu/faculty-research/books/decisive-how-make-better-choices-life-work, https://modelthinkers.com/mental-model/wrap-decision-process
+### WRAP Process · fit 5
+*aka / source:* Chip & Dan Heath, from *Decisive* (2013); Widen options / Reality-test assumptions / Attain distance / Prepare to be wrong
+- **What it is**: The four-step process the Heath brothers propose in *Decisive*, with one countermeasure aimed at each of the four villains of decision-making (narrow framing, confirmation bias, short-term emotion, overconfidence). Its central claim is that *process trumps analysis*—for consequential decisions, a good process is more reliable than a large volume of analysis done without one.
+- **Use in the process**: (W) Widen options: refuse the binary "should we do A or not?" and ask "could we do A *and* B?" and "what else is on the table?"; use the vanishing-options test (if this option disappeared, what would you do?). (R) Reality-test assumptions: seek disconfirming evidence, run small experiments, ask people who have actually done it. (A) Attain distance before deciding: ask "what would I tell a friend to do?" and use 10/10/10 (how will I feel about this in 10 minutes / 10 months / 10 years?). (P) Prepare to be wrong: set tripwires (metrics that trigger a reassessment) and run a pre-mortem.
+- **Questions to ask**: "Am I just toggling on a single yes/no option?" "Have I deliberately gone looking for evidence that would refute me?" "If I took this option off the table, what would I do instead?" "What signal, if it appeared, should make me admit the decision was wrong and turn back?"
+- **Engineering**: For a datastore/search-engine technology choice, don't just compare "MySQL vs PostgreSQL"—put multiple options on the table at once: "add Elasticsearch", "add read/write splitting", "add a cache layer" (W). Reality-test with a spike/POC that measures real query volume rather than reading benchmark blog posts (R). Set a tripwire: "if p99 latency stays above 500ms for three days, reopen the choice" (P).
+- **Product**: When planning a checkout redesign, avoid toggling on "should we add a promo-code-entry page or not?"; widen it into several flow designs (W); reality-test the conversion assumption with an A/B test or fake door (R); before launch, set a tripwire: "roll back if abandoned-cart rate climbs 2%" (P).
+- **Ops**: When analyzing churn among merchants on a SaaS plan, first widen the hypothesis pool (price? features? support? competitors?) instead of locking onto the first cause that comes to mind (W); reality-test with cohort/retention data (R); write down in advance "if this cause is true, what should the data show?" to guard against confirmation bias (A).
+- **Strategy**: When deciding whether to enter a new market (e.g. a cross-border commerce module), use 10/10/10 to gain distance from short-term revenue pressure (A); run several options in parallel rather than a single big bet (W); prepare exit conditions for failure (P).
+- **2026**: Still one of the most widely cited individual/team decision processes in 2025/2026; AI can help "widen options" (W) and quickly surface disconfirming evidence (R), but "attain distance" (A) and setting tripwires still need human judgment.
+- Sources: https://heathbrothers.com/member-content/1-page-summary-of-the-wrap-model/, https://www.gsb.stanford.edu/faculty-research/books/decisive-how-make-better-choices-life-work, https://modelthinkers.com/mental-model/wrap-decision-process
 
-### Cynefin 框架 (Cynefin Framework) · fit 5
-*aka / 出處:* Dave Snowden, 1999；五域：clear/obvious、complicated、complex、chaotic、disorder（早期稱 known/knowable）
-- **是什麼**:Snowden 於 1999 年提出的『感知—決策 (sense-making)』框架，先辨識問題屬於哪個域，再決定該用哪種決策方式。關鍵在於：不同域的因果關係性質不同，套錯方法（例如把複雜問題當複雜化問題去『分析到底』）會失敗。
-- **用在決策流程**:判斷問題落在哪個域並套用對應行動序列：Clear（已知最佳實踐）→ Sense-Categorize-Respond；Complicated（需專家分析、有多個正解）→ Sense-Analyze-Respond；Complex（因果只能事後看清、無正解）→ Probe-Sense-Respond（做安全可失敗的小實驗）；Chaotic（危機）→ Act-Sense-Respond（先止血建立秩序）；Disorder（不知屬哪域）→ 拆解分配到其他域。
-- **問對問題**:『這個問題的因果關係是已知的、需要專家分析的、還是只能透過實驗才看得出來的？』『我現在是在止血（chaotic）還是在優化（complicated）？』『我是不是在對一個複雜 (complex) 問題尋求一個唯一正解？』
-- **軟體工程**:Production 全站當機 = chaotic，先 Act（rollback/降級止血）再分析根因，而不是開會分析；一個偶發的 N+1 query 效能問題 = complicated，交給資深工程師分析 explain plan；導入全新的多租戶資料隔離架構 = complex，用 feature flag 對小流量做可失敗實驗 (probe)。
-- **產品開發**:既有結帳欄位調整 = clear，照既定規範做；新付款閘道串接 = complicated，需 payment 專家分析；全新訂閱制商業模式驗證 = complex，先做小規模 beta probe 而非一次全量上線。
-- **營運分析**:判斷一個指標異動屬於『已知的季節性』(clear)、『需深入歸因分析』(complicated) 還是『市場新行為、得做實驗才知道』(complex)，避免用錯誤的分析深度。
-- **策略**:面對成熟功能市場用最佳實踐 (clear/complicated)，面對 AI 帶來的新商業模式不確定性時採 complex 域的『多個小賭注 (safe-to-fail probes)』而非 all-in 豪賭。
-- **2026**:命名歷經演變：Kurtz & Snowden(2003) 用 known/knowable；2007 改 simple/complicated；2014 起用 obvious；2015 起用 clear。2025/2026 在 AI 不確定性決策中常被引用來提醒『別把 complex 問題當 complicated 解』。
-- 來源:https://en.wikipedia.org/wiki/Cynefin_framework, https://untools.co/cynefin-framework/, https://whatfix.com/blog/cynefin-framework/
+### Cynefin Framework · fit 5
+*aka / source:* Dave Snowden, 1999; five domains: clear/obvious, complicated, complex, chaotic, disorder (early names: known/knowable)
+- **What it is**: The sense-making framework Snowden introduced in 1999. First identify which domain a problem lives in, then choose the decision approach that domain calls for. The key insight is that causality is fundamentally different in each domain, so applying the wrong method (e.g. treating a complex problem as merely complicated and trying to "analyze it to the bottom") will fail.
+- **Use in the process**: Place the problem in a domain and apply the matching action sequence. Clear (known best practice) → Sense-Categorize-Respond; Complicated (needs expert analysis, several good answers exist) → Sense-Analyze-Respond; Complex (cause and effect are only coherent in hindsight, no right answer) → Probe-Sense-Respond (run safe-to-fail experiments); Chaotic (crisis) → Act-Sense-Respond (act first to stop the bleeding and establish order); Disorder (you don't know which domain) → break it apart and assign the pieces to other domains.
+- **Questions to ask**: "Is this problem's causality known, expert-analyzable, or only discoverable through experiment?" "Am I stopping the bleeding (chaotic) or optimizing (complicated)?" "Am I demanding a single right answer to a complex problem?"
+- **Engineering**: A full site outage = chaotic—Act first (roll back / shed load to stop the bleeding), then find root cause, rather than convening a meeting to analyze. An intermittent N+1 query performance issue = complicated—hand it to a senior engineer to analyze the explain plan. Rolling out a brand-new multi-tenant data-isolation architecture = complex—run a safe-to-fail experiment behind a feature flag on a small slice of traffic (probe).
+- **Product**: Adjusting existing checkout fields = clear, follow the established spec; integrating a new payment gateway = complicated, needs a payments expert to analyze; validating a brand-new subscription business model = complex, run a small-scale beta probe rather than shipping to everyone at once.
+- **Ops**: Decide whether a metric movement is "known seasonality" (clear), "needs deep attribution analysis" (complicated), or "new market behavior, only discoverable by experiment" (complex), so you don't apply the wrong depth of analysis.
+- **Strategy**: Use best practice for mature feature markets (clear/complicated); when facing the uncertainty of AI-driven new business models, take the complex domain's approach of "several small safe-to-fail probes" rather than an all-in bet.
+- **2026**: The names have evolved: Kurtz & Snowden (2003) used known/knowable; Snowden & Boone (2007) switched to simple/complicated; Snowden adopted "obvious" from 2014 and "clear" from 2015. In 2025/2026 it is often cited in AI-uncertainty decisions to warn against "solving a complex problem as if it were merely complicated."
+- Sources: https://en.wikipedia.org/wiki/Cynefin_framework, https://untools.co/cynefin-framework/, https://whatfix.com/blog/cynefin-framework/
 
-### DACI 決策框架 (DACI Framework) · fit 5
-*aka / 出處:* 源於 Intuit 1980s，由 Atlassian 推廣；Driver / Approver / Contributors / Informed
-- **是什麼**:為產品團隊設計、比 RACI 更快的決策角色框架。最關鍵的洞見是把 Driver（推動流程）與 Approver（唯一拍板者）分開——Driver 負責跑流程，Approver 做最終決定，這個分離正是 DACI 速度的來源。
-- **用在決策流程**:在 decision doc 標頭明列：Driver（一人，負責召集、整理資訊、在期限前催出決策）、Approver（一人，唯一決策者，是『主動決策者』而非橡皮圖章）、Contributors（有專業可建議——有聲音沒投票權）、Informed（工作受影響、決定後被告知——沒聲音沒投票權）。搭配 due date 與 outcome 欄位。
-- **問對問題**:『誰是 Driver（推動）vs 誰是 Approver（拍板）——這兩個是不是被混在一個人身上拖慢決策？』『Contributors 是有投票權還是只有建議權？』『誰只需被告知，不需參與討論？』
-- **軟體工程**:技術選型/RFC 流程：發起 RFC 的工程師 = Driver、Tech Lead 或 Staff Eng = Approver、其他資深工程師 = Contributors、QA/SRE = Informed；非常適合放進 Confluence/Notion 的 decision doc 模板。
-- **產品開發**:Sprint 範圍取捨、功能上下架決策：PM = Driver、Product Lead = Approver、設計+工程 = Contributors、行銷+客服 = Informed，避免會議上人人都覺得自己能否決。
-- **營運分析**:決定要不要採用某新分析工具或埋點規範：資料分析師 = Driver、Data Lead = Approver、各 PM = Contributors、工程 = Informed。
-- **策略**:中型產品組織日常策略決策的輕量治理；比 RAPID 快但缺少明確的合規否決 (Agree) 角色，高度監管決策仍宜用 RAPID。
-- **2026**:Atlassian Team Playbook 有公開模板，最貼近 SaaS 產品團隊日常；2026 仍是 Notion/Confluence decision doc 最常用的角色模型，與 async 文件化決策文化高度契合。
-- 來源:https://www.atlassian.com/team-playbook/plays/daci, https://www.atlassian.com/blog/project-management/daci-method-for-better-project-decisions, https://www.centercode.com/blog/raci-vs-daci-vs-rapid
+### DACI Framework · fit 5
+*aka / source:* Originated at Intuit in the 1980s, popularized by Atlassian; Driver / Approver / Contributors / Informed
+- **What it is**: A decision-roles framework designed for product teams—faster than RACI. Its most important insight is separating the Driver (who runs the process) from the Approver (the single person who decides). The Driver moves the process along; the Approver makes the final call. That separation is precisely where DACI's speed comes from.
+- **Use in the process**: In the header of a decision doc, name explicitly: Driver (one person, who convenes, gathers and organizes the information, and pushes the decision out before the deadline), Approver (one person, the sole decision-maker, an *active* decider rather than a rubber stamp), Contributors (have expertise to advise—a voice but no vote), Informed (affected by the work, told once it's decided—no voice, no vote). Pair with due-date and outcome fields.
+- **Questions to ask**: "Who is the Driver (moves it along) vs who is the Approver (decides)—are these collapsed into one person and slowing the decision down?" "Do Contributors have a vote or only advice?" "Who only needs to be informed and doesn't need to be in the discussion?"
+- **Engineering**: Technology choice / RFC process: the engineer who opens the RFC = Driver, the Tech Lead or Staff Engineer = Approver, other senior engineers = Contributors, QA/SRE = Informed; fits naturally into a Confluence/Notion decision-doc template.
+- **Product**: Sprint-scope tradeoffs, feature ship/sunset decisions: PM = Driver, Product Lead = Approver, design + engineering = Contributors, marketing + support = Informed—avoiding meetings where everyone thinks they hold a veto.
+- **Ops**: Deciding whether to adopt a new analytics tool or instrumentation standard: data analyst = Driver, Data Lead = Approver, the PMs = Contributors, engineering = Informed.
+- **Strategy**: Lightweight governance for the day-to-day strategy decisions of a mid-sized product org; faster than RAPID but lacking RAPID's explicit compliance-veto (Agree) role, so highly regulated decisions are still better served by RAPID.
+- **2026**: Atlassian's Team Playbook has a public template, and DACI is the role model closest to a SaaS product team's daily work; in 2026 it remains the most common role model for Notion/Confluence decision docs and fits async, documented decision culture well.
+- Sources: https://www.atlassian.com/team-playbook/plays/daci, https://www.atlassian.com/blog/project-management/daci-method-for-better-project-decisions, https://www.centercode.com/blog/raci-vs-daci-vs-rapid
 
-### 單向門 vs 雙向門 (One-Way vs Two-Way Door Decisions) · fit 5
-*aka / 出處:* Jeff Bezos / Amazon 股東信；Type 1（單向門，不可逆）vs Type 2（雙向門，可逆）
-- **是什麼**:Bezos 在 Amazon 股東信提出的決策分類：Type 1（單向門）是後果重大、幾乎不可逆的決策，必須緩慢、審慎、廣納諮詢；Type 2（雙向門）是低風險、可逆的決策，可由個人或小團隊快速做，做錯了再修正即可。核心警告是『別用 Type 1 的重量級流程去做 Type 2 的決策』，那會拖垮組織速度。
-- **用在決策流程**:決策前先問：『這扇門推開後能不能輕鬆走回來？』可逆 → 授權快速決定、容許犯錯；不可逆/難逆 → 啟動重量級流程（DACI/RAPID + pre-mortem + decision doc）。把多數決策刻意設計成可逆，以提速。
-- **問對問題**:『這個決策可逆嗎？回退的成本是多少？』『我是不是在用對付不可逆決策的審慎度，去拖延一個可逆的小決策？』『我能不能把這個決策改造成可逆的（feature flag、灰度、可 rollback）？』
-- **軟體工程**:可 rollback 的部署、feature flag 後的功能 = 雙向門，鼓勵小團隊快速試；資料庫 schema 破壞性遷移、刪除舊欄位、對外 API 合約變更 = 單向門，要走嚴謹 review。工程上常可用 flag/灰度/雙寫把單向門『改造成』雙向門。
-- **產品開發**:改個按鈕顏色/文案 = 雙向門快速試；廢棄一個老商家依賴的功能、改訂價模型 = 單向門，需慎重與充分溝通。
-- **營運分析**:調整 dashboard 預設篩選 = 雙向門；刪除或重定義歷史指標口徑（影響歷史可比性）= 單向門，需保留舊定義並充分公告。
-- **策略**:進入新市場若可低成本撤出 = 雙向門可試；簽長約、併購、大幅品牌重塑 = 單向門，需最高審慎度。
-- **2026**:2025/2026 仍是 SaaS/新創最常被引用的『該花多少審慎度』判準；與 feature flag、progressive delivery、可逆架構設計高度契合，工程文化常把『盡量把決策做成雙向門』當原則。
-- 來源:https://www.producttalk.org/glossary-discovery-one-way-door-decision/, https://fs.blog/reversible-irreversible-decisions/, https://www.theuncertaintyproject.org/tools/decision-types
+### One-Way vs Two-Way Door Decisions · fit 5
+*aka / source:* Jeff Bezos / Amazon shareholder letter; Type 1 (one-way door, irreversible) vs Type 2 (two-way door, reversible)
+- **What it is**: Bezos's decision taxonomy from an Amazon shareholder letter. Type 1 (one-way door) decisions are consequential and nearly irreversible; they must be made slowly, deliberately, with broad consultation. Type 2 (two-way door) decisions are low-risk and reversible; an individual or small team can make them quickly, and if wrong, just fix them. The core warning is "don't use Type 1's heavyweight process on a Type 2 decision"—that grinds the organization to a halt.
+- **Use in the process**: Before deciding, ask: "Once I push through this door, can I easily walk back?" Reversible → delegate a fast decision and tolerate being wrong; irreversible/hard-to-reverse → trigger the heavyweight process (DACI/RAPID + pre-mortem + decision doc). Deliberately design most decisions to be reversible, to go faster.
+- **Questions to ask**: "Is this decision reversible? What's the cost of walking it back?" "Am I applying the deliberation I owe an irreversible decision to stall a small reversible one?" "Can I re-engineer this decision to be reversible (feature flag, gradual rollout, rollback)?"
+- **Engineering**: A rollback-able deploy, or a feature behind a flag = two-way door, so encourage small teams to try fast. A destructive database schema migration, dropping an old column, or a breaking change to a public API contract = one-way door, run rigorous review. In engineering you can often turn a one-way door *into* a two-way door with flags, gradual rollout, or dual writes.
+- **Product**: Changing a button color or copy = two-way door, try it fast; deprecating a feature an old merchant depends on, or changing the pricing model = one-way door, needs care and thorough communication.
+- **Ops**: Changing a dashboard's default filter = two-way door; deleting or redefining a historical metric definition (which affects historical comparability) = one-way door, keep the old definition and announce widely.
+- **Strategy**: Entering a new market you can exit cheaply = two-way door, worth trying; signing a long-term contract, an acquisition, or a major rebrand = one-way door, demands the highest deliberation.
+- **2026**: Still in 2025/2026 the most-cited test for "how much deliberation does this deserve" in SaaS/startups; it fits feature flags, progressive delivery, and reversible architecture design well, and engineering cultures often adopt "make decisions two-way doors wherever possible" as a principle.
+- Sources: https://www.producttalk.org/glossary-discovery-one-way-door-decision/, https://fs.blog/reversible-irreversible-decisions/, https://www.theuncertaintyproject.org/tools/decision-types
 
-### Pre-mortem 事前驗屍 (Pre-mortem) · fit 5
-*aka / 出處:* Gary Klein，HBR 2007 年 9 月；基於 prospective hindsight（前瞻性後見之明）
-- **是什麼**:Klein 於 2007 年 HBR 提出的技術：在專案啟動時，假設『專案已經徹底失敗了』，請團隊逆向想像『到底是什麼搞砸的』。背後依據是 Mitchell、Russo、Pennington（1989）的研究——前瞻性後見之明（想像事件已發生）能把正確指出未來結果原因的能力提升約 30%。它與一般風險分析不同之處在於『假設已死』降低了講出負面意見的心理門檻。
-- **用在決策流程**:重要決策/專案啟動前花 20-30 分鐘：(1) 設定情境『現在是 X 個月後，這個專案慘敗了』；(2) 每人獨立寫下所有失敗原因；(3) 輪流分享（round-robin）；(4) 依此調整計畫並設防範措施。注意：避免讓高階主管在場，否則會壓抑坦誠。
-- **問對問題**:『假設這件事已經失敗了，最可能的死因是什麼？』『有哪些我們平常因為怕掃興/不禮貌而不會講出來的風險？』『針對最可能的死因，我們現在能加什麼防護？』
-- **軟體工程**:大型遷移/重構/重要上線（如多租戶資料庫切換、黑五大促前的容量規劃）前做 pre-mortem：團隊往往會提出『某租戶資料量爆量』『第三方金流逾時』『快取雪崩』等平常不會在 review 講的死因，進而提前加 circuit breaker、壓測、rollback plan。
-- **產品開發**:新功能 GA 前 pre-mortem：想像六個月後該功能無人使用或造成客訴，逆推是定價、onboarding 還是效能問題，提前補強。
-- **營運分析**:重大資料遷移或報表系統換代前，預想『上線後數字全錯/對不上舊報表』的死因，提前建對帳機制。
-- **策略**:進入新市場或推新商業模式前的 pre-mortem，逼出樂觀計畫中的盲點。
-- **2026**:2025/2026 仍是工程與產品團隊最實用、成本最低的對抗過度自信工具之一；常與 WRAP 的『Prepare to be wrong』與 launch readiness review 結合。注意 30% 數字源自 1989 研究，常被引用但屬單一研究結果。
-- 來源:https://en.wikipedia.org/wiki/Pre-mortem, https://nesslabs.com/pre-mortem-anticipate-failure-with-prospective-hindsight, https://hbr.org/2007/09/performing-a-project-premortem
+### Pre-mortem · fit 5
+*aka / source:* Gary Klein, HBR September 2007; based on prospective hindsight
+- **What it is**: The technique Klein described in HBR (2007): at a project's kickoff, assume the project has already failed completely, and ask the team to imagine, working backwards, "what exactly went wrong?" The basis is research by Mitchell, Russo & Pennington (1989)—prospective hindsight (imagining an event has already happened) increased the ability to correctly identify reasons for a future outcome by about 30%. What sets it apart from ordinary risk analysis is that "assume it's already dead" lowers the psychological barrier to voicing negative opinions.
+- **Use in the process**: Before a consequential decision/project kicks off, spend 20–30 minutes: (1) set the scene "it's now X months from now and this project has failed badly"; (2) each person independently writes down every reason it failed; (3) share round-robin; (4) adjust the plan and add safeguards accordingly. Note: avoid having senior leaders present, or candor gets suppressed.
+- **Questions to ask**: "If we assume this has already failed, what's the most likely cause of death?" "What risks do we normally not voice because we fear being a downer or seeming impolite?" "For the most likely cause of death, what protection can we add now?"
+- **Engineering**: Run a pre-mortem before a large migration/refactor/major launch (e.g. a multi-tenant database cutover, or capacity planning before a Black Friday peak): teams will surface causes of death they wouldn't normally raise in review—"one tenant's data volume explodes," "third-party payments time out," "cache stampede"—prompting circuit breakers, load tests, and a rollback plan ahead of time.
+- **Product**: A pre-mortem before a new feature's GA: imagine that six months later nobody uses the feature or it generates complaints, then reason backward to whether it's pricing, onboarding, or performance, and reinforce in advance.
+- **Ops**: Before a major data migration or reporting-system replacement, imagine the causes of death where "the numbers are all wrong / don't reconcile with the old reports after launch," and build reconciliation checks ahead of time.
+- **Strategy**: A pre-mortem before entering a new market or launching a new business model, to force the blind spots out of an optimistic plan.
+- **2026**: Still in 2025/2026 one of the most practical, lowest-cost tools engineering and product teams have against overconfidence; often combined with WRAP's "Prepare to be wrong" and with launch-readiness reviews. Note: the 30% figure comes from the 1989 study—widely cited but a single research result.
+- Sources: https://en.wikipedia.org/wiki/Pre-mortem, https://nesslabs.com/pre-mortem-anticipate-failure-with-prospective-hindsight, https://hbr.org/2007/09/performing-a-project-premortem
 
-### 延遲成本 (Cost of Delay) 與 CD3/WSJF · fit 5
-*aka / 出處:* Don Reinertsen《Principles of Product Development Flow》；CD3 = Cost of Delay ÷ Duration；SAFe 稱 WSJF (Weighted Shortest Job First)；Black Swan Farming (Joshua Arnold) 推廣
-- **是什麼**:Cost of Delay 衡量『晚一個單位時間交付會損失多少經濟價值』，把『價值』與『急迫性』兩個人類常混淆的維度結合。Reinertsen 名言：『若你只能量化一件事，就量化延遲成本。』CD3/WSJF 把延遲成本除以工期，用『單位時間的經濟回報率』排序，分數高者先做——因為除以工期，也鼓勵把工作切小批量。
-- **用在決策流程**:為 backlog 中每個項目估算 Cost of Delay（可用 Black Swan Farming 的四種急迫性曲線：Expedite 持續高損失、Fixed-Date 過期才有損失、Standard 線性後遞減、Intangible 無形/延後）與工期，計算 CD3 = CoD ÷ Duration，由高到低排序開發順序。
-- **問對問題**:『這件事『晚做一週』到底會損失多少錢/機會？』『我是不是只看價值大小，卻忽略了急迫性曲線的形狀？』『把這個大項目切小，是不是能更快開始回收價值？』
-- **軟體工程**:決定先修哪個技術債/先做哪個平台優化：把『不做會持續流失的』（如效能導致流失=Expedite）排在『有合規期限的』（Fixed-Date）與『錦上添花』（Intangible）之前；CD3 的除以工期也呼應『小批量、快交付』的工程實踐。
-- **產品開發**:Roadmap 排序的經濟性依據，比『誰聲音大』或純直覺更可辯護；特別適合多租戶 SaaS 面對眾多商家需求時的取捨。
-- **營運分析**:用實際營收/留存資料估算各功能或修復的延遲成本，讓排序有資料支撐而非拍腦袋。
-- **策略**:投資組合層級排序：Reinertsen/Arnold 指出延遲成本在組合中呈冪律分布，少數項目的 CoD 規模遠大於其他，量化後才看得出該集中資源在哪。
-- **2026**:2025/2026 仍是 SAFe (WSJF) 與精實產品開發的核心排序法；對多租戶電商 SaaS 尤其有用，因為需求遠多於產能、必須有經濟性依據做取捨。難點在估算 CoD，常用相對估算（如 Fibonacci）而非精確金額。
-- 來源:https://blackswanfarming.com/cost-of-delay/, https://blackswanfarming.com/urgency-profiles/, https://wind4change.com/cost-delay-divided-duration-cd3-wsjf-reinertsen-safe/, https://framework.scaledagile.com/wsjf
+### Cost of Delay with CD3 / WSJF · fit 5
+*aka / source:* Don Reinertsen, *Principles of Product Development Flow*; CD3 = Cost of Delay ÷ Duration; SAFe calls it WSJF (Weighted Shortest Job First); popularized by Black Swan Farming (Joshua Arnold)
+- **What it is**: Cost of Delay measures "how much economic value is lost per unit of time we deliver late," combining two dimensions humans routinely conflate—value and urgency. Reinertsen's line: "If you only quantify one thing, quantify the cost of delay." CD3/WSJF divides cost of delay by duration to rank by "economic return per unit of time," doing the highest-scoring work first—and because it divides by duration, it also rewards slicing work into smaller batches.
+- **Use in the process**: For each backlog item, estimate Cost of Delay (Black Swan Farming's four urgency profiles help: Expedite = sustained high loss, Fixed-Date = no loss until a deadline passes, Standard = value that decays after a peak, Intangible = deferred/hard-to-see) and duration, then compute CD3 = CoD ÷ Duration and sequence development from highest to lowest.
+- **Questions to ask**: "How much money/opportunity do we actually lose by doing this a week later?" "Am I looking only at the size of the value and ignoring the *shape* of the urgency profile?" "If I slice this large item smaller, can we start capturing value sooner?"
+- **Engineering**: Deciding which tech debt to pay down or platform improvement to do first: rank the "thing that keeps bleeding if undone" (e.g. performance causing churn = Expedite) ahead of the "thing with a compliance deadline" (Fixed-Date) and the "nice-to-have" (Intangible); dividing by duration also echoes the "small batches, fast delivery" engineering practice.
+- **Product**: An economic basis for roadmap sequencing, more defensible than "who's loudest" or pure intuition; especially useful for a multi-tenant SaaS weighing many merchants' requests.
+- **Ops**: Use actual revenue/retention data to estimate the cost of delay of each feature or fix, so the ordering is data-backed rather than a gut call.
+- **Strategy**: Portfolio-level sequencing: Reinertsen/Arnold note that cost of delay is power-law distributed across a portfolio—a few items have a CoD far larger than the rest, and only by quantifying do you see where to concentrate resources.
+- **2026**: Still in 2025/2026 the core sequencing method in SAFe (WSJF) and lean product development; especially useful for a multi-tenant commerce SaaS, where demand far exceeds capacity and tradeoffs need an economic basis. The hard part is estimating CoD; relative estimation (e.g. Fibonacci) is commonly used instead of precise dollar figures.
+- Sources: https://blackswanfarming.com/cost-of-delay/, https://blackswanfarming.com/urgency-profiles/, https://wind4change.com/cost-delay-divided-duration-cd3-wsjf-reinertsen-safe/, https://framework.scaledagile.com/wsjf
 
-### OODA 迴路 (OODA Loop) · fit 4
-*aka / 出處:* John Boyd（美國空軍上校），1970 年代初；Observe-Orient-Decide-Act
-- **是什麼**:Boyd 提出的決策迴路，強調在競爭、快速變化環境中持續循環 Observe→Orient→Decide→Act，並以比對手更快、更出其不意地完成循環來取得優勢（『operate inside the opponent's OODA loop』）。Boyd 視 Orient（用文化、經驗、脈絡去詮釋觀察）為最關鍵的一步。
-- **用在決策流程**:把決策視為持續迴路而非一次性事件：Observe（蒐集即時數據/訊號）→ Orient（結合脈絡與心智模型詮釋，這步最易出錯）→ Decide（選一個行動）→ Act（執行並把結果回饋進下一圈）。重點是縮短迴路週期、加快回饋。
-- **問對問題**:『我的觀測訊號夠即時嗎，還是在用過時資料決策？』『我在 Orient 這步的心智模型/假設是不是錯的？』『我能不能比競品/攻擊者更快完成一圈？』
-- **軟體工程**:事故應變 (incident response) 與資安藍隊：監控告警 (Observe) → 結合脈絡判斷影響面 (Orient) → 決定降級/封鎖 (Decide) → 執行並觀察 (Act)；縮短 MTTR 本質上就是縮短 OODA 迴路。CI/CD 快速部署+觀測也是加速迴路。
-- **產品開發**:快速迭代的 build-measure-learn：上線小功能 → 觀測埋點數據 → 重新詮釋使用者行為 → 調整，盡量縮短一圈時間以比競品更快學習。
-- **營運分析**:建立即時 dashboard 與告警，讓營運團隊能比手動月報更快 Observe→Orient，對促銷/庫存/詐騙訊號快速反應。
-- **策略**:在競爭激烈的電商 SaaS 市場，把『比對手更快感知並回應市場變化』本身當成策略優勢；用 OODA 解釋為何小團隊能靠速度打贏大公司。
-- **2026**:2025/2026 在 AI 加持下，Observe/Orient 可由 AI agent 自動彙整與初步詮釋，大幅壓縮迴路週期；常見於 SecOps、SRE、即時交易與成長團隊論述。
-- 來源:https://en.wikipedia.org/wiki/OODA_loop, https://oodaloop.com/the-ooda-loop-explained-the-real-story-about-the-ultimate-model-for-decision-making-in-competitive-environments/, https://thedecisionlab.com/reference-guide/computer-science/the-ooda-loop
+### OODA Loop · fit 4
+*aka / source:* John Boyd (US Air Force colonel), early 1970s; Observe-Orient-Decide-Act
+- **What it is**: Boyd's decision loop, emphasizing continuous cycling through Observe → Orient → Decide → Act in competitive, fast-changing environments, gaining advantage by completing the cycle faster and less predictably than the opponent ("operate inside the opponent's OODA loop"). Boyd regarded Orient (interpreting observations through culture, experience, and context) as the most decisive step.
+- **Use in the process**: Treat decisions as a continuous loop rather than a one-time event: Observe (gather real-time data/signals) → Orient (interpret through context and mental models—the most error-prone step) → Decide (choose an action) → Act (execute and feed the result into the next turn). The point is to shorten the loop's cycle time and speed up feedback.
+- **Questions to ask**: "Are my observation signals fresh enough, or am I deciding on stale data?" "Are my mental models/assumptions in the Orient step simply wrong?" "Can I complete a turn faster than the competitor/attacker?"
+- **Engineering**: Incident response and a security blue team: monitoring alerts (Observe) → interpret the blast radius in context (Orient) → decide to degrade/contain (Decide) → execute and watch (Act); shortening MTTR is essentially shortening the OODA loop. Fast CI/CD deploys plus observability also accelerate the loop.
+- **Product**: Fast-iterating build-measure-learn: ship a small feature → observe instrumentation data → reinterpret user behavior → adjust, minimizing the time per turn to learn faster than competitors.
+- **Ops**: Build real-time dashboards and alerts so the ops team can Observe → Orient faster than a manual monthly report and react quickly to promotion/inventory/fraud signals.
+- **Strategy**: In a fiercely competitive commerce SaaS market, treat "sensing and responding to market shifts faster than rivals" as a strategic advantage in itself; use OODA to explain how a small team can win on speed against a larger company.
+- **2026**: In 2025/2026, with AI assistance, Observe/Orient can be auto-aggregated and pre-interpreted by an AI agent, compressing the loop's cycle time substantially; common in SecOps, SRE, real-time trading, and growth-team discourse.
+- Sources: https://en.wikipedia.org/wiki/OODA_loop, https://oodaloop.com/the-ooda-loop-explained-the-real-story-about-the-ultimate-model-for-decision-making-in-competitive-environments/, https://thedecisionlab.com/reference-guide/computer-science/the-ooda-loop
 
-### PDCA 循環 (PDCA Cycle) · fit 4
-*aka / 出處:* Walter Shewhart / W. Edwards Deming；Plan-Do-Check-Act，亦稱 Deming Cycle / PDSA
-- **是什麼**:源自製造業品質管理的持續改善循環：Plan（規劃改變與假設）→ Do（小規模試行）→ Check（量測結果對照預期）→ Act（採納或調整後再循環）。與 OODA 相比，PDCA 更偏『測試一項改變、小規模驗證後再全面推行』，OODA 偏『高速回應觀察做決策』。
-- **用在決策流程**:把任何流程/系統改善當成一個受控實驗：先寫下假設與成功指標 (Plan)，小範圍試行 (Do)，用資料對照預期 (Check)，再決定標準化或回頭調整 (Act)。適合可控、可量測、追求穩定優化的情境。
-- **問對問題**:『我這次改變的假設與成功指標是什麼？』『我有沒有先小規模驗證再全面推？』『Check 階段的資料是否真的對照了當初的 Plan？』
-- **軟體工程**:效能優化與 SLO 改善：Plan 設定 p99 目標 → Do 在單一服務試新快取策略 → Check 比對 metrics → Act 推廣或回退；也適用 release 流程、on-call runbook 的持續精修。
-- **產品開發**:功能漸進式優化（非顛覆式創新）：小批量發布、量測、標準化；與 Cynefin 的 complicated/clear 域契合。
-- **營運分析**:客服/退貨/物流流程的持續改善，用 PDCA 跑流程實驗並把有效做法寫入 SOP。
-- **策略**:營運卓越 (operational excellence) 導向的策略執行，把策略拆成可量測的 PDCA 改善循環。
-- **2026**:PDCA 與 OODA 常被並用：用 OODA 做快速戰術回應，用 PDCA 定期回顧績效與設新目標；2025/2026 在 SRE/品質工程與 AI 模型迭代評估中仍廣泛使用。
-- 來源:https://www.isixsigma.com/plan-do-check-act/pdca-vs-ooda-whats-the-difference/, https://www.theknowledgeacademy.com/blog/ooda-vs-pdca/, https://www.learnleansigma.com/problem-solving/pdca-and-ooda-for-problem-solving/
+### PDCA Cycle · fit 4
+*aka / source:* Walter Shewhart / W. Edwards Deming; Plan-Do-Check-Act, also called the Deming Cycle / PDSA
+- **What it is**: The continuous-improvement cycle from manufacturing quality management: Plan (design a change and its hypothesis) → Do (try it at small scale) → Check (measure results against expectation) → Act (adopt, or adjust and cycle again). Versus OODA, PDCA leans toward "test one change, validate at small scale, then roll out broadly," whereas OODA leans toward "respond to observations and decide at high speed."
+- **Use in the process**: Treat any process/system improvement as a controlled experiment: write down the hypothesis and success metric (Plan), try it on a small scope (Do), check the data against expectation (Check), then decide to standardize or go back and adjust (Act). Suited to controllable, measurable situations that pursue stable optimization.
+- **Questions to ask**: "What's the hypothesis and success metric for this change?" "Did I validate at small scale before rolling out broadly?" "Does the Check-stage data actually map back to the original Plan?"
+- **Engineering**: Performance optimization and SLO improvement: Plan a p99 target → Do try a new cache strategy on a single service → Check compare metrics → Act roll out or roll back; also applies to release processes and continuous refinement of on-call runbooks.
+- **Product**: Incremental feature optimization (not disruptive innovation): ship in small batches, measure, standardize; fits Cynefin's complicated/clear domains.
+- **Ops**: Continuous improvement of support/returns/logistics processes—run process experiments with PDCA and write what works into the SOP.
+- **Strategy**: Operational-excellence-oriented strategy execution: break strategy into measurable PDCA improvement cycles.
+- **2026**: PDCA and OODA are often used together: OODA for fast tactical response, PDCA for periodic performance review and setting new targets; still widely used in 2025/2026 in SRE/quality engineering and in AI-model iteration and evaluation.
+- Sources: https://www.isixsigma.com/plan-do-check-act/pdca-vs-ooda-whats-the-difference/, https://www.theknowledgeacademy.com/blog/ooda-vs-pdca/, https://www.learnleansigma.com/problem-solving/pdca-and-ooda-for-problem-solving/
 
-### RAPID 決策權責 (RAPID Framework) · fit 4
-*aka / 出處:* Bain & Company；Recommend / Agree / Perform / Input / Decide（字母非執行順序）
-- **是什麼**:Bain 提出的決策角色分配框架，為高風險、高金額或政治敏感的決策釐清五種角色。注意 R-A-P-I-D 不是流程順序而是角色集合。每個決策理想上只有一位 Recommend 與一位 Decide。
-- **用在決策流程**:對重要決策明確指派：Recommend（驅動流程、整合輸入、提出建議）、Agree（具否決權，通常用於法務/法規合規，謹慎指派）、Perform（負責執行落地，要早點指定）、Input（提供專業/受影響者意見，但無否決權）、Decide（最終拍板並讓組織承諾行動）。
-- **問對問題**:『這個決策誰真的有權拍板 (D)？』『有沒有人因合規/法規而握有實質否決權 (A)？』『誰要負責執行，他被納入了嗎 (P)？』『我們是不是把太多人當成決策者，導致卡住？』
-- **軟體工程**:重大架構決策（如改造多租戶資料隔離、換訊息佇列）：Tech Lead = Recommend、資安/DBA = Agree、實作團隊 = Perform、相關工程師 = Input、Engineering Manager/架構師 = Decide；可寫進 ADR (Architecture Decision Record) 標頭。
-- **產品開發**:決定砍掉或重做一個主要功能模組這類 one-way door：PM = Recommend、法務/財務 = Agree、工程+設計 = Perform、客服+業務 = Input、產品總監 = Decide。
-- **營運分析**:定義關鍵指標口徑或資料治理政策時，用 RAPID 區分誰提案、誰合規把關、誰落地建表。
-- **策略**:併購、進入新市場、訂價策略等高風險決策的標準權責框架；Bain 建議只對高價值或高頻決策正式套用，不必每件事都跑 RAPID。
-- **2026**:相較 DACI，RAPID 多了明確的 Agree（合規否決）與 Perform（執行銜接）角色，適合監管/高風險情境；2025/2026 在規模化組織治理與 AI 治理 (AI governance) 角色界定中被重新引用。
-- 來源:https://www.bain.com/insights/rapid-decision-making/, https://www.centercode.com/blog/raci-vs-daci-vs-rapid, https://www.theuncertaintyproject.org/tools/rapid-framework
+### RAPID Framework · fit 4
+*aka / source:* Bain & Company; Recommend / Agree / Perform / Input / Decide (the letters are not the execution order)
+- **What it is**: Bain's decision-roles framework, clarifying five roles for high-risk, high-dollar, or politically sensitive decisions. Note that R-A-P-I-D is not a process sequence but a set of roles. Ideally each decision has exactly one Recommend and one Decide.
+- **Use in the process**: For a consequential decision, assign explicitly: Recommend (drives the process, integrates input, makes the proposal), Agree (holds a veto, typically for legal/regulatory compliance, assign sparingly), Perform (responsible for execution, name them early), Input (provides expertise / affected-party views but holds no veto), Decide (makes the final call and commits the organization to act).
+- **Questions to ask**: "Who really has authority to make the call (D)?" "Does anyone hold a real veto for compliance/regulatory reasons (A)?" "Who has to execute—are they included (P)?" "Are we treating too many people as deciders and getting stuck?"
+- **Engineering**: A major architecture decision (e.g. reworking multi-tenant data isolation, switching message queues): Tech Lead = Recommend, security/DBA = Agree, the implementing team = Perform, related engineers = Input, Engineering Manager/architect = Decide; can be written into an ADR (Architecture Decision Record) header.
+- **Product**: Deciding to kill or rebuild a major feature module—this kind of one-way door: PM = Recommend, legal/finance = Agree, engineering + design = Perform, support + sales = Input, Product Director = Decide.
+- **Ops**: When defining a key metric definition or a data-governance policy, use RAPID to distinguish who proposes, who gatekeeps compliance, and who implements the tables.
+- **Strategy**: The standard roles framework for high-risk decisions like acquisitions, market entry, and pricing strategy; Bain advises applying RAPID formally only to high-value or high-frequency decisions, not to everything.
+- **2026**: Compared with DACI, RAPID adds the explicit Agree (compliance veto) and Perform (execution handoff) roles, suiting regulated/high-risk situations; in 2025/2026 it is being cited again in scaled-organization governance and in defining roles for AI governance.
+- Sources: https://www.bain.com/insights/rapid-decision-making/, https://www.centercode.com/blog/raci-vs-daci-vs-rapid, https://www.theuncertaintyproject.org/tools/rapid-framework
 
-### 決策日誌 (Decision Journal) · fit 4
-*aka / 出處:* Shane Parrish / Farnam Street 推廣；根植於對抗 hindsight bias 與 outcome bias
-- **是什麼**:在做重要決策『當下』把當時的思考、假設、預期結果與機率寫下來，日後再回頭對照實際發生，藉此對抗『後見之明偏誤』（大腦會竄改記憶讓你以為自己當時就知道）與『結果偏誤』（只用結果好壞評判決策品質）。核心：用簡單到 8 歲小孩都懂的語言寫下『你在決定什麼、為什麼』。
-- **用在決策流程**:做決策時記錄：(1) 情境/脈絡；(2) 問題框架；(3) 關鍵變數；(4) 複雜度/顧慮；(5) 認真考慮但被否決的替代方案與原因；(6) 可能結果範圍；(7) 你預期的結果與你給的機率；(8) 當下的身心狀態（時間、情緒）。定期回顧，對照預期 vs 實際，找出自己決策模式的系統性偏差。
-- **問對問題**:『我現在預期會發生什麼，機率多少？』『我認真考慮過哪些替代方案，為什麼否決？』『半年後回看，我能不能誠實判斷這是好決策還是只是好運？』
-- **軟體工程**:用 ADR (Architecture Decision Record) 當決策日誌：記錄選某技術時的 context、考慮過的替代方案、預期 trade-off 與假設（如『預期這個快取能把 DB 負載降 50%』），日後回看驗證假設是否成立、校準自己的技術判斷。
-- **產品開發**:為每個重大功能押注寫下『預期會提升 X 轉換率，機率 60%』，發布後對照真實數據，逐步校準產品直覺。
-- **營運分析**:做容量/成本/促銷預測時寫下假設與信心水準，事後與實際對照，量化自己的預測校準度 (calibration)。
-- **策略**:重大策略下注（進新市場、組織調整）記錄當時邏輯，避免事後用結果重寫歷史，建立組織的決策學習資產。
-- **2026**:2025/2026 與 ADR、產品 decision doc、async 文件文化天然契合；AI 可協助結構化記錄與事後對照分析，但『誠實記下當時的真實想法』才是價值所在。
-- 來源:https://fs.blog/decision-journal/, https://fs.blog/shane-parrish-mental-models/, https://www.successpodcast.com/blog/2017/5/3/building-a-mental-model-toolbox-with-shane-parrish
+### Decision Journal · fit 4
+*aka / source:* Popularized by Shane Parrish / Farnam Street; rooted in countering hindsight bias and outcome bias
+- **What it is**: Write down your thinking, assumptions, expected outcomes, and probabilities at the *moment* you make a consequential decision, then later compare against what actually happened—to counter hindsight bias (the brain rewrites memory so you believe you "knew it all along") and outcome bias (judging decision quality only by whether the outcome was good or bad). The core: write down "what you're deciding and why" in language simple enough for an 8-year-old.
+- **Use in the process**: When deciding, record: (1) the situation/context; (2) the problem frame; (3) the key variables; (4) the complications/concerns; (5) the alternatives you seriously considered but rejected and why; (6) the range of possible outcomes; (7) the outcome you expect and the probability you assign it; (8) your physical/mental state at the time (time of day, emotion). Review periodically, compare expected vs actual, and find the systematic biases in your own decision patterns.
+- **Questions to ask**: "What do I expect to happen, and with what probability?" "Which alternatives did I seriously consider, and why did I reject them?" "Looking back in six months, can I honestly tell whether this was a good decision or just good luck?"
+- **Engineering**: Use ADRs (Architecture Decision Records) as a decision journal: record the context of choosing a technology, the alternatives considered, and the expected tradeoffs and assumptions (e.g. "we expect this cache to cut DB load by 50%"), then look back to validate whether the assumptions held and calibrate your technical judgment.
+- **Product**: For each major feature bet, write down "we expect this to lift conversion by X, probability 60%," then compare against real data post-launch to progressively calibrate product intuition.
+- **Ops**: When making capacity/cost/promotion forecasts, write down assumptions and confidence level, compare with actuals afterward, and quantify your own forecast calibration.
+- **Strategy**: For major strategic bets (new market, org change), record the reasoning at the time to avoid rewriting history with the outcome afterward, and build the organization's decision-learning asset.
+- **2026**: In 2025/2026 it fits naturally with ADRs, product decision docs, and async documentation culture; AI can help structure the records and do the after-the-fact comparison, but the value lies in honestly recording your real thinking at the time.
+- Sources: https://fs.blog/decision-journal/, https://fs.blog/shane-parrish-mental-models/, https://www.successpodcast.com/blog/2017/5/3/building-a-mental-model-toolbox-with-shane-parrish
 
-### 加權決策矩陣 (Weighted Decision Matrix) · fit 4
-*aka / 出處:* 亦稱 Pugh Matrix / weighted scoring model / 加權評分；Stuart Pugh 提出 Pugh 篩選法
-- **是什麼**:把多個選項（欄）對多項評選準則（列）做評分，每個準則依重要性給權重，每格分數乘以權重後加總，得出每個選項的加權總分以利客觀比較。Pugh matrix 適合早期多選項粗篩；加權矩陣適合短名單做有依據的最終裁決。
-- **用在決策流程**:(1) 列出選項與評選準則；(2) 給每個準則權重（如相對排序 5/4/3/2/1，或百分比加總 100%）；(3) 用 1-5 或 1-10 為每個選項在每個準則上評分；(4) 分數×權重後加總；(5) 做敏感度分析（調權重看排名是否翻盤），避免被單一假設綁架。
-- **問對問題**:『我有沒有把真正重要的準則設對權重，還是只是合理化已經想選的那個？』『如果調整權重，排名會不會翻盤（敏感度）？』『有沒有漏掉某個關鍵準則（如維運成本、安全性）？』
-- **軟體工程**:技術選型（如選 message queue、選前端框架、選第三方金流/物流商）：準則設為效能、社群活躍度、學習曲線、維運成本、與既有 stack 相容性、安全合規，加權評分後當作 ADR 的決策依據，讓選擇可被質疑與複查。
-- **產品開發**:功能/供應商評估比較；也常見於 RICE/ICE 等產品排序的底層思路（把多維度量化成單一可比分數）。
-- **營運分析**:選分析工具、BI 平台、A/B test 平台時的客觀比較；也用於供應商評選。
-- **策略**:進入哪個市場、主推哪條產品線的高層比較；務必搭配敏感度分析，避免『精準的錯誤』給人虛假的客觀感。
-- **2026**:2025/2026 AI 可協助蒐集各選項在各準則上的事實資料來輔助評分，但權重設定（價值判斷）仍須人決定；最大風險是用看似客觀的數字包裝主觀偏好，故敏感度分析是必要步驟。
-- 來源:https://lucid.co/blog/weighted-decision-matrix, https://airfocus.com/blog/weighted-decision-matrix-prioritization/, https://sixsigmadsi.com/pugh-matrix/
+### Weighted Decision Matrix · fit 4
+*aka / source:* Also called the Pugh Matrix / weighted scoring model; Stuart Pugh proposed the Pugh selection method
+- **What it is**: Score multiple options (columns) against several selection criteria (rows), weight each criterion by importance, multiply each cell's score by its weight and sum, to get a weighted total per option for objective comparison. The Pugh matrix suits early coarse screening of many options; the weighted matrix suits a reasoned final call on a shortlist.
+- **Use in the process**: (1) List the options and the selection criteria; (2) weight each criterion (e.g. relative ranking 5/4/3/2/1, or percentages summing to 100%); (3) score each option on each criterion on a 1–5 or 1–10 scale; (4) multiply score × weight and sum; (5) run a sensitivity analysis (vary the weights to see if the ranking flips), so you aren't held hostage by a single assumption.
+- **Questions to ask**: "Have I set the weights to reflect what truly matters, or am I just rationalizing the option I already want?" "If I adjust the weights, does the ranking flip (sensitivity)?" "Have I missed a key criterion (e.g. operational cost, security)?"
+- **Engineering**: Technology choice (e.g. picking a message queue, a frontend framework, or a third-party payments/logistics provider): set criteria like performance, community activity, learning curve, operational cost, compatibility with the existing stack, and security/compliance, then weighted-score them as the basis for an ADR, making the choice open to challenge and re-review.
+- **Product**: Feature/vendor evaluation and comparison; also the underlying logic of product prioritization like RICE/ICE (quantifying multiple dimensions into a single comparable score).
+- **Ops**: Objective comparison when choosing an analytics tool, BI platform, or A/B test platform; also used in vendor selection.
+- **Strategy**: High-level comparison of which market to enter or which product line to push; always pair with sensitivity analysis, lest "precise wrongness" lend a false sense of objectivity.
+- **2026**: In 2025/2026 AI can help gather the factual data on each option against each criterion to inform scoring, but the weights (a value judgment) still must be set by humans; the biggest risk is dressing up a subjective preference in seemingly objective numbers, so sensitivity analysis is a required step.
+- Sources: https://lucid.co/blog/weighted-decision-matrix, https://airfocus.com/blog/weighted-decision-matrix-prioritization/, https://sixsigmadsi.com/pugh-matrix/
 
-### Vroom-Yetton 領導參與模型 (Vroom-Yetton(-Jago) Model) · fit 3
-*aka / 出處:* Victor Vroom & Phillip Yetton (1973)，Arthur Jago (1988) 擴充；又稱 Normative Decision Model / 領導參與模型
-- **是什麼**:幫領導者根據情境（用一系列 yes/no 問題）決定該讓部屬參與到什麼程度的規範性模型，提供五種決策風格，從完全獨裁到完全群體共識，目標是在決策品質、速度與團隊承諾感之間取得平衡。
-- **用在決策流程**:依情境（決策品質要求、資訊充足度、團隊承諾重要性、團隊是否認同目標）選擇五種風格之一：AI（自己用現有資訊決定）、AII（向部屬要資訊但自己決定）、CI（個別諮詢後自己決定）、CII（群體諮詢後自己決定）、GII（與團隊共識決定）。
-- **問對問題**:『這個決策需要團隊的認同/承諾才能成功嗎？若是，就別純獨裁。』『我手上的資訊夠不夠自己決定？』『拉大家進來的時間成本，值不值得換來更好的品質或 buy-in？』
-- **軟體工程**:選資料庫遷移方案：若需全隊配合執行（高承諾需求）→ 用 CII/GII 讓團隊參與；若是緊急 hotfix（高速度需求、資訊明確）→ 用 AI 自己快速決定。幫 Tech Lead 判斷何時開會討論、何時直接拍板。
-- **產品開發**:決定 sprint 目標時用 GII 拉團隊共識以提高承諾感；決定一個低風險的 UI 文案時用 AI 直接定，不必開會。
-- **營運分析**:決定指標定義（影響全公司報表）時用 CII/GII 諮詢各團隊以取得共識，避免日後口徑爭議。
-- **策略**:幫主管判斷哪些策略決策需要廣納參與（影響大、需 buy-in），哪些可由小核心圈快速定案。
-- **2026**:經典 1970s-80s 模型，原版需走流程圖判斷；2025/2026 較少被當作完整工具使用，但其核心洞見『參與程度應視情境而定，不是越多越好』在遠距/async 決策文化中仍很有用。
-- 來源:https://en.wikipedia.org/wiki/Vroom%E2%80%93Yetton_decision_model, https://www.mindtools.com/adamhmy/the-vroom-yetton-decision-model/, https://umbrex.com/resources/frameworks/organization-frameworks/vroom-yetton-jago-decision-model/
+### Vroom-Yetton(-Jago) Model · fit 3
+*aka / source:* Victor Vroom & Phillip Yetton (1973), extended by Arthur Jago (1988); also called the Normative Decision Model / leadership participation model
+- **What it is**: A normative model that helps a leader decide—via a series of yes/no questions about the situation—how much to involve subordinates. It offers five decision styles, from fully autocratic to full group consensus, aiming to balance decision quality, speed, and the team's sense of commitment.
+- **Use in the process**: Based on the situation (decision-quality requirement, sufficiency of information, importance of team commitment, whether the team shares the goal), choose one of five styles: AI (decide yourself with information at hand), AII (get information from subordinates but decide yourself), CI (consult individually, then decide yourself), CII (consult as a group, then decide yourself), GII (decide by consensus with the team).
+- **Questions to ask**: "Does this decision need the team's buy-in/commitment to succeed? If so, don't go purely autocratic." "Do I have enough information to decide on my own?" "Is the time cost of pulling everyone in worth the better quality or buy-in it buys?"
+- **Engineering**: Choosing a database migration approach: if it needs the whole team to execute (high commitment need) → use CII/GII to involve the team; if it's an emergency hotfix (high speed need, clear information) → use AI to decide fast yourself. Helps a Tech Lead judge when to convene a discussion and when to just call it.
+- **Product**: Use GII to build consensus on sprint goals to raise commitment; use AI to set a low-risk UI copy decision directly, no meeting needed.
+- **Ops**: When defining a metric (affecting company-wide reporting), use CII/GII to consult each team and gain consensus, avoiding later disputes over definitions.
+- **Strategy**: Helps a manager judge which strategic decisions need broad participation (high impact, need buy-in) and which a small core circle can decide quickly.
+- **2026**: A classic 1970s–80s model whose original form requires walking a flowchart; in 2025/2026 it's less often used as a complete tool, but its core insight—"the degree of participation should depend on the situation, not 'more is always better'"—remains useful in remote/async decision culture.
+- Sources: https://en.wikipedia.org/wiki/Vroom%E2%80%93Yetton_decision_model, https://www.mindtools.com/adamhmy/the-vroom-yetton-decision-model/, https://umbrex.com/resources/frameworks/organization-frameworks/vroom-yetton-jago-decision-model/
 
-### 艾森豪矩陣 (Eisenhower Matrix) · fit 3
-*aka / 出處:* Urgent-Important Matrix；命名自 Dwight D. Eisenhower；由 Stephen Covey 推廣於《7 Habits》
-- **是什麼**:用『重要性』與『緊急性』兩軸切成 2x2 四象限的優先排序工具，對應四種行動：重要且緊急 = Do（馬上做）；重要不緊急 = Schedule/Defer（排程做，深度工作所在）；緊急不重要 = Delegate（授權他人）；不重要不緊急 = Delete（刪除）。關鍵洞見：重要不緊急的事應排在緊急不重要之前。
-- **用在決策流程**:把待辦/請求分類到四象限，依象限決定行動。核心是抵抗『緊急性陷阱』——避免整天被緊急但不重要的事推著走，刻意保護『重要不緊急』（長期價值）的時間。
-- **問對問題**:『這件事是真的重要，還是只是別人覺得緊急？』『我是不是把所有時間都花在救火（緊急不重要），而沒空做重要不緊急的長期投資？』『這件事能不能授權出去？』
-- **軟體工程**:管理工程待辦：production 事故 = Do；償還技術債/補測試/重構 = Schedule（重要不緊急，最常被犧牲卻最該保護）；某些臨時報表請求 = Delegate；過度工程的『nice to have』= Delete。
-- **產品開發**:個人/小團隊層級的工作排序（非整個 backlog 經濟性排序——那用 cost of delay）；快速分流湧入的 feature request 與 bug。
-- **營運分析**:分流臨時 ad-hoc 數據需求：影響決策的 = Do/Schedule、可由自助 dashboard 解決的 = Delegate（導向自助）、純好奇的 = Delete。
-- **策略**:個人/主管時間管理層級有用；團隊與產品層級的策略排序建議改用加權評分或 cost of delay 等更量化的方法。
-- **2026**:2026 各大任務工具（Asana、Todoist）內建此模型；屬個人生產力層級，對工程師管理自己的時間與技術債投資特別實用，但別拿它取代團隊級的經濟性排序。
-- 來源:https://asana.com/resources/eisenhower-matrix, https://untools.co/eisenhower-matrix/, https://www.todoist.com/productivity-methods/eisenhower-matrix
+### Eisenhower Matrix · fit 3
+*aka / source:* Urgent-Important Matrix; named after Dwight D. Eisenhower; popularized by Stephen Covey in *The 7 Habits*
+- **What it is**: A prioritization tool that cuts a 2x2 along the axes of "importance" and "urgency," mapping to four actions: important and urgent = Do (do now); important not urgent = Schedule/Defer (schedule it—where deep work lives); urgent not important = Delegate (hand it off); not important not urgent = Delete. The key insight: important-but-not-urgent should rank ahead of urgent-but-not-important.
+- **Use in the process**: Sort to-dos/requests into the four quadrants and act by quadrant. The core is resisting the "urgency trap"—avoid being pushed around all day by urgent-but-unimportant things, and deliberately protect time for "important not urgent" (long-term value).
+- **Questions to ask**: "Is this genuinely important, or just urgent to someone else?" "Am I spending all my time firefighting (urgent not important) and never doing the important-not-urgent long-term investment?" "Can this be delegated?"
+- **Engineering**: Managing an engineering to-do list: a production incident = Do; paying down tech debt / adding tests / refactoring = Schedule (important not urgent—most often sacrificed yet most worth protecting); certain ad-hoc report requests = Delegate; over-engineered "nice to haves" = Delete.
+- **Product**: Work sequencing at the individual/small-team level (not economic sequencing of the whole backlog—use cost of delay for that); quickly triaging the inflow of feature requests and bugs.
+- **Ops**: Triaging ad-hoc data requests: decision-driving ones = Do/Schedule, ones solvable by a self-serve dashboard = Delegate (point to self-serve), purely curious ones = Delete.
+- **Strategy**: Useful at the individual/manager time-management level; for team- and product-level strategic sequencing, switch to more quantitative methods like weighted scoring or cost of delay.
+- **2026**: In 2026 major task tools (Asana, Todoist) build this model in; it's a personal-productivity-level tool, especially useful for an engineer managing their own time and tech-debt investment, but don't let it replace team-level economic sequencing.
+- Sources: https://asana.com/resources/eisenhower-matrix, https://untools.co/eisenhower-matrix/, https://www.todoist.com/productivity-methods/eisenhower-matrix
 
-### 七步驟決策流程 + 五種決策模式 (7-Step Process & Decision-Making Models, Asana) · fit 3
-*aka / 出處:* Asana 整理的通用決策流程；7 steps + 決策模式（理性 Rational / 直覺 Intuitive / 創意 Creative / 協作 Collaborative，常另列 Vroom-Yetton 五風格）
-- **是什麼**:Asana 等彙整的通用七步驟流程：(1) 界定決策 (2) 蒐集相關資訊 (3) 找出替代方案 (4) 權衡證據 (5) 在選項中抉擇 (6) 採取行動 (7) 檢討決策與後果。並列出幾種決策模式：理性（邏輯、循序、資料驅動，適合高影響決策）、直覺（靠經驗的模式辨識）、創意（蒐集資訊後讓潛意識處理）、協作（群體共識、共同當責）。
-- **用在決策流程**:把它當成串起其他工具的骨架：第 (1) 步用 Cynefin 判斷問題類型；第 (3)(4) 步嵌入 WRAP 拓寬選項與加權矩陣；第 (4) 步嵌 pre-mortem；決策前用 one-way/two-way door 決定審慎度與用 DACI 釘角色；第 (7) 步用 decision journal 回顧。再依情境選理性/直覺/協作模式。
-- **問對問題**:『我有沒有先把『要決定的到底是什麼』講清楚（第 1 步常被跳過）？』『這個決策該用資料驅動的理性模式，還是該信任有經驗者的直覺？』『我有沒有第 7 步——真的回頭檢討這個決策？』
-- **軟體工程**:作為團隊 RFC/技術決策的標準骨架，把零散的工程決策變成可重現、可文件化的流程，並明確選擇『資料驅動 (理性)』還是『信任資深者直覺』模式。
-- **產品開發**:新人 PM/工程師最易上手的入門流程框架，提醒不要跳過『界定問題』與『事後檢討』兩個最常被省略的步驟。
-- **營運分析**:資料分析支援決策時的流程檢核表——確保分析（權衡證據）真的被串進行動與事後檢討，而不是做完報告就結束。
-- **策略**:策略決策的通用流程外殼，再依決策性質掛載更專門的框架（WRAP、cost of delay、RAPID 等）。
-- **2026**:2026 版 Asana 文章強調 AI 與 agentic work management（含其收購 StackAI）輔助跨職能決策；此框架本身較通用，價值在當『骨架』串起本清單其他更專門的工具。注意：來源實際列出 4 種模式（理性/直覺/創意/協作），『5 種風格』多指向 Vroom-Yetton 的 AI/AII/CI/CII/GII。
-- 來源:https://asana.com/resources/decision-making-process, https://www.cloverpop.com/blog/7-step-decision-making-process
+### 7-Step Process & Decision-Making Models (Asana) · fit 3
+*aka / source:* Asana's general-purpose decision process; 7 steps + decision models (Rational / Intuitive / Creative / Collaborative, often alongside the Vroom-Yetton five styles)
+- **What it is**: The general-purpose seven-step process compiled by Asana and others: (1) define the decision (2) gather relevant information (3) identify alternatives (4) weigh the evidence (5) choose among the options (6) take action (7) review the decision and its consequences. It also lists several decision models: Rational (logical, sequential, data-driven—suited to high-impact decisions), Intuitive (experience-based pattern recognition), Creative (gather information, then let the subconscious process it), Collaborative (group consensus, shared accountability).
+- **Use in the process**: Use it as the skeleton that strings the other tools together: at step (1) use Cynefin to classify the problem type; at steps (3)(4) embed WRAP's widen-options and the weighted matrix; at step (4) embed a pre-mortem; before deciding, use one-way/two-way door to set the deliberation level and DACI to pin the roles; at step (7) use a decision journal to review. Then pick a rational/intuitive/collaborative model to fit the situation.
+- **Questions to ask**: "Have I first made clear 'what exactly is being decided' (step 1 is often skipped)?" "Should this decision use the data-driven rational model, or trust the intuition of experienced people?" "Did I do step 7—actually go back and review the decision?"
+- **Engineering**: As a standard skeleton for a team's RFC/technical-decision process, turning scattered engineering decisions into a repeatable, documentable process, and explicitly choosing between "data-driven (rational)" and "trust the senior person's intuition" models.
+- **Product**: The most approachable entry-level process framework for a new PM/engineer, reminding them not to skip the two most-often-omitted steps—"defining the problem" and "post-decision review."
+- **Ops**: A process checklist when data analysis supports a decision—ensuring the analysis (weighing the evidence) actually gets strung into action and after-the-fact review, rather than ending once the report is done.
+- **Strategy**: A general-purpose process shell for strategic decisions, onto which you mount more specialized frameworks (WRAP, cost of delay, RAPID, etc.) by the nature of the decision.
+- **2026**: The 2026 Asana articles emphasize AI and agentic work management (including its acquisition of StackAI) supporting cross-functional decisions; the framework itself is fairly generic—its value is as a "skeleton" stringing together the more specialized tools in this catalog. Note: the source actually lists four models (rational/intuitive/creative/collaborative); the "five styles" usually refers to Vroom-Yetton's AI/AII/CI/CII/GII.
+- Sources: https://asana.com/resources/decision-making-process, https://www.cloverpop.com/blog/7-step-decision-making-process

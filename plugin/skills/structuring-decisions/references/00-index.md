@@ -1,6 +1,6 @@
 # Method Catalog — Index & Routing
 
-This directory holds a catalog of ~206 decision-science methods, grouped into 12 categories plus the Minerva thinking-method set. Each category file lists methods with the same structure: **是什麼 (what it is) / 用在決策流程 (use in the decision process) / 問對問題 (questions to ask) / four-axis application (engineering · product · ops · strategy) / 2026 note / sources**. Content is in Traditional Chinese; method names carry the English term in parentheses.
+This directory holds a catalog of ~206 decision-science methods, grouped into 12 categories plus the Minerva thinking-method set. Each category file lists methods with the same structure: **What it is / Use in the process / Questions to ask / four-axis application (engineering · product · ops · strategy) / 2026 note / sources**. Content is in English; method names carry the acronym in parentheses where one exists.
 
 The catalog is **reference material, not a checklist**. For any one decision you pull 2–4 methods that fit — never all of them. Use the routing table below to open only the files a given step needs.
 

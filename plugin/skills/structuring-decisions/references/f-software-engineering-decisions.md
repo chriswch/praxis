@@ -1,169 +1,169 @@
-> 「決策科學方法目錄」系列 · F. 軟體工程決策方法 · 共 14 個方法。圖例:工程/產品/營運/策略=四軸應用;fit=與軟體/SaaS 契合度(3–5)。
+> Decision-Science Method Catalog · F. Software-engineering decisions · 14 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
-### 架構決策記錄 (Architecture Decision Records, ADR) · fit 5
-*aka / 出處:* Decision log / Nygard ADR;由 Michael Nygard 於 2011 年文章〈Documenting Architecture Decisions〉提出
-- **是什麼**:用一份輕量、版本控管的小文件記錄「一個有架構重要性的決策」及其理由。原始 Nygard 格式只有四個段落:Status (狀態)、Context (情境)、Decision (決策)、Consequences (後果)。整個專案累積的 ADR 形成一份 decision log (決策日誌)。
-- **用在決策流程**:在做出任何難以逆轉或會限制未來選項的技術選擇時,先寫一頁 ADR:寫清楚當時的限制與替代方案,標 Proposed → 評審後改 Accepted;之後若被推翻,不刪舊檔,而是新開一篇標 Superseded 並連結。決策流程因此變成『沒有 ADR 就不算決定』,理由與情境被永久保存,新人或半年後的自己能還原『為什麼當初這樣選』。
-- **問對問題**:我們現在受哪些限制 (團隊、時程、既有系統)?有哪些被否決的替代方案、為什麼否決?這個決策的後果 (正面與負面) 各是什麼?哪些事一旦發生,我們就該重開這個決策?
-- **軟體工程**:為多租戶電商選『租戶隔離策略』(共用 schema + tenant_id 欄位 vs schema-per-tenant vs DB-per-tenant) 寫一篇 ADR,記錄選共用 schema 的理由 (成本、上架速度) 與後果 (查詢都要帶 tenant_id、需在 ORM 層強制 scope)。CYBERBIZ 在 .claude/rules 與 doc/ 內已有類似決策說明文化,ADR 可正式化它。
-- **產品開發**:新功能 (例如『加價購 vs 組合商品』的資料模型 mapping) 在實作前用 ADR 釘住模型邊界,避免日後團隊把兩者混淆 (這正是團隊記憶裡標記過的踩雷點)。
-- **營運分析**:把『改用 Elasticsearch 7.x + Chewy 做商品搜尋而非 DB LIKE』的取捨寫成 ADR,後續觀察搜尋延遲/索引成本指標時,可回溯當初接受的後果與門檻。
-- **策略**:把『自建 vs 採購某能力』的最終結論存為 ADR,讓 CTO/PM 後續做平台投資取捨時有一致脈絡,不必重複爭論已定案的方向。
-- **2026**:2025–2026 趨勢:ADR 與 RFC/design doc 分工被更清楚討論 (ADR 記『已定案的單一決策』,RFC 記『提案+討論』);多家公司用 AI agent 草擬 ADR 初稿、自動從 PR/commit 萃取決策。ADR 也被用來治理 AI/LLM 相關架構選擇。
-- 來源:https://adr.github.io/, https://github.com/joelparkerhenderson/architecture-decision-record/blob/main/locales/en/templates/decision-record-template-by-michael-nygard/index.md, https://www.redhat.com/en/blog/architecture-decision-records
+### Architecture Decision Records (ADR) · fit 5
+*aka / source:* Decision log / Nygard ADR; introduced by Michael Nygard in the 2011 article "Documenting Architecture Decisions"
+- **What it is**: A lightweight, version-controlled document that records a single architecturally significant decision and the reasoning behind it. Nygard's original format has four sections: Status, Context, Decision, and Consequences. The ADRs a project accumulates over time form a decision log.
+- **Use in the process**: Whenever you make a technical choice that is hard to reverse or that constrains future options, write a one-page ADR first: spell out the constraints in play and the alternatives considered, mark it Proposed, then flip it to Accepted after review. If a later decision overrides it, you never delete the old file — you write a new ADR marked Superseded and link the two. The process becomes "no ADR, no decision": the rationale and context are preserved permanently, so a new hire or your future self can reconstruct why the choice was made.
+- **Questions to ask**: What constraints are we operating under (team, timeline, existing systems)? Which alternatives did we reject, and why? What are the consequences of this decision, both positive and negative? What would have to happen for us to reopen this decision?
+- **Engineering**: For a multi-tenant e-commerce platform, write an ADR for the tenant-isolation strategy (shared schema + tenant_id column vs schema-per-tenant vs database-per-tenant), recording the rationale for choosing shared schema (cost, time-to-launch) and its consequences (every query must carry tenant_id; scoping must be enforced at the ORM layer). CYBERBIZ already has a similar documented-decision culture under .claude/rules and doc/; ADRs formalize it.
+- **Product**: Before building a new feature (for example the data-model mapping for "add-on purchase vs bundled product"), use an ADR to pin down the model boundaries so the team doesn't later conflate the two — exactly the kind of pitfall flagged in team memory.
+- **Ops**: Capture the trade-off "use Elasticsearch 7.x + Chewy for product search instead of DB LIKE" as an ADR, so that when you later watch search-latency and indexing-cost metrics, you can trace back to the consequences and thresholds you accepted up front.
+- **Strategy**: Store the final build-vs-buy conclusion for a given capability as an ADR, giving the CTO/PM a consistent context for later platform-investment trade-offs without relitigating a direction that has already been settled.
+- **2026**: 2025–2026 trend: the division of labor between ADRs and RFC/design docs is being articulated more clearly (an ADR records a single settled decision; an RFC records a proposal plus discussion). Many teams now use AI agents to draft initial ADRs and to auto-extract decisions from PRs/commits. ADRs are increasingly used to govern AI/LLM-related architecture choices.
+- Sources: https://adr.github.io/, https://github.com/joelparkerhenderson/architecture-decision-record/blob/main/locales/en/templates/decision-record-template-by-michael-nygard/index.md, https://www.redhat.com/en/blog/architecture-decision-records
 
-### RFC / 設計文件流程 (RFC / Design Doc process) · fit 5
-*aka / 出處:* Request for Comments;design doc;Squarespace『Yes, if』RFC 流程;Google design doc
-- **是什麼**:在『建立新系統或做重大變更』前,作者寫一份提案文件 (背景、問題、目標/非目標、設計、替代方案、跨切面考量),公開徵求同儕非同步審查與評論,凝聚共識後才動工。Google/Amazon/Uber/Stripe/Shopify/Square 等公司廣泛採用。
-- **用在決策流程**:重大變更採『先寫文件、後寫程式』:作者用 RFC 把假設與替代方案攤開,relevant 同儕在文件上留言討論,作者用 Squarespace 的『Yes, if (可以,只要...)』而非『No, because』回應評論,把討論導向建設性。決策在實作前就被審查過,大幅降低返工。
-- **問對問題**:這份 RFC 要解決的問題到底是什麼 (寫不出問題就代表還沒想清楚)?目標與非目標分別是?有哪些替代設計、為何選這個?跨切面 (安全、效能、SLA、多租戶、回滾) 怎麼處理?誰必須 review 才算數?
-- **軟體工程**:為『結帳流程拆成獨立 checkout 前端 + API』寫 RFC,涵蓋 API 契約、跨子網域路由 (api-internal / api-shop-internal)、回滾策略;讓後端與五個前端 app 團隊在動工前對齊介面。
-- **產品開發**:新增『購物車替換平台入口 (mall.cyberbiz.io/cart/replace)』這類跨團隊功能時,用 RFC 對齊 PM、後端、shop 前端對 URL、權限與資料流的理解,避免實作到一半才發現假設不一致。
-- **營運分析**:RFC 內強制要求『成功如何量測 (success metrics)』段落,讓功能上線後 product ops 有預先定義好的指標 (轉換率、錯誤率) 可追蹤,而非事後才想要量什麼。
-- **策略**:把跨季度的平台級提案 (例如導入新支付閘道架構) 用 RFC 形式讓工程與業務跨部門非同步評審,降低高層決策的資訊不對稱。
-- **2026**:Pragmatic Engineer 整理出大量真實模板;2025–2026 普遍用 AI 草擬 RFC 初稿與摘要長討論串,但人仍需把關問題定義與取捨。RFC (提案討論) 與 ADR (定案記錄) 常並用:RFC 處理方向,ADR 記錄具體技術選擇。
-- 來源:https://blog.pragmaticengineer.com/rfcs-and-design-docs/, https://engineering.squarespace.com/blog/2019/the-power-of-yes-if, https://newsletter.pragmaticengineer.com/p/rfcs-and-design-docs
+### RFC / Design Doc Process · fit 5
+*aka / source:* Request for Comments; design doc; Squarespace "Yes, if" RFC process; Google design doc
+- **What it is**: Before building a new system or making a major change, the author writes a proposal document (background, problem, goals/non-goals, design, alternatives, cross-cutting concerns) and opens it for asynchronous peer review and comment, building consensus before any code is written. Widely adopted at Google, Amazon, Uber, Stripe, Shopify, Square, and others.
+- **Use in the process**: Major changes follow "write the doc before the code": the author uses the RFC to surface assumptions and alternatives; relevant peers comment in-line; and the author responds in Squarespace's "Yes, if" mode rather than "No, because", steering discussion toward the constructive. The decision is reviewed before implementation, sharply reducing rework.
+- **Questions to ask**: What problem is this RFC actually solving (if you can't state the problem, you haven't thought it through)? What are the goals and the non-goals? What alternative designs exist, and why this one? How are the cross-cutting concerns (security, performance, SLA, multi-tenancy, rollback) handled? Whose review is required for this to count as decided?
+- **Engineering**: Write an RFC for "splitting checkout into a standalone checkout frontend + API", covering the API contract, cross-subdomain routing (api-internal / api-shop-internal), and the rollback strategy, so the backend team and five frontend app teams align on the interface before work begins.
+- **Product**: When adding a cross-team feature like "the cart-replacement platform entry point (mall.cyberbiz.io/cart/replace)", use an RFC to align PM, backend, and shop frontend on the URL, permissions, and data flow, so you don't discover halfway through implementation that assumptions diverged.
+- **Ops**: Make a "how will success be measured (success metrics)" section mandatory in every RFC, so that once the feature ships, product ops has pre-defined metrics (conversion rate, error rate) to track, rather than scrambling to decide what to measure after the fact.
+- **Strategy**: Put cross-quarter, platform-level proposals (for example adopting a new payment-gateway architecture) into RFC form so engineering and business stakeholders can review them asynchronously across functions, reducing the information asymmetry of leadership decisions.
+- **2026**: The Pragmatic Engineer has collected many real-world templates; in 2025–2026 it is common to use AI to draft initial RFCs and summarize long comment threads, but humans still own the problem definition and the trade-offs. RFCs (proposal + discussion) and ADRs (settled record) are often used together: the RFC handles direction, the ADR records the concrete technical choice.
+- Sources: https://blog.pragmaticengineer.com/rfcs-and-design-docs/, https://engineering.squarespace.com/blog/2019/the-power-of-yes-if, https://newsletter.pragmaticengineer.com/p/rfcs-and-design-docs
 
-### 可逆 vs 不可逆決策 (Reversible vs Irreversible / Two-way vs One-way Door) · fit 5
-*aka / 出處:* Type 2 vs Type 1 decisions;雙向門 vs 單向門;由 Jeff Bezos 1997 致股東信提出
-- **是什麼**:Bezos 把決策分兩類:Type 1 / 單向門是難以或無法逆轉的決策,須謹慎、緩慢、充分諮詢;Type 2 / 雙向門是可逆的,做錯了可以走回頭路,應快速、授權、用實驗代替分析。大公司常犯的錯是把所有大決策都當成不可逆而過度分析。
-- **用在決策流程**:決策前先問『這扇門是單向還是雙向?』。雙向門:授權給個人或小團隊快速決定、用 feature flag/實驗驗證、錯了就回滾。單向門:升級審查層級、寫 RFC、跑取捨分析,寧可慢。重點是不要用單向門的流程拖慢雙向門決策。
-- **問對問題**:如果這個決定是錯的,回頭要付多少代價?是改個 flag 就能還原,還是要做資料遷移/客戶已被綁定?能不能用一個小的、可逆的實驗先試?我們是不是把一個雙向門當成單向門在過度開會?
-- **軟體工程**:改 UI 文案、調 cache TTL、換前端元件 = 雙向門 → 直接上、出問題回滾。選資料庫引擎、設計對外公開 API 契約、租戶資料分區策略 = 單向門 → 走完整 RFC + ADR。
-- **產品開發**:新功能用 feature flag 對 5% 商家開 (雙向門) 快速試;但『改變既有訂單/金流資料結構』因牽涉歷史資料與商家依賴,屬單向門,需 backfill 與相容策略。
-- **營運分析**:把 A/B 測試明確歸類為雙向門:鼓勵團隊多跑、快速讀數據、輸了就關,降低『怕做錯而不敢試』的文化成本。
-- **策略**:決定『某 plugin 功能下放給哪些 plan』時區分:TypePlugin 全 plan 即時下放 (含舊客) 較難回收 → 偏單向門需謹慎;對新客的 VirtualPlanCreator 較可控。rollback 具破壞性的決策一律當單向門對待。
-- **2026**:仍是 2020s 產品與工程文化的主流心智模型 (FS.blog、LogRocket、各大 PM 部落格持續引用)。與 feature flag、漸進釋出天然互補:現代工具讓更多原本看似單向的決策變成『技術上可逆』,因此值得重新分類。
-- 來源:https://fs.blog/reversible-irreversible-decisions/, https://blog.logrocket.com/product-management/type-1-vs-type-2-decisions-overview-examples/, https://www.entrepreneur.com/business-news/a-jeff-bezos-letter-from-1997-about-reversible-decisions/328284
+### One-Way vs Two-Way Door Decisions · fit 5
+*aka / source:* Type 1 vs Type 2 decisions; two-way door vs one-way door; introduced by Jeff Bezos in the 1997 shareholder letter
+- **What it is**: Bezos splits decisions into two classes. Type 1 / one-way-door decisions are hard or impossible to reverse and demand care, deliberation, and broad consultation. Type 2 / two-way-door decisions are reversible — if you get them wrong you can walk back out — and should be made fast, by individuals or small teams, favoring experimentation over heavyweight analysis. The classic failure mode of large organizations is treating every weighty decision as if it were one-way, and analyzing it to death.
+- **Use in the process**: Before deciding, ask "is this a one-way or a two-way door?" Two-way door: delegate to an individual or small team to decide quickly, validate with a feature flag/experiment, and roll back if it's wrong. One-way door: escalate the level of review, write an RFC, run a trade-off analysis, and be willing to go slow. The point is to stop using one-way-door process to slow down two-way-door decisions.
+- **Questions to ask**: If this decision is wrong, what does it cost to walk it back? Is it as simple as flipping a flag, or does it involve a data migration / customers already locked in? Could we try a small, reversible experiment first? Are we treating a two-way door like a one-way door and over-meeting it?
+- **Engineering**: Changing UI copy, tuning a cache TTL, swapping a frontend component = two-way door → ship it, roll back if there's a problem. Choosing a database engine, designing a public-facing API contract, or a tenant data-partitioning strategy = one-way door → run the full RFC + ADR.
+- **Product**: Roll out a new feature behind a feature flag to 5% of merchants (two-way door) for a fast trial; but "changing the data structure of existing orders/payments" is a one-way door because it touches historical data and merchant dependencies, and requires a backfill and a compatibility strategy.
+- **Ops**: Explicitly classify A/B tests as two-way doors: encourage teams to run more of them, read the data quickly, and kill the losers — lowering the cultural cost of "too afraid of being wrong to try".
+- **Strategy**: When deciding which plans a given plugin feature ships to, distinguish: a TypePlugin pushed to all plans immediately (including existing customers) is hard to claw back → lean toward one-way door, proceed with care; the VirtualPlanCreator for new customers is more controllable. Any decision whose rollback is destructive should be treated as a one-way door.
+- **2026**: Still the mainstream mental model of 2020s product and engineering culture (FS.blog, LogRocket, and major PM blogs keep citing it). It pairs naturally with feature flags and progressive delivery: modern tooling turns many seemingly one-way decisions into "technically reversible" ones, which is why it's worth reclassifying them.
+- Sources: https://fs.blog/reversible-irreversible-decisions/, https://blog.logrocket.com/product-management/type-1-vs-type-2-decisions-overview-examples/, https://www.entrepreneur.com/business-news/a-jeff-bezos-letter-from-1997-about-reversible-decisions/328284
 
-### 自建 vs 採購 (Build vs Buy) · fit 5
-*aka / 出處:* Make-or-buy decision;TCO + opportunity cost analysis
-- **是什麼**:決定一項能力要自己開發還是採購/用既有 SaaS 的框架,沿三支柱評估:商業策略 (是不是核心差異化)、風險 (品質、團隊、時程可預測性)、經濟成本 (ROI、機會成本、總體擁有成本 TCO,而非只看初期開發費)。
-- **用在決策流程**:對每個候選能力先問『這是不是我們的核心競爭力?』核心 → 傾向自建;非核心 → 傾向採購。再用 3–5 年 TCO (含維運、整合、訓練、隱性成本) 與『這些工程師不做這件事還能創造什麼』的機會成本一起比較,而非只比 license 費 vs 開發費。
-- **問對問題**:這個能力是我們對商家的差異化來源,還是隨處可買的通用功能?5 年 TCO (含維運與整合) 是多少?把工程師投進這個自建,我們因此沒做的營收型功能是什麼 (機會成本)?買進來的東西若供應商漲價/倒閉,鎖定風險多大?
-- **軟體工程**:金流串接:自建對接每家銀行/閘道 vs 採購 payment aggregator。差異化低、合規複雜 → 多半採購;但若多租戶分潤/對帳是平台賣點,該部分自建。
-- **產品開發**:商品搜尋:自建倒排索引 vs 用 Elasticsearch (CYBERBIZ 已選 ES 7.x + Chewy) —— 採用成熟引擎把工程力留給電商專屬的排序/促銷邏輯,正是 build-vs-buy 的合理結論。
-- **營運分析**:自建 BI 報表 vs 採購 (團隊已接 Metabase):計算維護自建 dashboard 的長期人力 TCO,通常採購工具讓 product ops 更快拿到數據。
-- **策略**:平台級取捨 (例如客服/通知/CDP) 用此框架向管理層說明:把資源集中在電商核心 (商品、訂單、結帳),周邊能力傾向買,符合差異化策略。
-- **2026**:2026 年討論普遍加入第三選項『buy + 用 AI/低程式碼客製』與『先買後逐步替換』;TCO 分析的隱性整合成本 (常為 license 的 1.5–2 倍) 與供應商鎖定 (vendor lock-in) 在 SaaS 疊加情境下更被強調。
-- 來源:https://www.netsolutions.com/insights/build-vs-buy/, https://neontri.com/blog/build-vs-buy-software/, https://www.softwareseni.com/build-vs-buy-software-decisions-and-total-cost-of-ownership-analysis/
+### Build vs Buy · fit 5
+*aka / source:* Make-or-buy decision; TCO + opportunity-cost analysis
+- **What it is**: Deciding whether to develop a capability in-house or buy/adopt an existing SaaS or framework, evaluated along three pillars: business strategy (is it core differentiation?), risk (quality, team, schedule predictability), and economics (ROI, opportunity cost, and total cost of ownership (TCO) — not just the up-front build cost).
+- **Use in the process**: For each candidate capability, first ask "is this our core competency?" Core → lean toward build; non-core → lean toward buy. Then compare 3–5 year TCO (including operations, integration, training, and hidden costs) alongside the opportunity cost of "what else could these engineers create if they weren't building this", rather than comparing only license fees vs build cost.
+- **Questions to ask**: Is this capability a source of differentiation for our merchants, or a commodity available off the shelf? What is the 5-year TCO including operations and integration? If we put engineers on building this, what revenue-generating feature do we therefore not build (opportunity cost)? If we buy it, how large is the lock-in risk should the vendor raise prices or go under?
+- **Engineering**: Payment integration: building direct connections to each bank/gateway vs buying a payment aggregator. Low differentiation, high compliance complexity → mostly buy; but if multi-tenant revenue-sharing/reconciliation is a platform selling point, build that part.
+- **Product**: Product search: building an inverted index vs using Elasticsearch (CYBERBIZ has chosen ES 7.x + Chewy) — adopting a mature engine and keeping engineering effort for e-commerce-specific ranking/promotion logic is exactly the right build-vs-buy conclusion.
+- **Ops**: Build BI reporting vs buy (the team already runs Metabase): compute the long-term staffing TCO of maintaining a home-grown dashboard; buying a tool usually gets product ops to the data faster.
+- **Strategy**: Use this framework to explain platform-level trade-offs (e.g. support/notifications/CDP) to leadership: concentrate resources on the e-commerce core (products, orders, checkout) and lean toward buying peripheral capabilities — consistent with a differentiation strategy.
+- **2026**: 2026 discussion routinely adds a third option, "buy + customize with AI/low-code" and "buy first, replace gradually". In stacked-SaaS contexts, the hidden integration costs in TCO analysis (often 1.5–2× the license cost) and vendor lock-in get more emphasis.
+- Sources: https://www.netsolutions.com/insights/build-vs-buy/, https://neontri.com/blog/build-vs-buy-software/, https://www.softwareseni.com/build-vs-buy-software-decisions-and-total-cost-of-ownership-analysis/
 
-### Feature Flag 與漸進釋出 (Feature Flags / Progressive Delivery) · fit 5
-*aka / 出處:* Feature toggles;canary release;dark launch;ring deployment;LaunchDarkly/Unleash/Flagsmith
-- **是什麼**:用開關控制功能對哪些使用者開啟,不需重新部署即可開/關;搭配漸進釋出 (先對內部、再 1%→5%→100%) 與金絲雀發布 (canary,先小群驗證),把『發布』從一次性全有全無的賭注,變成可控、可觀察、可即時回滾的過程,限縮出問題時的爆炸半徑 (blast radius)。
-- **用在決策流程**:把『發布決策』本身變成可逆:不確定的功能藏在 flag 後,先對小群開、盯指標、有問題秒關。等於把很多看似單向門的決策技術性地轉成雙向門——決策成本下降,團隊敢更快試錯。
-- **問對問題**:這個改動能不能藏在 flag 後分批放?先放給誰、看哪個指標決定要不要擴大?出問題時關掉 flag 是否真能完全還原 (有沒有不可逆的副作用如已寫入的資料)?flag 用完了誰負責清掉 (避免技術債)?
-- **軟體工程**:新結帳邏輯用 flag 包起來,先對員工測試商店開,再對 5% 商家 canary,監控結帳成功率與延遲;異常即關,不需 rollback 部署。
-- **產品開發**:對照團隊記憶中的『EC 功能下放流程』:用 flag/plan gating 對指定 plan 的商家漸進開啟新功能,先少量驗證再含舊客全開,降低一次全面下放的破壞性 rollback 風險。
-- **營運分析**:flag 的分群天然就是 A/B 實驗框架:對開/未開兩組比較轉換率、客單價,用數據而非意見決定要不要全量。
-- **策略**:漸進釋出能力本身是平台級風險管理投資:讓公司能高頻發布又控制商家面的風險,支撐『快速迭代』策略而不犧牲穩定度 (直接連動 DORA)。
-- **2026**:約三分之二受訪團隊在採用/試行漸進釋出、約 45% 用 feature flag 實現 (LaunchDarkly 等調查)。2025–2026 與實驗平台、自動化金絲雀分析 (依指標自動回滾) 整合更深;需注意 flag 過多會變成設定複雜度與技術債,需有生命週期治理。
-- 來源:https://launchdarkly.com/blog/de-risking-software-releases-with-progressive-deli/, https://launchdarkly.com/blog/what-is-progressive-delivery-all-about/, https://www.getunleash.io/blog/progressive-delivery-with-feature-flags
+### Feature Flags / Progressive Delivery · fit 5
+*aka / source:* Feature toggles; canary release; dark launch; ring deployment; LaunchDarkly/Unleash/Flagsmith
+- **What it is**: Use a toggle to control which users a feature is on for, without redeploying to turn it on or off; combined with progressive delivery (internal first, then 1% → 5% → 100%) and canary release (validate on a small group first), this turns "release" from a one-shot, all-or-nothing bet into a controlled, observable, instantly reversible process that contains the blast radius when something goes wrong.
+- **Use in the process**: Make the release decision itself reversible: hide an uncertain feature behind a flag, expose it to a small group first, watch the metrics, and kill it in seconds if there's a problem. This technically converts many seemingly one-way-door decisions into two-way doors — the cost of deciding falls, and teams dare to iterate faster.
+- **Questions to ask**: Can this change be hidden behind a flag and rolled out in stages? Who do we expose it to first, and which metric decides whether to widen the rollout? If we turn the flag off, does that truly restore everything (are there irreversible side effects like already-written data)? Once the flag has served its purpose, who is responsible for cleaning it up (to avoid tech debt)?
+- **Engineering**: Wrap new checkout logic in a flag, expose it first to an employee test store, then canary to 5% of merchants while monitoring checkout success rate and latency; turn it off on anomaly, with no deployment rollback needed.
+- **Product**: Mirroring the "EC feature rollout flow" in team memory: use flag/plan gating to progressively enable a new feature for merchants on specific plans — validate on a small group first, then roll out fully (including existing customers) — to reduce the risk of a destructive rollback from a single all-at-once release.
+- **Ops**: A flag's cohorts are a natural A/B experiment framework: compare conversion and average order value between the on and off groups, and decide whether to go to full rollout with data rather than opinion.
+- **Strategy**: The progressive-delivery capability is itself a platform-level risk-management investment: it lets the company release at high frequency while controlling merchant-facing risk, supporting a "rapid iteration" strategy without sacrificing stability (directly tied to DORA).
+- **2026**: Surveys (e.g. LaunchDarkly) report roughly two-thirds of teams adopting or piloting progressive delivery, with around 45% implementing it via feature flags. In 2025–2026, integration with experimentation platforms and automated canary analysis (auto-rollback on metric breach) is deeper; beware that too many flags become configuration complexity and tech debt, requiring lifecycle governance.
+- Sources: https://launchdarkly.com/blog/de-risking-software-releases-with-progressive-deli/, https://launchdarkly.com/blog/what-is-progressive-delivery-all-about/, https://www.getunleash.io/blog/progressive-delivery-with-feature-flags
 
-### 技術雷達 (Technology Radar — Adopt / Trial / Assess / Hold) · fit 4
-*aka / 出處:* ThoughtWorks Technology Radar;Build-Your-Own Radar (BYOR)
-- **是什麼**:ThoughtWorks 每半年發布的技術觀點地圖,用四象限 (techniques/tools/platforms/languages) 與四環表達採用建議:Adopt (應認真採用)、Trial (可在專案中試用)、Assess (值得研究但未必現在試)、Hold (應謹慎或避免採用,舊稱 Caution)。只收錄『正在移動』的 blip。
-- **用在決策流程**:團隊可建自己的內部雷達 (BYOR):把候選技術放進四環,作為『引入新技術』的決策閘門——只有進 Adopt 的才能無條件用於正式產品,Trial 限定在受控專案,Assess 只做 spike,Hold 明令停止擴大使用。讓技術選型成為團隊共識而非個人偏好。
-- **問對問題**:這個技術在我們的脈絡是 Adopt、Trial、Assess 還是 Hold?我們有沒有在無意識中持續擴大某個該進 Hold 的技術?有什麼新東西值得放進 Assess 做小型驗證?某技術從 Trial 升 Adopt 需要哪些證據?
-- **軟體工程**:對既有 stack (Ruby 3.0.7/Rails 7、Resque legacy、Sidekiq preferred) 建內部雷達:把 Sidekiq 標 Adopt、Resque 標 Hold (legacy、僅維持不擴大),明確指引新背景工作一律用 Sidekiq。
-- **產品開發**:新功能要不要用某新前端函式庫,先看它在內部雷達落在哪環;Assess 的東西只在 spike/PoC 用,不進影響商家的生產功能。
-- **營運分析**:追蹤 blip 隨時間移環 (Trial→Adopt 或 →Hold),作為團隊技術健康度的營運指標;Hold 區技術的程式碼占比可當技術債信號。
-- **策略**:雷達是對齊『平台技術投資方向』的溝通工具:讓 CTO 與團隊用同一張圖討論該押注、觀望或淘汰哪些技術。
-- **2026**:2025 年 11 月發布 Volume 33;近期版本大量聚焦 AI/LLM 工具、coding agents 與其治理。BYOR 工具讓任何組織能產自家雷達,是落地的關鍵。
-- 來源:https://www.thoughtworks.com/radar/faq, https://www.thoughtworks.com/insights/blog/build-your-own-technology-radar, https://www.thoughtworks.com/content/dam/thoughtworks/documents/radar/2025/11/tr_technology_radar_vol_33_en.pdf
+### Technology Radar — Adopt / Trial / Assess / Hold · fit 4
+*aka / source:* ThoughtWorks Technology Radar; Build-Your-Own Radar (BYOR)
+- **What it is**: ThoughtWorks's twice-yearly map of technology opinion, expressed with four quadrants (techniques/tools/platforms/languages) and four rings of adoption advice: Adopt (we strongly recommend it), Trial (worth pursuing in a project that can handle the risk), Assess (worth exploring to understand how it affects you, but not necessarily trialing yet), and Hold (proceed with caution; formerly "Caution"). It records only "blips" that are moving.
+- **Use in the process**: A team can build its own internal radar (BYOR): place candidate technologies in the four rings as a decision gate for "introducing new technology" — only things in Adopt may be used unconditionally in production, Trial is confined to controlled projects, Assess is limited to spikes, and Hold explicitly stops further expansion. This makes technology selection a team consensus rather than an individual preference.
+- **Questions to ask**: In our context, is this technology Adopt, Trial, Assess, or Hold? Are we unconsciously continuing to expand a technology that should be on Hold? What new things are worth putting into Assess for a small validation? What evidence would it take to promote a technology from Trial to Adopt?
+- **Engineering**: Build an internal radar for the existing stack (Ruby 3.0.7/Rails 7, legacy Resque, preferred Sidekiq): mark Sidekiq as Adopt and Resque as Hold (legacy, maintain-only, do not expand), giving a clear directive that all new background jobs use Sidekiq.
+- **Product**: Before deciding whether a new feature should use a given new frontend library, check which ring it falls into on the internal radar; things in Assess are used only in spikes/PoCs, never in merchant-facing production features.
+- **Ops**: Track blips moving between rings over time (Trial→Adopt or →Hold) as an operational indicator of team technical health; the share of code in Hold technologies can serve as a tech-debt signal.
+- **Strategy**: The radar is a communication tool for aligning the platform's technology-investment direction: it lets the CTO and the teams use one shared picture to discuss which technologies to bet on, watch, or retire.
+- **2026**: Volume 33 was published in November 2025; recent editions focus heavily on AI/LLM tooling, coding agents, and their governance. BYOR tooling — which lets any organization produce its own radar — is key to operationalizing it.
+- Sources: https://www.thoughtworks.com/radar/faq, https://www.thoughtworks.com/insights/blog/build-your-own-technology-radar, https://www.thoughtworks.com/content/dam/thoughtworks/documents/radar/2025/11/tr_technology_radar_vol_33_en.pdf
 
-### YAGNI / KISS / 80-20 (簡單性原則) · fit 4
-*aka / 出處:* You Aren't Gonna Need It (Kent Beck, Extreme Programming);Keep It Simple, Stupid;Pareto 80/20
-- **是什麼**:一組對抗過度設計的啟發法。YAGNI:不要為『推測未來需要』的能力現在就建。KISS:追求簡單、避免不必要複雜。80-20:約 20% 的功能/努力產生 80% 的價值。Fowler 指出推測性功能有四種成本:build (白做)、delay (排擠該做的、延後營收)、carry (增加複雜度拖慢後續開發)、repair (做錯後的修補/技術債)。
-- **用在決策流程**:面對『要不要先把這做得很通用/可擴充』時,套 YAGNI:除非現在就需要,否則不做,但前提是保持程式可被輕鬆修改 (Fowler 強調:YAGNI 只反對為推測功能寫程式,不反對讓程式更易修改的重構/測試)。用 80-20 排優先序:先交付產生 80% 價值的那 20%。
-- **問對問題**:這個彈性/抽象是現在就需要,還是只是『以後可能用到』?如果不做,日後要加回來有多難 (可逆嗎)?哪 20% 的功能能滿足 80% 的商家?我是不是在用『未來可能』合理化現在的過度設計?
-- **軟體工程**:新 API 不預先設計支援『十種未來可能的促銷型態』的萬用參數;先支援當前商家實際在用的兩三種,保持程式易改,需要時再擴 (避免 carry 成本)。
-- **產品開發**:新功能 MVP 只做最常見的商家路徑 (80-20),把 edge case 後置;對照 .claude/rules/frontend/admin.md 的『新功能用新架構、舊檔不順手重寫』正是 YAGNI/KISS 的工程文化體現。
-- **營運分析**:用使用數據驗證 YAGNI:上線後看那些『以為會用到』的選項實際使用率,常證明當初不做是對的;反過來指引下一輪該砍掉的低用量功能。
-- **策略**:資源排序時用 80-20 鎖定『服務最大宗商家的核心流程』,避免為長尾需求過度投資而稀釋核心競爭力。
-- **2026**:Fowler 的關鍵 nuance 在 AI 輔助開發時代更重要:LLM 讓『生成程式很便宜』,反而更容易堆 carry/repair 成本,YAGNI 的紀律 (只在真正需要時才加) 比過去更值得堅持。
-- 來源:https://martinfowler.com/bliki/Yagni.html, https://en.wikipedia.org/wiki/You_aren%27t_gonna_need_it, https://ronjeffries.com/articles/019-01ff/iter-yagni-skimp/
+### YAGNI / KISS / 80-20 (Simplicity Principles) · fit 4
+*aka / source:* You Aren't Gonna Need It (Kent Beck, Extreme Programming); Keep It Simple, Stupid; Pareto 80/20
+- **What it is**: A set of heuristics against over-engineering. YAGNI: don't build a capability now on the speculation that you'll need it later. KISS: pursue simplicity and avoid unnecessary complexity. 80-20: roughly 20% of the features/effort produces 80% of the value. Fowler identifies four costs of a speculative (presumptive) feature: cost of build (work that turns out wasted), cost of delay (crowding out and delaying the features you should be building, and the revenue from them), cost of carry (added complexity that slows all subsequent development), and cost of repair (fixing it / the tech debt when the speculation was wrong).
+- **Use in the process**: When facing "should we make this generic/extensible up front?", apply YAGNI: don't build it unless you need it now — provided you keep the code easy to change. (Fowler stresses that YAGNI argues only against writing code for speculative features; it does not argue against refactoring or testing that keeps code easy to modify.) Use 80-20 to prioritize: ship the 20% that produces 80% of the value first.
+- **Questions to ask**: Is this flexibility/abstraction needed now, or just "might be used later"? If we skip it, how hard is it to add back later (is it reversible)? Which 20% of features satisfies 80% of merchants? Am I using "future possibility" to rationalize present over-engineering?
+- **Engineering**: A new API doesn't pre-design a universal parameter to support "ten possible future promotion types"; it supports the two or three types merchants actually use today, keeps the code easy to change, and extends when needed (avoiding the cost of carry).
+- **Product**: A new feature's MVP builds only the most common merchant path (80-20), deferring edge cases; the rule in .claude/rules/frontend/admin.md — "build new features on the new architecture; don't opportunistically rewrite old files" — is exactly this YAGNI/KISS engineering culture.
+- **Ops**: Validate YAGNI with usage data: after launch, look at the actual usage rate of options you "assumed would be used" — often proving the decision to skip them was right; conversely, this points to which low-usage features to cut next.
+- **Strategy**: When sequencing resources, use 80-20 to lock onto "the core flows serving the bulk of merchants", avoiding over-investment in long-tail needs that dilutes core competency.
+- **2026**: Fowler's key nuance matters more in the AI-assisted-development era: LLMs make "generating code cheap", which makes it easier to pile up cost of carry and cost of repair — so the discipline of YAGNI (add only when genuinely needed) is more worth holding to than before.
+- Sources: https://martinfowler.com/bliki/Yagni.html, https://en.wikipedia.org/wiki/You_aren%27t_gonna_need_it, https://ronjeffries.com/articles/019-01ff/iter-yagni-skimp/
 
-### 風險矩陣 (Risk Matrix — 機率 × 影響) · fit 4
-*aka / 出處:* Probability-Impact matrix;Composite Risk Index (CRI);likelihood × severity
-- **是什麼**:把已識別風險依『發生機率』與『衝擊嚴重度』兩軸排在矩陣上,兩者相乘得複合風險指數 (CRI),數值越高優先處理。是把模糊的『我擔心...』轉成可比較、可排序清單的最簡工具。
-- **用在決策流程**:技術決策或上線前開一張風險矩陣:列出可能出錯的事,各打機率與影響分,排序後決定哪些必須先緩解 (加測試/加監控/加回滾)、哪些可接受。讓『要不要上、先補哪個洞』有依據,而非靠最大聲的人決定。
-- **問對問題**:這個改動最可能出什麼錯、各自多嚴重?哪些是高機率高影響 (必須在上線前處理)?哪些是低機率高影響 (需要的是回滾/熔斷而非防止)?我們願意接受哪些殘餘風險?
-- **軟體工程**:資料遷移 (migration) 上線前評估:『遷移腳本鎖表拖垮商家結帳』= 高影響,評其機率後決定是否分批/離峰執行並備妥回滾。
-- **產品開發**:金流/物流設定變更前,把『商家結帳頁缺超商選項』這類已知踩雷點 (團隊記憶中 shipping_rules 設定不完整導致) 列入矩陣,確保上線檢查清單涵蓋。
-- **營運分析**:把生產事故按機率×影響分類統計,找出反覆出現的高 CRI 類別,作為下一季工程投資 (例如測試覆蓋、監控) 的優先依據。
-- **策略**:向管理層溝通技術債/平台風險時,風險矩陣是把工程風險翻譯成商業語言 (影響營收/商家流失) 的橋樑。
-- **2026**:常見批評是分數主觀、易產生偽精確,2020s 實務建議搭配具體情境敘述 (而非只給數字),並與『可逆性』結合——高影響但可逆的風險,投資在回滾能力比投資在預防更划算。
-- 來源:https://en.wikipedia.org/wiki/Risk_matrix, https://www.getmaintainx.com/learning-center/fault-tree-analysis, https://reliability.com/resources/articles/fault-tree-analysis-fta-guide/
+### Risk Matrix (Probability × Impact) · fit 4
+*aka / source:* Probability-Impact matrix; Composite Risk Index (CRI); likelihood × severity
+- **What it is**: Plot each identified risk on a matrix by its probability of occurrence and its severity of impact; multiplying the two yields a composite risk index (CRI), with higher values prioritized for attention. It is the simplest tool for turning a vague "I'm worried that..." into a comparable, sortable list.
+- **Use in the process**: Open a risk matrix before a technical decision or a launch: list the things that could go wrong, score each on probability and impact, sort, and decide which must be mitigated first (add tests/monitoring/rollback) and which are acceptable. This grounds "do we ship, and which hole do we patch first?" in evidence rather than in whoever is loudest.
+- **Questions to ask**: What is most likely to go wrong with this change, and how severe is each case? Which are high-probability, high-impact (must be handled before launch)? Which are low-probability, high-impact (what they need is rollback/circuit-breaking, not prevention)? Which residual risks are we willing to accept?
+- **Engineering**: Before a database migration goes live: "the migration script locks tables and stalls merchant checkout" = high impact; after assessing its probability, decide whether to run it in batches/off-peak and have rollback ready.
+- **Product**: Before changing payment/shipping configuration, put known pitfalls like "the merchant checkout page is missing the convenience-store option" (in team memory, caused by incomplete shipping_rules configuration) into the matrix, ensuring the launch checklist covers them.
+- **Ops**: Classify production incidents by probability × impact and aggregate them, finding the recurring high-CRI categories as the priority basis for next quarter's engineering investment (e.g. test coverage, monitoring).
+- **Strategy**: When communicating tech debt/platform risk to leadership, the risk matrix is the bridge that translates engineering risk into business language (impact on revenue / merchant churn).
+- **2026**: A common critique is that scores are subjective and create false precision; 2020s practice recommends pairing them with concrete scenario narratives (rather than numbers alone) and combining with reversibility — for high-impact but reversible risks, investing in rollback capability beats investing in prevention.
+- Sources: https://en.wikipedia.org/wiki/Risk_matrix, https://www.getmaintainx.com/learning-center/fault-tree-analysis, https://reliability.com/resources/articles/fault-tree-analysis-fta-guide/
 
-### WSJF 與延遲成本 (Weighted Shortest Job First / Cost of Delay) · fit 4
-*aka / 出處:* WSJF (SAFe);Cost of Delay (CoD);Don Reinertsen《Principles of Product Development Flow》
-- **是什麼**:把工作排序變成經濟決策。WSJF = 延遲成本 (Cost of Delay) ÷ 工作規模 (Job Size);在 SAFe 裡 CoD = 使用者/商業價值 + 時間急迫性 + 風險降低/機會啟用,各項用修正 Fibonacci (1,2,3,5,8,13,20) 相對評分,分數最高者先做。Reinertsen 的核心主張:『如果你只能量化一件事,就量化延遲成本』——把時間的經濟影響攤開,排序爭論才從哲學變成經濟。
-- **用在決策流程**:排 backlog 時不再憑直覺,而是對每個工作估 CoD 三要素與規模,算 WSJF 排序——『高價值/急迫且能快做完的』先做。它特別擅長揭露『大家都覺得重要、但其實又貴又不急』的項目應該後置。
-- **問對問題**:如果這件事晚三個月做,會損失多少 (延遲成本)?它的價值/急迫性/解鎖的其他機會各多大?它有多大 (能多快做完)?我們是不是先做了規模大但延遲成本低的東西、把又小又急的卡在後面?
-- **軟體工程**:排技術債/平台工作時用 WSJF:『修會反覆引發結帳失敗的 bug』(高風險降低、小) WSJF 高 → 先做;『把某 legacy 模組全面重寫』(價值中、巨大) WSJF 低 → 後置。
-- **產品開發**:多商家功能請求排序:用 CoD 估『缺這功能每月流失多少商家/GMV』,避免被最近喊最大聲的單一大客戶綁架排程。
-- **營運分析**:把 CoD 的估計值與上線後實際營收/留存對照,回頭校準團隊的估分準度,讓下一輪 WSJF 估得更準。
-- **策略**:季度路線圖取捨用 CoD 的語言向管理層溝通:『延後 X 一季的成本是 Y』,把工程排程決策接到財務語言上。
-- **2026**:Reinertsen 的 CoD 思想是 WSJF 的理論根基,至今仍是 SaaS 排序的黃金標準語彙。常見誤用是把 Fibonacci 相對分當成絕對金額而產生偽精確;務必把它當『相對排序對話工具』而非精算。
-- 來源:https://www.productplan.com/glossary/weighted-shortest-job-first, https://en.wikipedia.org/wiki/Cost_of_delay, http://leanmagazine.net/lean/cost-of-delay-don-reinertsen/
+### Weighted Shortest Job First (WSJF) and Cost of Delay · fit 4
+*aka / source:* WSJF (SAFe); Cost of Delay (CoD); Don Reinertsen, "The Principles of Product Development Flow"
+- **What it is**: Turns work sequencing into an economic decision. WSJF = Cost of Delay ÷ Job Size; in SAFe, CoD = user/business value + time criticality + risk reduction/opportunity enablement, each scored relatively on a modified Fibonacci scale (1, 2, 3, 5, 8, 13, 20), with the highest-scoring item done first. Reinertsen's core argument: "If you only quantify one thing, quantify the cost of delay" — once the economic impact of time is on the table, the sequencing argument shifts from philosophy to economics.
+- **Use in the process**: When ordering the backlog, stop relying on intuition: estimate the three CoD components and the size for each item, compute WSJF, and sequence — "high-value/urgent and quick to finish" goes first. It is especially good at exposing items "everyone thinks are important but that are actually expensive and not urgent" as things that should be deferred.
+- **Questions to ask**: If we do this three months later, how much do we lose (cost of delay)? How large are its value/criticality and the other opportunities it unlocks? How big is it (how fast can we finish)? Are we doing big-but-low-CoD items first and leaving the small-and-urgent ones stuck behind them?
+- **Engineering**: When sequencing tech-debt/platform work, use WSJF: "fix the bug that repeatedly triggers checkout failures" (high risk reduction, small) has high WSJF → do first; "rewrite a legacy module wholesale" (medium value, huge) has low WSJF → defer.
+- **Product**: When prioritizing multi-merchant feature requests, use CoD to estimate "how many merchants/how much GMV we lose each month without this feature", avoiding having the schedule hijacked by whichever large customer shouted loudest most recently.
+- **Ops**: Compare CoD estimates against actual post-launch revenue/retention, then go back and calibrate the team's scoring accuracy so the next round of WSJF estimates is sharper.
+- **Strategy**: Communicate quarterly roadmap trade-offs to leadership in CoD language: "delaying X by one quarter costs Y", connecting engineering-scheduling decisions to financial language.
+- **2026**: Reinertsen's CoD thinking is the theoretical foundation of WSJF and remains the gold-standard vocabulary for SaaS sequencing. A common misuse is treating the relative Fibonacci scores as absolute dollar amounts and creating false precision; always treat it as a "relative-sequencing conversation tool", not actuarial math.
+- Sources: https://www.productplan.com/glossary/weighted-shortest-job-first, https://en.wikipedia.org/wiki/Cost_of_delay, http://leanmagazine.net/lean/cost-of-delay-don-reinertsen/
 
-### 架構適應度函數 (Architecture Fitness Functions) · fit 4
-*aka / 出處:* Neal Ford、Rebecca Parsons、Pat Kua《Building Evolutionary Architectures》(2017,2nd ed.);ArchUnit / NetArchTest
-- **是什麼**:對某個架構特性提供客觀完整性評估的任何機制——可想成『架構版的單元測試』。借自演化計算,fitness function 衡量設計離目標有多近;它把原本零散的非功能需求 (效能、耦合、安全、分層) 統一成可自動執行的檢查,讓架構能在持續演化中被守住方向。
-- **用在決策流程**:做完一個架構決策 (例如『admin 不可直接呼叫某 service』『p95 延遲 < 300ms』『前端不可繞過 API 層直連 DB』) 後,把它寫成自動化 fitness function 放進 CI/CD。決策不再只是文件上的承諾,而是每次提交都被驗證、會 fail build 的守門——對抗架構漂移 (architecture drift)。
-- **問對問題**:我們在意的這個架構特性,要怎麼用自動化測試客觀驗證?哪些架構規則目前只靠 code review 人工把關、其實可以自動化?如果這條規則被違反,build 該不該紅?這個 fitness function 對應的是哪個品質情境 (接 ATAM 效用樹)?
-- **軟體工程**:用 ArchUnit/依賴檢查強制多租戶安全規則:『所有對 orders 的查詢必須帶 tenant scope』『features/xxx 不可 import 其他 feature 內部模組』——把 .claude/rules 裡的分層慣例變成會 fail CI 的測試。
-- **產品開發**:在 CI 加效能 fitness function:結帳關鍵 API 的 p95 延遲超標就擋住 merge,讓效能成為功能開發的硬約束而非事後救火。
-- **營運分析**:fitness function 的通過率/趨勢本身就是架構健康度指標,可做成 dashboard 觀察架構債隨時間是惡化還是改善。
-- **策略**:對外承諾的品質屬性 (安全合規、可用性) 用 fitness functions 制度化,降低『擴張團隊後架構失控』的規模化風險,是平台長期可演化性的投資。
-- **2026**:第 2 版 (2022) 專章談『自動化架構治理』;2025–2026 的前沿是 AI/agentic AI 協助分析與生成 fitness functions、治理 LLM 相關架構 (O'Reilly 2025 有專文)。對 CI/CD 成熟的團隊落地價值高。
-- 來源:https://www.thoughtworks.com/radar/techniques/architectural-fitness-function, https://www.oreilly.com/library/view/building-evolutionary-architectures/9781492097532/ch04.html, https://www.oreilly.com/radar/how-agentic-ai-empowers-architecture-governance/
+### Architecture Fitness Functions · fit 4
+*aka / source:* Neal Ford, Rebecca Parsons, Pat Kua, "Building Evolutionary Architectures" (2017; 2nd ed. 2022); ArchUnit / NetArchTest
+- **What it is**: Any mechanism that provides an objective integrity assessment of some architectural characteristic — think of it as the "unit test of architecture". Borrowed from evolutionary computing, where a fitness function measures how close a design is to its goal, it unifies scattered non-functional requirements (performance, coupling, security, layering) into automatically executable checks, so the architecture's direction can be held even as it continually evolves.
+- **Use in the process**: After making an architectural decision (e.g. "admin must not call a given service directly", "p95 latency < 300ms", "the frontend must not bypass the API layer to talk to the DB"), encode it as an automated fitness function in CI/CD. The decision is no longer just a promise in a document but a gate that is verified on every commit and fails the build if violated — defending against architecture drift.
+- **Questions to ask**: For the architectural characteristic we care about, how do we verify it objectively with an automated test? Which architectural rules are currently enforced only by human code review but could be automated? If this rule is violated, should the build go red? Which quality scenario does this fitness function correspond to (connecting back to the ATAM utility tree)?
+- **Engineering**: Use ArchUnit/dependency checks to enforce multi-tenant security rules: "every query against orders must carry a tenant scope", "features/xxx must not import another feature's internal modules" — turning the layering conventions in .claude/rules into tests that fail CI.
+- **Product**: Add a performance fitness function to CI: block the merge if the p95 latency of a critical checkout API exceeds threshold, making performance a hard constraint of feature development rather than after-the-fact firefighting.
+- **Ops**: The pass rate/trend of the fitness functions is itself an architecture-health metric, which can be put on a dashboard to watch whether architectural debt is worsening or improving over time.
+- **Strategy**: Institutionalize externally promised quality attributes (security/compliance, availability) as fitness functions, lowering the scaling risk of "the architecture getting out of control after the team grows" — an investment in the platform's long-term evolvability.
+- **2026**: The 2nd edition (2022) has a dedicated chapter on "automated architecture governance"; the 2025–2026 frontier is AI/agentic AI assisting in analyzing and generating fitness functions and governing LLM-related architecture (O'Reilly has a 2025 piece on this). High landing value for teams with mature CI/CD.
+- Sources: https://www.thoughtworks.com/radar/techniques/architectural-fitness-function, https://www.oreilly.com/library/view/building-evolutionary-architectures/9781492097532/ch04.html, https://www.oreilly.com/radar/how-agentic-ai-empowers-architecture-governance/
 
-### DORA 四 (五) 大指標 (DORA Metrics / Four Keys) · fit 4
-*aka / 出處:* DevOps Research and Assessment;Accelerate (Forsgren、Humble、Kim);Four Keys
-- **是什麼**:衡量軟體交付效能的指標組,原為四項:部署頻率 (Deployment Frequency)、變更前置時間 (Lead Time for Changes)、變更失敗率 (Change Failure Rate)、服務恢復時間 (原 MTTR,2024 DORA 報告正式更名為 Failed Deployment Recovery Time)。2024 起常被稱『五項』(加入可靠度/operational performance 維度)。前兩項衡量速度,後兩項衡量穩定度,刻意呈現速度與穩定的張力。
-- **用在決策流程**:用 DORA 指標當決策的客觀基線:要不要投資 CI/CD、要不要拆 monolith、流程改動有沒有效,都看四指標前後變化。它把『我覺得我們交付變快了』變成可驗證——例如變更失敗率升高就是『該放慢加測試』的信號。
-- **問對問題**:我們現在的交付是快又穩,還是用穩定度換速度 (或反之)?上次流程/架構改動,四指標往哪走?恢復時間長是因為偵測慢還是回滾慢?我們要不要為了部署頻率投資自動化?
-- **軟體工程**:拆分 checkout/POS 等獨立部署單元前後,比較各服務的部署頻率與前置時間,驗證『拆開讓團隊獨立交付更快』的假設是否成立。
-- **產品開發**:用變更失敗率與恢復時間決定功能釋出節奏:失敗率高時,決策偏向更小批量 + 更多 feature flag 漸進釋出。
-- **營運分析**:把四指標做成團隊 dashboard 持續追蹤,作為工程營運健康度的核心數據,辨識瓶頸 (例如 lead time 卡在 code review 還是部署)。
-- **策略**:DORA 指標是向管理層說明『工程投資 ROI』的共通語言:平台穩定度與交付速度直接連到商家信任與營收。
-- **2026**:2024 DORA 報告更名 MTTR → Failed Deployment Recovery Time,並擴展到第五指標與 DevEx/AI 對生產力的影響。常見誤用是把指標當 KPI 逼團隊衝量 (Goodhart's law),DORA 官方強調它衡量的是團隊系統而非個人。
-- 來源:https://www.swarmia.com/blog/dora-metrics/, https://getdx.com/blog/dora-metrics/, https://linearb.io/blog/space-framework
+### DORA Four (Five) Key Metrics · fit 4
+*aka / source:* DevOps Research and Assessment; Accelerate (Forsgren, Humble, Kim); Four Keys
+- **What it is**: A set of metrics for software-delivery performance, originally four: Deployment Frequency, Lead Time for Changes, Change Failure Rate, and time to restore service (originally MTTR; formally renamed Failed Deployment Recovery Time in the 2024 DORA report). Since 2024 it is often called "five" (adding a reliability/operational-performance dimension). The first two measure speed and the last two measure stability, deliberately surfacing the tension between speed and stability.
+- **Use in the process**: Use DORA metrics as the objective baseline for decisions: whether to invest in CI/CD, whether to break up the monolith, whether a process change actually helped — all judged by the before/after movement of the four metrics. It turns "I feel like we're delivering faster" into something verifiable — e.g. a rising change failure rate is the signal to "slow down and add tests".
+- **Questions to ask**: Is our current delivery both fast and stable, or are we trading stability for speed (or vice versa)? After the last process/architecture change, which way did the four metrics move? Is a long recovery time due to slow detection or slow rollback? Should we invest in automation for the sake of deployment frequency?
+- **Engineering**: Before and after splitting checkout/POS into independently deployable units, compare each service's deployment frequency and lead time to verify whether the hypothesis "splitting lets teams deliver independently and faster" holds.
+- **Product**: Use change failure rate and recovery time to set the feature-release cadence: when the failure rate is high, bias the decision toward smaller batches + more feature-flag progressive delivery.
+- **Ops**: Put the four metrics on a team dashboard for continuous tracking as the core data on engineering operational health, identifying bottlenecks (e.g. whether lead time is stuck in code review or in deployment).
+- **Strategy**: DORA metrics are the common language for explaining "engineering investment ROI" to leadership: platform stability and delivery speed connect directly to merchant trust and revenue.
+- **2026**: The 2024 DORA report renamed MTTR → Failed Deployment Recovery Time and expanded toward a fifth metric and the impact of DevEx/AI on productivity. A common misuse is treating the metrics as KPIs and pushing teams to game them (Goodhart's law); DORA officially stresses that it measures the team system, not individuals.
+- Sources: https://www.swarmia.com/blog/dora-metrics/, https://getdx.com/blog/dora-metrics/, https://linearb.io/blog/space-framework
 
-### 架構取捨分析法 (ATAM, Architecture Tradeoff Analysis Method) · fit 3
-*aka / 出處:* 由 Carnegie Mellon SEI 的 Kazman、Klein、Clements 提出
-- **是什麼**:一套在開發早期評估架構的風險緩解流程。核心是建『效用樹 (utility tree)』把品質屬性 (效能、可用性、安全、可修改性) 拆解成具優先序的情境,再分析架構決策,產出四類結果:風險 (risks)、非風險 (non-risks)、敏感點 (sensitivity points,小改動造成大品質影響的地方)、取捨點 (tradeoff points,同時影響多個彼此衝突品質屬性的決策)。
-- **用在決策流程**:面對重大架構選擇時,先列關鍵品質屬性並用效用樹排序 (哪個最重要、哪個有風險);把候選架構對照每個情境分析,標出敏感點與取捨點。決策不再憑感覺,而是『在已知的品質衝突中,明確選擇要犧牲誰、保護誰』。
-- **問對問題**:對這個系統,最關鍵的品質屬性排序是什麼?哪些設計決策同時牽動兩個互相衝突的品質 (取捨點)?哪些是改一點就大幅影響品質的敏感點?在最重要的情境下,這個架構會在哪裡先出問題?
-- **軟體工程**:替多租戶搜尋設計時用效用樹釐清:『單一大商家的尖峰查詢不能拖垮其他租戶 (可用性)』vs『即時索引更新 (一致性)』是取捨點;Elasticsearch shard 配置是敏感點。據此決定隔離與限流策略。
-- **產品開發**:POS (Node 20 SPA) 對『離線可用性』與『資料一致性』的衝突用 ATAM 攤開,讓 PM 明確選擇:門市斷網時優先讓結帳能進行 (可用性) 還是優先防止超賣 (一致性)。
-- **營運分析**:效用樹中量化的品質情境 (如『p95 結帳 API < 300ms』) 可直接變成生產環境要監測的 SLO 指標,把架構評審與營運量測接起來。
-- **策略**:重大平台重構前用 ATAM 產出風險清單,作為向管理層說明『投資哪裡、不投資會踩什麼風險』的依據;適合單向門級別的決策。
-- **2026**:完整 ATAM (多日 workshop) 對小團隊偏重,2020s 多數團隊取其精神 (效用樹 + 取捨點/敏感點語彙) 做輕量化版,並把量化品質情境轉成自動化 fitness functions 持續驗證,而非一次性評審。
-- 來源:https://en.wikipedia.org/wiki/Architecture_tradeoff_analysis_method, https://www.sei.cmu.edu/documents/629/2000_005_001_13706.pdf, https://www.sciencedirect.com/topics/computer-science/architecture-tradeoff-analysis-method
+### Architecture Tradeoff Analysis Method (ATAM) · fit 3
+*aka / source:* Developed by Kazman, Klein, and Clements at Carnegie Mellon SEI
+- **What it is**: A risk-mitigation process for evaluating an architecture early in development. At its core, you build a utility tree that decomposes quality attributes (performance, availability, security, modifiability) into prioritized scenarios, then analyze the architectural decisions to produce four kinds of result: risks, non-risks, sensitivity points (places where a small change has a large quality impact), and tradeoff points (decisions that simultaneously affect multiple, mutually conflicting quality attributes).
+- **Use in the process**: When facing a major architectural choice, first list the key quality attributes and prioritize them with a utility tree (which matters most, which carries risk); analyze the candidate architecture against each scenario, marking sensitivity points and tradeoff points. The decision is no longer by feel but is "an explicit choice, within known quality conflicts, of what to sacrifice and what to protect".
+- **Questions to ask**: For this system, what is the priority ordering of the most critical quality attributes? Which design decisions simultaneously move two mutually conflicting qualities (tradeoff points)? Which are sensitivity points where a small change drastically affects quality? Under the most important scenarios, where will this architecture break first?
+- **Engineering**: When designing multi-tenant search, use a utility tree to clarify: "a single large merchant's peak queries must not stall other tenants (availability)" vs "real-time index updates (consistency)" is a tradeoff point; Elasticsearch shard configuration is a sensitivity point. Decide the isolation and rate-limiting strategy accordingly.
+- **Product**: For the POS (Node 20 SPA), use ATAM to lay out the conflict between "offline availability" and "data consistency" so the PM makes an explicit choice: when a store loses connectivity, prioritize letting checkout proceed (availability) or preventing overselling (consistency)?
+- **Ops**: The quantified quality scenarios in the utility tree (e.g. "p95 checkout API < 300ms") can become directly the SLO metrics monitored in production, connecting architecture review to operational measurement.
+- **Strategy**: Before a major platform refactor, use ATAM to produce a risk list as the basis for explaining to leadership "where to invest, and what risks not investing incurs"; well suited to one-way-door-level decisions.
+- **2026**: The full ATAM (a multi-day workshop) is heavyweight for small teams; most 2020s teams take its spirit (the utility tree + tradeoff-point/sensitivity-point vocabulary) in a lightweight version, and turn the quantified quality scenarios into automated fitness functions for continuous verification rather than a one-time review.
+- Sources: https://en.wikipedia.org/wiki/Architecture_tradeoff_analysis_method, https://www.sei.cmu.edu/documents/629/2000_005_001_13706.pdf, https://www.sciencedirect.com/topics/computer-science/architecture-tradeoff-analysis-method
 
-### 故障樹分析 (Fault Tree Analysis, FTA) · fit 3
-*aka / 出處:* FTA;top-down failure analysis;minimal cut sets
-- **是什麼**:一種『由上而下』的失效分析:從一個不希望發生的頂層事件 (如『商家無法結帳』) 出發,用 AND/OR 邏輯閘往下拆解出導致它的各種底層原因組合。可做定性 (找出最小割集 minimal cut sets,即最少幾件事同時壞就會釀災) 與定量 (估算發生機率) 分析,源自安全與可靠度工程,也用於軟體。
-- **用在決策流程**:對關鍵流程的災難性失效做 FTA:畫出失效樹找出『單點故障』與『最小割集』,據此決定要投資哪些冗餘/降級/監控。決策從『憑經驗加保險』變成『針對真正會釀災的路徑加保險』。
-- **問對問題**:什麼情況會導致這個最壞結果?有哪些單點故障 (一個東西壞全垮)?最小割集是什麼 (最少幾件事一起壞就出事)?我們的防護是擋在正確的節點上嗎?
-- **軟體工程**:對『結帳 API 完全不可用』建故障樹:支付閘道逾時 OR Redis 當掉 OR DB 連線耗盡...;發現 Redis 是多條路徑共用的單點 → 決定加 fallback 與熔斷。
-- **產品開發**:設計新訂單流程時用 FTA 預想『訂單成立但金流/庫存沒扣』的失效組合,驅動補上冪等性 (idempotency) 與對帳機制的需求。
-- **營運分析**:事故 post-mortem 時用 FTA 結構化根因分析,把『出進口廠商驗證大規模失敗』這類事件拆到底層 (例如某資料表被清空),避免只停在表面症狀。
-- **策略**:對 SLA 承諾 (平台可用性) 做 FTA,量化關鍵失效路徑機率,作為要不要投資多機房/多區的依據。
-- **2026**:完整定量 FTA 在純軟體 SaaS 偏重 (多用於安全攸關系統);但其『最小割集 / 單點故障』思維被現代 SRE 廣泛吸收進可靠度評審與混沌工程 (chaos engineering),做法更輕量、更實驗導向。
-- 來源:https://en.wikipedia.org/wiki/Fault_tree_analysis, https://www.getmaintainx.com/learning-center/fault-tree-analysis, https://www.dau.edu/acquipedia-article/fault-tree-analysis-fta
+### Fault Tree Analysis (FTA) · fit 3
+*aka / source:* FTA; top-down failure analysis; minimal cut sets
+- **What it is**: A top-down failure analysis: starting from an undesired top event (e.g. "merchants cannot check out"), use AND/OR logic gates to decompose downward into the combinations of lower-level causes that produce it. It supports qualitative analysis (finding the minimal cut sets — the smallest set of things that, failing together, cause the disaster) and quantitative analysis (estimating the probability of occurrence). It originates in safety and reliability engineering and is also used in software.
+- **Use in the process**: Do an FTA on the catastrophic failure of a critical flow: draw the fault tree to find single points of failure and minimal cut sets, then decide which redundancy/degradation/monitoring to invest in. The decision shifts from "add insurance based on experience" to "add insurance on the paths that genuinely cause disaster".
+- **Questions to ask**: What conditions lead to this worst outcome? What single points of failure exist (one thing breaks and everything goes down)? What are the minimal cut sets (the smallest set of things that, failing together, cause the incident)? Are our protections guarding the right nodes?
+- **Engineering**: Build a fault tree for "the checkout API is completely unavailable": payment-gateway timeout OR Redis down OR DB connections exhausted...; discovering that Redis is a single point shared by multiple paths → decide to add a fallback and a circuit breaker.
+- **Product**: When designing a new order flow, use FTA to anticipate the failure combinations behind "the order is created but payment/inventory wasn't charged/decremented", driving the need to add idempotency and a reconciliation mechanism.
+- **Ops**: In an incident post-mortem, use FTA to structure root-cause analysis, decomposing events like "mass failure of import/export vendor validation" down to the underlying cause (e.g. a table got cleared), instead of stopping at the surface symptom.
+- **Strategy**: Do an FTA on SLA commitments (platform availability), quantifying the probability of critical failure paths as the basis for whether to invest in multi-datacenter/multi-region.
+- **2026**: Full quantitative FTA is heavyweight for pure-software SaaS (used mostly in safety-critical systems); but its "minimal cut sets / single point of failure" thinking has been widely absorbed by modern SRE into reliability reviews and chaos engineering — in a lighter, more experiment-driven form.
+- Sources: https://en.wikipedia.org/wiki/Fault_tree_analysis, https://www.getmaintainx.com/learning-center/fault-tree-analysis, https://www.dau.edu/acquipedia-article/fault-tree-analysis-fta
 
-### SPACE 框架 (SPACE Framework) · fit 3
-*aka / 出處:* Nicole Forsgren、Margaret-Anne Storey 等 (2021, ACM Queue/微軟研究);Satisfaction, Performance, Activity, Communication, Efficiency
-- **是什麼**:開發者生產力的多維度量測框架,刻意反對用單一指標 (如行數、commit 數) 衡量生產力。五個維度:Satisfaction & well-being (滿意度與身心)、Performance (成果)、Activity (活動量)、Communication & collaboration (溝通協作)、Efficiency & flow (效率與心流)。主張任何生產力評估至少跨三個維度。
-- **用在決策流程**:做『改善團隊效能』類決策時,別只看一個數字。用 SPACE 跨維度選 2–3 個互補指標 (例如 DORA 的交付速度 + 開發者滿意度調查 + PR review 等待時間),避免優化一個指標卻犧牲另一個 (衝部署量但燒壞團隊)。
-- **問對問題**:我們想改善的『生產力』到底指哪個維度?這個指標會不會被鑽 (gaming)?速度提升是否以開發者滿意度或協作為代價?我們有沒有把活動量 (Activity) 誤當成成果 (Performance)?
-- **軟體工程**:評估『導入新測試流程』成效時,同時看 CI 時間 (Efficiency)、變更失敗率 (Performance/DORA)、開發者對流程的滿意度 (Satisfaction),確認不是『更穩但大家更痛苦』。
-- **產品開發**:決定團隊容量與排程時,用 SPACE 的 flow/中斷維度判斷是否會議/context-switch 過多在拖慢功能交付,而非單純加人。
-- **營運分析**:用滿意度與協作維度的調查數據,補足純系統指標 (DORA) 看不到的『為什麼數字變差』的人因脈絡。
-- **策略**:向管理層反對『用單一產出指標考核工程師』時,SPACE 提供有研究背書的論述,保護長期團隊健康與留任。
-- **2026**:2025–2026 常與 DORA + DevEx + Flow 指標組合成『工程指標 playbook』;原作者明確警告 SPACE 不該被簡化成單一儀表板分數。對個人工程師,主要價值是『提出對的量測問題』而非自己建系統。
-- 來源:https://linearb.io/blog/space-framework, https://www.travis-ci.com/blog/understanding-devops-metrics-dora-metrics-space-framework-and-devex/, https://waydev.co/dora-metrics-vs-space-framework-productivity/
+### SPACE Framework · fit 3
+*aka / source:* Nicole Forsgren, Margaret-Anne Storey, et al. (2021, ACM Queue / Microsoft Research); Satisfaction, Performance, Activity, Communication, Efficiency
+- **What it is**: A multi-dimensional framework for measuring developer productivity, deliberately arguing against measuring productivity with any single metric (such as lines of code or commit count). Its five dimensions are: Satisfaction & well-being, Performance (outcomes), Activity, Communication & collaboration, and Efficiency & flow. It argues that any productivity assessment should span at least three dimensions.
+- **Use in the process**: When making "improve team effectiveness"-type decisions, don't look at one number. Use SPACE to pick 2–3 complementary metrics across dimensions (e.g. DORA delivery speed + a developer-satisfaction survey + PR-review wait time), avoiding the trap of optimizing one metric at the expense of another (driving up deploy volume while burning out the team).
+- **Questions to ask**: Which dimension does the "productivity" we want to improve actually refer to? Can this metric be gamed? Is the speed gain coming at the cost of developer satisfaction or collaboration? Are we mistaking Activity for Performance?
+- **Engineering**: When evaluating the impact of "introducing a new testing process", look simultaneously at CI time (Efficiency), change failure rate (Performance/DORA), and developer satisfaction with the process (Satisfaction), confirming it isn't "more stable but everyone more miserable".
+- **Product**: When deciding team capacity and scheduling, use SPACE's flow/interruption dimension to judge whether too many meetings/context switches are slowing feature delivery, rather than simply adding people.
+- **Ops**: Use survey data from the satisfaction and collaboration dimensions to supply the human-factors context — "why the numbers got worse" — that pure system metrics (DORA) can't see.
+- **Strategy**: When arguing to leadership against "evaluating engineers by a single output metric", SPACE provides a research-backed line of argument that protects long-term team health and retention.
+- **2026**: In 2025–2026 it is often combined with DORA + DevEx + Flow metrics into an "engineering-metrics playbook"; the original authors explicitly warn that SPACE should not be reduced to a single dashboard score. For an individual engineer, its main value is "asking the right measurement questions" rather than building the system yourself.
+- Sources: https://linearb.io/blog/space-framework, https://www.travis-ci.com/blog/understanding-devops-metrics-dora-metrics-space-framework-and-devex/, https://waydev.co/dora-metrics-vs-space-framework-productivity/

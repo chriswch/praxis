@@ -1,181 +1,181 @@
-> 「決策科學方法目錄」系列 · I. 產品營運分析與指標 · 共 15 個方法。圖例:工程/產品/營運/策略=四軸應用;fit=與軟體/SaaS 契合度(3–5)。
+> Decision-Science Method Catalog · I. Product ops analytics & metrics · 15 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
-### 海盜指標 (AARRR / Pirate Metrics) · fit 5
-*aka / 出處:* Pirate Metrics；Dave McClure（500 Startups）2007 提出；Acquisition/Activation/Retention/Revenue/Referral
-- **是什麼**:把使用者生命週期拆成五個階段：取得 (Acquisition)、啟用/啊哈時刻 (Activation)、留存 (Retention)、營收 (Revenue)、推薦 (Referral)，每階段各有自己的指標，讓團隊看清漏斗哪一段最痛、最該優先投入。
-- **用在決策流程**:做季度規劃時，先用 AARRR 為每階段填上當前數字與轉換率，找出「漏得最兇」的那一段而非憑感覺挑題目；資源依瓶頸階段分配，而不是平均灑在五個階段。McClure 原始主張並建議把約 80% 力氣放在優化既有功能、20% 放新功能。
-- **問對問題**:看到註冊數成長時要問：『這是 Acquisition 變好還是只是行銷檔期？後面的 Activation / Retention 有跟上嗎？』避免只盯漏斗頂端的 vanity 成長。
-- **軟體工程**:把五階段對應到後端事件埋點 schema：在多租戶電商把 signup、first_product_view、add_to_cart、first_order、repeat_order、referral_invite 定義為標準事件，讓每個 tenant 的漏斗都能用同一套查詢計算，避免各 feature team 各自定義事件造成口徑不一。
-- **產品開發**:新功能上線前先標註它服務 AARRR 哪一階段（例如『一鍵再購』屬 Retention/Revenue），驗收時只看該階段指標，避免用註冊數這種不相關指標來宣稱成功。
-- **營運分析**:為平台搭一個跨 tenant 的 AARRR 儀表板，找出哪一類商家在哪一階段掉得最多（例如新開店家卡在 Activation＝首次成功上架商品），把 CS／導入流程資源導向該段。
-- **策略**:用 AARRR 判斷成長模式：若 Referral 強可投資病毒成長 (如 Dropbox 推薦贈空間)；若 Retention 弱則先別加碼買流量，否則是往漏桶倒水。
-- **2026**:2025 年仍被廣泛使用，訂閱制／PLG 產品尤甚；現代用法強調把漏斗看成『迴圈 (loops)』而非線性，且 Revenue 段常直接接 NRR/MRR。批評：對非交易型或長銷售週期 B2B 過於簡化。
-- 來源:https://amplitude.com/blog/pirate-metrics-framework, https://www.inc.com/walter-chen/aarrr-dave-mcclure-s-pirate-metrics-and-the-only-five-numbers-that-matter.html, https://fourweekmba.com/pirate-metrics/
+### Pirate Metrics (AARRR) · fit 5
+*aka / source:* Pirate Metrics; introduced by Dave McClure (500 Startups) in 2007; Acquisition / Activation / Retention / Revenue / Referral
+- **What it is**: Decompose the user lifecycle into five stages — Acquisition, Activation (the "aha moment"), Retention, Revenue, and Referral — each with its own metrics, so the team can see which part of the funnel is bleeding most and where to invest first.
+- **Use in the process**: In quarterly planning, fill in each stage's current numbers and conversion rates first, then target the stage that is "leaking" the worst rather than picking topics on gut feel; allocate resources to the bottleneck stage instead of spreading effort evenly across all five. McClure's original advice was to put roughly 80% of effort into optimizing existing features and 20% into new ones.
+- **Questions to ask**: When sign-ups grow, ask "Is this better Acquisition, or just a marketing campaign window? Are downstream Activation and Retention keeping pace?" — avoid chasing top-of-funnel vanity growth.
+- **Engineering**: Map the five stages onto a backend event-instrumentation schema: in a multi-tenant e-commerce platform, define signup, first_product_view, add_to_cart, first_order, repeat_order, and referral_invite as standard events so every tenant's funnel is computed from the same queries, preventing each feature team from defining events differently and producing inconsistent definitions.
+- **Product**: Before shipping a feature, tag which AARRR stage it serves (e.g. "one-tap reorder" is Retention/Revenue), and judge it only on that stage's metric at acceptance — don't claim success using an unrelated metric like sign-ups.
+- **Ops**: Build a cross-tenant AARRR dashboard to find which merchant segment drops off at which stage (e.g. newly opened stores stalling at Activation = first successful product listing), and steer CS and onboarding resources to that stage.
+- **Strategy**: Use AARRR to read your growth model: if Referral is strong, invest in viral growth (e.g. Dropbox's referral-for-storage); if Retention is weak, hold off on buying more traffic — otherwise you are pouring water into a leaky bucket.
+- **2026**: Still widely used in 2025, especially for subscription/PLG products; the modern usage treats the funnel as a set of compounding loops rather than a linear pipe, and the Revenue stage often connects directly to NRR/MRR. Criticism: it oversimplifies for non-transactional or long-sales-cycle B2B.
+- Sources: https://amplitude.com/blog/pirate-metrics-framework, https://www.inc.com/walter-chen/aarrr-dave-mcclure-s-pirate-metrics-and-the-only-five-numbers-that-matter.html, https://fourweekmba.com/pirate-metrics/
 
-### 北極星指標與投入指標 (North Star Metric + Input Metrics) · fit 5
-*aka / 出處:* NSM；North Star Framework；John Cutler / Amplitude《The North Star Playbook》
-- **是什麼**:選一個最能代表『顧客從產品獲得的價值』的單一指標當北極星，並在其下定義一組能被團隊日常工作直接影響、且能預測北極星移動的投入指標 (input metrics)。北極星必須是營收的領先指標，而不是營收本身。
-- **用在決策流程**:用『北極星 = f(input1, input2, …)』的關係來排優先序：每個提案先回答它推動哪個 input、預期推動多少，再回推對北極星的影響；季度目標下到 input 層而非只喊北極星。Amplitude 三準則：表達使用者價值、在產品與行銷可影響範圍內、是營收的領先指標。
-- **問對問題**:選指標時問：『這個數字漲了，顧客真的獲得更多價值嗎？還是只是 vanity（如累計註冊數）？』以及『哪 3–5 個 input 合起來會推動它？哪個是我們最弱的槓桿？』
-- **軟體工程**:把北極星的 input 拆解直接對映到可監控的事件指標與 SLO，例如電商北極星設為『每週完成訂單的活躍買家數』，input 之一是『結帳成功率』，工程團隊就把結帳 API 的成功率/延遲當作可直接負責、可告警的 input。
-- **產品開發**:避免把 MRR/ARPU 當北極星（那是落後指標），改用『產生價值的行為』如『每月有完成≥1筆訂單的店家數』，新功能 roadmap 依其對 input 的貢獻排序。
-- **營運分析**:在多租戶平台為不同商家分群各設可比的 input metrics，建立北極星樹狀儀表板，讓營運能看到是哪個 input 段拖累整體北極星。
-- **策略**:北極星把客戶價值、產品能力、商業目標三方對齊成一句共同語言，讓全公司資源不被『成功劇場 (success theater)』與 shiny objects 帶偏。
-- **2026**:2025/2026 仍是主流對齊工具；Ravi Mehta 等人提出批評，認為單一北極星可能過度簡化、團隊應有多個對等的 input。實務上常與 metric tree 合用，把北極星當樹根。
-- 來源:https://amplitude.com/books/north-star/about-north-star-framework, https://amplitude.com/blog/good-bad-north-star-metric, https://blog.ravi-mehta.com/p/your-product-team-doesnt-need-a-north
+### North Star Metric + Input Metrics · fit 5
+*aka / source:* NSM; the North Star Framework; John Cutler / Amplitude, *The North Star Playbook*
+- **What it is**: Choose a single metric that best captures "the value customers get from the product" as the North Star, and beneath it define a small set of input metrics that the team's day-to-day work can directly move and that predict North Star movement. The North Star must be a leading indicator of revenue, not revenue itself.
+- **Use in the process**: Prioritize via the relation "North Star = f(input1, input2, …)": every proposal first answers which input it moves and by how much, then back-propagates the expected impact on the North Star; set quarterly goals at the input level rather than only on the North Star. Amplitude's three criteria: it expresses customer value, it is within the influence of product and marketing, and it is a leading indicator of revenue.
+- **Questions to ask**: When choosing the metric, ask "If this number rises, do customers genuinely get more value, or is it just vanity (e.g. cumulative sign-ups)?" and "Which 3–5 inputs together move it, and which is our weakest lever?"
+- **Engineering**: Map the North Star's input decomposition directly onto monitorable event metrics and SLOs — e.g. set the e-commerce North Star to "weekly active buyers who complete an order," with checkout success rate as one input, so the engineering team owns checkout-API success rate and latency as a directly accountable, alertable input.
+- **Product**: Avoid using MRR/ARPU as the North Star (those are lagging indicators); use a value-producing behavior such as "monthly count of stores completing ≥1 order," and rank the roadmap by each item's contribution to the inputs.
+- **Ops**: On a multi-tenant platform, define comparable input metrics per merchant segment and build a tree-structured North Star dashboard so ops can see which input is dragging the overall North Star down.
+- **Strategy**: The North Star aligns customer value, product capability, and business goals into one shared language, keeping company-wide resources from being pulled off course by "success theater" and shiny objects.
+- **2026**: Still a mainstream alignment tool in 2025/2026; critics such as Ravi Mehta argue a single North Star can oversimplify and that teams should hold several co-equal inputs. In practice it is often paired with a metric tree, with the North Star as the root.
+- Sources: https://amplitude.com/books/north-star/about-north-star-framework, https://amplitude.com/blog/good-bad-north-star-metric, https://blog.ravi-mehta.com/p/your-product-team-doesnt-need-a-north
 
-### 世代分析與留存曲線 (Cohort Analysis & Retention Curve) · fit 5
-*aka / 出處:* Cohort retention；留存曲線『微笑/變平 (smile/flatten)』；retention plateau
-- **是什麼**:把使用者依加入時間（或其他屬性）分群，追蹤每一群隨時間的留存，畫成留存曲線。健康型態是先下滑後『變平 (flatten)』甚至回升（微笑曲線），代表找到一群真正持續獲得價值的核心使用者。
-- **用在決策流程**:判斷 PMF 與改版成效看『曲線形狀』而非單一留存數字：曲線變平＝有 PMF，持續下滑＝核心使用者還沒出現。比較不同月份 cohort，若新 cohort 更早變平，代表近期產品調整奏效，可加碼該方向。
-- **問對問題**:看到整體留存上升時要問：『是真的留存變好，還是只是近期 cohort 還沒走完、或混入了不同質的 cohort？』形狀比數字更會說真話。
-- **軟體工程**:用 SQL/事件倉儲建可重跑的 cohort 查詢（依 tenant 註冊週為 cohort），把『新版本上線』標在時間軸上，量測該版本後 cohort 的留存是否變平，作為 release 是否成功的客觀證據。
-- **產品開發**:上線 onboarding 改版後，比較改版前後 cohort 的次週留存，驗證『啊哈時刻』是否真的提早，而不是只看當週 DAU 跳動。
-- **營運分析**:為平台商家做『商家存活 cohort』：依開店月份追蹤 N 個月後仍有營業額的比例，找出哪批商家在第幾個月集中流失，回推導入流程問題。
-- **策略**:留存曲線是否變平是『是否該加碼買流量』的紅綠燈：曲線仍下滑時擴張獲客＝往漏桶倒水。
-- **2026**:2026 文章特別提醒要把『AI 觀光客 (AI tourists)』與真實留存使用者分開——靠 AI 噱頭吸引的一次性使用者會讓 cohort 早期虛胖、後期崩塌，分析時須以行為深度而非單純活躍與否分群。
-- 來源:https://amplitude.com/explore/analytics/cohort-retention-analysis, https://countly.com/blog/the-complete-guide-to-measuring-user-retention-cohorts-curves-benchmarks, https://userpilot.com/blog/cohort-retention-analysis/
+### Cohort Analysis & Retention Curve · fit 5
+*aka / source:* cohort retention; retention-curve "smile/flatten"; retention plateau
+- **What it is**: Group users by join time (or another attribute) and track each group's retention over time, plotting a retention curve. The healthy shape declines first, then flattens (and may rise again — the "smile"), signaling you've found a core of users who keep getting value.
+- **Use in the process**: Judge product-market fit and the effect of changes by the *shape* of the curve, not a single retention number: a flattening curve = PMF; a curve that keeps declining = the core users haven't emerged yet. Compare cohorts across months — if newer cohorts flatten earlier, recent product changes are working and you can double down on that direction.
+- **Questions to ask**: When overall retention rises, ask "Is retention genuinely better, or have recent cohorts simply not matured, or have differently-composed cohorts been mixed in?" — the shape tells more truth than the number.
+- **Engineering**: Build re-runnable cohort queries on SQL/event warehousing (cohort by tenant signup week), annotate "new version shipped" on the timeline, and measure whether post-release cohorts flatten — as objective evidence of whether the release succeeded.
+- **Product**: After shipping an onboarding redesign, compare next-week retention of pre- and post-change cohorts to verify the "aha moment" really arrived sooner, instead of just watching same-week DAU bounce around.
+- **Ops**: Build a "merchant survival cohort" for platform stores: track, by sign-up month, the share still transacting N months later, to find which batch of merchants churns en masse in which month and trace it back to onboarding issues.
+- **Strategy**: Whether the retention curve flattens is the traffic light for "should we spend more on acquisition": expanding acquisition while the curve still declines = pouring into a leaky bucket.
+- **2026**: 2026 writing specifically warns to separate "AI tourists" from genuinely retained users — one-off users drawn in by an AI gimmick inflate early cohorts and then collapse; segment by behavioral depth rather than mere active/inactive status.
+- Sources: https://amplitude.com/explore/analytics/cohort-retention-analysis, https://countly.com/blog/the-complete-guide-to-measuring-user-retention-cohorts-curves-benchmarks, https://userpilot.com/blog/cohort-retention-analysis/
 
-### 漏斗分析 (Funnel Analysis) · fit 5
-*aka / 出處:* Conversion funnel analysis；drop-off / step conversion analysis
-- **是什麼**:把一個多步驟流程（如註冊或結帳）定義成有序步驟，量測每一步到下一步的轉換率，找出掉最兇的步驟。關鍵是別停在『畫出漏斗圖』，而要進一步診斷 why。
-- **用在決策流程**:依各步驟掉幅排序優先級，先修轉換損失最大的那一步；把掉點原因歸到四類——認知落差、動機落差、摩擦 (friction)、技術問題——再對症下藥（文案/誘因/UX/修 bug）。
-- **問對問題**:看到結帳轉換低時要問：『使用者是不知道下一步（認知）、不想做（動機）、卡關（摩擦）、還是壞了（技術）？』四類原因對應完全不同的解法。
-- **軟體工程**:結帳漏斗某步驟轉換異常下降時，先查是不是技術問題：交叉比對該步驟的前端錯誤率、API 5xx、特定瀏覽器/裝置/金流通道的失敗率——很多『轉換掉』其實是 regression bug，不是 UX 問題。
-- **產品開發**:在重做加購/組合商品流程時，先量現況漏斗，改版後逐步比較，量化是哪一步被改善，避免改了很多步卻不知哪步有效。
-- **營運分析**:把漏斗按 tenant/裝置/流量來源分群，找出『某金流通道結帳成功率特別低』這種被總體數字掩蓋的局部問題。
-- **策略**:漏斗讓你判斷成長瓶頸在獲客還是轉換：若流量充足但中段大量流失，投資點應在產品轉換而非再加廣告預算。
-- **2026**:2026 最佳實務是量化＋質化同流程：漏斗圖找出 where，session replay/熱圖/訪談找出 why；多層證據彼此印證才下結論。多數團隊的弱點仍是只做到步驟轉換、跳過診斷。
-- 來源:https://plane.so/blog/conversion-funnel-analysis-for-product-managers-how-to-spot-drop-offs, https://www.datadoghq.com/blog/product-analytics-funnels/, https://uxcam.com/blog/conversion-funnel-analysis/
+### Funnel Analysis · fit 5
+*aka / source:* conversion funnel analysis; drop-off / step-conversion analysis
+- **What it is**: Define a multi-step flow (e.g. sign-up or checkout) as ordered steps, measure step-to-step conversion, and find the worst-dropping step. The key is not to stop at "drawing the funnel chart" but to go on and diagnose *why*.
+- **Use in the process**: Prioritize by the size of each step's drop, fixing the largest conversion loss first; attribute each drop-off to one of four causes — comprehension gap, motivation gap, friction, or technical failure — then treat it accordingly (copy / incentive / UX / bug fix).
+- **Questions to ask**: When checkout conversion is low, ask "Do users not know the next step (comprehension), not want to (motivation), get stuck (friction), or is it broken (technical)?" — the four causes have entirely different remedies.
+- **Engineering**: When a checkout-funnel step's conversion drops abnormally, first check whether it is a technical failure: cross-reference that step's front-end error rate, API 5xx rate, and failure rates by browser/device/payment channel — many "conversion drops" are regression bugs, not UX problems.
+- **Product**: When reworking the add-on / bundled-product flow, measure the current funnel first, then compare step-by-step after the change to quantify which step improved — avoiding changing many steps without knowing which one worked.
+- **Ops**: Segment the funnel by tenant/device/traffic source to surface local problems masked by aggregate numbers, such as "one payment channel has an unusually low checkout success rate."
+- **Strategy**: The funnel tells you whether the growth bottleneck is acquisition or conversion: if traffic is ample but the middle leaks heavily, invest in product conversion rather than more ad budget.
+- **2026**: The 2026 best practice is to run quantitative and qualitative analysis in one flow: the funnel chart finds *where*, while session replay / heatmaps / interviews find *why*; corroborate across layers of evidence before concluding. Most teams' weakness is still stopping at step conversion and skipping the diagnosis.
+- Sources: https://plane.so/blog/conversion-funnel-analysis-for-product-managers-how-to-spot-drop-offs, https://www.datadoghq.com/blog/product-analytics-funnels/, https://uxcam.com/blog/conversion-funnel-analysis/
 
-### LTV/CAC 與回收期 (LTV:CAC Ratio & CAC Payback) · fit 5
-*aka / 出處:* Customer Lifetime Value / Customer Acquisition Cost；單位經濟 (unit economics)；CAC payback period
-- **是什麼**:LTV:CAC 比較一位顧客的終身價值與取得成本；CAC payback 衡量要多久毛利才賺回取得該顧客的行銷業務成本。常見健康門檻 LTV:CAC ≥ 3:1（5:1+ 表效率很高），payback SMB <12 個月、Mid-Market <18 個月。
-- **用在決策流程**:決定行銷投放與定價時，用 LTV:CAC 判斷『獲客是否划算』、用 payback 判斷『現金多久回得來』；現金吃緊時 payback 比 LTV 絕對值更關鍵。比率過高（如>5:1）有時代表『投資不足』，可加碼獲客。
-- **問對問題**:問：『我的 LTV 是用 GRR 還是 NRR、用毛利還是營收算的？折現了嗎？』LTV 算法極易被灌水；也要問『payback 在不同通路/客群差多少？』
-- **軟體工程**:為計算口徑一致，工程端要把『歸因到行銷的成本』與『每筆訂單毛利』正確落到資料模型（區分金流手續費、物流成本），否則 LTV/CAC 全是垃圾進垃圾出。
-- **產品開發**:評估新功能（如訂閱方案、加購）對 LTV 的影響：若能提高回購頻次/客單價而拉長 LTV，即使短期不變現也值得做。
-- **營運分析**:對不同商家分群算 LTV:CAC 與 payback，找出『獲客成本高但留存差』的賠錢客群，調整導入/方案策略。
-- **策略**:LTV:CAC 與 payback 是擴張節奏的煞車：payback 拉長代表獲客效率惡化，該先修留存/變現再擴張；多數 B2B SaaS 健康 payback 約 6–12 個月。
-- **2026**:2026 投資環境更重資本效率，payback 與 Rule of 40 受重視程度上升；benchmark（中位數約 3.2:1、payback 8–9 個月）來自彙整報告，分群差異大，引用時須註明來源與口徑。
-- 來源:https://www.airtree.vc/open-source-vc/startup-metrics-cac-payback-and-ltv-cac-ratio, https://www.wallstreetprep.com/knowledge/ltv-cac-ratio/, https://www.fiscallion.io/blog/saas-unit-economics
+### LTV:CAC Ratio & CAC Payback · fit 5
+*aka / source:* Customer Lifetime Value / Customer Acquisition Cost; unit economics; CAC payback period
+- **What it is**: LTV:CAC compares a customer's lifetime value with the cost to acquire them; CAC payback measures how long gross profit takes to recoup the sales-and-marketing cost of acquiring that customer. Common healthy thresholds are LTV:CAC ≥ 3:1 (5:1+ signals high efficiency), with payback under ~12 months for SMB and ~18 months for Mid-Market.
+- **Use in the process**: When deciding marketing spend and pricing, use LTV:CAC to judge "is acquisition worth it" and payback to judge "how fast cash comes back"; when cash is tight, payback matters more than the absolute LTV:CAC ratio. A very high ratio (e.g. >5:1) can signal under-investment, meaning you could spend more on acquisition.
+- **Questions to ask**: Ask "Is my LTV computed on GRR or NRR, on gross margin or revenue? Is it discounted?" — LTV is extremely easy to inflate; also ask "How much does payback differ across channels and segments?"
+- **Engineering**: For consistent definitions, engineering must land "cost attributed to marketing" and "gross margin per order" correctly in the data model (separating payment-processing fees and logistics cost), or LTV/CAC is garbage-in, garbage-out.
+- **Product**: Evaluate a new feature's (e.g. a subscription plan or add-on) effect on LTV: if it raises repurchase frequency or order value and thereby lengthens LTV, it can be worth doing even if it doesn't monetize in the short term.
+- **Ops**: Compute LTV:CAC and payback per merchant segment to find unprofitable cohorts — high acquisition cost but poor retention — and adjust onboarding and plan strategy.
+- **Strategy**: LTV:CAC and payback are the brake on expansion pace: a lengthening payback means acquisition efficiency is deteriorating, so fix retention/monetization before expanding; most B2B SaaS has a healthy payback of roughly 6–12 months.
+- **2026**: The 2026 funding climate weighs capital efficiency more heavily, raising the importance of payback and the Rule of 40; benchmarks (median around 3.2:1, payback 8–9 months) come from aggregated reports and vary widely by segment, so cite the source and definition when using them.
+- Sources: https://www.airtree.vc/open-source-vc/startup-metrics-cac-payback-and-ltv-cac-ratio, https://www.wallstreetprep.com/knowledge/ltv-cac-ratio/, https://www.fiscallion.io/blog/saas-unit-economics
 
-### 淨/毛收入留存與流失 (NRR / GRR / Churn) · fit 5
-*aka / 出處:* Net Revenue Retention；Gross Revenue Retention；Net Dollar Retention (NDR)；revenue/logo churn
-- **是什麼**:GRR 衡量既有客戶留下的收入（不含擴張，永遠 ≤100%），NRR 含擴張（upsell/用量增加），>100% 代表光靠舊客就能成長。NRR 與 GRR 的差距反映擴張力道。
-- **用在決策流程**:用 GRR 看『止血能力』（流失與降級嚴重程度）、用 NRR 看『擴張能力』；高 NRR + 高 GRR 是頂標，高 NRR + 低 GRR 是『被積極 upsell 掩蓋的漏桶』，要先修流失。董事會/募資以 NRR 為核心成長品質指標。
-- **問對問題**:看到 NRR 漂亮時要問：『GRR 是多少？這 NRR 是少數大客戶擴張撐起來的、還是普遍健康？logo churn 是否其實很高？』NRR 高不等於客戶不流失。
-- **軟體工程**:在計費系統中正確區分新客、擴張、收縮 (contraction)、流失 (churn) 四種 MRR 變動事件並落表，是 NRR/GRR 能算對的前提；多租戶下還要能 per-tenant 還原這些變動。
-- **產品開發**:把『擴張型功能』（用量加值、加購方案、進階模組）的 roadmap 直接綁 NRR 目標；把降低 contraction/churn 的功能（如挽留流程）綁 GRR。
-- **營運分析**:對商家分群算 NRR/GRR，找出哪個方案/規模級距的 GRR 特別低（純流失），導入 Customer Success 介入名單。
-- **策略**:NRR 被視為 2026 最關鍵 SaaS 估值指標之一；B2B SaaS 中位數 NRR 約 108%、GRR 約 88%（差距約 12–20 個百分點），可用以對標自家健康度與成長品質。
-- **2026**:2026 有報告指出 AI-native SaaS 留存普遍偏低（某報告稱中位 NRR 約 48%、GRR 約 40%），使市場更重視 GRR 而非只看 NRR。此數字來自單一來源，屬待查證宣稱。
-- 來源:https://www.m3ter.com/blog/net-revenue-retention, https://www.growthspreeofficial.com/blogs/b2b-saas-nrr-grr-net-gross-revenue-retention-benchmarks-2026-by-acv-stage-vertical, https://blog.customerscore.io/gross-revenue-retention-the-saas-metric-that-reveals-your-true-retention-health/
+### Net / Gross Revenue Retention & Churn (NRR / GRR / Churn) · fit 5
+*aka / source:* Net Revenue Retention; Gross Revenue Retention; Net Dollar Retention (NDR); revenue / logo churn
+- **What it is**: GRR measures the revenue retained from existing customers excluding expansion (always ≤100%); NRR includes expansion (upsell, increased usage), and >100% means the existing base alone can grow revenue. The gap between NRR and GRR reflects expansion strength.
+- **Use in the process**: Use GRR to read "stop-the-bleeding capacity" (severity of churn and downgrades) and NRR to read "expansion capacity"; high NRR + high GRR is top-tier, while high NRR + low GRR is "a leaky bucket masked by aggressive upsell" where you must fix churn first. Boards and fundraising treat NRR as the core growth-quality metric.
+- **Questions to ask**: When NRR looks great, ask "What is GRR? Is this NRR propped up by a few large accounts expanding, or broadly healthy? Is logo churn actually high?" — a high NRR does not mean customers aren't churning.
+- **Engineering**: Correctly distinguishing and landing the four MRR-movement events — new, expansion, contraction, and churn — in the billing system is the precondition for computing NRR/GRR right; under multi-tenancy you must also be able to reconstruct these movements per tenant.
+- **Product**: Tie the roadmap for "expansion features" (usage-based add-ons, add-on plans, advanced modules) directly to an NRR target; tie features that reduce contraction/churn (e.g. a save/retention flow) to a GRR target.
+- **Ops**: Compute NRR/GRR per merchant segment to find which plan or size tier has an unusually low GRR (pure churn), and build the intervention list for Customer Success.
+- **Strategy**: NRR is seen as one of the most critical SaaS valuation metrics for 2026; B2B SaaS medians are roughly 108% NRR and 88% GRR (a gap of about 12–20 percentage points), usable to benchmark your own health and growth quality.
+- **2026**: Some 2026 reports note that AI-native SaaS retention runs low (one report cites median NRR around 48% and GRR around 40%), pushing the market to weigh GRR over NRR alone. These figures come from a single source and are unverified claims.
+- Sources: https://www.m3ter.com/blog/net-revenue-retention, https://www.growthspreeofficial.com/blogs/b2b-saas-nrr-grr-net-gross-revenue-retention-benchmarks-2026-by-acv-stage-vertical, https://blog.customerscore.io/gross-revenue-retention-the-saas-metric-that-reveals-your-true-retention-health/
 
-### 指標樹 / KPI 拆解 (Metric Tree / KPI Tree, 套用 MECE) · fit 5
-*aka / 出處:* KPI Tree；metric decomposition；MECE (Mutually Exclusive, Collectively Exhaustive)；Petra Wille / KPI Tree
-- **是什麼**:把最上層成果指標（北極星/營收）用數學運算子逐層拆成驅動因子，形成有因果關係的指標樹，每一層盡量符合 MECE（彼此互斥、合計完整）。例：營收 = 顧客數 × 每客平均營收；顧客數 = 新客 + 回頭客 − 流失客。
-- **用在決策流程**:做目標設定與題目排序時，沿樹找到『可被某團隊直接影響的葉節點』指派負責；資源投在槓桿最大的分支。MECE 確保沒有重複計算也沒有遺漏的驅動因子。
-- **問對問題**:看到頂層指標動時，沿樹往下問：『是哪個分支造成的？是量 (volume) 變了還是率 (rate) 變了？』把『為什麼變』變成沿樹下鑽的結構化提問，而非亂猜。
-- **軟體工程**:把指標樹當『可觀測性的指標契約』：每個葉節點對應一個明確 SQL/事件定義並進資料字典，避免不同 team 對『轉換率』各自口徑；樹結構也讓告警能定位到具體分支。
-- **產品開發**:為一個 feature team 從北極星樹切出他們負責的子樹，roadmap 全部對映到該子樹的葉指標，確保每個功能都對上層成果有清楚的因果路徑。
-- **營運分析**:用 GMV 樹（GMV = 訪客 × 轉換率 × 客單價）做多租戶歸因，立刻看出整體 GMV 下滑是流量、轉換還是客單價問題，再下鑽到 segment。
-- **策略**:指標樹把『最高層商業目標』連到『團隊每天能動的營運槓桿』，是讓策略可被全公司理解與執行的橋樑。
-- **2026**:2025/2026 出現 KPI Tree、metrics-tree 等工具與 AI agent，能半自動建樹並做異常下鑽歸因，但『樹該怎麼拆才 MECE、哪個分支才是真因果』仍需人判斷，避免把相關當因果。
-- 來源:https://kpitree.co/guides/getting-started/how-to-build-a-metric-tree, https://www.petra-wille.com/blog/kpi-trees-how-to-bridge-the-gap-between-customer-behavior-product-metrics-and-company-goals, https://medium.com/@benjamin.dupont_49675/from-data-chaos-to-strategic-clarity-the-role-of-kpi-trees-in-product-management-d6eb0657fcfb
+### Metric Tree / KPI Tree (applying MECE) · fit 5
+*aka / source:* KPI Tree; metric decomposition; MECE (Mutually Exclusive, Collectively Exhaustive); Petra Wille / KPI Tree
+- **What it is**: Decompose a top-level outcome metric (North Star / revenue) layer by layer into driver factors via mathematical operators, forming a causally-linked metric tree where each layer is as MECE as possible (mutually exclusive, collectively exhaustive). Example: revenue = customers × average revenue per customer; customers = new + returning − churned.
+- **Use in the process**: For goal-setting and topic prioritization, walk the tree to find "leaf nodes a specific team can directly influence" and assign ownership; invest in the branch with the largest leverage. MECE ensures no double-counting and no omitted drivers.
+- **Questions to ask**: When a top-level metric moves, walk down the tree and ask "Which branch caused it? Did a volume change or a rate change?" — turning "why did it move" into structured drill-down along the tree rather than guessing.
+- **Engineering**: Treat the metric tree as an "observability metric contract": each leaf node maps to an explicit SQL/event definition recorded in the data dictionary, preventing teams from defining "conversion rate" differently; the tree structure also lets alerts localize to a specific branch.
+- **Product**: Carve out the subtree a feature team owns from the North Star tree, map the entire roadmap onto that subtree's leaf metrics, and ensure every feature has a clear causal path to the top-level outcome.
+- **Ops**: Use a GMV tree (GMV = visitors × conversion rate × average order value) for multi-tenant attribution, immediately seeing whether an overall GMV decline is a traffic, conversion, or order-value problem, then drilling down to segment.
+- **Strategy**: The metric tree connects "top-level business goals" to "operational levers teams move daily," the bridge that makes strategy understandable and executable company-wide.
+- **2026**: 2025/2026 saw KPI Tree, metrics-tree tooling, and AI agents that semi-automatically build trees and run anomaly drill-down attribution, but "how to decompose so it stays MECE, and which branch is true causation" still needs human judgment — avoid mistaking correlation for causation.
+- Sources: https://kpitree.co/guides/getting-started/how-to-build-a-metric-tree, https://www.petra-wille.com/blog/kpi-trees-how-to-bridge-the-gap-between-customer-behavior-product-metrics-and-company-goals, https://medium.com/@benjamin.dupont_49675/from-data-chaos-to-strategic-clarity-the-role-of-kpi-trees-in-product-management-d6eb0657fcfb
 
-### 領先 vs 落後指標 (Leading vs Lagging Indicators) · fit 5
-*aka / 出處:* Leading indicators / Lagging indicators；predictive vs outcome metrics
-- **是什麼**:領先指標前瞻、貼近團隊日常工作、可被直接影響（如加入購物車率、啟用率）；落後指標回顧、衡量已發生的最終成果、團隊難以直接撼動（如 MRR、churn、NPS）。兩者搭配：領先指標讓你及早調整，落後指標衡量最終影響。
-- **用在決策流程**:設目標時用領先指標當『每日方向盤』、落後指標當『成績單』；不要只用落後指標管理（等它動了已來不及），也不要只追領先指標而與成果脫鉤。每個落後指標都該找到能推動它的領先指標。
-- **問對問題**:看到一個指標時問：『這是我能在本週改變的領先指標，還是只能事後檢討的落後指標？』『哪個領先指標若現在惡化，會預告三個月後的 churn？』
-- **軟體工程**:把可即時告警的領先工程指標（結帳錯誤率、頁面載入時間、API 延遲）當成商業落後指標（轉換率、流失）的早期預警，問題惡化成營收才發現就太晚了。
-- **產品開發**:功能驗收用領先指標（採用率、啟用時間）即時判斷方向，再用落後指標（留存、營收）做季度回顧，避免用落後指標卡住快速迭代。
-- **營運分析**:為商家流失建『領先指標看板』：登入頻率下降、訂單量連續下滑等領先訊號，提早於『實際流失』這個落後指標介入。
-- **策略**:落後指標（NRR、LTV）定義策略成敗，但策略執行要靠可影響的領先指標來導航；分清兩者避免『盯著後照鏡開車』。
-- **2026**:經典且歷久不衰；North Star 框架本質就是『選一個營收的領先指標』。2025 產品分析工具普遍支援把領先/落後指標映射成一張 metric map 來檢視因果時序。
-- 來源:https://amplitude.com/blog/leading-lagging-indicators, https://blog.logrocket.com/product-management/leading-lagging-indicators/, https://amplitude.com/blog/map-your-metrics
+### Leading vs Lagging Indicators · fit 5
+*aka / source:* leading indicators / lagging indicators; predictive vs outcome metrics
+- **What it is**: Leading indicators are forward-looking, close to the team's daily work, and directly influenceable (e.g. add-to-cart rate, activation rate); lagging indicators are backward-looking, measure the final outcome that has already happened, and are hard for the team to move directly (e.g. MRR, churn, NPS). Pair them: leading indicators let you adjust early, lagging indicators measure final impact.
+- **Use in the process**: In goal-setting, use leading indicators as the "daily steering wheel" and lagging indicators as the "report card"; don't manage on lagging indicators alone (by the time they move it's too late), and don't chase leading indicators that have come unmoored from outcomes. Every lagging indicator should have a leading indicator that drives it.
+- **Questions to ask**: When looking at a metric, ask "Is this a leading indicator I can change this week, or a lagging indicator I can only review after the fact?" and "Which leading indicator, if it worsens now, foreshadows churn three months out?"
+- **Engineering**: Use real-time-alertable leading engineering metrics (checkout error rate, page load time, API latency) as early warnings for lagging business indicators (conversion, churn) — discovering a problem only once it has worsened into revenue is too late.
+- **Product**: Use leading indicators (adoption rate, time-to-activate) for real-time feature acceptance and direction, then use lagging indicators (retention, revenue) for the quarterly review — avoiding letting lagging indicators block fast iteration.
+- **Ops**: Build a "leading-indicator board" for merchant churn: leading signals like declining login frequency or successive drops in order volume let you intervene ahead of the lagging "actual churn" indicator.
+- **Strategy**: Lagging indicators (NRR, LTV) define whether the strategy succeeded, but executing the strategy requires navigating by influenceable leading indicators; distinguishing the two avoids "driving while staring at the rear-view mirror."
+- **2026**: Classic and enduring; the North Star framework is essentially "pick a leading indicator of revenue." By 2025 product-analytics tools broadly support mapping leading/lagging indicators into a single metric map to inspect causal sequencing.
+- Sources: https://amplitude.com/blog/leading-lagging-indicators, https://blog.logrocket.com/product-management/leading-lagging-indicators/, https://amplitude.com/blog/map-your-metrics
 
-### 區隔分析與辛普森悖論防範 (Segmentation & Simpson's Paradox) · fit 5
-*aka / 出處:* User/behavioral segmentation；Simpson's paradox（總體與分群趨勢反轉）；『平均使用者不存在』
-- **是什麼**:把使用者依行為/屬性分群分析，而非只看總體平均。辛普森悖論指：總體看到的趨勢在分群後可能反轉，原因是各子群規模差異扭曲了總體；『平均使用者』往往是會把你帶偏的海妖。
-- **用在決策流程**:任何重要指標下決策前先下鑽到關鍵 segment（裝置、地區、客群、tenant 規模），確認總體結論在各群都成立；若分群與總體矛盾，以正確的因果分群為準。實驗決策仍應先看總體結果，再用 segment 找機會而非合理化弱結論。
-- **問對問題**:看到一個平均數時問：『這個平均掩蓋了什麼？哪些 segment 其實朝相反方向走？這個總體變化是真實效果還是 segment 組合改變造成的？』
-- **軟體工程**:確保事件資料保留足夠維度（device、locale、tenant tier、流量來源）以支援事後分群，避免只存彙總值導致無法下鑽；多租戶下尤其要能 per-segment 切分。
-- **產品開發**:A/B 測試結果先看總體，再分群檢查：某功能總體看似無效，可能在每個 segment 都有效卻被 mix 抵銷（辛普森悖論），反之亦然。
-- **營運分析**:電商平台『整體轉換率持平』可能是新手商家轉換惡化被成熟商家成長掩蓋——分群才能看清，否則營運會誤判。
-- **策略**:用分群識別真正高價值客群與賠錢客群，避免被總體數字誤導而對所有客群一視同仁的錯誤定價/投放策略。
-- **2026**:辛普森悖論是資料素養核心；2025 實驗平台（Optimizely、Statsig、Mixpanel）都內建分群並警示『先信總體實驗結果，segment 用於發掘假設而非追認決策』，避免 p-hacking 式的事後挑 segment。
-- 來源:https://mixpanel.com/blog/avoiding-data-fallacies-and-biases-simpsons-paradox-and-the-importance-of-segmenting-data/, https://www.statsig.com/perspectives/simpsons-paradox-explained, https://support.optimizely.com/hc/en-us/articles/18208725352589-Simpson-s-Paradox-Discover-possibilities-with-your-segments-not-shipping-decisions
+### Segmentation & Simpson's Paradox · fit 5
+*aka / source:* user/behavioral segmentation; Simpson's paradox (aggregate and subgroup trends reverse); "the average user does not exist"
+- **What it is**: Analyze users by behavior/attribute segments rather than only the overall average. Simpson's paradox is when a trend visible in the aggregate reverses once you segment, because differing subgroup sizes distort the total; the "average user" is often a siren that leads you astray.
+- **Use in the process**: Before deciding on any important metric, drill down into key segments (device, region, customer type, tenant size) and confirm the overall conclusion holds in each; if segment and aggregate conflict, defer to the correct causal segmentation. For experiment decisions, still read the overall result first, then use segments to find opportunities rather than to rationalize a weak result.
+- **Questions to ask**: When looking at an average, ask "What is this average hiding? Which segments actually move in the opposite direction? Is this aggregate change a real effect, or driven by a shift in segment mix?"
+- **Engineering**: Ensure event data retains enough dimensions (device, locale, tenant tier, traffic source) to support after-the-fact segmentation, avoiding storing only aggregates that can't be drilled down; under multi-tenancy especially, you must be able to slice per segment.
+- **Product**: Read A/B-test results in aggregate first, then check by segment: a feature that looks ineffective overall may help in every segment yet be cancelled out by mix (Simpson's paradox), and vice versa.
+- **Ops**: An e-commerce platform's "flat overall conversion rate" may be newer merchants' worsening conversion masked by mature merchants' growth — only segmentation reveals it, or ops will misjudge.
+- **Strategy**: Use segmentation to identify genuinely high-value versus loss-making cohorts, avoiding being misled by aggregate numbers into a one-size-fits-all pricing/spend strategy across all customers.
+- **2026**: Simpson's paradox is core data literacy; 2025 experiment platforms (Optimizely, Statsig, Mixpanel) build in segmentation and warn "trust the overall experiment result first, use segments to generate hypotheses rather than to confirm decisions," avoiding p-hacking-style post-hoc segment-picking.
+- Sources: https://mixpanel.com/blog/avoiding-data-fallacies-and-biases-simpsons-paradox-and-the-importance-of-segmenting-data/, https://www.statsig.com/perspectives/simpsons-paradox-explained, https://support.optimizely.com/hc/en-us/articles/18208725352589-Simpson-s-Paradox-Discover-possibilities-with-your-segments-not-shipping-decisions
 
-### Google HEART 與 Goals-Signals-Metrics · fit 4
-*aka / 出處:* HEART framework；Kerry Rodden (Google)；Happiness/Engagement/Adoption/Retention/Task success；GSM 流程
-- **是什麼**:衡量使用者體驗的五維度：愉悅度 (Happiness)、參與度 (Engagement)、採用 (Adoption)、留存 (Retention)、任務成功 (Task success)；搭配 Goals→Signals→Metrics (GSM) 流程，從目標推導出早期訊號、再轉成可量測指標。不必五維全用，依功能挑 3–4 個即可。
-- **用在決策流程**:為一個功能先寫『目標（成果而非產出）』，再列 2–3 個會反映成敗的使用者行為訊號，最後把訊號變成有時間範圍的比率指標；驗收與否依這些 metric 而非主觀感受。
-- **問對問題**:問：『這個功能的成功，在使用者行為上會長什麼樣？(Signal)』以及『我選的指標是真的反映體驗，還是只是好看的 vanity 數字？』
-- **軟體工程**:用 Task success 維度衡量關鍵流程的健康：把『結帳完成率』『搜尋零結果率』『退款流程錯誤率』當 task-success 指標納入監控，等同把 UX 量化成可告警的工程指標。
-- **產品開發**:重設計商家後台某頁面時，用 GSM 先定義目標（降低操作時間），Signal（操作步數、求助點擊），再定 Metric（任務完成時間降 X%），避免改版後只憑『感覺比較好』下結論。
-- **營運分析**:把 Adoption（新功能首次使用率）與 Retention（回訪使用率）拆 tenant 分群追蹤，找出功能在哪類商家叫好不叫座。
-- **策略**:B2C 取向產品偏重 Engagement，B2B/工具型偏重 Task success；HEART 幫助在不同業務模式下挑對體驗指標，避免一體適用。
-- **2026**:起源於 Google UX 研究，至今仍是把『體驗』量化的標準工具；2025 常與 session replay、產品分析工具整合，用質化證據補強 HEART 的量化訊號。
-- 來源:https://www.thefountaininstitute.com/blog/goals-signals-metrics, https://www.lyssna.com/blog/google-heart-framework/, https://www.productplan.com/glossary/heart-framework
+### Google HEART & Goals-Signals-Metrics · fit 4
+*aka / source:* HEART framework; Kerry Rodden (Google); Happiness / Engagement / Adoption / Retention / Task success; the GSM process
+- **What it is**: Five dimensions for measuring user experience — Happiness, Engagement, Adoption, Retention, Task success — paired with the Goals → Signals → Metrics (GSM) process that derives early signals from a goal and then turns them into measurable metrics. You needn't use all five; pick 3–4 per feature.
+- **Use in the process**: For a feature, first write the "goal (an outcome, not an output)," then list 2–3 user-behavior signals that would reflect success or failure, and finally turn the signals into time-bounded rate metrics; accept or reject based on these metrics rather than subjective feel.
+- **Questions to ask**: Ask "What does this feature's success look like in user behavior? (the Signal)" and "Does the metric I chose truly reflect experience, or is it just a good-looking vanity number?"
+- **Engineering**: Use the Task-success dimension to gauge the health of critical flows: treat "checkout completion rate," "search zero-result rate," and "refund-flow error rate" as task-success metrics under monitoring — effectively quantifying UX into alertable engineering metrics.
+- **Product**: When redesigning a merchant-back-office page, use GSM to first define the goal (reduce operating time), the Signal (number of steps, help clicks), then the Metric (task completion time down X%), avoiding concluding "it feels better" after the redesign.
+- **Ops**: Track Adoption (first-use rate of a new feature) and Retention (return-use rate) per tenant segment to find which merchant type the feature wins applause from but no usage.
+- **Strategy**: B2C-oriented products weight Engagement; B2B/tool-type products weight Task success; HEART helps pick the right experience metrics for different business models rather than applying one set everywhere.
+- **2026**: Originated in Google's UX research and remains the standard tool for quantifying "experience"; by 2025 it is commonly integrated with session replay and product-analytics tools, using qualitative evidence to reinforce HEART's quantitative signals.
+- Sources: https://www.thefountaininstitute.com/blog/goals-signals-metrics, https://www.lyssna.com/blog/google-heart-framework/, https://www.productplan.com/glossary/heart-framework
 
-### DAU/WAU/MAU 與黏著度比率 (Stickiness Ratio) · fit 4
-*aka / 出處:* Daily/Weekly/Monthly Active Users；DAU/MAU stickiness ratio；WAU/MAU
-- **是什麼**:DAU/WAU/MAU 是各自時間窗內的去重活躍使用者數；黏著度比率 DAU/MAU（或 WAU/MAU）衡量『每月活躍者中有多少比例每天/每週也來』，是習慣性使用與 PMF 的強訊號。例如 DAU 5,000、MAU 20,000＝黏著度 25%。
-- **用在決策流程**:用 stickiness 判斷產品是否進入使用者日常：比率上升代表養成習慣，可推日活相關功能；比率長期低迷代表產品是『偶爾用』的工具，策略上不該假設高頻互動。要先確認你的產品『理應』是日頻、週頻還是月頻，再選對的分母。
-- **問對問題**:問：『對我的產品，使用者本來就該每天來嗎？』電商買家不會天天下單，硬追 DAU/MAU 會誤導——這時 WAU/MAU 或購買頻次更合適。也要問『活躍 (active)』的定義是否真代表價值行為。
-- **軟體工程**:明確定義並在埋點層落實『active』的事件門檻（例如必須觸發核心價值事件而非只是開啟 App），避免把心跳/背景請求算進活躍而虛胖 DAU。
-- **產品開發**:推送/通知類功能上線後看 stickiness 是否真的提升回訪，還是只是短期拉高 DAU 又回落（要配合 cohort 看持久性）。
-- **營運分析**:對商家後台（B2B 端）追蹤『登入後台的黏著度』，找出長期不登入後台的商家＝流失前兆，觸發 CS 介入。
-- **策略**:黏著度 benchmark 因產業而異（社交/通訊約 50–80%、生產力 40–60%、金融/電商約 15–30%），用對標 benchmark 判斷自家是否健康，避免拿電商去比社交 App。
-- **2026**:經典指標仍廣用，但業界越來越警惕『活躍』定義被灌水；2025 趨勢是用 GPS/價值行為定義 active，並以 stickiness 搭配 retention curve 一起看，單看 DAU/MAU 易誤判。注意上述 benchmark 區間來自單一廠商整理，僅供方向參考。
-- 來源:https://www.gainsight.com/essential-guide/product-management-metrics/dau-mau/, https://clevertap.com/blog/dau-vs-mau-app-stickiness-metrics/, https://www.statsig.com/perspectives/understanding-daumau-key-metrics-for-product-success
+### DAU/WAU/MAU & Stickiness Ratio · fit 4
+*aka / source:* Daily/Weekly/Monthly Active Users; DAU/MAU stickiness ratio; WAU/MAU
+- **What it is**: DAU/WAU/MAU are deduplicated active-user counts within their respective time windows; the stickiness ratio DAU/MAU (or WAU/MAU) measures "what share of monthly actives also show up daily/weekly," a strong signal of habitual use and PMF. For example, DAU 5,000 and MAU 20,000 = 25% stickiness.
+- **Use in the process**: Use stickiness to judge whether the product has entered users' daily routine: a rising ratio means habit formation and supports daily-use features; a chronically low ratio means the product is an "occasional-use" tool and the strategy shouldn't assume high-frequency interaction. First confirm whether your product *should* be daily-, weekly-, or monthly-frequency, then pick the right denominator.
+- **Questions to ask**: Ask "For my product, are users *supposed* to come daily?" — e-commerce buyers don't place orders every day, so forcing DAU/MAU misleads; here WAU/MAU or purchase frequency fits better. Also ask whether the definition of "active" truly reflects value behavior.
+- **Engineering**: Explicitly define and enforce the "active" event threshold at the instrumentation layer (e.g. it must fire a core value event, not merely open the app), avoiding counting heartbeats/background requests as active and inflating DAU.
+- **Product**: After shipping push/notification features, check whether stickiness truly lifts return visits, or merely spikes DAU short-term before falling back (pair with cohort analysis to see durability).
+- **Ops**: For the merchant back office (the B2B side), track "back-office login stickiness" to find merchants who haven't logged in for a long time = a churn precursor, triggering CS intervention.
+- **Strategy**: Stickiness benchmarks vary by industry (social/messaging roughly 50–80%, productivity 40–60%, finance/e-commerce roughly 15–30%); benchmark against the right peer to judge whether you're healthy, instead of comparing e-commerce against social apps.
+- **2026**: A classic metric still widely used, but the industry is increasingly wary of inflated "active" definitions; the 2025 trend is to define active by value behavior and to read stickiness alongside the retention curve, since DAU/MAU alone misleads. Note the benchmark ranges above come from a single vendor's compilation and are directional only.
+- Sources: https://www.gainsight.com/essential-guide/product-management-metrics/dau-mau/, https://clevertap.com/blog/dau-vs-mau-app-stickiness-metrics/, https://www.statsig.com/perspectives/understanding-daumau-key-metrics-for-product-success
 
-### KPI 變動拆解：組合效應 vs 內在效應 (Mix vs Inner Effect Decomposition) · fit 4
-*aka / 出處:* 「為什麼這個 KPI 變了」decomposition；mix effect / inner effect；ratio decomposition (Max Halford)
-- **是什麼**:當一個率/平均型 KPI 變動時，把它寫成 KPI = Σ(各群占比 share × 各群表現 ratio)，再把總變動拆成兩塊：內在效應 (inner effect)＝各群自身表現改變、組合效應 (mix effect)＝各群占比/結構改變。
-- **用在決策流程**:在『指標動了但不知為何』時用它定位：若是 inner effect，問題在某些 segment 真的變好/變壞；若是 mix effect，是流量結構移到表現較差的 segment（各 segment 其實沒變）。兩者的行動完全不同。
-- **問對問題**:看到整體轉換率下降時問：『是各客群自己變差 (inner)，還是只是低轉換客群占比變大 (mix)？』這正是避免被總體指標誤導、識破 Simpson's paradox 的算術工具。
-- **軟體工程**:可寫成一段標準分析查詢/腳本：按維度（裝置、金流、tenant 規模）切分，算出每群的 share 與 ratio 的期間差，輸出 inner/mix 貢獻表，當作指標告警觸發後的自動根因報告。
-- **產品開發**:改版後整體指標沒動，用此拆解可能發現『某 segment 大幅變好但被另一 segment 變差抵銷』，避免誤判功能無效。
-- **營運分析**:電商 GMV/AOV 月變動歸因：用此拆解出『AOV 下降是商品本身降價 (inner) 還是低客單商家成交占比上升 (mix)』，給營運精準說法。
-- **策略**:在向管理層解釋指標波動時，mix vs inner 的拆解避免把暫時性結構變化誤當成趨勢，做出錯誤的策略轉向。
-- **2026**:概念源於財務/收益管理的 price-volume-mix 分析，近年被產品分析借用；2025 LLM 能輔助自動跑這類拆解，但比率型指標因平均不可加，需正確處理（Max Halford 一文有完整數學）。
-- 來源:https://maxhalford.github.io/blog/kpi-evolution-decomposition/
+### KPI Change Decomposition: Mix Effect vs Inner Effect · fit 4
+*aka / source:* the "why did this KPI move" decomposition; mix effect / inner effect; ratio decomposition (Max Halford)
+- **What it is**: When a rate or average KPI moves, write it as KPI = Σ(each group's share × each group's ratio), then split the total change into two parts: the inner effect (each group's own performance changed) and the mix effect (groups' shares/composition changed).
+- **Use in the process**: Use it to localize "the metric moved but we don't know why": if it's the inner effect, the problem is some segments genuinely got better/worse; if it's the mix effect, traffic shifted toward a worse-performing segment (no segment actually changed). The two demand entirely different actions.
+- **Questions to ask**: When overall conversion drops, ask "Did each segment itself get worse (inner), or did the low-converting segment's share just grow (mix)?" — this is precisely the arithmetic tool for avoiding aggregate-metric misdirection and seeing through Simpson's paradox.
+- **Engineering**: Write it as a standard analysis query/script: slice by dimension (device, payment channel, tenant size), compute each group's period-over-period change in share and ratio, and output an inner/mix contribution table as an automated root-cause report once a metric alert fires.
+- **Product**: When an overall metric doesn't move after a change, this decomposition may reveal "one segment improved sharply but was cancelled by another worsening," avoiding the misjudgment that the feature was ineffective.
+- **Ops**: For monthly e-commerce GMV/AOV change attribution, use it to separate "AOV fell because products were discounted (inner) or because low-AOV merchants' share of transactions rose (mix)," giving ops a precise account.
+- **Strategy**: When explaining metric swings to leadership, the mix-vs-inner split avoids mistaking a temporary compositional shift for a trend and making a wrong strategic pivot.
+- **2026**: The concept originates in finance / revenue management's price-volume-mix analysis and has recently been borrowed into product analytics; by 2025 LLMs can help run these decompositions automatically, but because averages aren't additive, ratio metrics must be handled correctly (Max Halford's post has the full math).
+- Sources: https://maxhalford.github.io/blog/kpi-evolution-decomposition/
 
-### 五個為什麼 (Five Whys, 根因問題診斷) · fit 4
-*aka / 出處:* 5 Whys；Sakichi Toyoda / Toyota（1930 年代）；root cause analysis；Kaizen
-- **是什麼**:對一個問題連續追問『為什麼』約五次（可多可少），層層剝開症狀直到觸及可在系統層面修正的真因——通常是流程缺口、訓練不足或程序弱點，而非表面現象。
-- **用在決策流程**:指標惡化或事故發生後，用 Five Whys 把『要修什麼』從症狀推到可落實的對策；強調直接觀察與找最接近問題的人，目的是防止再發而非只滅火。常與指標樹/漏斗診斷接力使用：先用數據定位 where，再用 Five Whys 追 why。
-- **問對問題**:這本身就是『問對下一個問題』的協議：每次回答後再問一次為什麼，避免停在第一層解釋（如『使用者沒點按鈕』）而錯過真因（如『按鈕在某裝置被遮住』）。
-- **軟體工程**:事故 postmortem 的標準工具：結帳失敗率飆升→為什麼→某次部署→為什麼沒擋下→測試沒覆蓋該金流→…直到推出系統性對策（補測試/加告警），而非只回滾了事。
-- **產品開發**:功能採用率低時用 Five Whys 追到真正障礙（不是『使用者不喜歡』而是『新手在前一步就卡住沒走到這功能』），避免亂改 UI。
-- **營運分析**:某類商家集中流失，用 Five Whys 從數據訊號往回追到導入流程或某設定步驟的系統性缺陷。
-- **策略**:把反覆出現的營運問題用 Five Whys 收斂到少數系統性根因，避免策略層級重複處理同類症狀。
-- **2026**:源於 Toyota，1970 年代後擴散到軟體業，至今是事故管理（Atlassian、SRE postmortem）標準工具；常見批評是過度線性、易停在單一因果鏈，複雜事故宜搭配魚骨圖或多因果分析。
-- 來源:https://www.atlassian.com/incident-management/postmortem/5-whys, https://www.mindtools.com/a3mi00v/5-whys/, https://flowfuse.com/blog/2025/12/five-whys-root-cause-analysis-definition-examples/
+### Five Whys (root-cause problem diagnosis) · fit 4
+*aka / source:* 5 Whys; Sakichi Toyoda / Toyota (1930s); root cause analysis; Kaizen
+- **What it is**: Ask "why" of a problem about five times in succession (more or fewer as needed), peeling back the symptoms layer by layer until you reach a true cause fixable at the system level — usually a process gap, insufficient training, or a procedural weakness, not the surface phenomenon.
+- **Use in the process**: After a metric degrades or an incident occurs, use Five Whys to push "what to fix" from symptom to an actionable countermeasure; emphasize direct observation and talking to the person closest to the problem, aiming to prevent recurrence rather than just put out the fire. Often relayed with metric-tree/funnel diagnosis: use data to localize *where*, then Five Whys to chase *why*.
+- **Questions to ask**: This is itself the "ask the right next question" protocol: after each answer, ask why once more, avoiding stopping at the first-layer explanation (e.g. "users didn't click the button") and missing the true cause (e.g. "the button is obscured on a certain device").
+- **Engineering**: A standard incident-postmortem tool: checkout failure rate spikes → why → a particular deploy → why wasn't it caught → tests didn't cover that payment channel → … until you ship a systemic countermeasure (add tests / add alerts) rather than just rolling back.
+- **Product**: When feature adoption is low, use Five Whys to reach the real obstacle (not "users don't like it" but "newcomers got stuck at the prior step and never reached this feature"), avoiding random UI changes.
+- **Ops**: When a merchant segment churns en masse, use Five Whys to trace from the data signal back to a systemic defect in onboarding or a particular configuration step.
+- **Strategy**: Converge recurring operational problems via Five Whys to a few systemic root causes, avoiding repeatedly handling the same class of symptom at the strategy level.
+- **2026**: Originating at Toyota, it spread to software after the 1970s and remains a standard incident-management tool (Atlassian, SRE postmortems); a common criticism is that it is overly linear and tends to stop at a single causal chain — complex incidents warrant pairing it with a fishbone diagram or multi-cause analysis.
+- Sources: https://www.atlassian.com/incident-management/postmortem/5-whys, https://www.mindtools.com/a3mi00v/5-whys/, https://flowfuse.com/blog/2025/12/five-whys-root-cause-analysis-definition-examples/
 
-### 虛榮指標 vs 可行動指標 (Vanity vs Actionable Metrics) · fit 4
-*aka / 出處:* Eric Ries《The Lean Startup》；Lean Analytics；One Metric That Matters (OMTM)
-- **是什麼**:虛榮指標讓人感覺良好卻無法指導決策（累計註冊、總下載、原始瀏覽量——通常只會往上、不告訴你為何變、也指不出該採取什麼行動）。可行動指標定義清楚、與假設相關、能改變你的行為。Ries：『唯一值得投入收集的指標，是能幫你做決策的指標。』
-- **用在決策流程**:選指標前先過濾：問『這個數字變了，我會採取不同行動嗎？』不會就是虛榮指標。Lean Analytics 建議在當前階段聚焦一個最重要指標 (OMTM)，避免儀表板過載。改用比率/百分比而非累計總數。
-- **問對問題**:面對任何儀表板問：『這個指標能驅動什麼決策？它只會漲（累計值）嗎？它告訴我為什麼動了嗎？』三者皆否＝虛榮指標。
-- **軟體工程**:別把『總 API 呼叫數』『累計使用者』放上工程/產品儀表板的顯眼位置；改放可觸發行動的比率指標（錯誤率、p95 延遲、轉換率），讓監控直接對應該採取的行動。
-- **產品開發**:功能成功定義避免用『多少人看過』，改用『看過的人有多少比例完成核心行為』這種可行動、與假設相關的指標。
-- **營運分析**:審視營運報表時剔除『累計商家數』等只漲不跌的虛榮數字，改追『本月活躍商家數』『新商家 30 天留存率』。
-- **策略**:對外（募資/PR）可用累計大數字，但對內策略決策必須用可行動指標，否則會被自己的成功劇場誤導。
-- **2026**:Eric Ries 2011《The Lean Startup》與 Croll & Yoskovitz《Lean Analytics》確立此概念，至今是指標素養基礎；亦有反方觀點（如 Jeff Gothelf『為虛榮指標辯護』）認為某些『虛榮』指標在特定情境仍有溝通價值。
-- 來源:https://tim.blog/2009/05/19/vanity-metrics-vs-actionable-metrics/, https://blog.leanstack.com/3-rules-to-actionable-metrics-in-a-lean-startup/, https://jeffgothelf.com/blog/in-defense-of-vanity-metrics/
+### Vanity vs Actionable Metrics · fit 4
+*aka / source:* Eric Ries, *The Lean Startup*; Lean Analytics; One Metric That Matters (OMTM)
+- **What it is**: Vanity metrics feel good but can't guide decisions (cumulative sign-ups, total downloads, raw pageviews — they usually only go up, don't tell you why they changed, and don't point to an action). Actionable metrics are clearly defined, tied to a hypothesis, and capable of changing your behavior. Ries: "The only metrics worth collecting are the ones that help you make decisions."
+- **Use in the process**: Filter before choosing a metric: ask "If this number changes, will I take a different action?" — if not, it's a vanity metric. Lean Analytics advises focusing on the One Metric That Matters (OMTM) for your current stage to avoid dashboard overload. Use ratios/percentages instead of cumulative totals.
+- **Questions to ask**: Facing any dashboard, ask "What decision can this metric drive? Does it only go up (a cumulative value)? Does it tell me why it moved?" — all three "no" = a vanity metric.
+- **Engineering**: Don't put "total API calls" or "cumulative users" in prominent spots on engineering/product dashboards; instead show action-triggering rate metrics (error rate, p95 latency, conversion rate) so monitoring maps directly to the action to take.
+- **Product**: Avoid defining feature success by "how many people viewed it"; use an actionable, hypothesis-linked metric like "what share of viewers completed the core behavior."
+- **Ops**: When reviewing ops reports, strip out vanity numbers like "cumulative merchant count" that only rise, and track "monthly active merchants" and "new-merchant 30-day retention rate" instead.
+- **Strategy**: Externally (fundraising/PR) you can cite big cumulative numbers, but internal strategic decisions must use actionable metrics, or you'll be misled by your own success theater.
+- **2026**: Eric Ries's 2011 *The Lean Startup* and Croll & Yoskovitz's *Lean Analytics* established this concept, still the foundation of metric literacy; there is also a counter-view (e.g. Jeff Gothelf's "In Defense of Vanity Metrics") that some "vanity" metrics retain communication value in specific contexts.
+- Sources: https://tim.blog/2009/05/19/vanity-metrics-vs-actionable-metrics/, https://blog.leanstack.com/3-rules-to-actionable-metrics-in-a-lean-startup/, https://jeffgothelf.com/blog/in-defense-of-vanity-metrics/
 
-### Sean Ellis 產品市場契合度調查 (PMF Survey / 40% 法則) · fit 4
-*aka / 出處:* Sean Ellis Test；Sean Ellis Score；『若不能再用本產品你會有多失望』；40% very disappointed
-- **是什麼**:向使用者問一題：『如果你無法再使用本產品，你會有多失望？』選『非常失望 (very disappointed)』的比例若 ≥40%，通常代表已達 PMF。它量的是『依賴/必需性』而非滿意度。Sean Ellis 分析近百家新創歸納出此門檻。
-- **用在決策流程**:當作『該不該擴張』的閘門：分數 <25% 通常代表尚未 PMF，應先迭代/轉向而非加碼成長；≥40% 才適合踩油門。也可拆解『非常失望』那群人的特徵，找出最該服務的核心客群與其『必需』理由。
-- **問對問題**:問：『真正會非常失望的是哪一群人、為什麼？我們是否該把產品聚焦在這群人身上？』把調查從一個分數變成發現核心價值的入口。
-- **軟體工程**:在 App/後台內以輕量問卷（特定使用門檻後觸發）收集回應並落表，按 tenant/方案分群計算分數，當作可長期追蹤的領先指標而非一次性調查。
-- **產品開發**:新功能或新客群拓展時，對該族群跑此調查驗證是否真的『必需』，避免靠使用量假象誤判 PMF。
-- **營運分析**:在多租戶平台對不同商家分群算 PMF 分數，找出哪類商家把平台視為必需、哪類可有可無，據此分配產品與 CS 資源。
-- **策略**:把 40% 法則當擴張前的策略紅綠燈，避免在未達 PMF 時過早規模化而放大漏桶問題。
-- **2026**:2025 仍是輕量 PMF 量測標準，常與 NPS、JTBD 問題並用組成多訊號 PMF 問卷；40% 是經驗法則而非鐵律，產業差異與樣本偏誤需留意。
-- 來源:https://learningloop.io/glossary/sean-ellis-score, https://medium.com/growthhackers/using-product-market-fit-to-drive-sustainable-growth-58e9124ee8db, https://formbricks.com/blog/product-market-fit-survey-questions
+### Sean Ellis Product-Market-Fit Survey (PMF Survey / the 40% Rule) · fit 4
+*aka / source:* Sean Ellis Test; Sean Ellis Score; "how would you feel if you could no longer use this product"; 40% very disappointed
+- **What it is**: Ask users one question — "How would you feel if you could no longer use this product?" If the share choosing "very disappointed" is ≥40%, it typically indicates you've reached PMF. It measures dependence/necessity, not satisfaction. Sean Ellis derived this threshold by analyzing nearly a hundred startups.
+- **Use in the process**: Treat it as the gate for "should we expand": a score under 25% usually means PMF isn't there yet, so iterate/pivot rather than pour on growth; ≥40% is the cue to step on the gas. You can also profile the "very disappointed" group to find the core customers you should serve and their reasons for "must-have."
+- **Questions to ask**: Ask "Who exactly would be very disappointed, and why? Should we focus the product on this group?" — turning the survey from a single score into an entry point for discovering core value.
+- **Engineering**: Collect responses via a lightweight in-app/back-office survey (triggered after a specific usage threshold) and land them in tables, computing the score per tenant/plan segment as a continuously trackable leading indicator rather than a one-off survey.
+- **Product**: When launching a feature or expanding to a new customer group, run this survey on that group to verify it is truly "must-have," avoiding mistaking usage-volume illusion for PMF.
+- **Ops**: On a multi-tenant platform, compute the PMF score per merchant segment to find which merchant type treats the platform as essential versus nice-to-have, and allocate product and CS resources accordingly.
+- **Strategy**: Treat the 40% rule as the pre-expansion traffic light, avoiding scaling prematurely before PMF and amplifying leaky-bucket problems.
+- **2026**: Still the standard lightweight PMF measure in 2025, often combined with NPS and JTBD questions into a multi-signal PMF survey; 40% is a rule of thumb, not an iron law, and industry differences and sample bias warrant care.
+- Sources: https://learningloop.io/glossary/sean-ellis-score, https://medium.com/growthhackers/using-product-market-fit-to-drive-sustainable-growth-58e9124ee8db, https://formbricks.com/blog/product-market-fit-survey-questions
