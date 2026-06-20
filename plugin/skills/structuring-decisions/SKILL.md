@@ -156,7 +156,7 @@ Not every decision earns the full pipeline. Match the input to the shortest hone
 - **Frame before solve.** Don't generate options until the problem statement is confirmed. Jumping to solutions is the most common and most expensive failure mode.
 - **Make uncertainty explicit.** State decisions as probabilistic claims with confidence and named assumptions. "It depends" is not an answer; "70% on B, contingent on A1" is.
 - **Don't bury the trade-off or the counter-evidence.** Surface what the decision sacrifices and the strongest case against it. If you can't state the best argument for the option you rejected, you haven't earned the decision.
-- **The catalog is a toolbox, not a checklist.** Pull the few methods that fit; never march through all 206. Cite the method you used so the reasoning is traceable.
+- **The catalog is a toolbox, not a checklist.** Pull the few methods that fit; never march through all 221. Cite the method you used so the reasoning is traceable.
 - **Decision quality ≠ outcome.** Record the process and the tripwires so the decision can be judged on what was knowable, and revisited when a tripwire trips.
 
 ## References
