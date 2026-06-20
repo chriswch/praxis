@@ -1,8 +1,10 @@
 # Method Catalog — Index & Routing
 
-This directory holds a catalog of ~221 decision-science methods, grouped into 12 categories plus the Minerva thinking-method set. Each category file lists methods with the same structure: **What it is / Use in the process / Questions to ask / four-axis application (engineering · product · ops · strategy) / 2026 note / sources**. Content is in English; method names carry the acronym in parentheses where one exists.
+This directory holds a catalog of ~225 decision-science methods, grouped into 12 categories plus the Minerva thinking-method set. Each category file lists methods with the same structure: **What it is / Use in the process / Questions to ask / four-axis application (engineering · product · ops · strategy) / 2026 note / sources**. Content is in English; method names carry the acronym in parentheses where one exists.
 
 The catalog is **reference material, not a checklist**. For any one decision you pull 2–4 methods that fit — never all of them. Use the routing table below to open only the files a given step needs.
+
+**Domain note**: the four-axis examples and the `fit` score in every reference file are SaaS/software-flavored — `fit` is a *SaaS-relevance* heuristic, not a measure of a method's general quality. For a decision outside software/SaaS, the process and the domain-neutral categories (Minerva, A, B, C, D, E) transfer directly; translate the four-axis examples into the decision's own domain.
 
 ## Routing — situation → file
 
@@ -18,6 +20,7 @@ The catalog is **reference material, not a checklist**. For any one decision you
 | Proving causality or designing a test/experiment | `h-experimentation-and-causal.md` |
 | Diagnosing a metric movement / ops analytics | `i-ops-analytics-and-metrics.md` |
 | Strategy, competition, market, long-horizon bets | `j-strategy-frameworks.md` |
+| A competitive, negotiation, or game-theoretic / pricing-war call | `j-strategy-frameworks.md` (game theory, signaling, credible threats, zero/positive-sum) + `minerva-hcs.md` → #batna |
 | AI-augmented decisioning, 2026 practices | `k-ai-augmented-2026.md` |
 | A broad toolkit of thinking skills ("76 thinking methods") | `minerva-hcs.md` |
 
@@ -26,12 +29,12 @@ The catalog is **reference material, not a checklist**. For any one decision you
 | File | Category | Methods | Representative methods |
 | --- | --- | --- | --- |
 | `minerva-hcs.md` | Minerva HCs (76 thinking methods) | 41 | #rightproblem, #breakitdown, #utility, #estimation, #confirmationbias, #tradeoffs, #broadframing |
-| `a-discipline-and-process.md` | A. Decision science discipline & process | 12 | Decision Intelligence, normative/descriptive/prescriptive, Value of Information, decision quality vs outcome |
+| `a-discipline-and-process.md` | A. Decision science discipline & process | 13 | Decision Intelligence, normative/descriptive/prescriptive, Value of Information, decision quality vs outcome, Decision Quality six-link chain (Spetzler) |
 | `b-mental-models.md` | B. Mental-model latticework | 25 | First principles, second-order thinking, inversion, margin of safety, opportunity cost, leverage points (Meadows), stocks & flows, feedback loops, Kelly criterion, Chesterton's fence |
-| `c-decision-process-and-governance.md` | C. Decision process & governance | 16 | Type-1/Type-2 doors, RAPID/RACI, premortem, decision records (ADR), WRAP, OODA, AHP, Kepner-Tregoe |
+| `c-decision-process-and-governance.md` | C. Decision process & governance | 18 | Type-1/Type-2 doors, RAPID/RACI, premortem, decision records (ADR), WRAP, OODA, AHP, Kepner-Tregoe, kill criteria & quit review, Toyota Kata |
 | `d-problem-framing.md` | D. Asking the right question / framing | 14 | First principles, MECE/issue trees, hypothesis-driven, reframing, 5 Whys, abstraction laddering |
 | `e-biases-and-debiasing.md` | E. Cognitive biases & debiasing | 19 | Confirmation bias, anchoring, sunk cost, framing effect, status quo bias, red team, reference-class forecasting |
-| `f-software-engineering-decisions.md` | F. Software-engineering decisions | 14 | ADRs, reversible/irreversible, build-vs-buy, Wardley-driven tech choice, RFC, YAGNI |
+| `f-software-engineering-decisions.md` | F. Software-engineering decisions | 15 | ADRs, reversible/irreversible, build-vs-buy, Wardley-driven tech choice, RFC, YAGNI, Monte Carlo / #NoEstimates forecasting |
 | `g-product-prioritization.md` | G. Product development & prioritization | 18 | RICE, ICE, Kano, opportunity scoring, MoSCoW, cost of delay / WSJF, JTBD |
 | `h-experimentation-and-causal.md` | H. Experimentation & causal inference | 16 | A/B testing, guardrail metrics, DiD, holdouts, CUPED, sample-size/MDE, causal diagrams |
 | `i-ops-analytics-and-metrics.md` | I. Product ops analytics & metrics | 18 | North Star + inputs, funnel/cohort, segmentation, Goodhart's law, regression to the mean, theory of constraints, leading vs lagging, root-cause |
@@ -46,4 +49,4 @@ A few methods recur across categories because they anchor the whole process — 
 - **Reversibility sets the rigor** — Type-1/Type-2 doors (C, F).
 - **Decide under uncertainty** — probabilistic thinking & base rates (B), Value of Information (A), real options (J).
 - **Defend against yourself** — premortem/inversion (B, C), disconfirming evidence & bias checks (E).
-- **Close the loop** — decision records + tripwires (C, F), guardrail metrics (H, I).
+- **Close the loop** — decision records + tripwires + pre-committed kill criteria (C, F), guardrail metrics (H, I).

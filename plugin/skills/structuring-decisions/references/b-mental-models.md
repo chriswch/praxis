@@ -1,4 +1,4 @@
-> Decision-Science Method Catalog · B. Mental-model latticework (general thinking) · 20 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
+> Decision-Science Method Catalog · B. Mental-model latticework (general thinking) · 25 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
 ### Latticework of Mental Models · fit 5
 *aka / source:* Munger's Latticework / Worldly Wisdom / failure mode: man-with-a-hammer syndrome

@@ -1,4 +1,4 @@
-> Decision-Science Method Catalog · J. Product / business strategy · 14 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
+> Decision-Science Method Catalog · J. Product / business strategy · 19 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
 ### Wardley Mapping · fit 5
 *aka / source:* Wardley Maps; Value Chain Mapping; by Simon Wardley

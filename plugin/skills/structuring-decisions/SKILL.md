@@ -14,7 +14,7 @@ Two principles shape everything here:
 - **Match rigor to stakes.** Over-structuring a cheap, reversible decision is itself a bad decision — it burns time and signals false precision. The first job is to decide *how much to decide*. A two-way-door call gets a fast heuristic; a one-way-door, high-stakes, or contested call gets the full structure.
 - **Judge the decision, not just the outcome.** A good process can still draw a bad card (and a reckless call can get lucky). Aim for a decision that was *right given what was knowable*, with its uncertainty made explicit — not a guarantee of the result. This is why the output records confidence, assumptions, and what would change the answer.
 
-This works for product-ops analysis, engineering/architecture calls, prioritization, strategy, and everyday judgment alike. The process is domain-neutral; the `references/` carry the domain flavor.
+This works for product-ops analysis, engineering/architecture calls, prioritization, strategy, and everyday judgment alike. The process is domain-neutral; the `references/` carry the domain flavor. **Outside software/SaaS**, run the same process but draw first from the domain-neutral categories — the Minerva thinking methods and `a-discipline-and-process`, `b-mental-models`, `c-decision-process-and-governance`, `d-problem-framing`, `e-biases-and-debiasing` (these transfer to any domain; only their examples are SaaS-flavored) — and translate the four-axis examples into the decision's own domain. The `fit` score in each reference file is a *SaaS-relevance* heuristic, not a measure of a method's general quality.
 
 ## Input
 
@@ -86,13 +86,15 @@ A decision framed as "do X or not" is usually under-developed. Widen it:
 
 Spend evidence-gathering effort where it changes the answer, not where it's easy.
 
-a. **Value of Information**: ask "what is the cheapest evidence that would most change which option I pick?" Get that first. If no evidence would change the decision, stop gathering and decide.
+a. **Decide how to decide — before you look.** Commit a *default action* (which option wins if no new data arrives) and the *explicit bar* that would overturn it — direction, magnitude, confidence. Then gather evidence and judge against that pre-set bar. Setting the threshold *after* seeing the numbers licenses post-hoc rationalization; pre-registering it is the single strongest debias (`references/a-discipline-and-process.md` → Decide How to Decide; pre-registration in `references/h-experimentation-and-causal.md`).
 
-b. **Be hypothesis-driven**: go after the data that could *disprove* your leading hypothesis, not the data that confirms it.
+b. **Value of Information**: ask "what is the cheapest evidence that would most change which option I pick?" Get that first. If no evidence would change the decision, stop gathering and decide.
 
-c. **For causal claims**, distinguish correlation from causation — don't act on "X correlates with Y" as if X causes Y (`references/h-experimentation-and-causal.md`, `references/i-ops-analytics-and-metrics.md`). When a claim is load-bearing and testable, design an experiment or a holdout rather than guessing.
+c. **Be hypothesis-driven**: go after the data that could *disprove* your leading hypothesis, not the data that confirms it.
 
-d. **For high-uncertainty bets**, prefer staging the bet (real options — a cheap probe that buys the right to decide later) over an all-in commitment (`references/j-strategy-frameworks.md`).
+d. **For causal claims**, distinguish correlation from causation — don't act on "X correlates with Y" as if X causes Y (`references/h-experimentation-and-causal.md`, `references/i-ops-analytics-and-metrics.md`). When a claim is load-bearing and testable, design an experiment or a holdout rather than guessing.
+
+e. **For high-uncertainty bets**, prefer staging the bet (real options — a cheap probe that buys the right to decide later) over an all-in commitment (`references/j-strategy-frameworks.md`).
 
 ### 5. Debias, weigh, and decide
 
@@ -156,8 +158,12 @@ Not every decision earns the full pipeline. Match the input to the shortest hone
 - **Frame before solve.** Don't generate options until the problem statement is confirmed. Jumping to solutions is the most common and most expensive failure mode.
 - **Make uncertainty explicit.** State decisions as probabilistic claims with confidence and named assumptions. "It depends" is not an answer; "70% on B, contingent on A1" is.
 - **Don't bury the trade-off or the counter-evidence.** Surface what the decision sacrifices and the strongest case against it. If you can't state the best argument for the option you rejected, you haven't earned the decision.
-- **The catalog is a toolbox, not a checklist.** Pull the few methods that fit; never march through all 221. Cite the method you used so the reasoning is traceable.
+- **The catalog is a toolbox, not a checklist.** Pull the few methods that fit; never march through all 225. Cite the method you used so the reasoning is traceable.
 - **Decision quality ≠ outcome.** Record the process and the tripwires so the decision can be judged on what was knowable, and revisited when a tripwire trips.
+- **A metric that becomes a target gets gamed (Goodhart).** Whenever a number drives a decision, incentive, or success criterion, pair it with the inputs that produce it and a guardrail/counter-metric that catches the damage — never steer on a single number (`references/i-ops-analytics-and-metrics.md`).
+- **Find the constraint before you optimize.** Ask "is this the bottleneck?" first — improving a non-constraint yields no throughput and can pile work up in front of the real limit (Theory of Constraints, `references/i-ops-analytics-and-metrics.md`).
+- **Don't let rigor become theater — or a blame shield.** A framework that changes no concrete action is process theater; cut it. A human (or a human-in-the-loop) who can't realistically intervene is a moral crumple zone, not a safeguard. Rigor has to change the decision, not just document it.
+- **You are an AI running this process — apply the AI guards to yourself.** Your own fluent output is not evidence. Actively seek disconfirming evidence instead of confirming the user's framing (sycophancy); verify load-bearing facts you assert (a hallucinated fact is a decision risk); state your recommendation as a calibrated bet, not an authority; and keep a human veto on one-way-door, high-stakes, or value-laden calls (`references/k-ai-augmented-2026.md`).
 
 ## References
 

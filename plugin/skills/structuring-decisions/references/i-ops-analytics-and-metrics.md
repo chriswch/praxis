@@ -1,8 +1,8 @@
-> Decision-Science Method Catalog · I. Product ops analytics & metrics · 15 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
+> Decision-Science Method Catalog · I. Product ops analytics & metrics · 18 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
 ### Pirate Metrics (AARRR) · fit 5
-*aka / source:* Pirate Metrics; introduced by Dave McClure (500 Startups) in 2007; Acquisition / Activation / Retention / Revenue / Referral
-- **What it is**: Decompose the user lifecycle into five stages — Acquisition, Activation (the "aha moment"), Retention, Revenue, and Referral — each with its own metrics, so the team can see which part of the funnel is bleeding most and where to invest first.
+*aka / source:* Pirate Metrics; introduced by Dave McClure (500 Startups) in 2007; Acquisition / Activation / Retention / Referral / Revenue (McClure's original order puts Revenue last)
+- **What it is**: Decompose the user lifecycle into five stages — Acquisition, Activation (the "aha moment"), Retention, Referral, and Revenue (McClure's canonical order ends on Revenue) — each with its own metrics, so the team can see which part of the funnel is bleeding most and where to invest first.
 - **Use in the process**: In quarterly planning, fill in each stage's current numbers and conversion rates first, then target the stage that is "leaking" the worst rather than picking topics on gut feel; allocate resources to the bottleneck stage instead of spreading effort evenly across all five. McClure's original advice was to put roughly 80% of effort into optimizing existing features and 20% into new ones.
 - **Questions to ask**: When sign-ups grow, ask "Is this better Acquisition, or just a marketing campaign window? Are downstream Activation and Retention keeping pace?" — avoid chasing top-of-funnel vanity growth.
 - **Engineering**: Map the five stages onto a backend event-instrumentation schema: in a multi-tenant e-commerce platform, define signup, first_product_view, add_to_cart, first_order, repeat_order, and referral_invite as standard events so every tenant's funnel is computed from the same queries, preventing each feature team from defining events differently and producing inconsistent definitions.

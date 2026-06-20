@@ -43,6 +43,7 @@ This rests on: [assumption A1, A2, …]. The main trade-off accepted: [what we a
 ## Tripwires & review
 
 - **Reverse / revisit if**: [specific observable signal + threshold — e.g., "30-day retention for this cohort < X by [date]"].
+- **Kill criteria (state + date)**: [the pre-committed benchmark that, if unmet by a date, means stop / roll back — e.g., "if <metric> < X by <date>, we quit"]. Name a *quit owner* with no stake in the sunk cost (`references/c-decision-process-and-governance.md` → Kill Criteria & Quit Review).
 - **Review date**: [date — for one-way-door bets].
 - **Metric(s) to watch**: [for ops decisions, the leading indicator + guardrail].
 

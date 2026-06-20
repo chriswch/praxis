@@ -1,4 +1,4 @@
-> Decision-Science Method Catalog · E. Cognitive biases & debiasing · 17 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
+> Decision-Science Method Catalog · E. Cognitive biases & debiasing · 19 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
 ### Dual-Process Thinking (System 1 / System 2) · fit 5
 *aka / source:* Dual-process theory; Thinking, Fast and Slow (Kahneman 2011); the underlying distinction originated with Stanovich & West and was popularized by Kahneman
