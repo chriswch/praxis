@@ -73,7 +73,7 @@
 - Sources: https://www.christenseninstitute.org/theory/jobs-to-be-done/, https://strategyn.com/jobs-to-be-done/, https://gopractice.io/product/jobs-to-be-done-the-theory-and-the-frameworks/
 
 ### North Star Metric Framework · fit 5
-*aka / source:* North Star Metric (NSM); NSM + Input Metrics; popularized by Amplitude (John Cutler) and Reforge
+*aka / source:* North Star Metric (NSM); NSM + Input Metrics; the term coined and popularized by Sean Ellis (~2010); the NSM-plus-input-metrics framework developed by Amplitude (John Cutler, co-author) and Reforge
 - **What it is**: A framework popularized by Amplitude (John Cutler's *North Star Playbook*) and Reforge: pick a single leading indicator that best captures the value customers get from the product as the North Star Metric, then connect it to a handful of input metrics that the team can directly influence and that together drive the North Star. A good NSM expresses customer value, is a leading indicator (not a lagging one like revenue), and is consistent with strategy.
 - **Use in the process**: Use the NSM to align the whole product organization to one definition of value: evaluate any initiative by asking "which input metric does it move, and does that in turn move the North Star?" Input metrics can be assigned to different teams, forming a traceable chain from work to value.
 - **Questions to ask**: Does our North Star express customer value, or just our output/revenue? Is it a leading or a lagging indicator? Which few input metrics are levers we can directly move that, summed together, drive the North Star?

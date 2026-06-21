@@ -205,7 +205,7 @@
 - Sources: https://www.sloww.co/super-thinking-book/, https://paulminors.com/blog/super-thinking-by-gabriel-weinberg-lauren-mccann-book-summary-pdf/
 
 ### Lindy Effect · fit 4
-*aka / source:* Lindy Effect; proposed by Mandelbrot, popularized by Taleb *Antifragile*; Super Thinking #78
+*aka / source:* Lindy Effect; term coined as "Lindy's Law" by Albert Goldman (1964); mathematical form given by Mandelbrot (1982, for producer-bounded lifetimes); redefined for non-perishables and popularized by Taleb *Antifragile* (2012); Super Thinking #78
 - **What it is**: For non-perishable things (technologies, ideas, books, organizations), expected remaining life is proportional to how long they've already existed — the longer something has lasted, the longer it's expected to last further. Taleb's example: a book in print for 40 years can be expected to remain in print another 40; if it survives 10 more, its expected remaining life becomes 50.
 - **Use in the process**: When choosing technologies/methods/standards to depend on, prefer those that have already survived a long time (they've passed the test of time), and stay skeptical of the very new and shiny (unproven).
 - **Questions to ask**: "How long has this technology/framework existed? Is it time-tested, or this year's fad?" "Am I betting on something Lindy (long-lived), or something that will go obsolete fast?"

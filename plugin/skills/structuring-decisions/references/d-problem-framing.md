@@ -13,7 +13,7 @@
 - Sources: https://fs.blog/first-principles/, https://sahilbloom.substack.com/p/first-principles-thinking
 
 ### MECE and the Issue Tree / Logic Tree · fit 5
-*aka / source:* MECE (Mutually Exclusive, Collectively Exhaustive); issue tree; logic tree; hypothesis tree; a core McKinsey tool; related to Barbara Minto's Pyramid Principle
+*aka / source:* MECE (Mutually Exclusive, Collectively Exhaustive); issue tree; logic tree; hypothesis tree; MECE was coined by Barbara Minto at McKinsey (late 1960s) and is the core grouping rule underlying her Pyramid Principle
 - **What it is**: MECE is the partitioning rule "mutually exclusive, collectively exhaustive". An issue tree uses MECE to break one big problem layer by layer into non-overlapping, nothing-omitted sub-problems, cutting a hard problem into solvable pieces. When each branch is phrased as a falsifiable question, the tree doubles as a hypothesis-testing structure.
 - **Use in the process**: Facing a sprawling problem, draw an issue tree first, decompose it into MECE sub-problems, then prioritize and assign each sub-problem — ensuring no overlap (wasted effort) and no gaps (missed branches), so the decision has a traceable structure.
 - **Questions to ask**: Are these categories mutually exclusive and collectively exhaustive? Is there overlap (double-counting) or a gap (something omitted)? Which branch has the largest effect on the outcome and is worth investigating first? Can each branch be written as a falsifiable question?
