@@ -29,6 +29,8 @@ One of:
 - **Analysis conclusion**: for analysis-only requests — the diagnosed answer (issue tree, evidence, correlation-vs-causation verdict) and the decision it should inform.
 - **Open questions**: when a blocking unknown can't be resolved without the user — list them, ask, and stop.
 
+Whatever the form, **lead with the answer (BLUF)**: state the recommendation and confidence first, in the decision-maker's terms, then the support — not a wall of analysis the reader must wade through (`minerva-hcs.md` → #thesis, #audience).
+
 The caller decides whether to persist the artifact and where.
 
 ## Workflow
@@ -39,7 +41,8 @@ Before structuring anything, classify the decision. This gates how much of the r
 
 - **Reversibility**: is this a *two-way door* (cheap to undo) or a *one-way door* (hard/expensive to reverse)? (`references/c-decision-process-and-governance.md`)
 - **Stakes & blast radius**: who/what is affected if it's wrong?
-- **Uncertainty**: do we roughly know the odds, or is this genuine (unmeasurable) uncertainty?
+- **Uncertainty**: do we roughly know the odds (*risk*), or is this genuine *Knightian* uncertainty with no reliable base rate? Even then, assign a subjective probability and widen the interval rather than treating it as unknowable.
+- **Causal nature** (Cynefin, `references/c-decision-process-and-governance.md`): is cause-and-effect *clear* (apply best practice), *complicated* (expert analysis), *complex* (run a safe-to-fail probe before committing — route to step 4e, don't analyze up front), or *chaotic* (act first to stabilize)?
 - **Time pressure**: is there a real deadline, or is the urgency manufactured?
 
 Route on the result:
@@ -54,11 +57,13 @@ If unsure, lean toward the lighter path first; you can always escalate once fram
 
 The most expensive decision error is solving the wrong problem precisely. Before generating any option:
 
-a. **Separate symptom from problem.** Restate the request as a one-line problem statement and a one-line "what a good outcome looks like". If a solution is baked into the request ("we should add caching"), restate the underlying problem separately ("page p99 is too slow") and confirm.
+a. **Separate symptom from problem.** Restate the request as a one-line problem statement and a one-line "what a good outcome looks like". If a solution is baked into the request ("we should add caching"), restate the underlying problem separately ("page p99 is too slow") and confirm — an asker who names a chosen solution while hiding the real goal is the *XY problem*.
 
 b. **Challenge the frame.** Ask whether this is the right question at all. A reframe often dissolves the decision. Pull reframing moves from `references/d-problem-framing.md` (and `minerva-hcs.md` → #rightproblem).
 
 c. **For analysis requests**, state the metric movement and the decision the analysis is meant to inform — analysis with no decision attached tends to sprawl.
+
+d. **For a choice, write the one-line decision statement**: *who* is choosing *what*, toward *which objective*, among *which options* — so the work is decision-first, not analysis-first (`references/a-discipline-and-process.md` → Decision Intelligence, Anatomy of a Decision).
 
 Confirm the frame with the user before proceeding (manual mode) — a wrong frame invalidates everything downstream.
 
@@ -71,6 +76,8 @@ a. **Decompose** the problem with an issue tree / MECE breakdown so the parts ar
 b. **Form hypotheses** about the cause or the best answer, each stated so it could be *disproven*. Be hypothesis-driven: identify which branch, if resolved, would most move the decision.
 
 c. **Identify the decision's domain** — this tells you which catalog categories you'll draw on next. Consult the routing table in `references/00-index.md`.
+
+d. **For a root-cause question, drive past the tree to a *verified* cause.** An issue tree decomposes the problem space; it does not confirm a cause. Iterate why-layers with evidence required at each (5 Whys, `references/d-problem-framing.md`), apply the symptom-vs-root-cause test ("will it recur in three months?"), localize the deviation with IS / IS-NOT when something has broken (Kepner-Tregoe, `references/c-decision-process-and-governance.md`), and look for *multiple* interacting causes rather than one culprit or "human error" (`minerva-hcs.md` → #multiplecauses; the Swiss-cheese model).
 
 ### 3. Generate options
 
@@ -86,7 +93,7 @@ A decision framed as "do X or not" is usually under-developed. Widen it:
 
 Spend evidence-gathering effort where it changes the answer, not where it's easy.
 
-a. **Decide how to decide — before you look.** Commit a *default action* (which option wins if no new data arrives) and the *explicit bar* that would overturn it — direction, magnitude, confidence. Then gather evidence and judge against that pre-set bar. Setting the threshold *after* seeing the numbers licenses post-hoc rationalization; pre-registering it is the single strongest debias (`references/a-discipline-and-process.md` → Decide How to Decide; pre-registration in `references/h-experimentation-and-causal.md`).
+a. **Pre-register the decision rule — set the bar before the data.** Commit a *default action* (which option wins if no new data arrives) and the *explicit bar* that would overturn it — direction, magnitude, confidence. Then gather evidence and judge against that pre-set bar. Setting the threshold *after* seeing the numbers licenses post-hoc rationalization; pre-registering it is the single strongest debias (`references/a-discipline-and-process.md` → Decide How to Decide; pre-registration in `references/h-experimentation-and-causal.md`).
 
 b. **Value of Information**: ask "what is the cheapest evidence that would most change which option I pick?" Get that first. If no evidence would change the decision, stop gathering and decide.
 
@@ -98,22 +105,27 @@ e. **For high-uncertainty bets**, prefer staging the bet (real options — a che
 
 ### 5. Debias, weigh, and decide
 
-a. **Make the trade-off explicit.** Every real decision sacrifices something; name what this one gives up. A decision with no visible trade-off usually means the analysis isn't done.
+a. **Evaluate the options against the criteria that matter.** This is the step the verb "weigh" refers to — don't skip straight to a trade-off statement. For a multi-criteria choice, score each option against the *weighted* values and sensitivity-check the weights (Weighted Decision Matrix / AHP, `references/c-decision-process-and-governance.md`). For a choice dominated by uncertain payoffs, compute expected value / expected utility across the outcomes and confirm you can survive the worst case (Expected Value & Decision Trees, `references/a-discipline-and-process.md`). Make the comparison explicit, not intuitive.
 
-b. **Run a debiasing pass** before committing — this is where good processes save you from yourself:
+b. **Make the trade-off explicit.** Every real decision sacrifices something; name what this one gives up. Weigh costs and benefits across *all affected stakeholders and across time* — not only your own opportunity cost — and flag any option that is net-positive overall yet severely harmful to a subgroup (`minerva-hcs.md` → #utility, #levelsofanalysis). A decision with no visible trade-off usually means the analysis isn't done.
+
+c. **Run a debiasing pass** before committing — this is where good processes save you from yourself:
    - **Premortem / inversion**: assume it failed badly in a year; what caused it? (`references/b-mental-models.md`, `references/c-decision-process-and-governance.md`)
    - **Seek disconfirming evidence**: actively look for what would prove you wrong; appoint a red team or devil's advocate on contested calls (`references/e-biases-and-debiasing.md`).
    - **Check the usual suspects**: sunk cost, anchoring, confirmation bias, groupthink, overconfidence.
+   - **Ethics check** (stakes-bearing product/ops calls): whom could this unfairly harm, and is it a dark pattern that wouldn't survive being made public? (`minerva-hcs.md` → #ethicalframing; Nudge / choice architecture, `references/e-biases-and-debiasing.md`)
 
-c. **State the decision as a claim with explicit confidence** ("we choose B; ~70% confident; this rests on assumptions A1–A3"). Confidence and assumptions are first-class, not hedging.
+d. **Name who decides** on a contested or multi-stakeholder call: the single decider (one Approver) and anyone holding a real veto, kept distinct from those merely consulted (`references/c-decision-process-and-governance.md` → DACI / RAPID). A reversible call can collapse these to one person.
+
+e. **State the decision as a claim with explicit confidence** ("we choose B; ~70% confident; this rests on assumptions A1–A3"). Confidence and assumptions are first-class, not hedging.
 
 ### 6. Record & set tripwires
 
 A decision isn't finished when it's made — it's finished when it's reviewable.
 
 - Produce the **Decision Record** (`templates/decision-record.md`).
-- Define the **tripwire**: the specific observable signal that would mean the decision was wrong and should be revisited (e.g., "if 30-day retention for this cohort is still below X by date D"). For ops decisions, name the metric and threshold to watch.
-- Set a **review date** for one-way-door bets.
+- Define the **tripwire**: the specific observable signal that would mean the decision was wrong and should be revisited (e.g., "if 30-day retention for this cohort is still below X by date D"). For ops decisions, name the metric and threshold to watch. Distinguish it from a **kill criterion** — a pre-committed "state + date" that means *stop / roll back* — and for one-way-door bets name a *quit owner* with no stake in the sunk cost (`references/c-decision-process-and-governance.md` → Kill Criteria & Quit Review).
+- Set a **review date** for one-way-door bets, and at that review **compare the recorded confidence against what actually happened** to calibrate future judgment — judging process quality separately from the single outcome.
 
 This closes the loop: it turns a one-shot call into something you can learn from, and it's what lets a future reader (or you) tell a decision that aged badly from one that was simply unlucky.
 
@@ -149,7 +161,8 @@ Mirrors the rest of the Praxis family:
 Not every decision earns the full pipeline. Match the input to the shortest honest path:
 
 - **Quick call** (trivial, reversible, low-stakes): one heuristic, one-line rationale, done. Forcing structure here is the anti-pattern.
-- **Analysis-only** (no decision yet — "why did signups drop?"): frame (1) → diagnose with an issue tree (2) → evidence, correlation-vs-causation (4) → conclusion, naming the decision it should feed. Skip options and the decision record unless asked.
+- **Analysis-only** (no decision yet — "why did signups drop?"): frame (1) → diagnose with an issue tree (2); for a **root-cause** question drive to a *verified* cause (5 Whys with evidence per layer, symptom-vs-root-cause test — not just a tree) → evidence, correlation-vs-causation (4) → conclusion, naming the decision it should feed. Skip options and the decision record unless asked.
+- **Prioritization** ("which of these first?"): frame the one comparable objective, then rank with the fitting scorer (RICE / ICE / Cost-of-Delay·WSJF / MoSCoW / Kano, `references/g-product-prioritization.md`). Caveat: RICE/ICE only rank *within one comparable objective* (cluster first), and Cost of Delay shifts over time — re-rank rather than treating the score as a verdict.
 - **Framing-only** ("help me ask the right question"): step 1 plus `d-problem-framing.md`, output the reframed problem and the questions worth answering. This is the natural seam where a separate `framing-problems` skill would take over if one exists.
 
 ## Guardrails

@@ -22,13 +22,13 @@ The catalog is **reference material, not a checklist**. For any one decision you
 | Strategy, competition, market, long-horizon bets | `j-strategy-frameworks.md` |
 | A competitive, negotiation, or game-theoretic / pricing-war call | `j-strategy-frameworks.md` (game theory, signaling, credible threats, zero/positive-sum) + `minerva-hcs.md` → #batna |
 | AI-augmented decisioning, 2026 practices | `k-ai-augmented-2026.md` |
-| A broad toolkit of thinking skills ("76 thinking methods") | `minerva-hcs.md` |
+| A broad toolkit of thinking skills (the Minerva "thinking methods"; "76" is a loose, non-canonical figure) | `minerva-hcs.md` |
 
 ## Category summary
 
 | File | Category | Methods | Representative methods |
 | --- | --- | --- | --- |
-| `minerva-hcs.md` | Minerva HCs (76 thinking methods) | 41 | #rightproblem, #breakitdown, #utility, #estimation, #confirmationbias, #tradeoffs, #broadframing |
+| `minerva-hcs.md` | Minerva HCs (41 ported; no fixed canonical count — "76" is an unverified, widely-circulated figure) | 41 | #rightproblem, #breakitdown, #utility, #estimation, #confirmationbias, #tradeoffs, #broadframing |
 | `a-discipline-and-process.md` | A. Decision science discipline & process | 13 | Decision Intelligence, normative/descriptive/prescriptive, Value of Information, decision quality vs outcome, Decision Quality six-link chain (Spetzler) |
 | `b-mental-models.md` | B. Mental-model latticework | 26 | First principles, second-order thinking, inversion, margin of safety, opportunity cost, leverage points (Meadows), stocks & flows, feedback loops, Kelly criterion, Chesterton's fence, normalization of deviance / drift into failure |
 | `c-decision-process-and-governance.md` | C. Decision process & governance | 18 | Type-1/Type-2 doors, RAPID/RACI, premortem, decision records (ADR), WRAP, OODA, AHP, Kepner-Tregoe, kill criteria & quit review, Toyota Kata |
@@ -47,6 +47,8 @@ A few methods recur across categories because they anchor the whole process — 
 
 - **Frame before solve** — #rightproblem (Minerva), reframing (D), Rumelt diagnosis (J).
 - **Reversibility sets the rigor** — Type-1/Type-2 doors (C, F).
-- **Decide under uncertainty** — probabilistic thinking & base rates (B), Value of Information (A), real options (J).
+- **Decide under uncertainty** — probabilistic thinking & base rates (B), Value of Information (A), real options (J), outside view / reference-class forecasting (E).
 - **Defend against yourself** — premortem/inversion (B, C), disconfirming evidence & bias checks (E).
-- **Close the loop** — decision records + tripwires + pre-committed kill criteria (C, F), guardrail metrics (H, I).
+- **Close the loop** — decision records + tripwires + pre-committed kill criteria (C, F), guardrail metrics + Goodhart guard (H, I), confidence calibration at the review (A, E).
+
+> **Pocket check** — the daily-use compression of the workflow; run it in order on any decision or review: **right problem?** → **odds & base rate?** → **reversible?** → **real cost** (opportunity + who's affected)? → **how would it fail?** → **fooled by a metric / old code / a correlation?**

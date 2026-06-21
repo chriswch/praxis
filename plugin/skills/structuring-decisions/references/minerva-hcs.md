@@ -1,4 +1,4 @@
-> Decision-Science Method Catalog · Minerva HCs (76 thinking methods) · 41 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
+> Decision-Science Method Catalog · Minerva HCs · 41 ported (no fixed canonical count — "76" is an unverified, widely-circulated figure kept here as a discoverability hook). Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
 ### #rightproblem — Characterize the Problem · fit 5
 *aka / source:* #rightProblem; echoes Polya's "Understand the problem" and Charles Kettering's "a problem well stated is a problem half solved"
@@ -53,7 +53,7 @@
 - **What it is**: Identify and reduce the bias of "seeking or interpreting only information that supports your prior belief." Minerva presents this as the representative HC for bias-hunting.
 - **Use in the process**: Before deciding, deliberately seek disconfirming evidence and "data that would overturn my hypothesis"; appoint a devil's advocate; write down in advance "what evidence would change my mind."
 - **Questions to ask**: Ask "Am I only looking at data that supports me?" "What evidence would prove me wrong — have I gone looking for it?" "What is the strongest opposing argument?"
-- **Engineering**: When debugging, don't only hunt for logs that support your hypothesis; pre-register expectations before an A/B test to avoid cherry-picking data afterward to fit a story (p-hacking).
+- **Engineering**: When debugging, don't only hunt for logs that support your hypothesis; pre-register the metric and stopping rule before an A/B test, so you can't cherry-pick an outcome afterward and build the story around it (HARKing) and can't peek-and-stop to manufacture significance (p-hacking).
 - **Product**: In user interviews, avoid leading questions (collecting only feedback that supports the feature you want to build); actively interview people who don't use the feature.
 - **Ops**: Avoid starting from a conclusion and hunting for data; pre-set the metric and success threshold and face the result honestly even when it disappoints.
 - **Strategy**: In strategy retrospectives, avoid recalling only the cases that validate your judgment; systematically review failed predictions.
@@ -166,7 +166,7 @@
 
 ### #broadframing — Broad Framing · fit 4
 *aka / source:* #broadFraming; avoid narrow framing (echoes the WRAP framework in Chip & Dan Heath's *Decisive*)
-- **What it is**: Replace a binary "do/don't" decision with multiple options — widen the option space to avoid narrow framing.
+- **What it is**: Replace a binary "do/don't" decision with multiple options — widen the option space to avoid narrow framing. (Homonym caution: "broad framing" also names the Kahneman/Tversky/Thaler "broad bracketing" idea — evaluate this choice as one of a portfolio of repeated bets to counter narrow-bracketing loss aversion; this HC is the WRAP "widen the options" sense, so reach for broad bracketing instead when the decision recurs.)
 - **Use in the process**: Whenever a decision is framed as "do X or not," force yourself to generate at least two further options and consider opportunity cost ("what else could the same resources do?").
 - **Questions to ask**: Ask "Besides yes/no, what other options are there?" "If neither of these two were available, what would I do?" "Is there an 'and' design that gets both?"
 - **Engineering**: "Build it or use vendor A" → add options like "use B," "hybrid," "adopt now and switch later," to avoid being trapped in a vendor's binary.

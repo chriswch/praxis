@@ -2,8 +2,10 @@
 
 > Adapt depth to stakes. A two-way-door call can fill this in a few lines; a one-way-door bet deserves every field. Keep it to one page where you can.
 
+> **Recommendation (BLUF):** state the chosen option + confidence in one line here, in the reader's terms, before the detail below.
+
 - **Date**: [YYYY-MM-DD]
-- **Decision-maker(s) / owner**: [who owns this call; who was consulted]
+- **Decider (single Approver)** · **Driver** (runs the process, if different) · **Veto / Agree** (if any — assign sparingly) · **Consulted** — for a reversible call these can collapse to one name (DACI / RAPID, `references/c-decision-process-and-governance.md`).
 - **Type**: [two-way door (reversible) | one-way door (hard to reverse)] · stakes: [low / med / high]
 
 ## Problem (framed)
@@ -24,6 +26,7 @@ List ≥3 genuinely different options (including the one chosen). For each: the 
 
 ## Evidence & key assumptions
 
+- **Pre-registered rule** (write *before* gathering evidence): default action if no new data = [lesser-evil option]; the bar that would overturn it = [direction + magnitude + confidence]. Judge the evidence against this pre-set bar, not a threshold chosen after seeing the numbers.
 - What evidence actually moved the decision (and what was the cheapest decisive piece — Value of Information).
 - Load-bearing assumptions, each with rough confidence. Mark any that are unverified.
 - Causal claims: note whether they're correlational or established (test/holdout), so a reader knows how much weight they carry.
@@ -46,6 +49,7 @@ This rests on: [assumption A1, A2, …]. The main trade-off accepted: [what we a
 - **Kill criteria (state + date)**: [the pre-committed benchmark that, if unmet by a date, means stop / roll back — e.g., "if <metric> < X by <date>, we quit"]. Name a *quit owner* with no stake in the sunk cost (`references/c-decision-process-and-governance.md` → Kill Criteria & Quit Review).
 - **Review date**: [date — for one-way-door bets].
 - **Metric(s) to watch**: [for ops decisions, the leading indicator + guardrail].
+- **Calibration check (at review)**: compare the realized outcome to the confidence stated above — was the probability well-calibrated? Judge process quality separately from this single outcome.
 
 ## Methods used
 
