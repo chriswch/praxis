@@ -11,6 +11,7 @@
 - **Strategy**: When a multi-tenant platform's "growth is slowing," characterize whether it is an acquisition, activation, retention, or monetization problem — this decides the quarter's roadmap investment.
 - **2026**: In the LLM era, "asking the right problem" is scarcer than "producing answers"; write the problem clearly with #rightproblem first, then let AI generate solutions — the quality gap is enormous.
 - Sources: https://eshmanager.blogspot.com/2024/12/blog-post.html, https://www.minerva.edu/public/media/enrollment-center/Minerva-HCs-Intro.pdf
+- **Beyond software**: A clinic flags "ER wait times are too long" and is asked to add beds. Characterizing first reveals the real problem is discharge bottlenecks — admitted patients can't leave because no inpatient bed is free — so the fix is faster ward turnover and discharge planning, not ER capacity.
 
 ### #breakitdown — Break It Down · fit 5
 *aka / source:* #breakItDown; divide-and-conquer (decomposition), MECE
@@ -35,6 +36,7 @@
 - **Strategy**: For a take-rate change, assess the costs and benefits for large merchants, small merchants, the platform, and ecosystem app developers one by one, anticipating backlash.
 - **2026**: The official Minerva intro PDF presents this as the representative HC for "Weighing Decisions" — a core tool of the decision process.
 - Sources: https://www.minerva.edu/public/media/enrollment-center/Minerva-HCs-Intro.pdf, https://eshmanager.blogspot.com/2024/12/blog-post.html
+- **Beyond software**: Before a city closes a downtown street to cars for a pedestrian plaza, build a stakeholder × cost/benefit table — residents (quieter, safer), shop owners (fear lost delivery access and parking), disabled drivers (harder access), bus riders (rerouted lines) — surfacing that a blanket closure is a net win overall but severely harms delivery-dependent shops, so you pre-design loading windows and accessible drop-offs.
 
 ### #estimation — Estimation · fit 5
 *aka / source:* #estimation; Fermi estimation, plausibility check
@@ -47,6 +49,7 @@
 - **Strategy**: Cross-check third-party market-size reports (TAM/SAM/SOM) with a Fermi estimate to avoid being misled by inflated numbers.
 - **2026**: LLMs readily produce numbers that look precise but are off by orders of magnitude; #estimation is especially important as a sanity gate on AI output.
 - Sources: https://www.minerva.edu/public/media/enrollment-center/Minerva-HCs-Intro.pdf, https://eshmanager.blogspot.com/2024/12/blog-post.html
+- **Beyond software**: A nonprofit is pitched a "reach 2 million people" flyer campaign. A Fermi check — print run 50,000 × ~3 readers seen per flyer × maybe 10% who actually read it ≈ 15,000 real impressions — shows the claimed reach is off by two orders of magnitude, so you renegotiate the price before signing.
 
 ### #confirmationbias — Confirmation Bias · fit 5
 *aka / source:* #confirmationBias; related to #biashunt (hunting for bias)
@@ -59,6 +62,7 @@
 - **Strategy**: In strategy retrospectives, avoid recalling only the cases that validate your judgment; systematically review failed predictions.
 - **2026**: Of a piece with pre-registration and HARKing prevention in data analysis; LLMs tend to flatter the user's existing stance, making proactive disconfirmation even more necessary.
 - Sources: https://www.minerva.edu/public/media/enrollment-center/Minerva-HCs-Intro.pdf, https://eshmanager.blogspot.com/2024/12/blog-post.html, https://mattclancy.medium.com/how-minerva-university-teaches-habits-of-mind-1627499afb32
+- **Beyond software**: A hiring panel that loved a candidate in the interview asks references only "what are her strengths?" To counter confirmation bias, pre-commit to asking every reference "in what situations did she struggle, and would you hire her again?" and weigh the disconfirming answers as heavily as the praise.
 
 ### #correlation — Correlation vs. Causation · fit 5
 *aka / source:* #correlation; distinguish correlation and causation
@@ -71,6 +75,7 @@
 - **Strategy**: "Successful platforms all have X" is correlation; rushing to copy it may step into survivorship bias — interrogate the causal mechanism.
 - **2026**: The most common trap in e-commerce data analysis; recent practice emphasizes causal inference (DiD, synthetic control, geo holdout) to isolate true incrementality.
 - Sources: https://academic.oup.com/mit-press-scholarship-online/book/17355/chapter-abstract/174828729, https://eshmanager.blogspot.com/2024/12/blog-post.html
+- **Beyond software**: A school district sees that students in its after-school tutoring program score higher and moves to expand it. But tutoring is opt-in — more motivated families self-select in (selection bias / common cause). Before committing budget, run a randomized lottery among applicants and compare enrolled vs. waitlisted to isolate the true effect.
 
 ### #tradeoffs — Trade-offs · fit 5
 *aka / source:* #tradeoffs (often paired with #utility and #optimization)
@@ -151,6 +156,7 @@
 - **Ops**: When deciding whether to stop a continuously loss-making marketing channel, exclude historical spend.
 - **Strategy**: The biggest resistance to a strategic pivot is often sunk cost; naming it explicitly aids rational cutting of losses.
 - Sources: https://eshmanager.blogspot.com/2024/12/blog-post.html
+- **Beyond software**: A household has already spent $6,000 repairing an aging car and now faces a $3,000 transmission job. Strip out the $6,000 (unrecoverable) and compare only the path forward — $3,000 plus likely future repairs versus the cost of a more reliable replacement — deciding on future value, not on reluctance to "waste" what's already been put in.
 
 ### #risk — Risk vs. Uncertainty · fit 4
 *aka / source:* #risk; Knightian uncertainty

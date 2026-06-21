@@ -11,6 +11,7 @@
 - **Strategy**: e.g. evaluating build-your-own payments vs. integrating a third party, return to the basic cost structure (true marginal cost per transaction, compliance burden, settlement cycle) instead of the analogy "everyone in our industry uses provider X".
 - **2026**: A common 2025–2026 practice is to use an LLM as a "premise extractor" — have it enumerate every implicit assumption behind a design and then challenge each — but you must verify the premises it lists are real, so it does not pass off a hallucination as a "foundational truth".
 - Sources: https://fs.blog/first-principles/, https://sahilbloom.substack.com/p/first-principles-thinking
+- **Beyond software**: e.g. a hospital reflexively adds nurses to cut ER wait times; reasoning from first principles asks "what is the irreducible unit of throughput here" — and finds the binding constraint is bed-turnover time after a discharge order, so the fix is a discharge-lounge and cleaning-crew protocol, not more staff at triage.
 
 ### MECE and the Issue Tree / Logic Tree · fit 5
 *aka / source:* MECE (Mutually Exclusive, Collectively Exhaustive); issue tree; logic tree; hypothesis tree; MECE was coined by Barbara Minto at McKinsey (late 1960s) and is the core grouping rule underlying her Pyramid Principle
@@ -23,6 +24,7 @@
 - **Strategy**: e.g. evaluating "should we enter the POS market", use an issue tree to split into market size, our differentiating capability, cost of entry, and synergy with the existing SaaS, quantify each branch, then make a go/no-go.
 - **2026**: In 2025–2026 the issue tree is often paired with an LLM: a human sets the trunk to guarantee MECE, then the LLM fills in possibly-missed sub-branches (checking collective exhaustiveness), but a human must still police mutual exclusivity to avoid double-counting.
 - Sources: https://www.craftingcases.com/issue-tree-guide/, https://www.mbacrystalball.com/blog/strategy/mece-framework/, https://www.hackingthecaseinterview.com/pages/issue-trees
+- **Beyond software**: e.g. a household deciding "can we afford this house" builds a MECE tree — down payment (savings minus emergency buffer) × monthly carrying cost (mortgage + property tax + insurance + maintenance) × income stability × opportunity cost of the locked-up capital — so no recurring cost (the often-omitted maintenance branch) is double-counted or silently dropped.
 
 ### Hypothesis-Driven Problem Solving · fit 5
 *aka / source:* McKinsey-style; hypothesis-driven approach; "day-one answer"; commit to an answer first, then test it
@@ -35,6 +37,7 @@
 - **Strategy**: e.g. when choosing a strategic bet, hypothesize "this segment is the growth engine", set a falsifiable leading indicator (such as that segment's net expansion rate), validate on a quarter of data, then go all-in.
 - **2026**: Modern data / A/B-testing culture is the lineage of this method (a pre-registered hypothesis guards against p-hacking). In 2025–2026 an LLM can quickly generate multiple competing hypotheses, but a human must ensure each is falsifiable and actively seek disconfirming evidence, or the LLM tends toward sycophancy.
 - Sources: https://medium.com/@IliyanaStareva/8-step-framework-to-problem-solving-from-mckinsey-506823257b48, https://www.craftingcases.com/issue-tree-guide/
+- **Beyond software**: e.g. a clinician facing acute chest pain does not order every test at once; they state the most dangerous likely hypothesis ("this is an MI") and run the single most diagnostic, fastest-to-refute test — a troponin and ECG — pivoting to pulmonary embolism or reflux only when those come back clean.
 
 ### Reframing — Frame / Reframe / Move Forward · fit 5
 *aka / source:* Thomas Wedell-Wedellsborg, *What's Your Problem?* (HBR Press, 2020); "Are You Solving the Right Problems?" (HBR, 2017); the slow-elevator problem; the seven reframing strategies
@@ -47,6 +50,7 @@
 - **Strategy**: e.g. reframe "how do we beat competitor X" into "what job are our customers really hiring us to do", avoiding a feature arms race.
 - **2026**: Wedell-Wedellsborg's 2024 HBR piece "To Solve a Tough Problem, Reframe It" continues this method. A 2025 CHI study, "No Evidence for LLMs Being Useful in Problem Reframing", found that handing reframing directly to an LLM does not reliably improve frame quality, so reframing should stay human-led with the LLM only assisting divergence.
 - Sources: https://hbr.org/2017/01/are-you-solving-the-right-problems, https://www.dukece.com/insights/how-to-solve-the-right-problems/, https://hbr.org/2024/01/to-solve-a-tough-problem-reframe-it, https://dl.acm.org/doi/full/10.1145/3706598.3713273
+- **Beyond software**: e.g. a city frames its problem as "we need more parking downtown"; reframing it as "people can't easily reach downtown shops" surfaces better problems to solve — frequent shuttles, bike lanes, and delivery pickup zones — that cost a fraction of a new garage.
 
 ### Symptom vs Root Cause · fit 5
 *aka / source:* Treating symptoms vs. root causes; root cause analysis; the test running through 5 Whys / A3 / fishbone
@@ -59,6 +63,7 @@
 - **Strategy**: e.g. revenue falls so you blast out discounts and promotions (symptom) vs. diagnosing the root cause of a value-proposition or segment mismatch, avoiding short-term tactics that mask a structural problem.
 - **2026**: This is the touchstone for evaluating the outputs of all the methods above. In 2025–2026, when combining observability data with LLM-assisted attribution, be especially wary of mistaking "correlation / a surface explanation" for the root cause — always return to the evidence chain to verify.
 - Sources: https://en.wikipedia.org/wiki/Five_whys, https://flowfuse.com/blog/2025/12/five-whys-root-cause-analysis-definition-examples/, https://artoflean.com/reference/five-why
+- **Beyond software**: e.g. a clinic keeps prescribing stronger painkillers for a patient's recurring headaches (symptom); pushing to the root cause reveals medication-overuse rebound headaches caused by the painkillers themselves, so the cure is a supervised taper, not a higher dose.
 
 ### 5 Whys · fit 4
 *aka / source:* Five Whys; Toyota Production System (TPS); invented by Sakichi Toyoda, popularized by Taiichi Ohno; root cause analysis
@@ -71,6 +76,7 @@
 - **Strategy**: Suited to tactical/operational root causes; at the strategic layer with many intertwined causes, 5 Whys tends to be too linear and needs to be paired with an issue tree.
 - **2026**: In 2025–2026 the field broadly warns that the biggest pitfalls of 5 Whys are "a single linear chain" and "stopping at the symptom"; derivatives like Many Whys / combining with a fishbone diagram have emerged, with the reminder that "the amateur version is a chain of plausible guesses, the professional version is a chain of evidence".
 - Sources: https://en.wikipedia.org/wiki/Five_whys, https://artoflean.com/reference/five-why, https://flowfuse.com/blog/2025/12/five-whys-root-cause-analysis-definition-examples/
+- **Beyond software**: e.g. a factory line stops → why? a fuse blew → why? the pump overloaded → why? its bearing seized → why? no lubrication → why? the lube filter was clogged and never on the maintenance schedule → root cause: a missing preventive-maintenance interval, so the fix is a scheduled filter change, not just replacing the fuse.
 
 ### Toyota A3 Problem Solving · fit 4
 *aka / source:* A3 problem solving; A3 thinking; Toyota Business Practices (TBP); PDCA on one page; systematized in the books by Sobek and Smalley

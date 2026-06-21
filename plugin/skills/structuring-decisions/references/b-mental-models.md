@@ -23,6 +23,7 @@
 - **Strategy**: Envy and the tendency to compare drive blind feature parity with competitors ("they have it, so we need it"); use this model to block the feature arms race and return to your own north star.
 - **2026**: Munger died in late 2023 (aged 99), and this talk is regarded as his most original intellectual contribution; it continued to be widely cited across tech and investing through 2024–2026. It is especially practical for PMs and engineering leads, because most bad decisions come from people, not technology.
 - Sources: https://fs.blog/great-talks/psychology-human-misjudgment/, https://www.sloww.co/psychology-human-misjudgment-charlie-munger/, https://jamesclear.com/great-speeches/psychology-of-human-misjudgment-by-charlie-munger
+- **Beyond software**: A hiring panel runs its own judgment through the checklist before deciding — liking/halo bias (the charismatic candidate who interviews warmly), social proof (a respected colleague already said "great culture fit"), and confirmation bias (reading every answer as evidence for the early favorite) are all pushing the same way, a lollapalooza stack; structured scorecards and independent written ratings before discussion are the countermeasure.
 
 ### Circle of Competence · fit 5
 *aka / source:* Circle of Competence / used often by Munger & Buffett; The Great Mental Models Vol 1
@@ -47,6 +48,7 @@
 - **Strategy**: Don't price by simply matching competitor discounts (analogy); decompose to first principles — the marginal cost of each plan and the value the customer actually receives — and rebuild the pricing structure from there.
 - **2026**: More critical with AI-assisted development: an LLM excels at producing "analogy-based solutions from existing patterns," and the engineer's differentiating value is using first principles to judge whether to adopt them and to reframe the problem itself.
 - Sources: https://fs.blog/mental-models/, https://www.sloww.co/great-mental-models-volume-1/, https://readingraphics.com/book-summary-the-great-mental-models-general-thinking-concepts/
+- **Beyond software**: A clinician facing a patient with chronic insomnia resists the inherited "prescribe a hypnotic" analogy and decomposes to the fundamentals — what is actually disrupting sleep pressure and circadian timing (late caffeine, irregular wake time, daytime napping, anxiety-driven hyperarousal)? Rebuilt from those drivers, the first-line answer becomes CBT-I and behavioral scheduling, not a sedative that treats the symptom while leaving the real constraints untouched.
 
 ### Second-Order Thinking · fit 5
 *aka / source:* Second-Order Thinking / 'And then what?' / used often by Howard Marks; The Great Mental Models Vol 1
@@ -59,6 +61,7 @@
 - **Strategy**: Cutting prices to grab market share (first order: more users); second order: competitors follow, margins collapse, the brand anchors on low prices, and raising prices later becomes hard. Long-term chain reactions in strategic decisions are where this model matters most.
 - **2026**: Highly related to systems thinking and feedback loops; under the rapid-ship cadence of AI development through 2025–2026, second-order thinking is needed even more to offset the long-term cost of "piling on features fast."
 - Sources: https://fs.blog/mental-models/, https://www.sloww.co/great-mental-models-volume-1/
+- **Beyond software**: A city proposes rent control to make housing affordable (first order: current tenants pay less); second order: landlords convert units to condos or defer maintenance, and developers build less new supply; third order: the long-run housing stock shrinks and vacancies tighten, raising rents for everyone not already in a controlled unit — so the policy must be paired with supply-side measures or it undercuts its own goal.
 
 ### Probabilistic Thinking · fit 5
 *aka / source:* Probabilistic Thinking (incl. Bayesian thinking, fat-tailed curves, asymmetries); The Great Mental Models Vol 1
@@ -83,6 +86,7 @@
 - **Strategy**: Use inversion in strategic planning: "what would put us out of business / get us replaced in three years?" (collapse of security trust, platform dependence, concentration on a single large customer), and prioritize accordingly, rather than only listing growth plans.
 - **2026**: The pre-mortem is the engineered practice of inversion; in SRE/reliability engineering (chaos engineering, fault injection) it is a mainstream methodology through 2025–2026.
 - Sources: https://fs.blog/inversion/, https://www.sloww.co/great-mental-models-volume-1/, https://www.sloww.co/super-thinking-book/
+- **Beyond software**: A couple planning early retirement at 55 stops asking "how do we hit our number" and inverts to "what would guarantee we run out of money?" — sequence-of-returns risk in the first bad market years, underestimating healthcare costs before Medicare, no inflation hedge, and lifestyle creep. They then build the plan around eliminating each ruin path (a cash buffer for down years, a separate health-cost reserve, TIPS/I-bonds) rather than only maximizing the projected balance.
 
 ### Margin of Safety · fit 5
 *aka / source:* Margin of Safety; from engineering and quality control, used by Benjamin Graham for investing; The Great Mental Models Vol 2; related Redundancy model
@@ -119,6 +123,7 @@
 - **Strategy**: The true cost of entering a new market / launching a new product line is "the return those same resources would earn invested in the core product"; multi-tenant SaaS must be careful not to let edge bets dilute the core.
 - **2026**: Use it together with leverage and north star: strong opportunity-cost awareness keeps the team focused on the highest-leverage work closest to the north star.
 - Sources: https://paulminors.com/blog/super-thinking-by-gabriel-weinberg-lauren-mccann-book-summary-pdf/, https://www.lucapallotta.com/super-thinking-the-big/
+- **Beyond software**: A hospital with one free operating-room block and a fixed surgical team weighs filling it with a profitable elective knee replacement; the true cost isn't the case's supplies but the emergency and time-critical cancer cases that same block-hour could have absorbed — so theatre scheduling is ranked by opportunity cost against the highest-value clinical use, not by each case's standalone margin.
 
 ### North Star · fit 5
 *aka / source:* North Star / North Star Metric (popularized by Sean Ellis); Super Thinking
@@ -179,6 +184,7 @@
 - **Strategy**: When competitor moves and market signals arrive, don't overturn the whole strategy; incrementally update your beliefs about the market by the strength of evidence, avoiding overreaction to a single event.
 - **2026**: It's the engine of probabilistic thinking; through 2025–2026 it's also the underlying concept for understanding ML/recommendation systems and the statistics engines of A/B platforms — engineers who understand Bayes read experiment results better.
 - Sources: https://fs.blog/bayes-theorem/, https://www.sloww.co/great-mental-models-volume-1/
+- **Beyond software**: A patient with no risk factors gets a positive result on a screening test for a disease with a 0.1% base rate; even at 99% sensitivity and specificity, Bayes shows most positives are false, so the post-test probability of actually having the disease is under 10% — the clinician orders a confirmatory test and counsels calm rather than treating the single alarming result as near-certainty.
 
 ### Occam's Razor · fit 4
 *aka / source:* Occam's Razor / Law of Parsimony; The Great Mental Models Vol 2; Super Thinking #117
