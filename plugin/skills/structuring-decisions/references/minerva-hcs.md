@@ -322,7 +322,7 @@
 *aka / source:* #decisionTrees; expected-value tree
 - **What it is**: Use a decision tree to lay out each option's consequences and probabilities and compute expected values for comparison.
 - **Use in the process**: For high-stakes, multi-stage decisions, draw decision nodes, chance nodes, and outcomes, label probabilities and values, and roll back the expected value to choose a branch.
-- **Questions to ask**: Ask "What follows each option, with what probability and what value?" "Which branch has the highest expected value and the lowest variance?"
+- **Questions to ask**: Ask "What follows each option, with what probability and what value?" "Which branch has the highest expected value?" Plain expected-value rollback is risk-neutral — it ignores variance; if you are risk-averse, fold the tree back on a concave utility function and compare certainty equivalents (or apply an explicit risk criterion such as CVaR), then ask "which branch has the highest certainty equivalent?"
 - **Engineering**: An incident-handling runbook is essentially a decision tree; use a decision tree to evaluate architecture choices' cost across different load-growth scenarios.
 - **Product**: A feature-investment decision tree: do/don't × market accepts/doesn't, labeled with probabilities to estimate expected return.
 - **Ops**: Define each conditional branch of a returns-handling process as a decision tree and evaluate the expected benefit of automating each node.

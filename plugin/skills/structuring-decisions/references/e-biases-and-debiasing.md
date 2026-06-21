@@ -1,7 +1,7 @@
 > Decision-Science Method Catalog · E. Cognitive biases & debiasing · 19 methods. Legend: engineering / product / ops / strategy = four-axis application; fit = fit with software/SaaS (3–5).
 
 ### Dual-Process Thinking (System 1 / System 2) · fit 5
-*aka / source:* Dual-process theory; Thinking, Fast and Slow (Kahneman 2011); the underlying distinction originated with Stanovich & West and was popularized by Kahneman
+*aka / source:* Dual-process theory; Thinking, Fast and Slow (Kahneman 2011); Stanovich & West (2000) coined the "System 1 / System 2" labels — the underlying two-process distinction predates them (Wason, Evans, Epstein, Sloman) — and Kahneman popularized it
 - **What it is**: In Thinking, Fast and Slow, Kahneman distinguishes two modes of cognition. System 1 is fast, automatic, emotional, and unconscious (intuitive reaction); System 2 is slow, effortful, logical, and deliberately invoked (analytic deliberation). Most biases arise when System 1 takes a heuristic shortcut and System 2 is never engaged to check it.
 - **Use in the process**: Triage decisions. Let System 1 / intuition handle low-stakes, reversible, high-frequency choices quickly (don't over-analyze); deliberately switch to System 2 for high-stakes, irreversible, expensive ones (write down assumptions, seek disconfirming evidence, run the data). Build triggers: when a decision meets certain conditions (affects multiple tenants, changes schema, touches money flows), force it onto the slow path (design review, RFC).
 - **Questions to ask**: "Is this an intuition or a conclusion I reasoned to?" "Is this decision worth engaging System 2, or am I over-thinking a two-way-door decision?" "Could my current judgment just be an illusion produced by familiarity or fluency?"
