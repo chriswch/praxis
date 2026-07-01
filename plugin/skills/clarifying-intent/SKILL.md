@@ -128,20 +128,18 @@ If Phase B truly has nothing to do, say so explicitly and move on. Do not manufa
 Not every task goes through both phases at full depth. Match the input type to the shortest path:
 
 - **Bug fix**: triage → quick Phase A (reproduce the bug as a Given/When/Then) → Phase B (where in the system, what regression risk) → done. Often very short.
-- **Pure refactor**: no spec needed. Ensure existing tests pass → refactor → ensure tests still pass. If tests don't exist, write characterization tests first.
+- **Pure refactor**: no spec needed. Ensure existing tests pass → refactor → ensure tests still pass. If characterization tests are missing, that is implementation work — route to `driving-tdd` to add them before refactoring. This skill does not write tests (it holds no Write/Edit grant).
 - **Trivial change**: triage step alone produces a one-sentence statement. No phases.
 
 The full pipeline (`clarifying-intent` → `slicing-stories` → `sketching-design` → `driving-tdd` → `verifying-and-adapting`) is for medium+ features. Don't force every task through it.
 
-## Splitting Guidance (Feature-Sized Only)
+## Splitting Recognition (Feature-Sized Only)
 
-When the input is feature-sized, guide toward vertical slices before speccing in detail:
+Recognize a feature-sized input and hand it off — do **not** slice it here. `slicing-stories` owns the splitting heuristics (walking skeleton, vertical-slice patterns, spikes-are-not-slices, sequencing). Keeping them there stops the two skills from overlapping and keeps each independently usable.
 
-- Split by **user-facing behavior**, not technical layer.
-- Each slice should be independently deliverable, testable, and valuable to a real user (INVEST). Litmus test: "If we shipped this slice and stopped, would at least one real user get value from it?"
-- For the first slice, prefer a **walking skeleton** — the thinnest end-to-end path with real dependencies. The skeleton proves the architecture *by* delivering value, not instead of it.
-- If you need to validate a technology before committing, that is a **spike** (time-boxed throwaway), not a slice. Spikes do not belong in the slice map.
-- Hand off to `slicing-stories` for the slice map.
+- **Signal it is feature-sized**: it spans several user-facing behaviors that could each ship on their own.
+- **Value litmus** (a quick sanity-check the requester can apply without invoking another skill): "If we shipped just the first behavior and stopped, would at least one real user get value?" If yes, it is sliceable — hand off.
+- Hand off to `slicing-stories` for the slice map. Each resulting slice returns to this skill for a Story-Level Behavioral Spec (Phase B runs then).
 
 ## Guardrails
 

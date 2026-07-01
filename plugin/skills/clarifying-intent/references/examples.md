@@ -66,8 +66,7 @@ After Background distillation and two rounds of questions:
 - (Deferrable) HS256 vs RS256 — decide when building the token-issuance slice.
 
 **Downstream Handoff**
-- Split via `slicing-stories`. Candidate slices: (1) middleware rejects unauthenticated requests — walking skeleton, (2) token issuance and storage, (3) existing clients migrated, (4) external partner onboarding.
-- Pick slice 1 first.
+- Split via `slicing-stories`, which owns the slice map and ordering. (It reads as roughly four behaviors — auth middleware, token issuance, client migration, partner onboarding — but the actual map and first-slice pick are `slicing-stories`' call.)
 
 ### Phase A checkpoint (manual mode)
 
@@ -96,6 +95,8 @@ Internal frontend and mobile app continue working through a transitional shim; n
 - Error: Given a request with no Authorization header, when it hits any protected endpoint, then return 401 with `{"error": "authentication_required"}`.
 - Error: Given a request with an invalid or expired Bearer token, when it hits any protected endpoint, then return 401 with `{"error": "invalid_token"}`.
 - Boundary: Given a health-check endpoint (`GET /health`), when it receives a request with no token, then return 200 (health-check is exempt).
+
+_System Space (engineering) — appended below the product-readable tier above; never interleaved with it._
 
 **Observable Signals**
 - Curl any non-health endpoint without an Authorization header → 401 response with `authentication_required` body.
@@ -164,6 +165,8 @@ After reading the orders endpoint module:
 - Boundary: Given `?limit=1000` (max is 500), then return 400 with `{"error": "limit_too_large", "max": 500}`.
 - Error: Given a negative offset, then return 400 with `{"error": "invalid_offset"}`.
 
+_System Space (engineering) — appended below the product-readable tier above; never interleaved with it._
+
 **Observable Signals**
 - Response body now includes `total`, `limit`, `offset` fields alongside the existing `orders` array.
 - Log line per request includes the limit and offset values used.
@@ -231,6 +234,8 @@ Hobby cooks have no easy place to keep their own recipes with photos. Need a way
 - Error: Given a missing title, when they submit, then the form shows an inline error and does not submit.
 - Error: Given an oversized photo (> 5 MB), when they submit, then the form shows an inline error.
 - Boundary: Given an unsigned-in user, when they visit the upload page, then they are redirected to sign-in.
+
+_System Space (engineering) — appended below the product-readable tier above; never interleaved with it._
 
 **Observable Signals**
 - After upload, the recipe is visible in `/recipes` with photo and title.

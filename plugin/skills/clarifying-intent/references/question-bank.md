@@ -39,12 +39,10 @@ These questions clarify *who*, *why*, and *what success looks like* — never *h
 - What's the cheapest way to find out if we're wrong before building?
 - What would convince you to abandon this idea?
 
-**Scope and slicing**
+**Scope and sizing** (triage only — detailed slicing and sequencing belong to `slicing-stories`)
 - What is in scope vs out of scope for this effort?
 - What are the must-haves vs nice-to-haves?
-- Can this be split into independently deliverable slices?
-- What is the smallest version that delivers value?
-- Which slice is highest-value or highest-risk to do first?
+- Is this one user-facing behavior (story-sized), or several that could each ship independently (feature-sized → hand to `slicing-stories`)?
 
 **Constraints**
 - What constraints matter (time, budget, platform, policy/compliance, performance, security/privacy)?
@@ -60,7 +58,6 @@ These questions clarify *who*, *why*, and *what success looks like* — never *h
 - What are the primary user flows (happy path) and top edge cases?
 - What is the rollout/release expectation (phased, beta, flags, backwards compatibility)?
 - What analytics/telemetry would confirm this is being used and valued?
-- Can this feature be delivered as a series of thin vertical slices?
 
 ### Bug / incident (product side)
 
