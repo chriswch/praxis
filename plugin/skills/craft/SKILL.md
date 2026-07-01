@@ -1,11 +1,11 @@
 ---
 name: craft
-description: Run the full Praxis craft workflow. Manual mode (default) checkpoints between stages; --autopilot runs end-to-end without prompting, creating multiple commits across stages and modifying production code and tests, stopping only on the four hard-stop conditions. Use when the user mentions Praxis craft, `/craft`, or wants clarification, design, TDD, review, improvement, and verification as one guided flow.
+description: Run the entire Praxis craft workflow end-to-end as one guided flow that orchestrates every specialist stage in sequence (clarify → slice → design → TDD → review → improve → verify). Manual mode (default) checkpoints between stages; --autopilot runs end-to-end without prompting, creating multiple commits across stages and modifying production code and tests, stopping only on the four hard-stop conditions. Use when the user wants the whole pipeline (e.g. mentions Praxis craft, `/praxis:craft`, `$craft`, or "take this from idea to shipped") — not for a single stage, which should go to that stage's own skill.
 ---
 
 # Craft
 
-Codex entry point for the Praxis `craft` workflow. You are the orchestrator. Invoke each sibling skill in turn, and pass each skill's output as input to the next.
+The single entry point for the Praxis `craft` workflow, shared across runtimes — Claude Code exposes it as `/praxis:craft`, Codex as `$craft`. You are the orchestrator. Invoke each sibling skill in turn, and pass each skill's output as input to the next.
 
 ## Mode
 
@@ -23,15 +23,15 @@ clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
   → code-reviewing → code-improving → verifying-and-adapting
 ```
 
-The sibling skills live next to this one:
+The sibling skills you orchestrate (invoke each by its skill identity, not by file path):
 
-- `../clarifying-intent/SKILL.md`
-- `../slicing-stories/SKILL.md`
-- `../sketching-design/SKILL.md`
-- `../driving-tdd/SKILL.md`
-- `../code-reviewing/SKILL.md`
-- `../code-improving/SKILL.md`
-- `../verifying-and-adapting/SKILL.md`
+- `clarifying-intent`
+- `slicing-stories`
+- `sketching-design`
+- `driving-tdd`
+- `code-reviewing`
+- `code-improving`
+- `verifying-and-adapting`
 
 ## Gates
 
@@ -64,14 +64,14 @@ In manual mode, do not include this directive — `clarifying-intent` should emi
 
 **Why only `clarifying-intent`?** It is the only Praxis pipeline skill without `context: fork`. The other six pipeline skills each run in their own forked context: they do their work, return a compact tool result to the orchestrator, and the orchestrator's next action is naturally a tool call (the next skill). The orchestrator never authors the skill's output itself, so it never enters the "I just emitted a structured response" state that triggers end-of-turn in the model.
 
-`clarifying-intent` runs inline in the orchestrator's context, so the orchestrator IS clarifying-intent while the skill executes. The end-of-turn trigger here isn't the length of the output — it's the act of emitting a substantive text response after completing the work. Even a ~500-character structured status report triggers it, because the model treats any structured report as a completed deliverable that ends the message. No amount of "do not end the turn" instruction reliably overrides this default; the only robust fix is to not emit the report at all.
+`clarifying-intent` runs inline in the orchestrator's context, so the orchestrator IS clarifying-intent while the skill executes. The end-of-turn trigger here isn't the length of the output — it's the act of emitting a substantive text response after completing the work. Even a ~500-character structured status report triggers it, because the model treats any structured report as a completed deliverable that ends the message. No amount of "do not end the turn" instruction reliably overrides this default; the only robust fix is to not emit the report at all. (This end-of-turn-on-text-emission behavior is an observed Claude-runtime trait and may not apply on other runtimes such as Codex; the persistence-to-disk handoff in the directive above is the runtime-neutral mechanism that preserves the chain either way.)
 
 The directive above mimics what forked skills do naturally: no text between work completion and the next tool call. Persistence to disk preserves the artifact for downstream skills; routing the orchestrator straight to the next tool call preserves the chain. Text is only emitted when we actually want the chain to stop (`open-questions` or `spec-issue`) — there, the orchestrator's hard-stop handling takes over.
 
 ## Steps
 
 1. **clarifying-intent** — Pass the user request (in autopilot, include the persistence directive from *Autopilot invocation directives* above). The skill returns one of:
-   - A **trivial change** statement → implement it directly and stop.
+   - A **trivial change** statement → make the change directly and stop. This is the sanctioned trivial fast-path — skip the full pipeline.
    - A **Story-Level Behavioral Spec** → confirm at the spec gate, then go to step 3.
    - A **Feature Brief** → confirm at the spec gate, then go to step 2.
    - **Open questions** → hard-stop (condition 2).

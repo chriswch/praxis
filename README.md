@@ -16,16 +16,18 @@ Add the Praxis plugin from your marketplace, or install the `plugin/` directory 
 
 ## Entry points
 
-- **Claude Code**: `/craft` slash command (`plugin/commands/craft.md`).
-- **Codex**: `craft` skill (`plugin/skills/craft/SKILL.md`).
+`craft` is a single agent skill (`plugin/skills/craft/SKILL.md`) that both runtimes read — there is no separate command file:
 
-Both entry points orchestrate the same underlying skills.
+- **Claude Code**: invoke as `/praxis:craft`.
+- **Codex**: invoke as `$craft` (or via the `/skills` picker).
+
+One skill body orchestrates the same underlying skills across both runtimes.
 
 ## Workflow
 
 ### Craft
 
-Full TDD pipeline. `/craft <task>` runs in manual mode with user checkpoints between stages; `/craft --autopilot <task>` auto-confirms gates and runs end-to-end, stopping only on hard blockers (worker `## Feedback`, **Open questions** from `clarifying-intent`, `## Spec Issue` from `sketching-design`, or **Rework**/**Escalate** from `verifying-and-adapting`).
+Full TDD pipeline. `/praxis:craft <task>` (Claude Code) or `$craft <task>` (Codex) runs in manual mode with user checkpoints between stages; adding `--autopilot` auto-confirms gates and runs end-to-end, stopping only on hard blockers (worker `## Feedback`, **Open questions** from `clarifying-intent`, `## Spec Issue` from `sketching-design`, or **Rework**/**Escalate** from `verifying-and-adapting`).
 
 ```
 clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
