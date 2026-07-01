@@ -60,7 +60,7 @@ The caller decides whether to persist the AC checklist, feedback log, and sessio
    - Pick the next AC. Write a test that asserts the expected behavior using the project's existing test conventions.
    - Name the test after the behavior: `rejects request without auth token`, not `test_middleware_check`.
    - **Run the test.** Confirm it fails for the right reason — the behavior doesn't exist yet, not a setup error (import error, missing file).
-   - If the test passes unexpectedly, the behavior already exists. Mark the AC done, move on.
+   - If the test passes unexpectedly, do NOT auto-mark the AC done. A test that is green on first write is a signal it may be too weak (asserting something trivially true), or the behavior may genuinely already exist. Inspect and strengthen it until it actually exercises the AC and is capable of failing. If it then still passes because the behavior really exists, mark the AC done with a note; if it was too weak, you just caught a test-gaming risk — keep the stronger version.
 
 4. **Green: write the minimum code to pass.**
    - Write the simplest code that makes the failing test pass. Don't generalize yet.
@@ -70,6 +70,7 @@ The caller decides whether to persist the AC checklist, feedback log, and sessio
    - Now — and only now — improve the structure: extract duplication, clarify names, align with existing patterns.
    - **Rule of three**: don't extract until you've seen it three times.
    - **Run tests after each change.** Every refactor must keep the suite green.
+   - **Refactor changes structure, not the contract.** Keep each acceptance test's assertions intact. If a refactor seems to require a weakened acceptance test, that is a behavior change or a spec gap — stop and use the feedback loop; don't edit the test to fit.
    - If the sketch's approach doesn't fit what the code is telling you, discard it. The code under tests is the source of truth.
 
 6. **Commit and loop.**
@@ -112,6 +113,7 @@ The caller decides whether to persist the AC checklist, feedback log, and sessio
 ## Guardrails
 
 - **Run the tests — every time.** Execute tests at every Red, Green, and Refactor step. Don't just write them. The test runner is the source of truth, not your expectation of what should pass.
+- **The acceptance test is a contract — never weaken it to pass.** Once a test encoding an acceptance criterion is written and confirmed failing for the right reason (Red), do not relax, narrow, or delete it to reach Green or during Refactor. If an AC's test seems impossible or self-contradictory, stop and surface it under `## Feedback` for `clarifying-intent` — never patch the test around the problem. Only the inner unit tests that emerge during a cycle are editable within that cycle. (This is a *mitigation* against a model gaming its own tests — strict prompting plus flagging impossible ACs — not an enforced authority boundary; that awaits a separate frozen test-authoring stage.)
 - **One AC at a time.** Don't batch. Don't write multiple failing tests before making any green. Fast feedback is the whole point.
 - **Minimum to pass.** Resist adding the next feature during Green. That's the next cycle.
 - **Refactor means simplify, not abstractify.** Extract a well-named function, not a `BaseFooStrategyFactory`.
