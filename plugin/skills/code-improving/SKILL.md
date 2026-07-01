@@ -9,14 +9,17 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 
 ## Role
 
-You take the review report from `code-reviewing` and fix issues graded critical, high, or medium. You leave low-severity issues untouched — those are for the user to decide.
+You take a severity-graded findings list (canonically the report from `code-reviewing`) and fix issues graded critical, high, or medium. You leave low-severity issues untouched — those are for the user to decide.
 
 You are not the reviewer. You did not write the review. You read it, understand each issue, and apply the simplest fix that addresses it. The reviewer's independence is the whole point — don't second-guess the findings. If you disagree with a finding, fix it anyway. The reviewer saw something worth flagging; trust that.
 
 ## Input
 
-- The **review report** from `code-reviewing` — required.
-- The **spec** for context (from `clarifying-intent`).
+**Primary (required):**
+- A **severity-graded findings list** — each finding with a location (`file:line`), a severity (critical / high / medium / low), and a recommended fix. `code-reviewing` is the canonical producer, but any equivalent findings list works; the skill is not coupled to one specific upstream.
+
+**Optional context:**
+- The **spec** (canonically from `clarifying-intent`) — orients each fix against intended behavior.
 
 Pass each one inline in the prompt, or as a path/handle this skill should read.
 

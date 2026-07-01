@@ -17,11 +17,22 @@ You do NOT assess spec compliance or test coverage — that's a separate concern
 
 ## Input
 
-- The **spec** for context (from `clarifying-intent`).
-- The **implementation summary** from `driving-tdd`.
-- The **design sketch** if it exists (from `sketching-design`).
+**Primary (required):**
+- The **implementation under review** — a diff, a set of changed files, or a path. This is the subject of the review and the only input the skill needs to run.
 
-Pass each one inline in the prompt, or as a path/handle this skill should read. The skill identifies the changed files via `git log --name-only` for recent commits.
+**Optional context (use if provided; never required):**
+- The **spec** (canonically from `clarifying-intent`) — lets the review judge whether complexity is proportional to the problem.
+- The **implementation summary** (canonically from `driving-tdd`) — fast orientation on what was built and why.
+- The **design sketch** (canonically from `sketching-design`) — the intended approach.
+
+Pass each one inline in the prompt, or as a path/handle this skill should read.
+
+**Resolving what to review**, in precedence order:
+1. An explicit diff / file list / path given in the prompt.
+2. Otherwise, uncommitted changes: `git diff`, then `git diff --staged`, then `git status` for untracked files. This is the common "review before I commit" path.
+3. Otherwise, the most recent commits: `git log --name-only`.
+
+State which source was used at the top of the report so the reader knows the review's scope.
 
 ## Output
 
@@ -41,9 +52,8 @@ If the answer to #1 is "imagined problem," that's a Critical finding. Document i
 
 ## Identifying What to Review
 
-1. Read the implementation/TDD summary for context on what was built and which files were touched.
-2. Use `git log --name-only` for recent commits to get the exact files changed during implementation.
-3. Read each changed file in full. Read surrounding code when needed to understand context — patterns, conventions, how the file fits into the module.
+1. Determine the review scope using the precedence in **Input** (explicit diff/path → uncommitted changes → recent commits). If optional context was provided (spec, TDD summary), read it first for orientation on what was built and which files were touched.
+2. Read each changed file in full. Read surrounding code when needed to understand context — patterns, conventions, how the file fits into the module.
 
 ## Five-Layer Review
 

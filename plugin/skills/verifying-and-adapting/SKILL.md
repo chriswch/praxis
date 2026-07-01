@@ -17,14 +17,19 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
 
 ## Input
 
-- **Story-Level Behavioral Spec** (from `clarifying-intent`) — required. The source of truth for what was supposed to be built.
-- **AC Checklist** (from `driving-tdd`) — required. Shows completion status of each acceptance criterion.
-- **Feedback Log** (from `driving-tdd`) — required, even if empty. Shows discoveries made during implementation.
-- **Session Summary** (from `driving-tdd`) — required for medium+ tasks. Shows design decisions and spec feedback.
-- **Design Sketch** (from `sketching-design`) — optional. May have been skipped or discarded during TDD.
-- **Slice Map** (from `slicing-stories`) — optional. Only exists for multi-slice features.
+**Primary (required):**
+- **Story-Level Behavioral Spec** (canonically from `clarifying-intent`) — the source of truth for what was supposed to be built.
+- **The implementation** — the code under verification (a path, a diff, or the working tree).
+- **Test results** — a way to run the suite (the project's test command) or a report of its current state.
 
-Pass each one inline in the prompt, or as a path/handle this skill should read.
+**Optional enrichments (use if provided; reconstruct if absent):**
+- **AC Checklist** (canonically from `driving-tdd`) — per-AC completion status. If absent, reconstruct it from the spec's acceptance criteria (step 1 does this).
+- **Feedback Log** (canonically from `driving-tdd`) — discoveries made during implementation.
+- **Session Summary** (canonically from `driving-tdd`) — design decisions and spec feedback; enriches the "emerged design knowledge" step on medium+ tasks.
+- **Design Sketch** (canonically from `sketching-design`) — may have been skipped or discarded during TDD.
+- **Slice Map** (canonically from `slicing-stories`) — only exists for multi-slice features.
+
+Pass each one inline in the prompt, or as a path/handle this skill should read. The skill runs standalone on the primary inputs alone — the enrichments make it faster and richer, not runnable. Missing enrichments are reconstructed, not a reason to stop.
 
 ## Output
 
@@ -39,8 +44,10 @@ The caller decides whether to persist the verification summary and updated spec,
 
 ## Workflow
 
-1. **Validate inputs and triage.**
-   - Gather: behavioral spec, AC checklist, feedback log, session summary (if medium+). If any required input is missing or TDD is incomplete (AC checklist has pending items, suite is not green), stop and recommend that `driving-tdd` finish first.
+1. **Establish the completion baseline and triage.**
+   - Confirm the primary inputs: the spec, the implementation, and a way to run the tests. Only these are required.
+   - Reconstruct what the optional artifacts would have carried: if no AC checklist was supplied, derive one from the spec's acceptance criteria; if no test results were supplied, run the suite yourself. Missing `driving-tdd` bookkeeping is not a reason to stop.
+   - **Completion gate (do not skip):** run the full suite. If the suite is red, or any acceptance criterion in the spec has no passing, behavior-matching test, the work is genuinely incomplete — recommend returning to `driving-tdd` for the specific gaps and stop. Reserve this hard stop for incomplete work (red suite or uncovered ACs), never for merely-absent sibling artifacts.
    - Scale ceremony to task size:
      - **Trivial** (one AC, one file, obvious change): Skip the full artifact. TDD passed, suite is green, you're done. Recommend done.
      - **Small** (1–2 ACs, single file): Quick sanity check — re-read the spec, confirm all ACs are covered, note if anything changed. No formal artifact.
