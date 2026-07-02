@@ -1,6 +1,6 @@
 ---
 name: verifying-and-adapting
-description: Closes the loop after TDD by verifying the implementation holistically against the behavioral spec, reconciling spec-vs-reality divergences, capturing emerged design knowledge, and routing to the next slice or done. Use after driving-tdd completes. Triggers on "verify this", "are we done?", "check against the spec", "close out this story", "what's next?", "wrap up", or when all TDD acceptance criteria are green and the developer needs to confirm completion and decide the next step.
+description: Closes the loop after TDD by checking the implementation holistically against the Story-Level Behavioral Spec (without running the app), reconciling spec-vs-reality divergences, capturing emerged design knowledge, and recommending the next slice, rework, or done. Use after driving-tdd, when all acceptance criteria are green and the developer needs to confirm the build conforms to what was specified. Triggers on 'does this match the spec', 'check against the spec', 'close out this story against the spec', 'did we build what was specified', or 'close out this story'.
 context: fork
 allowed-tools: Read, Grep, Glob, Bash
 ---

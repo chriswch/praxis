@@ -1,6 +1,6 @@
 ---
 name: driving-tdd
-description: Drives the Red → Green → Refactor cycle from a Story-Level Behavioral Spec (and optional design sketch), converting acceptance criteria into failing tests, writing minimum code to pass, and refactoring to let design emerge. Handles the feedback loop back to clarifying-intent when implementation reveals spec gaps. Use after clarifying-intent or sketching-design when starting implementation. Triggers on "let's code this", "start TDD", "implement this story", "write the tests", "make it work", "next slice", or when a behavioral spec with acceptance criteria is ready and the next step is writing code.
+description: Drives the Red → Green → Refactor cycle once a Story-Level Behavioral Spec with acceptance criteria exists (optionally plus a design sketch), converting each acceptance criterion into a failing test, writing the minimum code to pass, and refactoring to let design emerge. Handles the feedback loop back to clarifying-intent when implementation reveals spec gaps. Use after clarifying-intent or sketching-design to start implementation. Triggers on 'let's code this', 'start TDD', 'implement this story', 'write the tests', or 'next slice' — only when a behavioral spec with acceptance criteria is ready; if none exists, route to clarifying-intent first.
 context: fork
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 ---

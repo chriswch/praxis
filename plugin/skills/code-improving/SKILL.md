@@ -1,6 +1,6 @@
 ---
 name: code-improving
-description: "Fix code quality issues identified by code-reviewing. Auto-fixes critical, high, and medium severity issues while preserving all existing tests. Leaves low-severity items for user decision. Cannot modify test files. Use after code-reviewing produces a review report."
+description: "Applies the fixes from a code-reviewing report — auto-fixing critical, high, and medium severity findings, leaving low-severity items for the user to decide, never modifying test files, and keeping every existing test green. Consumes a severity-graded review report (canonically from code-reviewing) and commits each fix; it does not hunt for new issues or add features. Use after code-reviewing produces a report, when the user says 'apply the review findings', 'fix the review comments', 'auto-fix these review issues', or 'address the code review'."
 context: fork
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 ---
@@ -67,9 +67,13 @@ After all fixes:
 
 See `references/templates.md` for the format.
 
+## What Counts as a Test File
+
+A "test file" is any file that exercises or supports the test suite rather than shipping production behavior. This includes: files matching the test-runner's own discovery globs (e.g. `test_*.py`, `*_test.go`, `*.spec.ts`, `*.test.js`); everything under recognized test roots (`tests/`, `test/`, `__tests__/`, `spec/`, `testdata/`, `fixtures/`, `__snapshots__/`); recorded fixtures, snapshots, and golden/testdata files; and shared test scaffolding such as `conftest.py`, `setup`/`teardown` and per-suite bootstrap files, and test factories, helpers, builders, or mocks. Determine these boundaries from the project's test-runner configuration (`pytest.ini`/`pyproject.toml`, `jest`/`vitest` config, `go test` layout, `.rspec`, etc.) rather than filenames alone; when config and filename conflict, treat the file as a test file. If it is unclear whether a file is a test file, do not modify it — surface it under `## Feedback` instead.
+
 ## Guardrails
 
-- **Do NOT modify test files.** Tests define the behavioral contract. If you think a test is wrong, that's a spec clarification issue — surface a `## Feedback` section and recommend returning to `clarifying-intent`, then stop.
+- **Do NOT modify test files** (see **What Counts as a Test File** above). Tests define the behavioral contract. If you think a test is wrong, that's a spec clarification issue — surface a `## Feedback` section and recommend returning to `clarifying-intent`, then stop.
 - **Do NOT fix low-severity issues.** Those are for the user to evaluate and decide.
 - **Do NOT add new features, tests, or functionality.** You are improving existing code quality, not extending behavior.
 - **Do NOT over-engineer the fixes.** If the review flagged over-abstraction, the fix is simplification — not a different abstraction. Remove complexity, don't transform it.

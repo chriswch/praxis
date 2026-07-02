@@ -1,6 +1,6 @@
 ---
 name: slicing-stories
-description: Splits a Feature Brief into an ordered slice map of thin, vertical story slices — each capturing scope and build order, while deferring detailed acceptance criteria to downstream `clarifying-intent`. Use after clarifying-intent produces a Feature Brief, when a feature is too large for one story. Triggers on "split this into stories", "slice this feature", "what should we build first", "create a slice map", or when a Feature Brief needs to be broken into deliverable increments.
+description: Splits a Feature Brief into an ordered slice map of thin, vertical story slices — each capturing scope and build order, while deferring detailed acceptance criteria to downstream clarifying-intent. Use after clarifying-intent produces a Feature Brief, when a feature is too large for one story. Triggers on 'split this into stories', 'split this into slices', 'slice this feature', 'sequence these stories', 'what's the build order', 'create a slice map', or when a Feature Brief needs to be broken into deliverable increments.
 context: fork
 allowed-tools: Read, Grep, Glob
 ---
