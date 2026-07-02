@@ -21,7 +21,7 @@ If the input is vague, underspecified, or feature-sized, stop and recommend that
 
 Return one of these inline in the response:
 
-- A **design sketch** with change map, pattern match, proposed direction, and the first test to write.
+- A **design sketch** with change map, pattern match, proposed direction, and the first test to write (named with its test layer).
 - **Skipped** — when the implementation path is obvious from the spec; state that no sketch is needed and why.
 - **Spec issue** — when codebase exploration reveals the spec's assumptions are wrong; describe the issue under a `## Spec Issue` heading and recommend returning to `clarifying-intent`.
 
@@ -58,12 +58,13 @@ The caller decides whether to persist the sketch and where.
 4. **Propose a direction.**
    - State **one approach** in 2–5 sentences. Not alternatives — pick one.
    - If the approach involves a data structure change, state it explicitly. (Get the data structures right and the code follows.)
-   - Name the **first test to write** — the specific test case derived from the spec's happy-path AC, including where the test file goes.
+   - Name the **first test to write** — the specific test case derived from the spec's happy-path AC, including where the test file goes, its **test layer** (unit / integration / contract / e2e), and the boundary it exercises. Naming the layer keeps the handoff to `driving-tdd` lossless: the TDD loop knows what kind of test to open with. Name only the first test's layer — a full per-AC test plan is not this skill's job.
    - Flag **risks** that might force a pivot during TDD. If a risk is high uncertainty, mark it as a **spike** — a time-boxed throwaway experiment to resolve before committing.
 
 5. **Self-check before producing output.**
    - Verify the change map covers every acceptance criterion from the spec. If an AC can't be addressed from the identified files, the map is incomplete.
    - Verify the first test maps directly to a spec AC — not to an invented requirement.
+   - Confirm the first test names its layer (unit / integration / contract / e2e), and that the layer matches where the behavior actually lives in the change map.
    - Confirm the approach follows an existing codebase pattern. If proposing a new pattern, justify why no existing analog applies.
    - Check for unnecessary abstractions: can this be solved without introducing a new type, interface, or module? If 3 lines of duplicated code are simpler, duplicate.
    - Check for YAGNI violations: remove any part of the sketch designed for a requirement not in the spec.
@@ -81,6 +82,7 @@ The caller decides whether to persist the sketch and where.
 - **Existing patterns first.** Only propose new patterns when the codebase has no applicable analog.
 - **Skippable.** If the spec makes implementation obvious, skip the sketch.
 - **Disposable.** TDD's refactor step overrides the sketch when it discovers better structure.
+- **Read-only.** This skill explores and proposes; it never writes production code or tests. The sketch *names* the first test — `driving-tdd` *authors* it. Emitting code or test files is not this skill's job.
 - **Spikes over speculation.** If uncertain, write throwaway code to learn — don't plan harder.
 - **No architecture astronautics.** Don't propose design patterns, class hierarchies, or module structures that aren't directly needed for this one story.
 - **Stories only.** Never sketch an epic or feature. If the input is too large, recommend `slicing-stories`.

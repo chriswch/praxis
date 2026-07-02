@@ -21,6 +21,7 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 
 **First Test**
 - File: `path/to/test/file`
+- Layer: [unit / integration / contract / e2e] — the boundary this first test exercises
 - Test: [description of the first test case, derived from the spec's happy-path AC]
 
 **Risks / Spikes**
@@ -33,7 +34,7 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 [Explicit boundaries from the spec's "scope out" and "what must not break" sections.]
 
 **Downstream Handoff**
-- TDD: acceptance criteria from the spec become test cases. Red → Green → Refactor.
+- TDD starts from the First Test above (with its named layer); the spec's acceptance criteria become the remaining test cases. Test ordering and refactoring are `driving-tdd`'s to own — the sketch does not prescribe them.
 - Feedback loop: if TDD reveals the sketch was wrong, update or discard it.
 
 ---
@@ -45,7 +46,7 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 | Change Map | Always | Know which files to open before writing code |
 | Existing Patterns | Always | Prevent reinventing what the codebase already does |
 | Approach | When direction is non-obvious | State the key decision in 2–5 sentences |
-| First Test | Always | Bridge directly into TDD |
+| First Test | Always | Bridge directly into TDD — name the test's layer so the design→TDD handoff is lossless |
 | Risks / Spikes | When uncertainty exists | Flag what might force a pivot |
 | What NOT to Change | When spec has scope-out or "must not break" items | Explicit boundaries |
 | Downstream Handoff | Always | Connect to TDD and feedback loop |

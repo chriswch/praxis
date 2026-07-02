@@ -31,6 +31,7 @@ Create an auth middleware that extracts the Bearer token from the `Authorization
 
 **First Test**
 - File: `tests/middleware/auth.test.ts`
+- Layer: unit — the middleware in isolation, with a stubbed `TokenVerifier`
 - Test: "returns 401 with `{ error: 'authentication_required' }` when no Authorization header is present" (from spec's error/edge case AC).
 
 **Risks / Spikes**
@@ -41,7 +42,7 @@ Create an auth middleware that extracts the Bearer token from the `Authorization
 - Existing integration tests must not break — they will need valid test tokens added (noted in spec's "what must not break").
 
 **Downstream Handoff**
-- TDD: write the 401-no-header test first, then 401-invalid-token, then 200-valid-token passthrough. Refactor to extract shared test setup.
+- TDD starts from the First Test above (unit layer); the remaining acceptance criteria become the other test cases. Test ordering and refactoring are `driving-tdd`'s to own — the sketch does not prescribe them.
 - Feedback loop: if mounting order in `app.ts` is more complex than expected (e.g., route grouping), update the change map.
 
 ---
@@ -65,6 +66,7 @@ Create an auth middleware that extracts the Bearer token from the `Authorization
 
 **First Test**
 - File: `tests/repositories/user-repository.test.ts`
+- Layer: integration — the repository against a test database
 - Test: "sets createdAt to current time when creating a user" (from spec's happy-path AC).
 
 **What NOT to Change**
