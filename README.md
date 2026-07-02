@@ -6,13 +6,36 @@ Praxis is a collection of skills that take a request through clarification, slic
 
 ## Install
 
+Praxis ships as a git-based plugin marketplace hosted in this repo. Both runtimes install straight from GitHub — marketplace source `chriswch/praxis`, marketplace name `chriswch-atelier`, plugin `praxis`.
+
 ### Claude Code
 
-Add the Praxis plugin from your marketplace, or install the `plugin/` directory as a local plugin. The plugin manifest is at `plugin/.claude-plugin/plugin.json`.
+```shell
+/plugin marketplace add chriswch/praxis
+/plugin install praxis@chriswch-atelier
+/reload-plugins
+```
+
+Every commit to this repo is published as a new plugin version, so you always track `main`. To receive updates automatically, enable auto-update once (third-party marketplaces have it off by default): run `/plugin`, open the **Marketplaces** tab, select **chriswch-atelier**, and choose **Enable auto-update**. Claude Code then refreshes on startup and prompts you to run `/reload-plugins` when a new version lands. To update on demand instead: `/plugin marketplace update chriswch-atelier`.
 
 ### Codex
 
-Add the Praxis plugin from your marketplace, or install the `plugin/` directory as a local plugin. The plugin manifest is at `plugin/.codex-plugin/plugin.json`.
+```shell
+codex plugin marketplace add chriswch/praxis
+```
+
+Then install `praxis` from the in-session `/plugins` directory and run `/reload-plugins`. Codex has no startup auto-update yet — pull new versions with `codex plugin marketplace upgrade`.
+
+### Local install (development)
+
+Point either runtime at a local checkout instead of the remote. From the repo root:
+
+```shell
+/plugin marketplace add ./
+/plugin install praxis@chriswch-atelier
+```
+
+The Claude Code plugin manifest is at `plugin/.claude-plugin/plugin.json`; the Codex manifest is at `plugin/.codex-plugin/plugin.json`.
 
 ## Entry points
 

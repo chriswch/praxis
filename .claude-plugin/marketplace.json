@@ -1,5 +1,12 @@
 {
     "name": "chriswch-atelier",
-    "owner": { "name": "chriswch" },
-    "plugins": [{ "name": "praxis", "source": "./plugin" }]
+    "description": "Spec-driven software engineering skills for Claude Code and Codex — clarify, slice, design, TDD, review, improve, and verify, chained by the craft orchestrator.",
+    "owner": { "name": "chriswch", "email": "chriswangwch@gmail.com" },
+    "plugins": [
+        {
+            "name": "praxis",
+            "source": "./plugin",
+            "description": "Spec-driven workflows: /praxis:craft drives the full TDD pipeline (manual by default, --autopilot for end-to-end runs), plus reusable stage skills."
+        }
+    ]
 }

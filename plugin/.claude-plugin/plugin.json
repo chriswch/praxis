@@ -1,6 +1,12 @@
 {
   "name": "praxis",
   "description": "Spec-driven workflows: the craft skill (/praxis:craft) drives the full TDD pipeline (manual by default, --autopilot for end-to-end runs), plus reusable stage skills.",
-  "version": "1.0.0",
+  "author": {
+    "name": "chriswch",
+    "email": "chriswangwch@gmail.com",
+    "url": "https://github.com/chriswch"
+  },
+  "homepage": "https://github.com/chriswch/praxis",
+  "repository": "https://github.com/chriswch/praxis",
   "license": "MIT"
 }
