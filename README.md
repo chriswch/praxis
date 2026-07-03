@@ -28,14 +28,18 @@ Then install `praxis` from the in-session `/plugins` directory and run `/reload-
 
 ### Local install (development)
 
-Point either runtime at a local checkout instead of the remote. From the repo root:
+Point either runtime at a local checkout instead of the remote, from the repo root:
 
 ```shell
+# Claude Code
 /plugin marketplace add ./
 /plugin install praxis@chriswch-atelier
+
+# Codex
+codex plugin marketplace add ./
 ```
 
-The Claude Code plugin manifest is at `plugin/.claude-plugin/plugin.json`; the Codex manifest is at `plugin/.codex-plugin/plugin.json`.
+The Claude Code plugin manifest is at `plugin/.claude-plugin/plugin.json`; the Codex manifest is at `plugin/.codex-plugin/plugin.json`. Codex reads its marketplace catalog from `.agents/plugins/marketplace.json` (repo root); Claude Code reads `.claude-plugin/marketplace.json`.
 
 ## Entry points
 
