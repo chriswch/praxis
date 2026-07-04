@@ -42,9 +42,9 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 **What NOT to Change**
 [Explicit boundaries from the spec's "scope out" and "what must not break" sections.]
 
-**Downstream Handoff**
-- TDD starts from the First Test above (with its named layer); the spec's acceptance criteria become the remaining test cases. Test ordering and refactoring are `driving-tdd`'s to own — the sketch does not prescribe them.
-- Feedback loop: if TDD reveals the sketch was wrong, update or discard it.
+**Handoff to implementation** (include when handing off to a TDD stage)
+- Implementation starts from the First Test above (with its named layer); the spec's acceptance criteria become the remaining test cases. Test ordering and refactoring belong to the TDD loop — the sketch does not prescribe them.
+- Feedback loop: if implementation reveals the sketch was wrong, update or discard it.
 
 ---
 
@@ -59,4 +59,4 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 | First Test | Always | Bridge directly into TDD — name the test's layer so the design→TDD handoff is lossless |
 | Risks / Spikes | When uncertainty exists | Flag what might force a pivot |
 | What NOT to Change | When spec has scope-out or "must not break" items | Explicit boundaries |
-| Downstream Handoff | Always | Connect to TDD and feedback loop |
+| Handoff to implementation | When handing off to a TDD stage | Point implementation at the first test and the feedback loop |

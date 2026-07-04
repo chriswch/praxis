@@ -19,7 +19,7 @@ Use these templates and heuristics when splitting a Feature Brief into story sli
   - telemetry / analytics
 - If a story is too big: split by persona, workflow step, data subset, or capability tier (read → create → edit → bulk).
 - When unknowns are material: note them as `open_unknowns` on the slice and suggest a spike in the sequence rationale.
-- **Spikes are not slices.** If you need to validate a technology or integration before committing, that's a spike — a time-boxed throwaway experiment handled by `clarifying-intent`. Don't put spikes in the slice map as user stories.
+- **Spikes are not slices.** If you need to validate a technology or integration before committing, that's a spike — a time-boxed throwaway experiment. Don't put spikes in `slices` as user stories; capture them in `meta.spikes[]` (id, question, timebox) so the caller can schedule them ahead of the dependent slice.
 - **INVEST litmus test** for each slice: "If we shipped this slice and stopped, would at least one real user get value from it?" If the answer is "only if combined with a later slice," merge or restructure.
 - Each slice should be independently testable — a developer should be able to write failing tests for this slice without needing later slices.
 

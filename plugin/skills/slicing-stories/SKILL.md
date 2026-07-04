@@ -45,10 +45,12 @@ Treat the JSON as the source of truth; the Markdown should be derivable from the
 - `complete` — a usable slice map was produced (including a single-slice map; see the sizing check in step 1).
 - `blocked` — blocking open questions prevent slicing. Return `meta.status: "blocked"` in a minimal JSON object (valid `meta`, empty `slices`) **and** list the questions under a `## Blocking Questions` heading, then stop.
 
-Persistence: the caller decides. When invoked standalone and the map is worth keeping, offer to save the JSON at `.praxis/<slug>/slice-map.json` and the Markdown at `.praxis/<slug>/slice-map.md`. If the JSON is persisted to a path, optional helpers are available:
+Persistence: the caller decides. When invoked standalone and the map is worth keeping, offer to save the JSON at `.praxis/<slug>/slice-map.json` and the Markdown at `.praxis/<slug>/slice-map.md`.
 
-- `python3 scripts/validate_slice_map.py <path>` — validate the JSON against the spec.
-- `python3 scripts/render_slice_map_markdown.py <path>` — render Markdown from the JSON.
+**Caller-side helpers** (this skill is read-only and does not run them; the caller or CI does, against a persisted JSON path — resolve the plugin root with `${CLAUDE_PLUGIN_ROOT}`):
+
+- `python3 "${CLAUDE_PLUGIN_ROOT}/skills/slicing-stories/scripts/validate_slice_map.py" <path>` — validate the JSON against the spec (a good deterministic gate before trusting a persisted map).
+- `python3 "${CLAUDE_PLUGIN_ROOT}/skills/slicing-stories/scripts/render_slice_map_markdown.py" <path>` — render Markdown from the JSON.
 
 ## Workflow
 
@@ -65,7 +67,7 @@ Persistence: the caller decides. When invoked standalone and the map is worth ke
      - Then add: validation/error states, edge cases, permissions/roles, performance/accessibility, telemetry.
      - Split by persona, workflow step, data subset, or capability tier (read → create → edit → bulk).
    - Each slice must be a vertical cut (end-to-end behavior), not a horizontal layer (frontend-only, backend-only).
-   - **Spikes are not slices.** If you need to validate a technology or integration before committing, that's a spike — a time-boxed throwaway experiment. Spikes belong in `clarifying-intent` as risk-reduction activities, not in the slice map as user stories. Don't dress a spike in a user story format with a fake "so that" clause.
+   - **Spikes are not slices.** If you need to validate a technology or integration before committing, that's a spike — a time-boxed throwaway experiment, not a user story. Don't dress a spike in a user story format with a fake "so that" clause. Capture it in the slice map's `meta.spikes[]` (id, the question it answers, a timebox) so the caller can schedule it as risk-reduction before the dependent slice — the spike stays visible in the artifact instead of being routed off to another skill.
 
 3. **Order the slices.**
    - Sequence so that earlier slices lay foundations for later ones.
@@ -94,7 +96,7 @@ Persistence: the caller decides. When invoked standalone and the map is worth ke
      - Does the first slice (walking skeleton) deliver value to a real user with a real integration, not just prove architecture with stubs?
      - Are `scope_in` boundaries clear enough that `clarifying-intent` can spec the slice without asking "what are we building?"
      - Do `scope_out` boundaries prevent overlap between slices?
-     - Is anything in the slice map actually a spike (technology validation, integration proof) rather than a user story? If so, extract it as a spike in `clarifying-intent` and remove it from the slice map.
+     - Is anything in the `slices` array actually a spike (technology validation, integration proof) rather than a user story? If so, move it to `meta.spikes[]` and remove it from `slices`.
 
 ## Downstream Handoff
 

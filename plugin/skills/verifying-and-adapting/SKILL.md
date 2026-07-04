@@ -37,10 +37,10 @@ Pass each one inline in the prompt, or as a path/handle this skill should read. 
 
 ## Output
 
-Return inline in the response:
+Return inline in the response (see `references/templates.md` for the verification summary format):
 
 - **Verification summary** (medium+ tasks).
-- **Updated spec** (if any ACs were refined or diverged) — return the revised spec text.
+- **Updated spec** (if any ACs were refined or diverged) — return the revised spec text, and prefix it with a non-ignorable **`SPEC UPDATED — persist the revised spec at its path before the next slice`** line. This skill holds no Write grant; the caller (or `craft`) must overwrite the spec artifact so the next slice doesn't read a stale spec. Spec write-back is mandatory, not optional, whenever an AC was refined or diverged.
 - **Slice impact notes** (multi-slice only, when downstream slices are affected).
 - **Routing recommendation** — the response always ends with a machine-readable final line an orchestrator branches on (`craft` consumes it — see `craft/references/contracts.md`): `Routing: Done` | `Routing: Next slice: S-<id>` | `Routing: Rework: <gaps>` | `Routing: Escalate: <reason>`. Emit this line even on trivial/small tasks that skip the formal summary.
 
@@ -108,22 +108,16 @@ The caller decides whether to persist the verification summary and updated spec;
    - Gaps found (missing behavior, AC not fully covered) → **Rework** — list what's missing, recommend returning to `driving-tdd` for the specific gaps. After rework, return here to re-verify.
    - Feature-level rethink needed (scope was wrong, core assumption invalidated) → **Escalate** — recommend returning to `clarifying-intent` at the feature level, potentially updating the slice map.
 
-## Default Output
-
-- **Verification summary** (medium+ tasks). See `references/templates.md`.
-- **Updated spec** (if any ACs were refined or diverged) — returned inline.
-- **Slice impact notes** (multi-slice only, when any downstream slices are affected).
-- **Routing recommendation** with rationale.
-
 ## Downstream Handoff
 
-- **Done (single-slice)**: Story is complete. The updated spec (if changed) and test suite are the deliverables.
-- **Done (last slice of multi-slice)**: Feature is complete. The Feature Brief's success criteria are met across all slices. All updated slice specs and test suites are the deliverables.
-- **Next slice (multi-slice)**: The caller picks the next slice from the slice map and returns to `clarifying-intent` to produce a Story-Level Behavioral Spec for that slice. Carry forward emerged design knowledge — it informs the next sketch and TDD cycle.
-- **Rework**: Return to `driving-tdd` with the specific gaps. After gaps are closed, return here to re-verify. This is a tight inner loop, not a full pipeline restart.
-- **Escalate**: Return to `clarifying-intent` at feature or story level. May trigger slice map updates via `slicing-stories`. This is the system catching an incorrect assumption before it compounds.
+What each routing verdict means for **this skill's deliverables** — the orchestrator owns what happens next (the loop mechanics live in `craft`'s gate definitions, not here):
 
-**Feedback loop**: The verification summary is a living artifact like everything else in this pipeline. If a later slice reveals that a previous verification missed something, update it. The goal is accurate records, not perfect first passes.
+- **Done** — the verified implementation, the updated spec (if changed, flagged `SPEC UPDATED`), and the passing suite are the deliverables. For the last slice of a multi-slice feature, step 7's feature-level completion check has also confirmed the Feature Brief's success criteria.
+- **Next slice** — the same deliverables, plus the emerged design knowledge to carry forward.
+- **Rework** — the list of specific gaps is the deliverable; nothing is done yet.
+- **Escalate** — the invalidated assumption and why it compounds is the deliverable.
+
+**Feedback loop**: The verification summary is a living artifact. If a later slice reveals a previous verification missed something, update it — accurate records over perfect first passes.
 
 ## Guardrails
 

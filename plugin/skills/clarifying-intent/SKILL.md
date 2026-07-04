@@ -19,7 +19,7 @@ The phases are sequential. Phase B always runs, but adapts its workload — mini
 
 The request to clarify, plus any prior context (a Feature Brief, a story-boundary handoff from a previous slice, an earlier spec). Pass it inline in the prompt, or as a path/handle this skill should read.
 
-When a prior story-boundary handoff is supplied, treat it as bounded seed for the new story. Do not let the handoff widen scope — it informs the next clarification pass; it does not replace the new request.
+A **story-boundary handoff** is the small carry-over an upstream slice leaves for the next one: the slice `id` and `title`, its one-line story, `scope_in`/`scope_out`, and any carried-over unknowns or emerged design notes. When one is supplied, treat it as a bounded seed for the new story. Do not let the handoff widen scope — it informs the next clarification pass; it does not replace the new request.
 
 ## Output
 
@@ -66,7 +66,7 @@ d. **Track unknowns and decisions.** Maintain an explicit list of open questions
 
 e. **Stop Phase A when** you can name who this is for, why now, and what done looks like; you have an explicit hypothesis and validation plan for the highest-risk assumptions; and all blocking unknowns are either resolved or converted to time-boxed spikes.
 
-f. **Manual mode checkpoint.** In manual mode (the default), present the Phase A artifact (Feature Brief or the product-space portion of the Story Spec) and ask for confirmation. Use `AskUserQuestion` when available. In autopilot mode, skip this checkpoint.
+f. **Checkpoint.** Present the Phase A artifact (Feature Brief or the product-space portion of the Story Spec) and ask for confirmation — unless the invoking prompt said to skip checkpoints (see *Checkpoints*). Use `AskUserQuestion` when available.
 
 If the input triages as Feature-sized, stop here with a Feature Brief and recommend `slicing-stories`. Phase B will run on each slice.
 
@@ -88,17 +88,18 @@ b. **Confirm current system behavior** (if a system exists). Read the modules di
 
 c. **Ask Phase B questions.** Pull from the Phase B section of `references/question-bank.md`. Focus on integration boundaries, regression risk, observable signals, and system-level acceptance.
 
-d. **Draft the Story-Level Behavioral Spec.** Use the template in `references/templates.md`. Fill in Acceptance Criteria (Given/When/Then), Observable Signals, What Must Not Break, and any system-space Decisions & Rationale.
+d. **Draft the Story-Level Behavioral Spec.** Use the template in `references/templates.md`. Fill in Acceptance Criteria (Given/When/Then), Observable Signals, What Must Not Break, and any system-space Decisions & Rationale. Write ACs in Given/When/Then; where a precise trigger→response sharpens testability, EARS phrasing ("When *&lt;trigger&gt;*, the system shall *&lt;response&gt;*") helps. Make every AC map to at least one concrete Observable Signal — a specific command, endpoint, log line, or UI state someone running the code could check — so `verifying-and-adapting` can later execute it, not just read it.
 
 e. **Self-check before presenting:**
    - Can a developer write failing tests from the acceptance criteria alone?
    - Do ACs cover the happy path and at least one error/edge case? (Add boundary cases when the domain involves limits, thresholds, or ranges.)
    - Are observable signals concrete enough that someone running the code could verify them?
+   - Does every acceptance criterion map to at least one concrete observable signal (a specific command, endpoint, or UI state a person could check)?
    - Are regression boundaries explicit?
 
    If any answer is "no", iterate before presenting.
 
-f. **Manual mode checkpoint.** Present the spec and ask for confirmation. In autopilot mode, skip.
+f. **Checkpoint.** Present the spec and ask for confirmation — unless the invoking prompt said to skip checkpoints (see *Checkpoints*).
 
 ### 4. Downstream handoff
 
@@ -119,10 +120,11 @@ Phase B always runs; how much it does depends on what already exists. Quick read
 
 If Phase B truly has nothing to do, say so explicitly and move on. Do not manufacture work — but do not skip the question of observable signals either, since "how would you tell this works at runtime?" is valuable on every change.
 
-## Mode Gates
+## Checkpoints
 
-- **Manual mode (default)**: ask for confirmation at the end of Phase A and at the end of Phase B. Present the artifact and the choices.
-- **Autopilot mode**: no checkpoints. Proceed straight through. The only stop conditions are Open Questions (blocking unknowns) and Spec Issues (Phase B finds a Phase A assumption is wrong).
+By default, present the artifact for confirmation at the end of Phase A and at the end of Phase B. Skip these checkpoints only when the invoking prompt explicitly says to (for example, a `craft` autopilot directive). This keeps the skill caller-neutral: it doesn't need to know about "modes," only whether the caller asked it to skip.
+
+Either way, two conditions are hard stops regardless of the checkpoint setting: **Open Questions** (blocking unknowns) and **Spec Issues** (Phase B finds a Phase A assumption is wrong). Those surface and stop even under a skip-checkpoints directive.
 
 ## Fast Paths
 
@@ -132,7 +134,7 @@ Not every task goes through both phases at full depth. Match the input type to t
 - **Pure refactor**: no spec needed. Ensure existing tests pass → refactor → ensure tests still pass. If characterization tests are missing, that is implementation work — route to `driving-tdd` to add them before refactoring. This skill does not write tests (it holds no Write/Edit grant).
 - **Trivial change**: triage step alone produces a one-sentence statement. No phases.
 
-The full pipeline (`clarifying-intent` → `slicing-stories` → `sketching-design` → `driving-tdd` → `verifying-and-adapting`) is for medium+ features. Don't force every task through it.
+The full pipeline (run end-to-end via the `craft` skill) is for medium+ features. Don't force every task through it.
 
 ## Splitting Recognition (Feature-Sized Only)
 

@@ -109,6 +109,30 @@ def validate_slice_map(bundle: Any, *, strict: bool) -> tuple[list[str], list[st
                     owner = _require_key(q, "owner", path=q_path, errors=errors, expected="product|engineering|design|tbd")
                     if owner is not None and owner not in ALLOWED_QUESTION_OWNERS:
                         _add_err(errors, f"{q_path}.owner", f"must be one of {sorted(ALLOWED_QUESTION_OWNERS)}")
+
+        if "spikes" in meta:
+            spikes = meta["spikes"]
+            if not isinstance(spikes, list):
+                _add_err(errors, "$.meta.spikes", "must be an array when present")
+            else:
+                sp_ids: set[str] = set()
+                for idx, sp in enumerate(spikes):
+                    sp_path = f"$.meta.spikes[{idx}]"
+                    if not isinstance(sp, dict):
+                        _add_err(errors, sp_path, "must be an object")
+                        continue
+                    sp_id = _require_key(sp, "id", path=sp_path, errors=errors, expected="string")
+                    if sp_id is not None:
+                        if not isinstance(sp_id, str) or not re.fullmatch(r"SP-\d{3}", sp_id):
+                            _add_err(errors, f"{sp_path}.id", "must match SP-###")
+                        elif sp_id in sp_ids:
+                            _add_err(errors, f"{sp_path}.id", f"duplicate spike id '{sp_id}'")
+                        else:
+                            sp_ids.add(sp_id)
+                    for key in ["question", "timebox"]:
+                        value = _require_key(sp, key, path=sp_path, errors=errors, expected="string")
+                        if value is not None and not _is_nonempty_str(value):
+                            _add_err(errors, f"{sp_path}.{key}", "must be a non-empty string")
     else:
         _add_err(errors, "$.meta", "must be an object")
 

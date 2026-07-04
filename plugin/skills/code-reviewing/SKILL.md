@@ -2,7 +2,7 @@
 name: code-reviewing
 description: "Independent code quality review of any implementation — a diff, changed files, or uncommitted work, whether produced by TDD or written ad hoc. Performs a sequential 5-layer analysis — data structures, special case elimination, complexity, breaking changes, and practicality — plus a security-surface pass, producing a severity-graded review report without modifying any code. Not for spec-conformance checking (that's verifying-and-adapting) and not for applying fixes (that's code-improving) — this skill only reports. Triggers on 'review the code', 'code review', 'check code quality', or when implementation is complete and code quality needs assessment before proceeding."
 context: fork
-allowed-tools: Read, Grep, Glob, Bash(git *)
+allowed-tools: Read, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git status:*), Bash(git show:*)
 ---
 
 # Code Review
@@ -24,8 +24,11 @@ You do NOT assess spec compliance or test coverage — that's a separate concern
 - The **spec** (canonically from `clarifying-intent`) — lets the review judge whether complexity is proportional to the problem.
 - The **implementation summary** (canonically from `driving-tdd`) — fast orientation on what was built and why.
 - The **design sketch** (canonically from `sketching-design`) — the intended approach.
+- The **steering artifact** (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`) — project conventions to review against; prefer it over inferring norms from the diff alone.
 
 Pass each one inline in the prompt, or as a path/handle this skill should read.
+
+Without a spec, judge proportionality against the code and repo conventions alone, and say so in the report's Scope line — you're assessing internal consistency, not fit to an external requirement.
 
 **Resolving what to review**, in precedence order:
 1. An explicit diff / file list / path given in the prompt.
@@ -104,6 +107,7 @@ This is where the real design feedback lives. Moving a conditional into a better
 - Config formats, CLI flags, file formats, database schemas — any contract changes?
 - If breaking changes exist, can the improvement be achieved without breaking anything?
 - Flag breaking changes as Critical unless the spec explicitly authorized them.
+- **No spec provided?** Then you cannot check whether a breaking change was authorized — default it to Critical and note in the finding that authorization couldn't be verified (a spec would resolve it). Don't quietly downgrade it.
 
 ### Layer 5: Practicality
 

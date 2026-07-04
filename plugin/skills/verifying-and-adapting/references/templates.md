@@ -30,6 +30,7 @@ Produced at the end of verifying-and-adapting for medium+ tasks.
 
 **Spec Updates**
 - [AC #]: [what changed and why], or "None — spec was accurate"
+- If anything changed, add a top-level line: `SPEC UPDATED — persist the revised spec at its path before the next slice` (this skill can't write it; the caller must).
 
 **Emerged Design Knowledge**
 - [pattern / convention / decision]: [why it matters for future slices]

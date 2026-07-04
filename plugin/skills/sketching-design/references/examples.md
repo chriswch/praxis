@@ -41,8 +41,8 @@ Create an auth middleware that extracts the Bearer token from the `Authorization
 - Health-check endpoint (`GET /health`) must remain publicly accessible.
 - Existing integration tests must not break — they will need valid test tokens added (noted in spec's "what must not break").
 
-**Downstream Handoff**
-- TDD starts from the First Test above (unit layer); the remaining acceptance criteria become the other test cases. Test ordering and refactoring are `driving-tdd`'s to own — the sketch does not prescribe them.
+**Handoff to implementation**
+- Implementation starts from the First Test above (unit layer); the remaining acceptance criteria become the other test cases. Test ordering and refactoring belong to the TDD loop — the sketch does not prescribe them.
 - Feedback loop: if mounting order in `app.ts` is more complex than expected (e.g., route grouping), update the change map.
 
 ---

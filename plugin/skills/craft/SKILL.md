@@ -86,16 +86,12 @@ On a hard stop, present the blocker verbatim and wait for the user.
 
 > Do the full product- and system-space work and produce the artifact (Feature Brief or Story-Level Behavioral Spec), but do NOT write any file yourself and do NOT emit the artifact as a standalone completed-deliverable text response. Then the orchestrator takes one of two paths:
 >
-> - **If the artifact is complete and ready** (status: `proceed`): emit NO substantive text. The orchestrator's immediate next actions are (1) a `Write` call persisting the artifact under `.praxis/` at the deterministic path for its type (see *Artifact layout*), then (2) a tool call invoking the next pipeline skill — `slicing-stories` if it is a Feature Brief, `sketching-design` if it is a Story Spec — passing the written path as input. Any completed-deliverable text between finishing the artifact and the `Write` call triggers end-of-turn and breaks the autopilot chain, so go straight from work to `Write` to the next skill call.
+> - **If the artifact is complete and ready** (status: `proceed`): emit NO substantive text. The orchestrator's immediate next actions are (1) a `Write` call persisting the artifact under `.praxis/` at the deterministic path for its type (see *Artifact layout*), then (2) a tool call invoking the next pipeline skill — the one *Steps* §1 routes to for this artifact (the routing lives there, not here) — passing the written path as input. Any completed-deliverable text between finishing the artifact and the `Write` call triggers end-of-turn and breaks the autopilot chain, so go straight from work to `Write` to the next skill call.
 > - **If there are blocking unknowns** (status: `open-questions`) **or a discovered spec issue** (status: `spec-issue`): the orchestrator still `Write`s the partial artifact to its `.praxis/` path (so the work is preserved), then emits a short text response with the status line, the artifact path, and a brief explanation, and ends the turn so hard-stop handling can surface the blocker to the user.
 
 In manual mode, do not include this directive — `clarifying-intent` emits its artifact inline so the user can review it directly, and you persist under `.praxis/` only if the user wants it saved.
 
-**Why only `clarifying-intent`?** It is the only Praxis pipeline skill without `context: fork`. The other six pipeline skills each run in their own forked context: they do their work, return a compact tool result to the orchestrator, and the orchestrator's next action is naturally a tool call (the next skill). The orchestrator never authors the skill's output itself, so it never enters the "I just emitted a structured response" state that triggers end-of-turn in the model.
-
-`clarifying-intent` runs inline in the orchestrator's context, so the orchestrator IS clarifying-intent while the skill executes. This is exactly why persistence is the orchestrator's job, not the skill's: `clarifying-intent`'s frontmatter grants no `Write` (it stays read-only by design), but the inline turn is the orchestrator's turn and carries the orchestrator's full tool grant — so the `Write` happens under the orchestrator's authority once the skill's read-only analysis is done. The old directive told the skill to "persist your artifact," which contradicted its no-Write grant; the artifact is now written by the orchestrator instead. The end-of-turn trigger here isn't the length of the output — it's the act of emitting a substantive text response after completing the work. Even a ~500-character structured status report triggers it, because the model treats any structured report as a completed deliverable that ends the message. No amount of "do not end the turn" instruction reliably overrides this default; the only robust fix is to not emit the report at all. (This end-of-turn-on-text-emission behavior is an observed Claude-runtime trait and may not apply on other runtimes such as Codex; the persistence-to-disk handoff in the directive above is the runtime-neutral mechanism that preserves the chain either way.)
-
-The directive above mimics what forked skills do naturally: no text between work completion and the next tool call. The orchestrator's `Write` to `.praxis/` preserves the artifact for downstream skills; routing straight to the next tool call preserves the chain. Text is only emitted when we actually want the chain to stop (`open-questions` or `spec-issue`) — there, the orchestrator's hard-stop handling takes over.
+**When to attach it.** Attach this directive to any pipeline skill that runs *inline* in your context — i.e. any skill without `context: fork`. Check the `context:` frontmatter, not the skill name: today only `clarifying-intent` qualifies, but the rule generalizes. Forked skills don't need it — they return a tool result and the next tool call follows naturally. The full rationale (why an inline skill would otherwise break the chain, and why persistence is the orchestrator's job) is in `references/autopilot-chain.md`.
 
 ## Steps
 
@@ -107,6 +103,8 @@ The directive above mimics what forked skills do naturally: no text between work
 - Implementation already written, needs review → step 5.
 
 On invocation, detect an in-progress run via `.praxis/<slug>/state.json` (see *Pipeline state*) and offer to resume from the last passed gate instead of restarting.
+
+**Steering artifact.** Before step 1, locate the project's steering/constitution artifact (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`, or `docs/steering/*`). If present, pass its path to `sketching-design`, `driving-tdd`, and `code-reviewing` so they read project conventions instead of re-deriving them each run. Its content is mirrored into `CLAUDE.md`/`AGENTS.md` for runtime discovery, never copied into skill bodies (see `references/contracts.md` → *Constitution / steering*).
 
 **Entry triage — size the work before running the pipeline.** Read `clarifying-intent`'s `Sizing:` line (or judge it yourself for a spec handed in directly) and scale pipeline depth. Running all seven stages on a one-line change is the documented "sledgehammer" failure mode:
 
@@ -124,13 +122,16 @@ On invocation, detect an in-progress run via `.praxis/<slug>/state.json` (see *P
 
 2. **slicing-stories** — Pass the Feature Brief. The skill returns a slice map with `meta.status`. `blocked` → hard-stop (condition 5). `complete` → confirm the map (manual) / accept (autopilot), record each slice as `pending` in `.praxis/<slug>/state.json`, take the first `pending` slice (deterministic — no gate), and re-invoke **clarifying-intent** for its story (autopilot: persistence directive).
 
-3. **sketching-design** — Pass the spec. Persist a returned sketch under `.praxis/`. `Status: sketch` → design gate, then step 4. `Status: skipped` → step 4. `Status: spec-issue` → hard-stop (condition 3).
+3. **sketching-design** — Pass the spec. Persist a returned sketch under `.praxis/`. `Status: sketch` → design gate, then step 3.5. `Status: skipped` → step 3.5. `Status: spec-issue` → hard-stop (condition 3).
+
+   **3.5 Cross-artifact consistency check (before TDD).** Before invoking `driving-tdd`, confirm the artifacts agree: every spec acceptance criterion is addressed by the sketch's change map, and (multi-slice) the work stays within the slice's `scope_in`/`scope_out`. A mismatch — an AC with nowhere to live, or a sketch reaching outside the slice — is a spec/design inconsistency; treat it like a `## Spec Issue` (hard-stop condition 3) rather than coding against a contradiction. Skip the change-map half when the sketch was `skipped`.
 
 4. **driving-tdd** — Pass the spec and (if produced) the sketch. The skill commits implementation and returns the AC checklist, feedback log, and session summary (`Status: complete | blocked`). `## Feedback` or `Status: blocked` → hard-stop (condition 1).
 
 5. **code-reviewing** — Pass the implementation (with the spec and TDD summary as optional context). Persist the review under `.praxis/`. Note its `Security-sensitive:` header for the ship-gate escalation.
 
-6. **code-improving** — Pass the review report and the spec. The skill commits fixes and returns an improvement summary (`Status:`). `## Feedback` → hard-stop (condition 1). (One pass for now; a re-review loop with a round cap is a later addition.)
+6. **code-improving** — Pass the review report and the spec. The skill commits fixes and returns an improvement summary (`Status:`). `## Feedback` → hard-stop (condition 1).
+   - **Re-review loop (bounded).** After fixes, if the improvement summary reports unresolved critical/high findings — or the fixes were substantial — re-run **code-reviewing** on the fix commits, then **code-improving** again. Loop review→improve at most **3 rounds**. If critical/high findings still remain after the cap, stop and **reject-and-decompose**: surface a hard stop recommending the story return to `clarifying-intent` / `slicing-stories`. A story that can't be made clean in three rounds is usually under-specified or too big — not a fix-harder problem.
 
 7. **verifying-and-adapting** — Pass the spec, AC checklist, feedback log, session summary, improvement summary, optional sketch, and (multi-slice only) the slice map, plus (final slice) the Feature Brief. The skill returns a verification summary, optionally an updated spec, and a `Routing:` line. Persist the verification under `.praxis/`; if the spec was updated, **overwrite the spec artifact** (the living-spec write-back is a required orchestrator action, since the skill holds no Write grant). Update the slice's state in `state.json`, then act on `Routing:`:
    - `Routing: Done` → **ship gate** (mandatory human approval; never auto-confirmed — hard-stop condition 6), then the story/feature is complete.
@@ -171,3 +172,4 @@ Persisted pipeline artifacts live under `.praxis/` at the repo root — delibera
 ## References
 
 - `references/contracts.md` — the pipeline contract: per-stage consumed/emitted artifact types, the exact status/routing vocabulary this orchestrator branches on, the artifact→path mapping, and the sibling-failure and anti-bloat rules. Read it before wiring any stage hand-off.
+- `references/autopilot-chain.md` — why the autopilot directive exists and when to attach it (the inline-skill / end-of-turn rationale). Read it only if the *Autopilot invocation directives* section raises a question.

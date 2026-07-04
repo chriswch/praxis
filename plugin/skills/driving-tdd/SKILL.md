@@ -13,7 +13,7 @@ Turn acceptance criteria into working, tested code through strict Red → Green 
 
 This is where the real design happens. The design sketch gave a direction; TDD's refactor step discovers the actual structure.
 
-**Pipeline**: `clarifying-intent` [spec] → `sketching-design` [optional] → **`driving-tdd`** [tested code] → feedback back to `clarifying-intent` if spec was wrong.
+**Consumes** a Story-Level Behavioral Spec (and an optional design sketch). **Emits** tested, committed code plus an AC checklist, feedback log, and session summary. When implementation reveals the spec was wrong, that surfaces as `## Feedback`. The orchestrator owns sequencing.
 
 ## Input
 
@@ -44,6 +44,7 @@ Test files and source code are committed directly to the repository as part of e
    - Read the behavioral spec. List every acceptance criterion.
    - If a design sketch exists, read it for the change map and first test.
    - If no sketch, explore the codebase: test framework, file conventions, existing patterns. Just enough to place the first test.
+   - If a steering artifact (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`) is available, read it first for project conventions; `git log` and codebase exploration then fill only what it doesn't cover.
    - Check recent `git log --oneline` for commit message conventions (conventional commits, prefix style, etc.).
    - Output: **AC checklist**. See `references/templates.md`.
 
@@ -91,7 +92,7 @@ Test files and source code are committed directly to the repository as part of e
    - Missing behavior discovered → note it. After existing ACs, document it under `## Feedback` and recommend returning to `clarifying-intent`.
    - Impossible constraint → flag it under `## Feedback` and stop.
    - Design sketch was wrong → discard or update. Expected and normal. No need to stop for this.
-   - Slice map affected → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 9).
+   - Slice map affected (the ordered list of story slices from `slicing-stories`, present when this story is one slice of a larger feature) → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 9).
    - Track discoveries in the **feedback log**. See `references/templates.md`.
    - The spec is a living artifact. Updating it during TDD is the agile feedback loop working correctly.
 

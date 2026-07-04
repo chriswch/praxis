@@ -52,12 +52,14 @@ Persistence: the caller decides. When invoked standalone and the sketch is worth
    - **Early exit**: If codebase exploration reveals the spec's assumptions are wrong (e.g., the module it describes doesn't exist, the behavior is already implemented differently, or a stated constraint doesn't hold), stop and surface the issue under a `## Spec Issue` heading. Recommend returning to `clarifying-intent`.
 
 3. **Read existing patterns.**
+   - If the project has a steering artifact (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`, or `docs/steering/*` — the caller may pass its path), read it first and treat its conventions as authoritative. Infer from code only for what it doesn't cover; don't re-derive from scratch what the project already documents.
    - Before proposing anything new, answer:
      - How does the codebase already solve similar problems? Find the closest analog.
      - What conventions exist? (naming, file structure, error handling, test organization)
      - What data structures are already in play that this feature should extend rather than duplicate?
    - Output: a **pattern match** — "this is similar to how X works in `file.ts`, so we follow that pattern."
    - This is the anti-over-engineering safeguard. If an existing pattern works, use it. Don't invent a new one.
+   - **Deliberate bias, and its escape hatch.** This skill matches existing patterns *first* — not because the codebase is always right, but because consistency beats cleverness for a single story, and TDD's refactor step is where better structure actually emerges. So when an existing pattern is clearly behind current idiom for this language/framework, do **not** redesign it here: note it as a **Risk** (a candidate spike) and hand the call to the caller. Wholesale modernization is its own decision, not a side effect of sketching one story.
 
 4. **Propose a direction.**
    - State **one approach** in 2–5 sentences. Not alternatives — pick one.

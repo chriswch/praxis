@@ -36,6 +36,7 @@ Use this spec for the default output of the `slicing-stories` skill. The goal is
 - `feature_summary` (string, required): 1-2 sentence summary of the feature being sliced.
 - `assumptions` (string[], required): Assumptions made to proceed without blockers.
 - `open_questions` (OpenQuestion[], required): Unresolved questions that impact scope/behavior.
+- `spikes` (Spike[], optional): Time-boxed risk-reduction experiments extracted from slicing — technology/integration validations that are not user stories. The caller schedules these before the dependent slice. Omit or use `[]` when there are none.
 
 #### `OpenQuestion`
 
@@ -43,6 +44,12 @@ Use this spec for the default output of the `slicing-stories` skill. The goal is
 - `question` (string, required)
 - `blocking` (boolean, required): Whether this question blocks slicing or downstream spec work.
 - `owner` (string, required): `product` | `engineering` | `design` | `tbd`.
+
+#### `Spike`
+
+- `id` (string, required): `SP-###`.
+- `question` (string, required): The specific unknown the spike resolves.
+- `timebox` (string, required): The time budget (e.g. `"1 day"`, `"4 hours"`).
 
 ### `slices` (Slice[], required; must not be empty when `meta.status` is `complete`; empty when `blocked`)
 
