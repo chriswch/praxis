@@ -1,6 +1,6 @@
 ---
 name: verifying-and-adapting
-description: Closes the loop after TDD by checking the implementation holistically against the Story-Level Behavioral Spec (without running the app), reconciling spec-vs-reality divergences, capturing emerged design knowledge, and recommending the next slice, rework, or done. Use after driving-tdd, when all acceptance criteria are green and the developer needs to confirm the build conforms to what was specified. Triggers on 'does this match the spec', 'check against the spec', 'close out this story against the spec', 'did we build what was specified', or 'close out this story'.
+description: Closes the loop after TDD by checking the implementation holistically against the Story-Level Behavioral Spec — executing each acceptance criterion's observable behavior and citing the evidence, reconciling spec-vs-reality divergences, capturing emerged design knowledge, and recommending the next slice, rework, or done. Use after driving-tdd, when all acceptance criteria are green and the developer needs to confirm the build conforms to what was specified. Triggers on 'does this match the spec', 'check against the spec', 'close out this story against the spec', 'did we build what was specified', or 'close out this story'.
 context: fork
 allowed-tools: Read, Grep, Glob, Bash
 ---
@@ -12,6 +12,8 @@ allowed-tools: Read, Grep, Glob, Bash
 Close out a completed TDD cycle by stepping back from individual tests to check the whole story. Verify that what was built matches what was specified, update the spec where reality diverged, capture what was learned, and recommend the next action — next slice, done, or rework.
 
 This is Scrum's "inspect and adapt" applied at the story level, not the sprint level. It's the hinge between "I finished this slice" and "what do I do next."
+
+**Verification means execution, not reading.** Statically re-reading tests and asserting they "look right" is analysis, not verification — and it is blind to the failure mode this stage exists to catch: an implementation (or its tests) that passes without doing what the spec says. So for every acceptance criterion that names observable behavior — an endpoint, a CLI, a returned value, a side effect — actually exercise it and capture the real output. Every verdict must rest on evidence you observed (a command you ran and what it printed), never on the implementer's claim that it works.
 
 **Pipeline**: `clarifying-intent` → `sketching-design` → `driving-tdd` → **`verifying-and-adapting`** → next slice (back to `clarifying-intent`) or done.
 
@@ -54,14 +56,16 @@ The caller decides whether to persist the verification summary and updated spec,
      - **Medium** (3+ ACs, multiple files): Full workflow. Produce a verification summary. Return an updated spec if needed.
      - **Large**: You shouldn't be here — should have been sliced. Stop and recommend `slicing-stories`.
 
-2. **Holistic acceptance check.**
+2. **Holistic acceptance check — execute and evidence each AC.**
    - Walk through every AC in the _original spec_ (not just the test names). For each one:
      - A passing test exists.
      - The test exercises the behavior described in the AC, not just a name match.
      - Edge cases stated in the AC are covered.
+   - **Exercise the observable behavior, don't just read the test.** For each AC that names something observable — an endpoint, a CLI command, a returned value, a file/DB side effect, a rendered output — run it and capture the actual result. If the spec has an "Observable Signals" section, drive each signal. Record, per AC, the exact command you ran and the verbatim result (status code, printed output, runner summary line). That recorded command→result pair is the AC's **evidence**; a verdict with no evidence is not done.
+     - When an AC's behavior genuinely cannot be exercised from here (no runnable entry point, external dependency unavailable), say so explicitly in the evidence cell and fall back to the strongest available check (the covering test's actual output) — do not silently upgrade "test passed" to "behavior verified."
    - This catches the gap where tests pass but don't actually test what the AC describes.
-   - Check "What Must Not Break" from the spec — confirm no regressions.
-   - Run the full test suite one final time. All green.
+   - Check "What Must Not Break" from the spec — confirm no regressions, citing the check you ran.
+   - Run the full test suite one final time. Record the exact command and the runner's verbatim summary line — not "all green."
 
 3. **Reconcile spec vs. reality.**
    - Compare what was built against what the spec said. For each AC, one of:
@@ -89,6 +93,7 @@ The caller decides whether to persist the verification summary and updated spec,
 
 6. **Self-check before output.**
    - Every AC has a verdict (Match, Refined, Diverged, or Gap).
+   - Every verdict cites the evidence it rests on — the command you ran and its observed output — not a claim that the behavior works. A Match with no evidence is not a Match yet.
    - Every "What Must Not Break" item has a confirmation.
    - Spec updates are specific (which AC, what changed, why) — not vague.
    - Emerged design knowledge is actionable for future slices, not a retrospective narrative.
@@ -121,6 +126,7 @@ The caller decides whether to persist the verification summary and updated spec,
 ## Guardrails
 
 - **Verify behavior, not code.** Check "does this do what the spec said?" not "is this code clean?" Code quality is driving-tdd's refactor step and code-reviewing's job.
+- **Evidence, not assertion.** Every verdict rests on something you executed and observed — a command and its output, an exercised endpoint/CLI, the runner's actual summary line. "The test passes so it works" is only acceptable when the behavior truly cannot be exercised from here, and you say so. Never restate the implementer's claim as a verification result.
 - **Update the spec, don't archive it.** The spec is a living artifact. If reality diverged, the spec should reflect reality. Version control has the history.
 - **Don't re-plan future slices.** Flag impact, don't redesign. Last Responsible Moment — the next slice gets clarified when it's picked up.
 - **Don't add tests here.** If gaps are found, recommend returning to driving-tdd. This step verifies; it doesn't implement.

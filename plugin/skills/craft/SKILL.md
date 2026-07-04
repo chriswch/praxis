@@ -53,20 +53,20 @@ On a hard stop, present the blocker verbatim and wait for the user.
 
 ## Autopilot invocation directives
 
-In autopilot mode, when invoking **`clarifying-intent`**, include this directive in your invocation prompt:
+`clarifying-intent` is read-only (no Write grant) — **you, the orchestrator, own persistence**. It runs inline in your context, produces the artifact, and hands it back; you write it under `.praxis/` (see *Artifact layout* below) and route to the next skill. In autopilot mode, include this directive in your invocation prompt:
 
-> Persist your full artifact (Feature Brief or Story-Level Behavioral Spec) to disk at a deterministic path under `docs/` (e.g., `docs/specs/<short-slug>.md` — follow any existing project convention if present). Then take one of two paths:
+> Do the full product- and system-space work and produce the artifact (Feature Brief or Story-Level Behavioral Spec), but do NOT write any file yourself and do NOT emit the artifact as a standalone completed-deliverable text response. Then the orchestrator takes one of two paths:
 >
-> - **If the artifact is complete and ready** (status: `proceed`): do NOT emit any text response. Your immediate next action must be a tool call invoking the next pipeline skill — `slicing-stories` if you produced a Feature Brief, `sketching-design` if you produced a Story Spec — passing the artifact path as input. Any substantive text emission between the Write and the next skill call triggers end-of-turn and breaks the autopilot chain, so skip the summary and go straight to the next tool call.
-> - **If you have blocking unknowns** (status: `open-questions`) **or discovered a spec issue** (status: `spec-issue`): emit a short text response with the status line, the artifact path, and a brief explanation. End the turn here so the orchestrator's hard-stop handling can surface the blocker to the user.
+> - **If the artifact is complete and ready** (status: `proceed`): emit NO substantive text. The orchestrator's immediate next actions are (1) a `Write` call persisting the artifact under `.praxis/` at the deterministic path for its type (see *Artifact layout*), then (2) a tool call invoking the next pipeline skill — `slicing-stories` if it is a Feature Brief, `sketching-design` if it is a Story Spec — passing the written path as input. Any completed-deliverable text between finishing the artifact and the `Write` call triggers end-of-turn and breaks the autopilot chain, so go straight from work to `Write` to the next skill call.
+> - **If there are blocking unknowns** (status: `open-questions`) **or a discovered spec issue** (status: `spec-issue`): the orchestrator still `Write`s the partial artifact to its `.praxis/` path (so the work is preserved), then emits a short text response with the status line, the artifact path, and a brief explanation, and ends the turn so hard-stop handling can surface the blocker to the user.
 
-In manual mode, do not include this directive — `clarifying-intent` should emit its artifact inline so the user can review it directly.
+In manual mode, do not include this directive — `clarifying-intent` emits its artifact inline so the user can review it directly, and you persist under `.praxis/` only if the user wants it saved.
 
 **Why only `clarifying-intent`?** It is the only Praxis pipeline skill without `context: fork`. The other six pipeline skills each run in their own forked context: they do their work, return a compact tool result to the orchestrator, and the orchestrator's next action is naturally a tool call (the next skill). The orchestrator never authors the skill's output itself, so it never enters the "I just emitted a structured response" state that triggers end-of-turn in the model.
 
-`clarifying-intent` runs inline in the orchestrator's context, so the orchestrator IS clarifying-intent while the skill executes. The end-of-turn trigger here isn't the length of the output — it's the act of emitting a substantive text response after completing the work. Even a ~500-character structured status report triggers it, because the model treats any structured report as a completed deliverable that ends the message. No amount of "do not end the turn" instruction reliably overrides this default; the only robust fix is to not emit the report at all. (This end-of-turn-on-text-emission behavior is an observed Claude-runtime trait and may not apply on other runtimes such as Codex; the persistence-to-disk handoff in the directive above is the runtime-neutral mechanism that preserves the chain either way.)
+`clarifying-intent` runs inline in the orchestrator's context, so the orchestrator IS clarifying-intent while the skill executes. This is exactly why persistence is the orchestrator's job, not the skill's: `clarifying-intent`'s frontmatter grants no `Write` (it stays read-only by design), but the inline turn is the orchestrator's turn and carries the orchestrator's full tool grant — so the `Write` happens under the orchestrator's authority once the skill's read-only analysis is done. The old directive told the skill to "persist your artifact," which contradicted its no-Write grant; the artifact is now written by the orchestrator instead. The end-of-turn trigger here isn't the length of the output — it's the act of emitting a substantive text response after completing the work. Even a ~500-character structured status report triggers it, because the model treats any structured report as a completed deliverable that ends the message. No amount of "do not end the turn" instruction reliably overrides this default; the only robust fix is to not emit the report at all. (This end-of-turn-on-text-emission behavior is an observed Claude-runtime trait and may not apply on other runtimes such as Codex; the persistence-to-disk handoff in the directive above is the runtime-neutral mechanism that preserves the chain either way.)
 
-The directive above mimics what forked skills do naturally: no text between work completion and the next tool call. Persistence to disk preserves the artifact for downstream skills; routing the orchestrator straight to the next tool call preserves the chain. Text is only emitted when we actually want the chain to stop (`open-questions` or `spec-issue`) — there, the orchestrator's hard-stop handling takes over.
+The directive above mimics what forked skills do naturally: no text between work completion and the next tool call. The orchestrator's `Write` to `.praxis/` preserves the artifact for downstream skills; routing straight to the next tool call preserves the chain. Text is only emitted when we actually want the chain to stop (`open-questions` or `spec-issue`) — there, the orchestrator's hard-stop handling takes over.
 
 ## Steps
 
@@ -92,7 +92,27 @@ The directive above mimics what forked skills do naturally: no text between work
    - **Rework** → hard-stop (condition 4).
    - **Escalate** → hard-stop (condition 4).
 
+## Artifact layout (`.praxis/`)
+
+Persisted pipeline artifacts live under `.praxis/` at the repo root — deliberately outside the project's own source and `docs/` tree, because they are process artifacts (how the work was reasoned about), not shipped deliverables. Use a per-feature directory keyed by a short slug:
+
+```
+.praxis/<feature-slug>/
+  brief.md                     # Feature Brief (clarifying-intent, feature-sized input)
+  slice-map.json               # canonical slice map (slicing-stories) — source of truth
+  slice-map.md                 # human-readable slice map
+  spec.md                      # Story-Level Behavioral Spec (single-story feature, no slicing)
+  slices/<slice-id>/
+    spec.md                    # per-slice Story-Level Behavioral Spec
+    sketch.md                  # design sketch (sketching-design)
+    review.md                  # review report (code-reviewing)
+    verification.md            # verification summary (verifying-and-adapting)
+```
+
+- **Autopilot**: this layout is enforced. Persist every artifact to its path so the chain — and any later resume — can find it. When you `Write` an artifact, pass that path (not inline content) to the next skill.
+- **Manual**: recommended, not enforced. Persist where the user prefers, or keep artifacts inline; offer to save under `.praxis/` when it helps.
+- `.praxis/` holds process artifacts — add it to the project's `.gitignore` unless the team decides to commit them (committing aids multi-session resume and review).
+
 ## Notes
 
-- Skills accept either inline content or a path/handle to read. Pass whatever is convenient.
-- If you choose to persist any artifact (brief, slice map, spec, sketch, review, summary) to disk, you decide where. There is no enforced layout.
+- Skills accept either inline content or a path/handle to read. In autopilot, prefer passing the `.praxis/` path you just wrote; inline is fine in manual mode.

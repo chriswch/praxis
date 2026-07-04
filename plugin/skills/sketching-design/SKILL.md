@@ -13,15 +13,19 @@ Bridge the gap between "what to build" (behavioral spec) and "where to start cod
 
 ## Input
 
-A **Story-Level Behavioral Spec** (from `clarifying-intent`) or equivalent: a scoped problem statement with Given/When/Then acceptance criteria. Pass it inline in the prompt, or as a path/handle this skill should read.
+A **Story-Level Behavioral Spec** — canonically from `clarifying-intent`, but the gate is on the artifact's **shape, not its provenance**: a scoped, single-story problem statement, ideally with Given/When/Then acceptance criteria. Pass it inline in the prompt, or as a path/handle this skill should read.
 
-If the input is vague, underspecified, or feature-sized, stop and recommend that `clarifying-intent` (and possibly `slicing-stories`) run first. Design sketches operate on single stories, never epics.
+**Preflight — route on shape:**
+
+1. **Scoped story with acceptance criteria** (G/W/T or equivalent explicit behaviors) → sketch it directly.
+2. **Scoped single story, but no acceptance criteria** — a clear one-behavior request that arrived without formal ACs (often via this skill's own triggers: "where do I start?", "which files change?") → do NOT bounce it back. Derive 2–4 implicit acceptance criteria from the request plus what the codebase shows, capture them in the sketch under a **Derived ACs / Assumptions** heading marked "confirm before TDD," and sketch against those. Surfacing the derived ACs is what keeps this honest — the TDD stage (or the user) confirms them before they harden into tests.
+3. **Feature-sized, an epic, or too vague to scope a single story** → stop and recommend `clarifying-intent` (and possibly `slicing-stories`) first. Design sketches operate on single stories, never epics.
 
 ## Output
 
 Return one of these inline in the response:
 
-- A **design sketch** with change map, pattern match, proposed direction, and the first test to write (named with its test layer).
+- A **design sketch** with change map, pattern match, proposed direction, and the first test to write (named with its test layer). Include a **Derived ACs / Assumptions** section when the spec arrived without acceptance criteria (Input preflight branch 2).
 - **Skipped** — when the implementation path is obvious from the spec; state that no sketch is needed and why.
 - **Spec issue** — when codebase exploration reveals the spec's assumptions are wrong; describe the issue under a `## Spec Issue` heading and recommend returning to `clarifying-intent`.
 
@@ -58,12 +62,12 @@ The caller decides whether to persist the sketch and where.
 4. **Propose a direction.**
    - State **one approach** in 2–5 sentences. Not alternatives — pick one.
    - If the approach involves a data structure change, state it explicitly. (Get the data structures right and the code follows.)
-   - Name the **first test to write** — the specific test case derived from the spec's happy-path AC, including where the test file goes, its **test layer** (unit / integration / contract / e2e), and the boundary it exercises. Naming the layer keeps the handoff to `driving-tdd` lossless: the TDD loop knows what kind of test to open with. Name only the first test's layer — a full per-AC test plan is not this skill's job.
+   - Name the **first test to write** — the specific test case derived from the spec's happy-path AC (or a Derived AC from preflight branch 2), including where the test file goes, its **test layer** (unit / integration / contract / e2e), and the boundary it exercises. Naming the layer keeps the handoff to `driving-tdd` lossless: the TDD loop knows what kind of test to open with. Name only the first test's layer — a full per-AC test plan is not this skill's job.
    - Flag **risks** that might force a pivot during TDD. If a risk is high uncertainty, mark it as a **spike** — a time-boxed throwaway experiment to resolve before committing.
 
 5. **Self-check before producing output.**
-   - Verify the change map covers every acceptance criterion from the spec. If an AC can't be addressed from the identified files, the map is incomplete.
-   - Verify the first test maps directly to a spec AC — not to an invented requirement.
+   - Verify the change map covers every acceptance criterion from the spec (or every Derived AC from preflight branch 2). If an AC can't be addressed from the identified files, the map is incomplete.
+   - Verify the first test maps directly to a spec AC (or a documented Derived AC) — not to a silently invented requirement.
    - Confirm the first test names its layer (unit / integration / contract / e2e), and that the layer matches where the behavior actually lives in the change map.
    - Confirm the approach follows an existing codebase pattern. If proposing a new pattern, justify why no existing analog applies.
    - Check for unnecessary abstractions: can this be solved without introducing a new type, interface, or module? If 3 lines of duplicated code are simpler, duplicate.

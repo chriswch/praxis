@@ -15,16 +15,18 @@ Produced at the end of verifying-and-adapting for medium+ tasks.
 
 **Acceptance Check**
 
-| # | Acceptance Criterion | Test | Verdict | Notes |
-|---|---|---|---|---|
-| 1 | [AC from spec] | [test name] | Match / Refined / Diverged / Gap | [brief note if not Match] |
-| 2 | ... | ... | ... | ... |
+| # | Acceptance Criterion | Test | Evidence (command run → observed result) | Verdict | Notes |
+|---|---|---|---|---|---|
+| 1 | [AC from spec] | [test name] | `pytest tests/test_x.py::test_y` → `1 passed`; `curl -s :8080/health` → `200 {"ok":true}` | Match / Refined / Diverged / Gap | [brief note if not Match] |
+| 2 | ... | ... | [command → result, or "not exercisable: <reason>; covered by <test> → <output>"] | ... | ... |
+
+> The Evidence cell is mandatory: the exact command you ran and its verbatim result. Only when a behavior genuinely cannot be exercised may it read `not exercisable: <reason>` plus the covering test's actual output — never a bare "passes."
 
 **"What Must Not Break" Check**
-- [item from spec]: Confirmed / Regression found
+- [item from spec]: Confirmed via `<command run>` → `<result>` / Regression found: `<evidence>`
 - ...
 
-**Suite Status**: All green / [N] failures
+**Suite Status**: `<test command>` → `<verbatim final summary line from the runner>` (e.g. `pytest -q` → `142 passed in 3.1s`). Never "all green" without the command and its output.
 
 **Spec Updates**
 - [AC #]: [what changed and why], or "None — spec was accurate"
@@ -46,9 +48,9 @@ Produced at the end of verifying-and-adapting for medium+ tasks.
 
 | Section | When to include | Purpose |
 |---|---|---|
-| Acceptance Check | Always (medium+) | Confirm each AC is covered by a passing test |
-| "What Must Not Break" Check | When spec has this section | Confirm no regressions |
-| Suite Status | Always | Final test suite state |
+| Acceptance Check | Always (medium+) | Execute each AC's observable behavior, record the evidence, and confirm a passing test covers it |
+| "What Must Not Break" Check | When spec has this section | Confirm no regressions, citing the check run |
+| Suite Status | Always | The exact command run and the runner's verbatim summary line |
 | Spec Updates | When any AC was refined or diverged | Keep spec in sync with reality |
 | Emerged Design Knowledge | When TDD surfaced reusable insights | Feed knowledge forward to next slices |
 | Slice Impact | Multi-slice features only | Flag downstream effects |

@@ -15,7 +15,7 @@ Pipeline: `clarifying-intent [Feature Brief]` → **slicing-stories [slice map]*
 
 ## Input
 
-A **Feature Brief** from `clarifying-intent` containing:
+A **Feature Brief** — canonically from `clarifying-intent`, but the gate is on the artifact's **shape, not its provenance**. A Feature Brief carries:
 
 - Problem / why now
 - Goal & success criteria
@@ -23,7 +23,13 @@ A **Feature Brief** from `clarifying-intent` containing:
 - Constraints & risks (if surfaced)
 - Open questions (blocking / deferrable)
 
-Pass the brief inline in the prompt, or as a path/handle this skill should read. If the input is not a Feature Brief, stop and recommend running `clarifying-intent` first.
+Pass it inline in the prompt, or as a path/handle this skill should read.
+
+**Preflight — route on shape, not on where the input came from:**
+
+1. **A conforming Feature Brief** (whatever produced it) → slice it directly.
+2. **Feature-shaped input that isn't a formal Brief** — a PRD paragraph, an epic description, or a loose feature request that clearly spans several behaviors → synthesize the five Brief fields from what's given, record every inference in the slice map's `meta.assumptions[]`, and set `meta.source` to the real origin (e.g. `"synthesized from user-supplied feature description"`). Then slice. Don't stop merely because the input didn't arrive as a Brief — degrade gracefully and make the gaps visible.
+3. **Input too thin to slice** — you cannot even state the feature's goal or name one deliverable behavior → return `## Blocking Questions` with the specific unknowns and stop. This is the only hard stop; reserve it for genuinely un-sliceable input, not for missing Brief formatting.
 
 ## Output
 
@@ -43,8 +49,9 @@ The caller decides whether to persist the artifact and where. If the JSON is per
 
 ## Workflow
 
-1. **Accept the Feature Brief.**
+1. **Accept the Feature Brief (per the Input preflight).**
    - Trust the brief's scope, constraints, and open questions. Do not re-interview the requester.
+   - If you synthesized the brief in preflight branch 2, carry every inference into `meta.assumptions[]` and set `meta.source` accordingly — surface the gaps, don't silently fill them.
    - If there are blocking open questions that prevent slicing, list them under `## Blocking Questions` and stop. The caller resolves them with the user and re-invokes this skill.
 
 2. **Identify seam lines.**

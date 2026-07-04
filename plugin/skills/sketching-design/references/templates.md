@@ -8,6 +8,12 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 
 ### Design Sketch: [story title from spec]
 
+**Derived ACs / Assumptions** — *confirm before TDD*
+(Include only when the spec arrived without acceptance criteria — Input preflight branch 2. Omit entirely otherwise.)
+- AC-D1: [Given/When/Then behavior inferred from the request + codebase]
+- AC-D2: ...
+- Assumption: [what you took as given to scope this; the user/TDD confirms before these harden into tests]
+
 **Change Map**
 - `path/to/file` — [what changes here and why]
 - `path/to/other` — [what changes here and why]
@@ -43,6 +49,7 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 
 | Section | When to include | Purpose |
 | --- | --- | --- |
+| Derived ACs / Assumptions | Only when the spec had no acceptance criteria (Input preflight branch 2) | Make inferred behavior explicit and confirmable before it hardens into tests |
 | Change Map | Always | Know which files to open before writing code |
 | Existing Patterns | Always | Prevent reinventing what the codebase already does |
 | Approach | When direction is non-obvious | State the key decision in 2–5 sentences |

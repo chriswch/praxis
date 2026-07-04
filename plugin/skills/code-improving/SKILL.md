@@ -33,6 +33,16 @@ The caller decides whether to persist the improvement summary and where.
 
 ## Workflow
 
+### 0. Establish the test baseline
+
+Before changing anything, run the full test suite once and record the result — this is the baseline every later gate compares against. Assuming the suite is green and staying green is the most common way this skill silently corrupts its own output: on an already-red suite, every fix looks like it "broke tests" and gets reverted, zeroing the skill out.
+
+- **Green baseline** (all pass): the normal case. Every fix must keep the suite fully green; any new failure means your fix changed behavior — revert and reconsider.
+- **Red baseline** (some already failing): do NOT try to fix pre-existing failures — they are out of scope for this run. Record which tests are already red. The gate for each fix becomes "no *new* failures relative to the baseline": a fix that turns a red test green is a bonus; a fix that reds a previously-green test is a regression to revert.
+- **No suite / unrunnable / unknown command**: don't invent one. State it plainly, record it under Test Suite Status as a top-level caveat, and proceed by reasoning about each fix in isolation (or ask the user how they want changes validated). Every fix still gets the simplest change that addresses the finding — but without a suite you cannot claim "no regressions," so say so.
+
+Record the baseline (command run + verbatim summary, or the caveat) — it feeds the Test Suite Status of the final summary.
+
 ### 1. Read and assess the review
 
 If the review says it was skipped or there are no critical/high/medium issues, return a brief summary noting only low-severity items remain for user consideration, and stop.
@@ -53,14 +63,14 @@ Order: critical first, then high, then medium. Within each severity, fix in depe
 For each issue:
 
 1. Make the change. Prefer the simplest solution. Don't introduce new abstractions to fix an abstraction problem — simplify instead. If the review says "this is over-engineered," the fix is removing code, not replacing it with different engineering.
-2. Run the existing test suite. All tests must pass.
-3. If tests break: your fix changed behavior, not just structure. Revert and reconsider. The tests are the contract.
+2. Run the test suite. It must be no worse than the step-0 baseline — no test that passed at baseline may now fail. (Green baseline → still fully green; red baseline → no *new* failures; no suite → reason about the change directly, per step 0.)
+3. If a previously-passing test now fails: your fix changed behavior, not just structure. Revert and reconsider. The tests are the contract.
 4. Stage and commit the fix with a clear message describing what was improved and why.
 
 ### 4. Verify
 
 After all fixes:
-- Run the full test suite one final time. All green.
+- Run the full test suite one final time. It must be no worse than the step-0 baseline (green baseline → all green; red baseline → no new failures; no suite → restate the caveat and how fixes were validated instead).
 - `git status` — no uncommitted changes.
 
 ### 5. Return the improvement summary
