@@ -29,8 +29,9 @@ Use this spec for the default output of the `slicing-stories` skill. The goal is
 
 ### `meta` (required)
 
+- `status` (string, required): `complete` | `blocked`. The orchestrator's routing signal. `complete` — a usable slice map (a single-slice map counts). `blocked` — blocking open questions prevent slicing; `slices` is empty and a `## Blocking Questions` heading accompanies the JSON.
 - `project` (string, required): Product/project name.
-- `source` (string, required): Where the input came from (the Feature Brief).
+- `source` (string, required): Where the input came from (the Feature Brief, or a synthesized-from-user-input note when the Input preflight built the brief).
 - `generated_at` (string, required): ISO-8601 UTC timestamp (use `Z`).
 - `feature_summary` (string, required): 1-2 sentence summary of the feature being sliced.
 - `assumptions` (string[], required): Assumptions made to proceed without blockers.
@@ -43,7 +44,7 @@ Use this spec for the default output of the `slicing-stories` skill. The goal is
 - `blocking` (boolean, required): Whether this question blocks slicing or downstream spec work.
 - `owner` (string, required): `product` | `engineering` | `design` | `tbd`.
 
-### `slices` (Slice[], required; must not be empty)
+### `slices` (Slice[], required; must not be empty when `meta.status` is `complete`; empty when `blocked`)
 
 Ordered list of story outlines. Position in the array determines build sequence.
 
@@ -62,6 +63,7 @@ Ordered list of story outlines. Position in the array determines build sequence.
 ```json
 {
   "meta": {
+    "status": "complete",
     "project": "Acme API",
     "source": "Feature Brief: API Authentication",
     "generated_at": "2026-02-01T12:00:00Z",

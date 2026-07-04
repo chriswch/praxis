@@ -23,13 +23,21 @@ You are not the reviewer. You did not write the review. You read it, understand 
 
 Pass each one inline in the prompt, or as a path/handle this skill should read.
 
+**Severity preflight (normalize the input).** The findings may not arrive on this skill's critical/high/medium/low scale — pasted PR comments, a `blocker/major/minor` list, or `P0–P3` are all common. Before planning fixes:
+
+- **Foreign scale** → map it mechanically: `blocker`/`P0` → critical; `major`/`P1` → high; `minor`/`P2` → medium; `nit`/`P3` → low.
+- **Ungraded findings** → grade each yourself using `code-reviewing`'s severity definitions, and record each assigned grade as an assumption in the summary.
+- **Genuinely un-gradeable** (too vague to place) → ask the user rather than guessing.
+
+The gate is on having a findings list, not on where it came from.
+
 ## Output
 
-Return the **improvement summary** inline in the response: which issues were fixed, what was changed, and any items deferred for user decision. If the review reported no critical/high/medium issues, say so and stop. If during improvement you discover the review's findings imply a spec change, surface a `## Feedback` section and recommend returning to `clarifying-intent`.
+Return the **improvement summary** inline in the response: which issues were fixed, what was changed, and any items deferred for user decision. It opens with a machine-readable `Status:` line an orchestrator branches on (`craft` consumes it — see `craft/references/contracts.md`): `skipped` when there were no critical/high/medium findings to fix, `feedback` when you surfaced a `## Feedback` section, `complete` otherwise. If the review reported no critical/high/medium issues, say so (`Status: skipped`) and stop. If during improvement you discover the review's findings imply a spec change, surface a `## Feedback` section and recommend returning to `clarifying-intent`.
 
 Source code is committed directly to the repository as each fix is applied.
 
-The caller decides whether to persist the improvement summary and where.
+The caller decides whether to persist the improvement summary; standalone, offer to save it under `.praxis/<slug>/slices/<slice-id>/`.
 
 ## Workflow
 
@@ -42,6 +50,8 @@ Before changing anything, run the full test suite once and record the result —
 - **No suite / unrunnable / unknown command**: don't invent one. State it plainly, record it under Test Suite Status as a top-level caveat, and proceed by reasoning about each fix in isolation (or ask the user how they want changes validated). Every fix still gets the simplest change that addresses the finding — but without a suite you cannot claim "no regressions," so say so.
 
 Record the baseline (command run + verbatim summary, or the caveat) — it feeds the Test Suite Status of the final summary.
+
+Also note the working tree's **pre-existing dirty paths** (`git status`) before you touch anything. Standalone, this skill is often run on a tree that already has unrelated WIP — you must never stage, revert, or "clean up" a change you didn't make. The recorded starting state is what step 4 verifies against.
 
 ### 1. Read and assess the review
 
@@ -65,13 +75,13 @@ For each issue:
 1. Make the change. Prefer the simplest solution. Don't introduce new abstractions to fix an abstraction problem — simplify instead. If the review says "this is over-engineered," the fix is removing code, not replacing it with different engineering.
 2. Run the test suite. It must be no worse than the step-0 baseline — no test that passed at baseline may now fail. (Green baseline → still fully green; red baseline → no *new* failures; no suite → reason about the change directly, per step 0.)
 3. If a previously-passing test now fails: your fix changed behavior, not just structure. Revert and reconsider. The tests are the contract.
-4. Stage and commit the fix with a clear message describing what was improved and why.
+4. Stage **only the files this fix touched** (`git add <paths>` — never `git add -A` or `git add .`, which would sweep in unrelated pre-existing WIP recorded in step 0) and commit with a clear message describing what was improved and why.
 
 ### 4. Verify
 
 After all fixes:
 - Run the full test suite one final time. It must be no worse than the step-0 baseline (green baseline → all green; red baseline → no new failures; no suite → restate the caveat and how fixes were validated instead).
-- `git status` — no uncommitted changes.
+- `git status` — the only *new* changes beyond step 0's recorded starting state are the fixes you committed. Do not demand a fully clean tree: pre-existing WIP from step 0 is left exactly as it was. If anything you didn't intend to touch is modified, you overreached — restore it.
 
 ### 5. Return the improvement summary
 

@@ -9,9 +9,9 @@ allowed-tools: Read, Grep, Glob
 
 ## Overview
 
-Take a Feature Brief (produced by `clarifying-intent`) and split it into an ordered **slice map** — a sequence of thin, vertical story outlines. Each slice captures what the story covers and where it sits in the build order, but intentionally omits detailed acceptance criteria, tasks, and implementation plans. Those emerge downstream: `clarifying-intent` specs each slice, then TDD drives the design.
+Take a Feature Brief and split it into an ordered **slice map** — a sequence of thin, vertical story outlines. Each slice captures what the story covers and where it sits in the build order, but intentionally omits detailed acceptance criteria, tasks, and implementation plans. Those emerge downstream when each slice is specced individually and TDD drives the design.
 
-Pipeline: `clarifying-intent [Feature Brief]` → **slicing-stories [slice map]** → `clarifying-intent [Story-Level Behavioral Spec per slice]` → design sketch → TDD.
+**Consumes** a Feature Brief (canonically from `clarifying-intent`, or any feature-shaped input — see the Input preflight). **Emits** a slice map. What happens to each slice afterward — per-slice speccing, design, TDD — is downstream and not this skill's concern; the orchestrator sequences it.
 
 ## Input
 
@@ -40,9 +40,12 @@ Return both inline in the response:
 
 Treat the JSON as the source of truth; the Markdown should be derivable from the JSON.
 
-If blocking open questions prevent slicing, return them under a `## Blocking Questions` heading and stop.
+**Machine-readable status.** The JSON's `meta.status` is the routing signal an orchestrator branches on (`craft` consumes it — see `craft/references/contracts.md`):
 
-The caller decides whether to persist the artifact and where. If the JSON is persisted to a path, optional helpers are available:
+- `complete` — a usable slice map was produced (including a single-slice map; see the sizing check in step 1).
+- `blocked` — blocking open questions prevent slicing. Return `meta.status: "blocked"` in a minimal JSON object (valid `meta`, empty `slices`) **and** list the questions under a `## Blocking Questions` heading, then stop.
+
+Persistence: the caller decides. When invoked standalone and the map is worth keeping, offer to save the JSON at `.praxis/<slug>/slice-map.json` and the Markdown at `.praxis/<slug>/slice-map.md`. If the JSON is persisted to a path, optional helpers are available:
 
 - `python3 scripts/validate_slice_map.py <path>` — validate the JSON against the spec.
 - `python3 scripts/render_slice_map_markdown.py <path>` — render Markdown from the JSON.
@@ -52,7 +55,8 @@ The caller decides whether to persist the artifact and where. If the JSON is per
 1. **Accept the Feature Brief (per the Input preflight).**
    - Trust the brief's scope, constraints, and open questions. Do not re-interview the requester.
    - If you synthesized the brief in preflight branch 2, carry every inference into `meta.assumptions[]` and set `meta.source` accordingly — surface the gaps, don't silently fill them.
-   - If there are blocking open questions that prevent slicing, list them under `## Blocking Questions` and stop. The caller resolves them with the user and re-invokes this skill.
+   - **Sizing check — don't manufacture splits.** If the brief already describes a single story-sized, INVEST-passing behavior (splitting it would just reproduce the whole as one slice), return a **single-slice map** whose `sequence_rationale` says "already story-sized — no split needed," with `meta.status: "complete"`. This is the honest answer to "is this too big?" being *no*; the caller proceeds straight to speccing that one story. Only split when there are genuine seam lines.
+   - If there are blocking open questions that prevent slicing, return `meta.status: "blocked"`, list them under `## Blocking Questions`, and stop. The caller resolves them with the user and re-invokes this skill.
 
 2. **Identify seam lines.**
    - Find natural boundaries where the feature can be split into independently deliverable, testable behaviors.
@@ -94,7 +98,7 @@ The caller decides whether to persist the artifact and where. If the JSON is per
 
 ## Downstream Handoff
 
-Each slice goes back to `clarifying-intent` to produce a Story-Level Behavioral Spec. The sequence in the slice map determines build order.
+Each slice is specced individually into a Story-Level Behavioral Spec (canonically by `clarifying-intent`) before implementation. The sequence in the slice map determines build order.
 
 **Feedback loop**: The slice map is a living artifact, not a frozen plan. When speccing or implementing a later slice reveals that the boundaries, ordering, or number of slices need to change — update the slice map. Common triggers:
 

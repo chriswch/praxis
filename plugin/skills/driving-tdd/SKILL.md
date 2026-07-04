@@ -1,6 +1,6 @@
 ---
 name: driving-tdd
-description: Drives the Red → Green → Refactor cycle once a Story-Level Behavioral Spec with acceptance criteria exists (optionally plus a design sketch), converting each acceptance criterion into a failing test, writing the minimum code to pass, and refactoring to let design emerge. Handles the feedback loop back to clarifying-intent when implementation reveals spec gaps. Use after clarifying-intent or sketching-design to start implementation. Triggers on 'let's code this', 'start TDD', 'implement this story', 'write the tests', or 'next slice' — only when a behavioral spec with acceptance criteria is ready; if none exists, route to clarifying-intent first.
+description: Drives the Red → Green → Refactor cycle once a Story-Level Behavioral Spec with acceptance criteria exists (optionally plus a design sketch), converting each acceptance criterion into a failing test, writing the minimum code to pass, refactoring to let design emerge, and committing each cycle directly to the repository (one commit per acceptance criterion). Handles the feedback loop back to clarifying-intent when implementation reveals spec gaps. Use to start implementation once acceptance criteria are ready. Triggers on 'let's code this', 'start TDD', 'implement this story', 'write the tests', or 'next slice' — only when acceptance criteria are ready; if none exist, route to clarifying-intent first.
 context: fork
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 ---
@@ -17,8 +17,8 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 
 ## Input
 
-- **Story-Level Behavioral Spec** (from `clarifying-intent`) — required. Provides acceptance criteria in Given/When/Then format.
-- **Design Sketch** (from `sketching-design`) — optional. Provides the change map, first test, and approach direction. If absent, derive file locations from codebase exploration.
+- **Story-Level Behavioral Spec** — required — canonically from `clarifying-intent`, or **any equivalent user-supplied Given/When/Then acceptance criteria**. The gate is on the artifact's shape (a scoped story with testable ACs), not its provenance: a hand-written AC list is a first-class input, not a reason to route away.
+- **Design Sketch** — optional — canonically from `sketching-design`. Provides the change map, first test, and approach direction. If absent, derive file locations from codebase exploration.
 
 Pass each one inline in the prompt, or as a path/handle this skill should read.
 
@@ -26,14 +26,12 @@ Pass each one inline in the prompt, or as a path/handle this skill should read.
 
 Return inline in the response:
 
-- **AC checklist** showing completion status of each acceptance criterion.
+- **AC checklist** showing completion status of each acceptance criterion, including its Red evidence (see step 3).
 - **Feedback log** — discoveries made during implementation (gaps, contradictions, slice-map impact).
-- **Session summary** (medium+ tasks) — design decisions and notes for downstream stages.
-- If the spec needs revisiting, surface a `## Feedback` section describing the gap and recommend returning to `clarifying-intent`.
+- **Session summary** (medium+ tasks) — design decisions and notes for downstream stages. Its first line is a machine-readable status an orchestrator branches on (`craft` consumes it — see `craft/references/contracts.md`): `Status: complete` or `Status: blocked: <reason>`.
+- If the spec needs revisiting, surface a `## Feedback` section describing the gap (a hard stop for an orchestrator regardless of the Status line).
 
-Test files and source code are committed directly to the repository as part of each Red → Green → Refactor cycle.
-
-The caller decides whether to persist the AC checklist, feedback log, and session summary, and where.
+Test files and source code are committed directly to the repository as part of each Red → Green → Refactor cycle — this skill writes to the working tree and commits. The caller decides whether to also persist the AC checklist, feedback log, and session summary; standalone, offer to save the summary under `.praxis/<slug>/slices/<slice-id>/`.
 
 ## Workflow
 
@@ -42,7 +40,7 @@ The caller decides whether to persist the AC checklist, feedback log, and sessio
      - **Trivial** (rename, one-liner): Write the test, make it pass, done. Skip the AC checklist and summary.
      - **Small** (1–2 ACs, single file): Full Red → Green → Refactor per AC. Lightweight tracking.
      - **Medium** (3+ ACs, multiple files): Full workflow with AC checklist, feedback log, and session summary.
-     - **Large**: Should have been sliced first. Stop and recommend `slicing-stories`.
+     - **Large**: Should have been sliced first. Orchestrated: stop and recommend `slicing-stories`. Standalone: split it with the user into story-sized pieces and start with the first — don't drive a whole feature through one TDD session.
    - Read the behavioral spec. List every acceptance criterion.
    - If a design sketch exists, read it for the change map and first test.
    - If no sketch, explore the codebase: test framework, file conventions, existing patterns. Just enough to place the first test.
@@ -60,10 +58,12 @@ The caller decides whether to persist the AC checklist, feedback log, and sessio
    - Pick the next AC. Write a test that asserts the expected behavior using the project's existing test conventions.
    - Name the test after the behavior: `rejects request without auth token`, not `test_middleware_check`.
    - **Run the test.** Confirm it fails for the right reason — the behavior doesn't exist yet, not a setup error (import error, missing file).
+   - **Record the Red evidence.** Capture the exact test command you ran and the verbatim failure line(s) into the AC checklist's **Red Evidence** column. This recorded observation is the gate: an AC with no Red evidence may not proceed to Green. (An optional plugin red-gate hook can enforce this mechanically — see Guardrails.)
    - If the test passes unexpectedly, do NOT auto-mark the AC done. A test that is green on first write is a signal it may be too weak (asserting something trivially true), or the behavior may genuinely already exist. Inspect and strengthen it until it actually exercises the AC and is capable of failing. If it then still passes because the behavior really exists, mark the AC done with a note; if it was too weak, you just caught a test-gaming risk — keep the stronger version.
 
 4. **Green: write the minimum code to pass.**
    - Write the simplest code that makes the failing test pass. Don't generalize yet.
+   - **Test files are frozen during Green.** Only edit source here. If passing the test seems to require changing the test, that's a signal the test was wrong or the AC is self-contradictory — go back to Red and re-observe, or surface `## Feedback`; never edit the test to fit the implementation.
    - **Run the test.** Confirm it passes. **Run the full suite.** Green means the entire suite is green, not just the new test.
 
 5. **Refactor: let design emerge.**
@@ -86,6 +86,7 @@ The caller decides whether to persist the AC checklist, feedback log, and sessio
    - Note any missing coverage — it goes through the feedback loop, not silently into tests.
 
 8. **Feedback loop.**
+   - **Standalone vs orchestrated.** Under an orchestrator, surface `## Feedback` and stop so it can route. Standalone (no orchestrator), when a gap is one you can resolve by asking a single question, ask the user directly, record the answer in the feedback log as a spec refinement, and continue — reserve stopping for gaps that genuinely need re-clarification.
    - Ambiguous or contradictory AC → document it under a `## Feedback` heading, recommend returning to `clarifying-intent` to resolve, then stop.
    - Missing behavior discovered → note it. After existing ACs, document it under `## Feedback` and recommend returning to `clarifying-intent`.
    - Impossible constraint → flag it under `## Feedback` and stop.
@@ -113,7 +114,8 @@ The caller decides whether to persist the AC checklist, feedback log, and sessio
 ## Guardrails
 
 - **Run the tests — every time.** Execute tests at every Red, Green, and Refactor step. Don't just write them. The test runner is the source of truth, not your expectation of what should pass.
-- **The acceptance test is a contract — never weaken it to pass.** Once a test encoding an acceptance criterion is written and confirmed failing for the right reason (Red), do not relax, narrow, or delete it to reach Green or during Refactor. If an AC's test seems impossible or self-contradictory, stop and surface it under `## Feedback` for `clarifying-intent` — never patch the test around the problem. Only the inner unit tests that emerge during a cycle are editable within that cycle. (This is a *mitigation* against a model gaming its own tests — strict prompting plus flagging impossible ACs — not an enforced authority boundary; that awaits a separate frozen test-authoring stage.)
+- **The acceptance test is a contract — never weaken it to pass.** Once a test encoding an acceptance criterion is written and confirmed failing for the right reason (Red), do not relax, narrow, or delete it to reach Green or during Refactor. If an AC's test seems impossible or self-contradictory, stop and surface it under `## Feedback` for `clarifying-intent` — never patch the test around the problem. Only the inner unit tests that emerge during a cycle are editable within that cycle. (This is a *mitigation* against a model gaming its own tests — strict prompting, recorded Red evidence, and the Green-phase test freeze; enforced mechanically when the plugin red-gate hook is installed. If live autopilot runs ever show real test-gaming, the escape hatch is to fork the Red phase per-AC into a context that sees only the spec + sketch — inside this one skill, not a separate test-authoring skill.)
+- **Red evidence gates Green.** No AC advances to Green without a recorded failing-test observation (the command run + its verbatim failure). This is the load-bearing anti-gaming step; a plugin PreToolUse hook can enforce it by blocking source edits until a failing test is observed for the current AC.
 - **One AC at a time.** Don't batch. Don't write multiple failing tests before making any green. Fast feedback is the whole point.
 - **Minimum to pass.** Resist adding the next feature during Green. That's the next cycle.
 - **Refactor means simplify, not abstractify.** Extract a well-named function, not a `BaseFooStrategyFactory`.

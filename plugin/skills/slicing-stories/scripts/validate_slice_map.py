@@ -9,6 +9,7 @@ from typing import Any
 
 
 ALLOWED_QUESTION_OWNERS = {"product", "engineering", "design", "tbd"}
+ALLOWED_META_STATUS = {"complete", "blocked"}
 
 
 def _is_str_list(value: Any) -> bool:
@@ -44,6 +45,7 @@ def _validate_iso_utc(ts: str) -> bool:
 def validate_slice_map(bundle: Any, *, strict: bool) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
+    meta_status: Any = None
 
     if not isinstance(bundle, dict):
         return (["$ : top-level JSON must be an object"], warnings)
@@ -53,6 +55,12 @@ def validate_slice_map(bundle: Any, *, strict: bool) -> tuple[list[str], list[st
 
     # --- meta ---
     if isinstance(meta, dict):
+        meta_status = _require_key(
+            meta, "status", path="$.meta", errors=errors, expected="complete|blocked"
+        )
+        if meta_status is not None and meta_status not in ALLOWED_META_STATUS:
+            _add_err(errors, "$.meta.status", f"must be one of {sorted(ALLOWED_META_STATUS)}")
+
         for key in ["project", "source", "feature_summary"]:
             value = _require_key(meta, key, path="$.meta", errors=errors, expected="string")
             if value is not None and not _is_nonempty_str(value):
@@ -106,8 +114,8 @@ def validate_slice_map(bundle: Any, *, strict: bool) -> tuple[list[str], list[st
 
     # --- slices ---
     if isinstance(slices, list):
-        if len(slices) == 0:
-            _add_err(errors, "$.slices", "must not be empty")
+        if len(slices) == 0 and meta_status != "blocked":
+            _add_err(errors, "$.slices", "must not be empty unless meta.status is 'blocked'")
 
         slice_ids: set[str] = set()
         for idx, s in enumerate(slices):

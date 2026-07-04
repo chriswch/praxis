@@ -8,6 +8,9 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 
 ### Design Sketch: [story title from spec]
 
+**Status**: `sketch`
+(Machine-readable routing line. The `skipped` and `spec-issue` outcomes are returned as prose per the Output contract, not via this template.)
+
 **Derived ACs / Assumptions** — *confirm before TDD*
 (Include only when the spec arrived without acceptance criteria — Input preflight branch 2. Omit entirely otherwise.)
 - AC-D1: [Given/When/Then behavior inferred from the request + codebase]

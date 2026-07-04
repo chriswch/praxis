@@ -1,9 +1,12 @@
 # Improvement Summary Template
 
-Use this template for the improvement summary. If `IMPROVEMENT_SKIPPED` or no auto-fixable issues, use a condensed version.
+Use this template for the improvement summary. When there were no critical/high/medium findings to fix, use a condensed version with `Status: skipped`.
 
 ```markdown
-## Improvements: [story/slice title]
+## Improvements: [story/slice title, or a short description of the change set]
+
+**Status**: complete
+(Machine-readable routing line — always first. `skipped` = nothing to auto-fix; `feedback` = a `## Feedback` section is present.)
 
 ### Issues Fixed
 

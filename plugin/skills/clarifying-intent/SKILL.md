@@ -23,14 +23,15 @@ When a prior story-boundary handoff is supplied, treat it as bounded seed for th
 
 ## Output
 
-Return one of these inline in the response:
+Return one of these inline in the response. Each ends with a machine-readable `Status:` line, and the two artifacts carry a `Sizing:` line, so an orchestrator can route without parsing prose (the vocabulary is owned here and consumed by `craft` — see `craft/references/contracts.md`):
 
-- **Trivial change**: a one-sentence statement of the change. No spec needed, no phases.
-- **Feature Brief**: when the input is feature-sized. Hand off to `slicing-stories` next; Phase B runs per-slice in subsequent invocations.
-- **Story-Level Behavioral Spec**: when the input is story-sized (or for a single slice). Ready for `sketching-design` and TDD.
-- **Open questions**: when blocking unknowns remain — list them, ask the user, and stop.
+- **Trivial change** — a one-sentence statement of the change. No spec, no phases. → `Status: trivial`.
+- **Feature Brief** — when the input is feature-sized. Carries `Sizing: feature`. Hand off to `slicing-stories` next; Phase B runs per-slice in subsequent invocations. → `Status: proceed`.
+- **Story-Level Behavioral Spec** — when the input is story-sized (or for a single slice). Carries `Sizing: small` or `Sizing: story` per triage. Ready for `sketching-design` and TDD. → `Status: proceed`.
+- **Open questions** — when blocking unknowns remain: list them, ask the user, and stop. → `Status: open-questions`.
+- **Spec issue** — when Phase B finds a Phase A assumption is wrong (a named module is absent, the behavior is already different, a stated constraint does not hold): describe it and stop. → `Status: spec-issue`.
 
-The caller decides whether to persist the artifact and where.
+**Persistence.** The caller decides whether and where to save. When invoked standalone (no orchestrator directive) and the artifact is worth keeping, offer to persist it under `.praxis/<slug>/` — `brief.md` for a Feature Brief, `spec.md` for a Story Spec (see the `.praxis/` layout in `craft/SKILL.md`). Under a craft autopilot directive the orchestrator persists; do not write files yourself — this skill holds no Write grant.
 
 ## Workflow
 
@@ -38,9 +39,9 @@ The caller decides whether to persist the artifact and where.
 
 Decide what kind of input you have. If unclear, default to feature-sized and let Phase A reveal the true size.
 
-- **Trivial** (< half day, obvious change — typo, rename, config tweak): state the change in one sentence and stop. Skip both phases.
-- **Story-sized** (1–5 days, single user-facing behavior, or a slice from an upstream Feature Brief): run both phases. Phase A may be brief if a clear user story is already supplied; Phase B does the bulk.
-- **Feature-sized / Epic** (many stories, cross-cutting): run Phase A fully, produce a Feature Brief, recommend `slicing-stories`, and stop. Phase B runs per-slice on subsequent invocations.
+- **Trivial** (< half day, obvious change — typo, rename, config tweak): state the change in one sentence and stop. Skip both phases. → `Status: trivial`.
+- **Story-sized** (1–5 days, single user-facing behavior, or a slice from an upstream Feature Brief): run both phases. Phase A may be brief if a clear user story is already supplied; Phase B does the bulk. Set the artifact's `Sizing:` line: **`small`** when it's a single-file, 1–2 AC change on an obvious path (a downstream orchestrator can skip the design sketch and go straight to TDD), or **`story`** otherwise (multiple files / 3+ ACs / non-obvious path — a design sketch earns its keep).
+- **Feature-sized / Epic** (many stories, cross-cutting): run Phase A fully, produce a Feature Brief (`Sizing: feature`), recommend `slicing-stories`, and stop. Phase B runs per-slice on subsequent invocations.
 
 ### 2. Phase A — Product Space
 

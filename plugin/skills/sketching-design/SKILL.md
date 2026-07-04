@@ -23,13 +23,13 @@ A **Story-Level Behavioral Spec** — canonically from `clarifying-intent`, but 
 
 ## Output
 
-Return one of these inline in the response:
+Return one of these inline in the response. Each ends with a machine-readable `Status:` line so an orchestrator can route without parsing prose (consumed by `craft` — see `craft/references/contracts.md`):
 
-- A **design sketch** with change map, pattern match, proposed direction, and the first test to write (named with its test layer). Include a **Derived ACs / Assumptions** section when the spec arrived without acceptance criteria (Input preflight branch 2).
-- **Skipped** — when the implementation path is obvious from the spec; state that no sketch is needed and why.
-- **Spec issue** — when codebase exploration reveals the spec's assumptions are wrong; describe the issue under a `## Spec Issue` heading and recommend returning to `clarifying-intent`.
+- A **design sketch** with change map, pattern match, proposed direction, and the first test to write (named with its test layer). Include a **Derived ACs / Assumptions** section when the spec arrived without acceptance criteria (Input preflight branch 2). → `Status: sketch`.
+- **Skipped** — when the implementation path is obvious from the spec; state that no sketch is needed and why. → `Status: skipped`.
+- **Spec issue** — when codebase exploration reveals the spec's assumptions are wrong; describe the issue under a `## Spec Issue` heading and recommend returning to `clarifying-intent`. → `Status: spec-issue`.
 
-The caller decides whether to persist the sketch and where.
+Persistence: the caller decides. When invoked standalone and the sketch is worth keeping, offer to save it under `.praxis/<slug>/slices/<slice-id>/sketch.md` (or `.praxis/<slug>/sketch.md` for a single-story feature); this skill holds no Write grant, so the caller does the writing.
 
 ## Workflow
 

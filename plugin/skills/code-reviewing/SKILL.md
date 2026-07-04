@@ -1,6 +1,6 @@
 ---
 name: code-reviewing
-description: "Independent code quality review after implementation. Performs a sequential 5-layer analysis — data structures, special case elimination, complexity, breaking changes, and practicality — producing a severity-graded review report without modifying any code. Use after driving-tdd completes. Triggers on 'review the code', 'code review', 'check code quality', or when implementation is complete and code quality needs assessment before proceeding."
+description: "Independent code quality review of any implementation — a diff, changed files, or uncommitted work, whether produced by TDD or written ad hoc. Performs a sequential 5-layer analysis — data structures, special case elimination, complexity, breaking changes, and practicality — plus a security-surface pass, producing a severity-graded review report without modifying any code. Not for spec-conformance checking (that's verifying-and-adapting) and not for applying fixes (that's code-improving) — this skill only reports. Triggers on 'review the code', 'code review', 'check code quality', or when implementation is complete and code quality needs assessment before proceeding."
 context: fork
 allowed-tools: Read, Grep, Glob, Bash(git *)
 ---
@@ -36,9 +36,9 @@ State which source was used at the top of the report so the reader knows the rev
 
 ## Output
 
-Return the **review report** inline in the response, with severity-graded findings (Critical / High / Medium / Low) and actionable recommendations. If the change is trivial enough that formal review is wasted ceremony, say so and stop.
+Return the **review report** inline in the response, with severity-graded findings (Critical / High / Medium / Low) and actionable recommendations. The report opens with two machine-readable header lines an orchestrator branches on (`craft` consumes them — see `craft/references/contracts.md`): `Status: complete | skipped` and `Security-sensitive: yes | no` (`yes` when the Security Surfaces pass flags anything — it tells the orchestrator to force a human gate). If the change is trivial enough that formal review is wasted ceremony, say so with `Status: skipped` and stop.
 
-The caller decides whether to persist the review and where.
+The caller decides whether to persist the review; standalone, offer to save it under `.praxis/<slug>/slices/<slice-id>/review.md`.
 
 ## Premise Check
 
@@ -113,6 +113,18 @@ This is where the real design feedback lives. Moving a conditional into a better
 - Does the solution's complexity match the severity of the problem it solves?
 - Is there fallback/backup/compatibility logic masking issues that should surface directly in tests?
 - Are errors handled at system boundaries and exposed loudly — or silently swallowed?
+
+## Security Surfaces (cross-cutting pass)
+
+After the five layers, sweep the diff for security-sensitive surfaces. This is a triage, not a full security audit — its job is to set the `Security-sensitive:` flag so an orchestrator knows to force a human gate, and to surface obvious issues in the severity list. Flag (and report, with severity) when the change touches:
+
+- **Authentication / authorization** — login, sessions, tokens, permission or role checks.
+- **Trust-boundary input** — anything crossing from user / network / file into the system (request bodies, query params, headers, uploaded files, deserialization) without validation.
+- **Injection surface** — SQL/NoSQL queries, shell commands, template rendering, or path construction built from untrusted input.
+- **Secrets & sensitive data** — credentials, keys, tokens, PII: how they're stored, logged, and transmitted.
+- **New public API** — a new externally-reachable endpoint, CLI, or exported contract that widens the attack surface.
+
+Set the report's `Security-sensitive:` header to `yes` if any of these are touched, `no` otherwise. A `yes` is a signal, not a verdict — real findings still go in the severity-graded list, and for production work the diff should additionally route to a dedicated human/security review *outside the agent loop*.
 
 ## Anti-Patterns to Flag
 

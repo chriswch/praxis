@@ -3,7 +3,11 @@
 Use this template for medium+ reviews. For small reviews, use a condensed version — premise check, layers 1–3 (brief), and issues table only.
 
 ```markdown
-## Code Review: [story/slice title]
+## Code Review: [story/slice title, or a one-line description of the change]
+
+**Status**: complete
+**Security-sensitive**: no
+(Machine-readable header lines — always first. `Status: skipped` for a trivial change waved through. `Security-sensitive: yes` when the Security Surfaces pass flags anything, telling an orchestrator to force a human gate.)
 
 **Scope**: [N files reviewed] | [brief description of what was built]
 
@@ -32,6 +36,10 @@ Use this template for medium+ reviews. For small reviews, use a condensed versio
 ### Layer 5: Practicality
 
 [Problem reality check. Complexity-to-impact ratio. Silent fallback detection. Error handling at boundaries.]
+
+### Security Surfaces
+
+[Which of auth/authz, trust-boundary input, injection surface, secrets/sensitive data, new public API does this touch? "None — no security-sensitive surface" is a valid and common result. Set the `Security-sensitive` header accordingly; genuine issues go in the severity tables below.]
 
 ### Issues
 
@@ -71,8 +79,8 @@ _None found._ (or table below)
 ### Summary
 
 - Critical: N | High: N | Medium: N | Low: N
-- Auto-fixable (critical + high + medium): N
-- For user review (low): N
+- Actionable now (critical + high + medium): N — for whoever applies the findings (canonically `code-improving`, or the developer)
+- For user consideration (low): N
 ```
 
 ## Guidelines

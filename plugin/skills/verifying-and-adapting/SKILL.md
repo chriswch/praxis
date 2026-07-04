@@ -1,6 +1,6 @@
 ---
 name: verifying-and-adapting
-description: Closes the loop after TDD by checking the implementation holistically against the Story-Level Behavioral Spec — executing each acceptance criterion's observable behavior and citing the evidence, reconciling spec-vs-reality divergences, capturing emerged design knowledge, and recommending the next slice, rework, or done. Use after driving-tdd, when all acceptance criteria are green and the developer needs to confirm the build conforms to what was specified. Triggers on 'does this match the spec', 'check against the spec', 'close out this story against the spec', 'did we build what was specified', or 'close out this story'.
+description: Closes the loop after implementation by checking it holistically against the Story-Level Behavioral Spec — executing each acceptance criterion's observable behavior and citing the evidence, reconciling spec-vs-reality divergences, capturing emerged design knowledge, and recommending the next slice, rework, or done. Use after implementation is complete — canonically after driving-tdd and any review/improve pass — to confirm the build conforms to what was specified. Triggers on 'does this match the spec', 'check against the spec', 'close out this story against the spec', 'did we build what was specified', or 'close out this story'.
 context: fork
 allowed-tools: Read, Grep, Glob, Bash
 ---
@@ -13,14 +13,14 @@ Close out a completed TDD cycle by stepping back from individual tests to check 
 
 This is Scrum's "inspect and adapt" applied at the story level, not the sprint level. It's the hinge between "I finished this slice" and "what do I do next."
 
-**Verification means execution, not reading.** Statically re-reading tests and asserting they "look right" is analysis, not verification — and it is blind to the failure mode this stage exists to catch: an implementation (or its tests) that passes without doing what the spec says. So for every acceptance criterion that names observable behavior — an endpoint, a CLI, a returned value, a side effect — actually exercise it and capture the real output. Every verdict must rest on evidence you observed (a command you ran and what it printed), never on the implementer's claim that it works.
+**Verification means execution, not reading.** Statically re-reading tests and asserting they "look right" is analysis, not verification — and it is blind to the failure mode this stage exists to catch: an implementation (or its tests) that passes without doing what the spec says. So for every acceptance criterion that names observable behavior — an endpoint, a CLI, a returned value, a side effect — actually exercise it and capture the real output. Every verdict must rest on evidence you observed (a command you ran and what it printed), never on the implementer's claim that it works. **Approach each AC adversarially:** your job is to *try to refute* that the spec is met and fail to — not to confirm it.
 
-**Pipeline**: `clarifying-intent` → `sketching-design` → `driving-tdd` → **`verifying-and-adapting`** → next slice (back to `clarifying-intent`) or done.
+**Consumes** the spec plus the completed implementation — this runs *after* implementation and after any `code-reviewing`/`code-improving` pass; it is the last gate before Done. **Emits** a verification summary, an optionally updated spec, and a routing recommendation. The orchestrator owns sequencing; this skill just closes out whatever implementation it is handed.
 
 ## Input
 
 **Primary (required):**
-- **Story-Level Behavioral Spec** (canonically from `clarifying-intent`) — the source of truth for what was supposed to be built.
+- **Story-Level Behavioral Spec** — canonically from `clarifying-intent`, or equivalent: any statement of expected behavior. The gate is on having *some* expected-behavior statement to verify against, not on its provenance. If acceptance criteria aren't enumerated, derive them in step 1 from the narrative / PR / issue and record them as assumptions.
 - **The implementation** — the code under verification (a path, a diff, or the working tree).
 - **Test results** — a way to run the suite (the project's test command) or a report of its current state.
 
@@ -28,8 +28,10 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
 - **AC Checklist** (canonically from `driving-tdd`) — per-AC completion status. If absent, reconstruct it from the spec's acceptance criteria (step 1 does this).
 - **Feedback Log** (canonically from `driving-tdd`) — discoveries made during implementation.
 - **Session Summary** (canonically from `driving-tdd`) — design decisions and spec feedback; enriches the "emerged design knowledge" step on medium+ tasks.
+- **Improvement Summary** (canonically from `code-improving`) — fixes applied after review; reconciles what changed between implementation and this check.
 - **Design Sketch** (canonically from `sketching-design`) — may have been skipped or discarded during TDD.
 - **Slice Map** (canonically from `slicing-stories`) — only exists for multi-slice features.
+- **Feature Brief** (canonically from `clarifying-intent`) — only for the final slice of a multi-slice feature; step 7's feature-level completion check reads its goal and success criteria. Reconstruct from the slice map's `meta` if absent.
 
 Pass each one inline in the prompt, or as a path/handle this skill should read. The skill runs standalone on the primary inputs alone — the enrichments make it faster and richer, not runnable. Missing enrichments are reconstructed, not a reason to stop.
 
@@ -40,16 +42,16 @@ Return inline in the response:
 - **Verification summary** (medium+ tasks).
 - **Updated spec** (if any ACs were refined or diverged) — return the revised spec text.
 - **Slice impact notes** (multi-slice only, when downstream slices are affected).
-- **Routing recommendation** — one of: done, next slice (which slice), rework (which gaps), or escalate (feature-level rethink). State the recommendation in plain prose.
+- **Routing recommendation** — the response always ends with a machine-readable final line an orchestrator branches on (`craft` consumes it — see `craft/references/contracts.md`): `Routing: Done` | `Routing: Next slice: S-<id>` | `Routing: Rework: <gaps>` | `Routing: Escalate: <reason>`. Emit this line even on trivial/small tasks that skip the formal summary.
 
-The caller decides whether to persist the verification summary and updated spec, and where.
+The caller decides whether to persist the verification summary and updated spec; standalone, offer to save the summary under `.praxis/<slug>/slices/<slice-id>/verification.md` (and the revised spec back over its original path).
 
 ## Workflow
 
 1. **Establish the completion baseline and triage.**
    - Confirm the primary inputs: the spec, the implementation, and a way to run the tests. Only these are required.
    - Reconstruct what the optional artifacts would have carried: if no AC checklist was supplied, derive one from the spec's acceptance criteria; if no test results were supplied, run the suite yourself. Missing `driving-tdd` bookkeeping is not a reason to stop.
-   - **Completion gate (do not skip):** run the full suite. If the suite is red, or any acceptance criterion in the spec has no passing, behavior-matching test, the work is genuinely incomplete — recommend returning to `driving-tdd` for the specific gaps and stop. Reserve this hard stop for incomplete work (red suite or uncovered ACs), never for merely-absent sibling artifacts.
+   - **Completion check (always produce a summary):** run the full suite. Incomplete work is a *finding*, not a refusal — record a red suite in Suite Status, mark any AC with no passing, behavior-matching test as a **Gap** in the acceptance check, and end with `Routing: Rework` naming the specific gaps. Do not refuse to verify TDD-external code (legacy, a colleague's branch, an AI-generated PR) just because it didn't come from `driving-tdd`. The only genuine stop is input that isn't spec-shaped at all — no statement of expected behavior to verify against.
    - Scale ceremony to task size:
      - **Trivial** (one AC, one file, obvious change): Skip the full artifact. TDD passed, suite is green, you're done. Recommend done.
      - **Small** (1–2 ACs, single file): Quick sanity check — re-read the spec, confirm all ACs are covered, note if anything changed. No formal artifact.

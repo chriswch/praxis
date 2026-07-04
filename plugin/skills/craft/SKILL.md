@@ -1,6 +1,6 @@
 ---
 name: craft
-description: Run the entire Praxis craft workflow end-to-end as one guided flow that orchestrates every specialist stage in sequence (clarify → slice → design → TDD → review → improve → verify). Manual mode (default) checkpoints between stages; --autopilot runs end-to-end without prompting, creating multiple commits across stages and modifying production code and tests, stopping only on the four hard-stop conditions. Use when the user wants the whole pipeline (e.g. mentions Praxis craft, `/praxis:craft`, `$craft`, or "take this from idea to shipped") — not for a single stage, which should go to that stage's own skill.
+description: Run the entire Praxis craft workflow end-to-end as one guided flow that orchestrates every specialist stage in sequence (clarify → slice → design → TDD → review → improve → verify). Manual mode (default) checkpoints at the spec, design, and ship gates; --autopilot runs end-to-end without prompting, creating multiple commits across stages and modifying production code and tests, stopping only on its hard-stop conditions — including a mandatory human ship gate before Done that even autopilot never auto-confirms. Use when the user wants the whole pipeline (e.g. mentions Praxis craft, `/praxis:craft`, `$craft`, or "take this from idea to shipped") — not for a single stage, which should go to that stage's own skill.
 ---
 
 # Craft
@@ -14,7 +14,7 @@ Parse the user request:
 - If it starts with `--autopilot`, strip that flag and run in **autopilot** mode. The remaining text is the task.
 - Otherwise, run in **manual** mode (default).
 
-**Autopilot blast radius.** Autopilot runs the full pipeline without prompting. It creates multiple commits across stages, modifies production code and tests, and only stops on the four hard-stop conditions listed below. If the user did not invoke `--autopilot`, do not auto-confirm any gate.
+**Autopilot blast radius.** Autopilot runs the full pipeline without prompting. It creates multiple commits across stages, modifies production code and tests, and stops only on the hard-stop conditions listed below — including the mandatory ship gate before Done, which even autopilot never auto-confirms. If the user did not invoke `--autopilot`, do not auto-confirm any gate.
 
 ## Pipeline
 
@@ -35,19 +35,48 @@ The sibling skills you orchestrate (invoke each by its skill identity, not by fi
 
 ## Gates
 
-A **gate** is a decision point between stages: the spec checkpoint, slice-map confirmation, slice selection, and `verifying-and-adapting`'s **Done / Next slice** routing.
+A **gate** is a decision point between stages. Manual mode converges on **three high-value human gates**; everything else runs deterministically so low-value confirmations don't fatigue the user.
 
-- **Manual mode** — at every gate, ask the user (use the structured-question tool if available; otherwise present the artifact and the choices and wait for an answer). Never auto-confirm.
-- **Autopilot mode** — auto-confirm every gate. Pick the obvious forward choice (confirm the spec, confirm the slice map, take the first/next slice, follow **Done** or **Next slice** as recommended).
+The three human gates (manual mode):
+
+1. **Spec gate** — after `clarifying-intent`. Approve the spec before design or implementation; building the wrong thing is the most expensive error.
+2. **Design gate** — after `sketching-design`. Approve the sketch (or its `skipped` rationale) before TDD. This is the canonical plan-approval checkpoint ("between Plan and Execute").
+3. **Ship gate** — before Done. Present the evidence pack and get human approval before the story/feature is considered shipped (see *Ship gate*).
+
+Deterministic transitions (no human gate):
+
+- **Slice selection** — default to the first `pending` slice in the slice map's order. Don't ask; in manual mode the user can reorder at the one-time slice-map confirmation.
+- **Slice-map confirmation** — manual mode presents the map once after `slicing-stories`; autopilot accepts it.
+- Advancing design → TDD → review → improve → verify, once each deterministic check passes (a non-blocking `Status:`/`Routing:` line is present, tests are green or show no new failures, and the required artifact was written).
+
+Mode summary:
+
+- **Manual mode** — pause at the three human gates; run the rest deterministically. Use the structured-question tool when available.
+- **Autopilot mode** — auto-confirm the spec, design, and deterministic transitions. **The ship gate is never auto-confirmed** (below).
+
+**Escalation to a mandatory human gate (both modes).** When a change touches security-sensitive surfaces (`code-reviewing` returns `Security-sensitive: yes`), a public API contract, or cross-cutting architecture (signal: `code-reviewing`'s breaking-changes layer, or a risk flagged in the sketch), the ship gate is a mandatory human stop even in autopilot. For company/production work, additionally route the diff to a dedicated human/security review *outside the agent loop*. For solo MVP work, the ship gate is the minimum, and it must still be evidence-based — a human sees the executed tests and real behavior, not the agent's claim.
+
+## Ship gate
+
+Before marking a story (or, for a multi-slice feature, the whole feature) **Done**, stop and present an **evidence pack** for human approval — never auto-confirm, even in autopilot:
+
+- `verifying-and-adapting`'s verification summary, including the executed acceptance checks and their observed output.
+- The list of commits produced this run.
+- Suite status (command + verbatim result).
+- Any `Security-sensitive: yes` flag and what it touched.
+
+Only the human's approval closes the story. This is the one gate autopilot may never skip — a full autopilot run that reaches Done still stops here. Optionally, produce a terminal merge-readiness summary or open a PR after approval.
 
 ## Hard stops (both modes)
 
 Stop and surface the blocker to the user (do not auto-advance, even in autopilot) when:
 
 1. Any worker returns a `## Feedback` section.
-2. `clarifying-intent` returns **Open questions**.
-3. `sketching-design` returns a `## Spec Issue`.
-4. `verifying-and-adapting` recommends **Rework** or **Escalate**.
+2. `clarifying-intent` returns `Status: open-questions`.
+3. `sketching-design` returns `Status: spec-issue` (or a `## Spec Issue` heading).
+4. `verifying-and-adapting` returns `Routing: Rework` or `Routing: Escalate`.
+5. **Sibling failure** — a stage skill is unavailable, errors, or returns output that doesn't match its documented shape (a missing `Status:`/`Routing:`/`meta.status`, or a malformed artifact). Never guess the missing value or fabricate the artifact — report and stop. `slicing-stories` returning `meta.status: blocked` (with `## Blocking Questions`) is the sanctioned form of this stop.
+6. **Ship gate** — the mandatory human approval before Done (see *Ship gate*), including the security / public-API / architecture escalation.
 
 On a hard stop, present the blocker verbatim and wait for the user.
 
@@ -70,27 +99,48 @@ The directive above mimics what forked skills do naturally: no text between work
 
 ## Steps
 
-1. **clarifying-intent** — Pass the user request (in autopilot, include the persistence directive from *Autopilot invocation directives* above). The skill returns one of:
-   - A **trivial change** statement → make the change directly and stop. This is the sanctioned trivial fast-path — skip the full pipeline.
-   - A **Story-Level Behavioral Spec** → confirm at the spec gate, then go to step 3.
-   - A **Feature Brief** → confirm at the spec gate, then go to step 2.
-   - **Open questions** → hard-stop (condition 2).
+**Entry points — you don't always start at step 1.** Inspect what you were handed and jump in:
 
-2. **slicing-stories** — Pass the Feature Brief. The skill returns a slice map. Confirm at the slice-map gate, pick the first slice (via the slice-selection gate), and re-invoke **clarifying-intent** with that slice's story to produce a Story-Level Behavioral Spec for it (in autopilot, include the persistence directive on the re-invocation).
+- Raw request / rough idea → step 1.
+- An existing Feature Brief (`Sizing: feature`) → step 2.
+- A Story-Level Behavioral Spec → step 3 (entry triage may send a `small` spec straight to step 4).
+- Implementation already written, needs review → step 5.
 
-3. **sketching-design** — Pass the spec. The skill returns a sketch, marks itself skipped, or returns `## Spec Issue` → hard-stop (condition 3).
+On invocation, detect an in-progress run via `.praxis/<slug>/state.json` (see *Pipeline state*) and offer to resume from the last passed gate instead of restarting.
 
-4. **driving-tdd** — Pass the spec and (if produced) the sketch. The skill commits implementation as it goes and returns the AC checklist, feedback log, and session summary. If it surfaces `## Feedback`, hard-stop (condition 1).
+**Entry triage — size the work before running the pipeline.** Read `clarifying-intent`'s `Sizing:` line (or judge it yourself for a spec handed in directly) and scale pipeline depth. Running all seven stages on a one-line change is the documented "sledgehammer" failure mode:
 
-5. **code-reviewing** — Pass the spec and the TDD session summary. The skill returns a review report.
+- `Sizing: trivial` → make the change directly (step 1's fast-path); no pipeline.
+- `Sizing: small` → straight to **driving-tdd** (step 4) with the spec inline, then **code-reviewing** (step 5); skip slicing, sketch, and improve unless review surfaces something.
+- `Sizing: story` → the full per-slice flow (steps 3–7).
+- `Sizing: feature` → slice first (step 2), then run each slice as a `story`.
 
-6. **code-improving** — Pass the review report and the spec. The skill commits fixes and returns an improvement summary. If it surfaces `## Feedback`, hard-stop (condition 1).
+1. **clarifying-intent** — Pass the user request (in autopilot, include the persistence directive from *Autopilot invocation directives*). Persist the returned artifact under `.praxis/`, then branch on its `Status:` / `Sizing:`:
+   - `Status: trivial` → make the change directly and stop. Sanctioned trivial fast-path.
+   - `Status: proceed` + `Sizing: feature` (Feature Brief) → spec gate, then step 2.
+   - `Status: proceed` + `Sizing: small | story` (Story Spec) → spec gate, then entry triage routes it (`small` → step 4; `story` → step 3).
+   - `Status: open-questions` → hard-stop (condition 2).
+   - `Status: spec-issue` → hard-stop (condition 3).
 
-7. **verifying-and-adapting** — Pass the spec, AC checklist, feedback log, session summary, optional sketch, and (multi-slice only) slice map. The skill returns a verification summary, optionally an updated spec, and a routing recommendation. Act on the recommendation:
-   - **Done** → at the routing gate, the story (or feature) is complete.
-   - **Next slice** → at the routing gate, pick the next slice from the slice map and return to step 3 with a fresh **clarifying-intent** for it (in autopilot, include the persistence directive).
-   - **Rework** → hard-stop (condition 4).
-   - **Escalate** → hard-stop (condition 4).
+2. **slicing-stories** — Pass the Feature Brief. The skill returns a slice map with `meta.status`. `blocked` → hard-stop (condition 5). `complete` → confirm the map (manual) / accept (autopilot), record each slice as `pending` in `.praxis/<slug>/state.json`, take the first `pending` slice (deterministic — no gate), and re-invoke **clarifying-intent** for its story (autopilot: persistence directive).
+
+3. **sketching-design** — Pass the spec. Persist a returned sketch under `.praxis/`. `Status: sketch` → design gate, then step 4. `Status: skipped` → step 4. `Status: spec-issue` → hard-stop (condition 3).
+
+4. **driving-tdd** — Pass the spec and (if produced) the sketch. The skill commits implementation and returns the AC checklist, feedback log, and session summary (`Status: complete | blocked`). `## Feedback` or `Status: blocked` → hard-stop (condition 1).
+
+5. **code-reviewing** — Pass the implementation (with the spec and TDD summary as optional context). Persist the review under `.praxis/`. Note its `Security-sensitive:` header for the ship-gate escalation.
+
+6. **code-improving** — Pass the review report and the spec. The skill commits fixes and returns an improvement summary (`Status:`). `## Feedback` → hard-stop (condition 1). (One pass for now; a re-review loop with a round cap is a later addition.)
+
+7. **verifying-and-adapting** — Pass the spec, AC checklist, feedback log, session summary, improvement summary, optional sketch, and (multi-slice only) the slice map, plus (final slice) the Feature Brief. The skill returns a verification summary, optionally an updated spec, and a `Routing:` line. Persist the verification under `.praxis/`; if the spec was updated, **overwrite the spec artifact** (the living-spec write-back is a required orchestrator action, since the skill holds no Write grant). Update the slice's state in `state.json`, then act on `Routing:`:
+   - `Routing: Done` → **ship gate** (mandatory human approval; never auto-confirmed — hard-stop condition 6), then the story/feature is complete.
+   - `Routing: Next slice: S-<id>` → mark this slice `done` in `state.json`, pick the next `pending` slice, and return to step 3 with a fresh **clarifying-intent** for it (autopilot: persistence directive).
+   - `Routing: Rework` → hard-stop (condition 4).
+   - `Routing: Escalate` → hard-stop (condition 4).
+
+## Pipeline state
+
+For any multi-slice or resumable run, keep `.praxis/<slug>/state.json`: the slug, the current stage, and each slice's status (`pending | in-progress | done`) with its artifact paths. Update it at every gate. On invocation, if a fresh `state.json` with in-progress work exists, offer to resume from the last passed gate rather than restarting from `clarifying-intent` — this is what lets a cancelled or compaction-truncated autopilot run pick back up.
 
 ## Artifact layout (`.praxis/`)
 
@@ -102,6 +152,7 @@ Persisted pipeline artifacts live under `.praxis/` at the repo root — delibera
   slice-map.json               # canonical slice map (slicing-stories) — source of truth
   slice-map.md                 # human-readable slice map
   spec.md                      # Story-Level Behavioral Spec (single-story feature, no slicing)
+  state.json                   # pipeline state — current stage + per-slice status (craft; resumable runs)
   slices/<slice-id>/
     spec.md                    # per-slice Story-Level Behavioral Spec
     sketch.md                  # design sketch (sketching-design)
@@ -116,3 +167,7 @@ Persisted pipeline artifacts live under `.praxis/` at the repo root — delibera
 ## Notes
 
 - Skills accept either inline content or a path/handle to read. In autopilot, prefer passing the `.praxis/` path you just wrote; inline is fine in manual mode.
+
+## References
+
+- `references/contracts.md` — the pipeline contract: per-stage consumed/emitted artifact types, the exact status/routing vocabulary this orchestrator branches on, the artifact→path mapping, and the sibling-failure and anti-bloat rules. Read it before wiring any stage hand-off.

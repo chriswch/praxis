@@ -22,6 +22,9 @@ Each template marks which phase produces each section. Sections are guidance —
 
 Use for feature-sized inputs. Phase B does NOT run on a Feature Brief — it runs per-slice after `slicing-stories`.
 
+**Sizing**: `feature` · **Status**: `proceed`
+(Machine-readable routing header — always the first lines of the artifact. A Feature Brief is by definition `feature`-sized. Status is `open-questions` or `spec-issue` instead when the skill stops early; see the Output contract.)
+
 **Problem / Why Now** (Phase A)
 - What's the problem, who has it, why address it now?
 
@@ -82,6 +85,9 @@ Write it in two tiers, in order, **never interleaved**:
 - **Tier 2 — System Space (engineering)**: appended below the fold, clearly delimited. The system detail downstream `sketching-design` and TDD consume — observable signals, what must not break, non-functional constraints.
 
 **Guardrail:** the engineering tier is *deferred/layered, not omitted*. Delete a section only when it genuinely has no content — never drop the acceptance criteria or the system-space sections just because they read as technical. The self-check "a developer can write failing tests from the acceptance criteria alone" must still hold.
+
+**Sizing**: `small` | `story` (per triage) · **Status**: `proceed`
+(Machine-readable routing header — always the first lines of the artifact. `small` routes an orchestrator straight to TDD; `story` routes through design first. Status is `open-questions` or `spec-issue` instead when the skill stops early.)
 
 ### Tier 1 — Product & Behavior
 
