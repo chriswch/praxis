@@ -1,6 +1,6 @@
 ---
 name: driving-tdd
-description: Drives the Red → Green → Refactor cycle once a Story-Level Behavioral Spec with acceptance criteria exists (optionally plus a design sketch), converting each acceptance criterion into a failing test, writing the minimum code to pass, refactoring to let design emerge, and committing each cycle directly to the repository (one commit per acceptance criterion). Handles the feedback loop back to clarifying-intent when implementation reveals spec gaps. Use to start implementation once acceptance criteria are ready. Triggers on 'let's code this', 'start TDD', 'implement this story', 'write the tests', or 'next slice' — only when acceptance criteria are ready; if none exist, route to clarifying-intent first.
+description: Implements a story through the Red → Green → Refactor cycle — use to 'start TDD', 'implement this story', 'write the tests', 'let's code this', or 'next slice', once a Story-Level Behavioral Spec with acceptance criteria exists (if none exist, route to clarifying-intent first). Converts each acceptance criterion into a failing test, writes the minimum code to pass, refactors to let design emerge, and commits each cycle directly to the repository (one commit per criterion). If no architecture was provided and the design path is non-obvious, it stops with a needs-design signal rather than improvising a design. Optionally consumes a design sketch; handles the feedback loop back to clarifying-intent when implementation reveals spec gaps.
 context: fork
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 ---
@@ -18,7 +18,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 ## Input
 
 - **Story-Level Behavioral Spec** — required — canonically from `clarifying-intent`, or **any equivalent user-supplied Given/When/Then acceptance criteria**. The gate is on the artifact's shape (a scoped story with testable ACs), not its provenance: a hand-written AC list is a first-class input, not a reason to route away.
-- **Design Sketch** — optional — canonically from `sketching-design`. Provides the change map, first test, and approach direction. If absent, derive file locations from codebase exploration.
+- **Design Sketch** — optional — canonically from `sketching-design`. Provides the change map, first test, and approach direction. If absent, step 1 branches on whether the design path is obvious: Case A self-derives placement and proceeds; Case B emits `needs-design` and stops so a sketch can be produced first (this skill never invokes `sketching-design` itself).
 
 Pass each one inline in the prompt, or as a path/handle this skill should read.
 
@@ -28,7 +28,7 @@ Return inline in the response:
 
 - **AC checklist** showing completion status of each acceptance criterion, including its Red evidence (see step 3).
 - **Feedback log** — discoveries made during implementation (gaps, contradictions, slice-map impact).
-- **Session summary** (medium+ tasks) — design decisions and notes for downstream stages. Its first line is a machine-readable status an orchestrator branches on (`craft` consumes it — see `craft/references/contracts.md`): `Status: complete` or `Status: blocked: <reason>`.
+- **Session summary** (medium+ tasks) — design decisions and notes for downstream stages. Its first line is a machine-readable status an orchestrator branches on (`craft` consumes it — see `craft/references/contracts.md`): `Status: complete`, `Status: needs-design: <reason>` (architecture must be decided before tests — routes to `sketching-design`, then re-enters here), or `Status: blocked: <reason>`.
 - If the spec needs revisiting, surface a `## Feedback` section describing the gap (a hard stop for an orchestrator regardless of the Status line).
 
 Test files and source code are committed directly to the repository as part of each Red → Green → Refactor cycle — this skill writes to the working tree and commits. The caller decides whether to also persist the AC checklist, feedback log, and session summary; standalone, offer to save the summary under `.praxis/<slug>/slices/<slice-id>/`.
@@ -43,7 +43,9 @@ Test files and source code are committed directly to the repository as part of e
      - **Large**: Should have been sliced first. Orchestrated: stop and recommend `slicing-stories`. Standalone: split it with the user into story-sized pieces and start with the first — don't drive a whole feature through one TDD session.
    - Read the behavioral spec. List every acceptance criterion.
    - If a design sketch exists, read it for the change map and first test.
-   - If no sketch, explore the codebase: test framework, file conventions, existing patterns. Just enough to place the first test.
+   - **If no sketch (or no architecture otherwise provided), branch on whether the design path is obvious:**
+     - **Case A — obvious placement** (single file, a clear existing analog, and the architecture doesn't change which tests go at which layer): explore the codebase just enough to place the first test, record the derived placement as an assumption in the AC checklist, and proceed.
+     - **Case B — non-obvious placement** (multiple files, a new module, or the architecture materially changes what tests go at which layer): do NOT improvise a design and do NOT invoke another skill. Emit `Status: needs-design: <what's undecided>` in the session summary and stop. Under an orchestrator this re-routes to `sketching-design` and re-enters here with a sketch (see `craft/references/contracts.md`). Standalone, recommend the user run `sketching-design` first — or, if they prefer, proceed with the Case-A minimal placement marked "confirm before TDD".
    - If a steering artifact (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`) is available, read it first for project conventions; `git log` and codebase exploration then fill only what it doesn't cover.
    - Check recent `git log --oneline` for commit message conventions (conventional commits, prefix style, etc.).
    - Output: **AC checklist**. See `references/templates.md`.
@@ -54,6 +56,7 @@ Test files and source code are committed directly to the repository as part of e
    - Then non-functional constraints — performance, security (if testable).
    - Reorder when one AC's implementation depends on another's code being in place. Note the rationale.
    - If the design sketch suggested a first test, start there.
+   - **Plan each AC's test layer.** Decide each AC's layer (unit / integration / contract / e2e) from the sketch's change map and the boundary the AC actually exercises in the existing codebase — a business-rule AC at a domain seam is a unit test; a cross-component or data-flow AC is integration; a public-API or contract AC is contract or e2e. When no sketch was provided, default to the lowest layer that can honestly exercise the AC's observable behavior and follow the project's existing test-type distribution (discovered in step 1). Record the chosen layer per AC in the checklist so it stays visible and reversible. (Choosing test layers is this stage's call; the sketch names only the first test's layer.)
 
 3. **Red: write one failing test.**
    - Pick the next AC. Write a test that asserts the expected behavior using the project's existing test conventions.
@@ -72,6 +75,7 @@ Test files and source code are committed directly to the repository as part of e
    - **Rule of three**: don't extract until you've seen it three times.
    - **Run tests after each change.** Every refactor must keep the suite green.
    - **Refactor changes structure, not the contract.** Keep each acceptance test's assertions intact. If a refactor seems to require a weakened acceptance test, that is a behavior change or a spec gap — stop and use the feedback loop; don't edit the test to fit.
+   - **Keep refactor local.** This step is minutes-scale local design emergence, not ecosystem research. If the implementation is materially behind modern idiom for the stack in a way beyond a local tidy, do NOT modernize it here — record it as a **Design divergence** in the feedback log for `sketching-design` / the caller to weigh (fresh-idiom analysis belongs to design, and idiom conformance to `code-reviewing` — not the TDD loop). Consistency with existing patterns is the default (see `craft/references/contracts.md` → *Conventions precedence*).
    - If the sketch's approach doesn't fit what the code is telling you, discard it. The code under tests is the source of truth.
 
 6. **Commit and loop.**
@@ -92,6 +96,7 @@ Test files and source code are committed directly to the repository as part of e
    - Missing behavior discovered → note it. After existing ACs, document it under `## Feedback` and recommend returning to `clarifying-intent`.
    - Impossible constraint → flag it under `## Feedback` and stop.
    - Design sketch was wrong → discard or update. Expected and normal. No need to stop for this.
+   - Modern-idiom divergence noticed during refactor → log it as a **Design divergence** whose route target is `sketching-design` / the caller (a design call, **not** a spec gap for `clarifying-intent`). Advisory, not a hard stop; don't modernize inside the TDD loop.
    - Slice map affected (the ordered list of story slices from `slicing-stories`, present when this story is one slice of a larger feature) → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 9).
    - Track discoveries in the **feedback log**. See `references/templates.md`.
    - The spec is a living artifact. Updating it during TDD is the agile feedback loop working correctly.
@@ -116,7 +121,7 @@ Test files and source code are committed directly to the repository as part of e
 
 - **Run the tests — every time.** Execute tests at every Red, Green, and Refactor step. Don't just write them. The test runner is the source of truth, not your expectation of what should pass.
 - **The acceptance test is a contract — never weaken it to pass.** Once a test encoding an acceptance criterion is written and confirmed failing for the right reason (Red), do not relax, narrow, or delete it to reach Green or during Refactor. If an AC's test seems impossible or self-contradictory, stop and surface it under `## Feedback` for `clarifying-intent` — never patch the test around the problem. Only the inner unit tests that emerge during a cycle are editable within that cycle. (This is a *mitigation* against a model gaming its own tests — strict prompting, recorded Red evidence, and the Green-phase test freeze. A session-wide PreToolUse hook could enforce it mechanically, but Praxis ships none by design. If live autopilot runs ever show real test-gaming, the escape hatch is to fork the Red phase per-AC into a context that sees only the spec + sketch — inside this one skill, not a separate test-authoring skill.)
-- **Red evidence gates Green.** No AC advances to Green without a recorded failing-test observation (the command run + its verbatim failure). This is the load-bearing anti-gaming step, enforced here by discipline and the recorded evidence — Praxis ships no enforcement hook, because plugin PreToolUse hooks fire session-wide, not just for this skill.
+- **Red evidence gates Green.** No AC advances to Green without a recorded failing-test observation (the command run + its verbatim failure). This is the load-bearing anti-gaming step, enforced by discipline and the recorded evidence (why no hook enforces it: see the acceptance-test guardrail above).
 - **One AC at a time.** Don't batch. Don't write multiple failing tests before making any green. Fast feedback is the whole point.
 - **Minimum to pass.** Resist adding the next feature during Green. That's the next cycle.
 - **Refactor means simplify, not abstractify.** Extract a well-named function, not a `BaseFooStrategyFactory`.

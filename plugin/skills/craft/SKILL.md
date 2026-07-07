@@ -111,7 +111,7 @@ Also read the artifact's `Posture:` value (`mvp` | `production`) once here and p
 **Entry triage — size the work before running the pipeline.** Read `clarifying-intent`'s `Sizing:` line (or judge it yourself for a spec handed in directly) and scale pipeline depth. Running all seven stages on a one-line change is the documented "sledgehammer" failure mode:
 
 - `Sizing: trivial` → make the change directly (step 1's fast-path); no pipeline.
-- `Sizing: small` → straight to **driving-tdd** (step 4) with the spec inline, then **code-reviewing** (step 5); skip slicing, sketch, and improve unless review surfaces something.
+- `Sizing: small` → straight to **driving-tdd** (step 4) with the spec inline, then **code-reviewing** (step 5); skip slicing, sketch, and improve unless review surfaces something. If driving-tdd returns `Status: needs-design` (the design path wasn't obvious after all), insert **sketching-design** for this story, then re-enter step 4 — the sketch is added on demand, not skipped blindly.
 - `Sizing: story` → the full per-slice flow (steps 3–7).
 - `Sizing: feature` → slice first (step 2), then run each slice as a `story`.
 
@@ -128,7 +128,8 @@ Also read the artifact's `Posture:` value (`mvp` | `production`) once here and p
 
    **3.5 Cross-artifact consistency check (before TDD).** Before invoking `driving-tdd`, confirm the artifacts agree: every spec acceptance criterion is addressed by the sketch's change map, and (multi-slice) the work stays within the slice's `scope_in`/`scope_out`. A mismatch — an AC with nowhere to live, or a sketch reaching outside the slice — is a spec/design inconsistency; treat it like a `## Spec Issue` (hard-stop condition 3) rather than coding against a contradiction. Skip the change-map half when the sketch was `skipped`.
 
-4. **driving-tdd** — Pass the spec and (if produced) the sketch. The skill commits implementation and returns the AC checklist, feedback log, and session summary (`Status: complete | blocked`). `## Feedback` or `Status: blocked` → hard-stop (condition 1).
+4. **driving-tdd** — Pass the spec and (if produced) the sketch. The skill commits implementation and returns the AC checklist, feedback log, and session summary (`Status: complete | needs-design | blocked`). `## Feedback` or `Status: blocked` → hard-stop (condition 1).
+   - `Status: needs-design` → **re-route** (not a hard stop): the design path was non-obvious and no sketch was in hand. Run **sketching-design** on this spec (design gate as usual), run the step 3.5 consistency check, then re-enter step 4 with the sketch. If driving-tdd returns `needs-design` *again with a sketch already provided*, treat it as a sibling failure (hard-stop condition 5) — the design didn't resolve the ambiguity.
 
 5. **code-reviewing** — Pass the implementation (with the spec and TDD summary as optional context). Persist the review under `.praxis/`. Note its `Security-sensitive:` header for the ship-gate escalation.
 

@@ -46,19 +46,21 @@ Each stage ends its output with a machine-readable line (or JSON field) from the
 | clarifying-intent | `Sizing:` (on the artifact) | `trivial` · `small` · `story` · `feature` |
 | slicing-stories | `meta.status` (in JSON) | `complete` · `blocked` |
 | sketching-design | `Status:` | `sketch` · `skipped` · `spec-issue` |
-| driving-tdd | `Status:` (first line of session summary) | `complete` · `blocked: <reason>` |
+| driving-tdd | `Status:` (first line of session summary) | `complete` · `needs-design: <reason>` · `blocked: <reason>` |
 | code-reviewing | `Status:` / `Security-sensitive:` | `complete` · `skipped` / `yes` · `no` |
 | code-improving | `Status:` | `complete` · `feedback` · `skipped` |
 | verifying-and-adapting | `Routing:` (final line) | `Done` · `Next slice: S-<id>` · `Rework: <gaps>` · `Escalate: <reason>` |
 
 Any stage may additionally surface a `## Feedback` section when implementation reveals the spec was wrong — this is a hard stop regardless of the `Status:` value.
 
+`driving-tdd`'s `needs-design: <reason>` is a **re-route, not a stop** and not a sibling failure: craft runs `sketching-design` for the story (design gate), runs the step 3.5 consistency check, then re-enters `driving-tdd` with the sketch. It is the one status that sends work backward a stage. Guard against a loop: if `driving-tdd` returns `needs-design` *again with a sketch already in hand*, that **is** a sibling failure (the design didn't resolve it).
+
 ### Sizing → routing (used by craft entry triage)
 
 | `Sizing:` | craft routes to |
 | --- | --- |
 | `trivial` | trivial fast-path — make the change directly, then a condensed review |
-| `small` | straight to driving-tdd (spec inline), then code-reviewing; skip slicing/sketch/improve unless something surfaces |
+| `small` | straight to driving-tdd (spec inline), then code-reviewing; skip slicing/sketch/improve unless something surfaces — a `needs-design` from driving-tdd inserts sketching-design first, then re-enters step 4 |
 | `story` | sketching-design → driving-tdd → review → improve → verify |
 | `feature` | slicing-stories first, then per-slice `story` flow |
 

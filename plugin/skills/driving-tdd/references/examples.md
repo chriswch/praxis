@@ -106,6 +106,8 @@ Same pattern. AC 2 adds expiry check in a catch block. AC 4 adds a path check th
 ```markdown
 ### TDD Summary: Auth middleware rejects unauthenticated requests
 
+**Status**: complete
+
 **ACs Completed**: 4 / 4
 
 **Tests Added**
