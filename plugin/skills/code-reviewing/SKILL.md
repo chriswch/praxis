@@ -100,7 +100,7 @@ This is where the real design feedback lives. Moving a conditional into a better
 - Could this be done with fewer abstractions? Is there indirection that doesn't earn its keep?
 - Would inline code be clearer than the abstraction? Three similar lines of code is better than a premature abstraction.
 - Does the code follow the language's and framework's established conventions (2025/2026 standards)? Not blog trends — widely-adopted community practices.
-- **Conventions precedence.** Project norms (the steering artifact, else the closest existing analog) win by default; flag a modern-best-practice deviation only as an explicit finding that names the convention it breaks and why; surface a genuinely outdated *existing* norm as a Risk for the user to decide, don't silently "correct" it; pure taste where both are defensible stays Low. Canonical rule: `craft/references/contracts.md` → *Conventions precedence*.
+- **Conventions precedence.** Project norms (the steering artifact, else the closest existing analog) win by default; flag a modern-best-practice deviation only as an explicit finding that names the convention it breaks and why; surface a genuinely outdated *existing* norm as a Risk for the user to decide, don't silently "correct" it; pure taste where both are defensible stays Low. Calibrate how hard to push a deviation to the project **posture** (from the steering artifact, if provided): at `production` the bar for adopting a correctness- or security-relevant idiom now is lower; at `mvp`, lean toward deferring. Canonical rule: `craft/references/contracts.md` → *Conventions precedence*.
 
 ### Layer 4: Breaking Changes & Behavioral Conflicts
 
