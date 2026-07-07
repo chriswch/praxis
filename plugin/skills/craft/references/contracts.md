@@ -80,3 +80,18 @@ Each artifact carries **only** the decisions that cannot be derived from an upst
 ## Constitution / steering
 
 If the project has a steering artifact (`.praxis/constitution.md`, `CLAUDE.md`, `AGENTS.md`, or `docs/steering/*`), craft locates it once at entry and passes its path to sketching-design, driving-tdd, and code-reviewing so they read project conventions instead of re-deriving them. Its content is mirrored into `CLAUDE.md`/`AGENTS.md` for runtime discovery and never duplicated inside skill bodies.
+
+### Project posture (single source)
+
+Design ambition scales with project maturity, so stages must agree on **one** posture value rather than each inferring its own (independent inference lets two stages judge the same story differently). The authoritative source is a `Posture:` line in the steering artifact — `mvp` (side-project / MVP: defer more, keep architecture thin) or `production` (company product: the bar for adopting a correctness- or security-relevant idiom now is lower). craft reads it once at entry and passes it, alongside the steering path, to sketching-design, driving-tdd, and code-reviewing. When the steering artifact is absent or omits `Posture:`, a stage infers it from repo signals (test maturity, CI config, release history) and **states the inferred value as an assumption** in its output; the craft ship-gate escalation (`craft/SKILL.md` → *Escalation*) already distinguishes company/production from solo MVP and reads the same value.
+
+## Conventions precedence (project norms vs modern best practice)
+
+The canonical rule for resolving "conform to the project's current norms **or** modern best practice" — referenced by sketching-design, driving-tdd, and code-reviewing so the three never re-derive it in conflicting words:
+
+1. **Project norms win by default.** The steering artifact if present, else the closest existing analog in the codebase, is the baseline. Agents trained on public code drift to generic or deprecated patterns and miss internal conventions, so consistency is the higher-priority default — not an agent's from-scratch instinct.
+2. **Modern (2026) best practice is a flagged deviation, never a silent default.** A stage may recommend departing from a project norm only as an explicit, reasoned finding that names the specific convention it breaks and why the deviation is worth it at this project's posture.
+3. **An outdated existing norm is surfaced, not silently "corrected."** When the codebase's own pattern is genuinely dated or harmful, flag it as a Risk / recommendation for the human to decide; no stage rewrites a norm unilaterally.
+4. **Pure taste disagreements** where both options are defensible stay low-severity / advisory and go under "for user consideration."
+
+Each stage carries a one-line summary of this rule inline (so it holds standalone, without reading this file); this section is the version they agree to.

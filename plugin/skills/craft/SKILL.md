@@ -106,6 +106,8 @@ On invocation, detect an in-progress run via `.praxis/<slug>/state.json` (see *P
 
 **Steering artifact.** Before step 1, locate the project's steering/constitution artifact (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`, or `docs/steering/*`). If present, pass its path to `sketching-design`, `driving-tdd`, and `code-reviewing` so they read project conventions instead of re-deriving them each run. Its content is mirrored into `CLAUDE.md`/`AGENTS.md` for runtime discovery, never copied into skill bodies (see `references/contracts.md` → *Constitution / steering*).
 
+Also read the artifact's `Posture:` value (`mvp` | `production`) once here and pass it to the same three stages, so they scale design ambition to project maturity from one shared source instead of each inferring its own. If it's absent, let each stage infer and state its assumption (see `references/contracts.md` → *Project posture*). The ship-gate escalation below reads the same value.
+
 **Entry triage — size the work before running the pipeline.** Read `clarifying-intent`'s `Sizing:` line (or judge it yourself for a spec handed in directly) and scale pipeline depth. Running all seven stages on a one-line change is the documented "sledgehammer" failure mode:
 
 - `Sizing: trivial` → make the change directly (step 1's fast-path); no pipeline.
