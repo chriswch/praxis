@@ -57,7 +57,7 @@ Also note the working tree's **pre-existing dirty paths** (`git status`) before 
 
 If the findings list is empty, declares itself skipped, or has no critical/high/medium items, return a brief summary (`Status: skipped`) noting only low-severity items remain for user consideration, and stop.
 
-Otherwise, parse the issues by severity. Count them.
+Otherwise, parse the issues by severity. Count them. Set aside any intent-fit / intent-mismatch findings (see *Guardrails*) — they are resolved by changing behavior, so they go to `## Feedback` for the user rather than into the fix plan, whatever their severity.
 
 ### 2. Plan fixes
 
@@ -94,6 +94,7 @@ A "test file" is any file that exercises or supports the test suite rather than 
 ## Guardrails
 
 - **Guardrails outrank findings.** When a reviewer's recommended fix can only be applied by adding a feature or test, modifying a test file, or widening a public API, do NOT apply it — the guardrail wins. Record the finding under `## Feedback` with the reason it wasn't auto-fixed, and leave it for the user.
+- **Intent-fit findings are not auto-fixable.** A finding that the diff doesn't implement the stated intent, or omits an in-scope behavior (e.g. `code-reviewing`'s read-only intent-fit / Premise-Check #4, typically graded High), is resolved by *building or changing behavior* — which crosses the no-new-features guardrail and is `verifying-and-adapting`'s or the developer's call, not a code-quality fix. Do NOT auto-fix it regardless of its severity; surface it under `## Feedback` for the user.
 - **Do NOT modify test files** (see **What Counts as a Test File** above). Tests define the behavioral contract. If you think a test is wrong, that's a spec clarification issue — surface a `## Feedback` section and recommend clarifying the spec with the user (via `clarifying-intent` when available), then stop.
 - **Do NOT fix low-severity issues.** Those are for the user to evaluate and decide.
 - **Do NOT add new features, tests, or functionality.** You are improving existing code quality, not extending behavior.
