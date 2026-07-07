@@ -34,6 +34,8 @@ For a single-story feature (no slicing), the per-slice files collapse to `.praxi
 | code-improving | review report (+ optional spec) | improvement summary; committed fixes | (summary optional) |
 | verifying-and-adapting | spec + implementation + test results (+ optional enrichments) | verification summary, optional updated spec, routing recommendation | `verification.md` |
 
+A design sketch **may** carry an optional `Divergence & Recommendation` section (when sketching-design's scoped modern-idiom check found no codebase analog or an analog behind current idiom). It rides inside `sketch.md` — no separate artifact — and downstream stages that already accept the sketch (`driving-tdd`, `code-reviewing`) read it as optional context; the modernize-vs-conform decision it raises is the caller's, surfaced at the design gate.
+
 ## Status / routing vocabulary
 
 Each stage ends its output with a machine-readable line (or JSON field) from the set below. `craft` branches **only** on these tokens — never on prose. If a token is absent or unrecognized, treat it as a malformed hand-off (see *Sibling failure*).

@@ -25,6 +25,11 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 - Follows the pattern in `path/to/analog` where [brief description].
 - Extends the existing `TypeName` with [what].
 
+**Divergence & Recommendation** — *include only when the scoped modern-idiom check ran a full assessment (Workflow step 3, trigger (a) no-analog or (b) behind-idiom). Omit otherwise; the common consistent-with-codebase case needs no section.*
+- Modern `<lang/framework>` practice: [1–2 sentences on the current idiom]
+- Current codebase: [1–2 sentences on the closest analog, or "no analog exists — this is new"]
+- Recommendation for this posture: [conform / adopt-now / defer-as-spike] — the modernize-vs-conform decision is handed to the caller, not taken here.
+
 **Approach**
 [2–5 sentences. The key decision. The core data structure choice, if any. Why this direction over the obvious alternative, if non-obvious.]
 
@@ -44,6 +49,7 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 
 **Handoff to implementation** (include when handing off to a TDD stage)
 - Implementation starts from the First Test above (with its named layer); the spec's acceptance criteria become the remaining test cases. Test ordering and refactoring belong to the TDD loop — the sketch does not prescribe them.
+- Load-bearing for a `driving-tdd` consumer reading this sketch as optional input: the **Change Map**, the **First Test** (with its layer), and any **Derived ACs**. The rest — Approach, Existing Patterns, Divergence & Recommendation, Risks — is advisory context.
 - Feedback loop: if implementation reveals the sketch was wrong, update or discard it.
 
 ---
@@ -55,6 +61,7 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 | Derived ACs / Assumptions | Only when the spec had no acceptance criteria (Input preflight branch 2) | Make inferred behavior explicit and confirmable before it hardens into tests |
 | Change Map | Always | Know which files to open before writing code |
 | Existing Patterns | Always | Prevent reinventing what the codebase already does |
+| Divergence & Recommendation | Only when the scoped modern-idiom check ran a full assessment — no codebase analog exists, or the closest analog is behind current idiom (Workflow step 3) | Record the modern-vs-current comparison and hand the modernize-vs-conform call to the caller; omit for the common consistent-with-codebase case |
 | Approach | When direction is non-obvious | State the key decision in 2–5 sentences |
 | First Test | Always | Bridge directly into TDD — name the test's layer so the design→TDD handoff is lossless |
 | Risks / Spikes | When uncertainty exists | Flag what might force a pivot |
