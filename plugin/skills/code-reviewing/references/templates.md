@@ -10,12 +10,15 @@ Use this template for medium+ reviews. For small reviews, use a condensed versio
 (Machine-readable header lines — always first. `Status: skipped` for a trivial change waved through. `Security-sensitive: yes` when the Security Surfaces pass flags anything, telling an orchestrator to force a human gate.)
 
 **Scope**: [N files reviewed] | [brief description of what was built]
+**Assessed**: structure, special cases, complexity, breaking changes & behavioral conflicts, practicality, security[, intent-fit]
+**Not assessed**: [AC execution — see verifying-and-adapting][; intent-conformance — no spec provided]
 
 ### Premise Check
 
 - **Real problem?** [Yes — brief justification / No — this is solving an imagined problem (Critical)]
 - **Simpler way?** [No — this is a reasonable approach / Yes — describe the simpler alternative]
 - **Breaking risk?** [None identified / Yes — describe what's at risk]
+- **Intent fit?** [Spec provided: Yes — diff implements the stated intent / Mismatch — describe (High) / No spec — not assessed, see Scope]
 
 ### Layer 1: Data Structures
 
@@ -29,9 +32,9 @@ Use this template for medium+ reviews. For small reviews, use a condensed versio
 
 [Feature essence in one sentence. Indentation depth observations. Function focus assessment. Abstraction audit.]
 
-### Layer 4: Breaking Changes
+### Layer 4: Breaking Changes & Behavioral Conflicts
 
-[API contract analysis, behavior changes, dependency impacts. Or "No breaking changes identified."]
+[API/contract breaks AND non-signature behavioral conflicts: shared-helper semantics shifting for other callers, changed defaults affecting existing paths, ordering/idempotency/concurrency assumptions, invariant conflicts. Or "No breaking changes or behavioral conflicts identified."]
 
 ### Layer 5: Practicality
 
