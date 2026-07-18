@@ -19,6 +19,7 @@ Persisted artifacts live under `.praxis/<feature-slug>/` at the repo root — pr
 | Review report | `.praxis/<slug>/slices/<slice-id>/review.md` | code-reviewing |
 | Verification summary | `.praxis/<slug>/slices/<slice-id>/verification.md` | verifying-and-adapting |
 | Pipeline state | `.praxis/<slug>/state.json` | craft (see *Pipeline state*) |
+| Stack profile (research cache) | `.praxis/stack-profile.md` — repo-level, cross-feature | sketching-design (persisted by craft — see *Stack profile*) |
 
 For a single-story feature (no slicing), the per-slice files collapse to `.praxis/<slug>/{sketch,review,verification}.md` alongside `spec.md`.
 
@@ -34,7 +35,7 @@ For a single-story feature (no slicing), the per-slice files collapse to `.praxi
 | code-improving | review report (+ optional spec) | improvement summary; committed fixes | (summary optional) |
 | verifying-and-adapting | spec + implementation + test results (+ optional enrichments) | verification summary, optional updated spec, routing recommendation | `verification.md` |
 
-A design sketch **may** carry an optional `Divergence & Recommendation` section (when sketching-design's scoped modern-idiom check found no codebase analog or an analog behind current idiom). It rides inside `sketch.md` — no separate artifact — and downstream stages that already accept the sketch (`driving-tdd`, `code-reviewing`) read it as optional context; the modernize-vs-conform decision it raises is the caller's, surfaced at the design gate.
+A design sketch always records its researched-practice baseline (a `Modern Practice` section, sourced from the stack profile or fresh research) and carries a `Divergence & Recommendation` section whenever the proposed direction departs from a project convention **or** from that researched baseline — in the latter case explaining why a higher-precedence input won (see *Implementation-decision flow*). Both ride inside `sketch.md` — no separate artifact — and downstream stages that already accept the sketch (`driving-tdd`, `code-reviewing`) read them as optional context; the adopt-vs-conform decision a divergence raises is the caller's, surfaced at the design gate.
 
 ## Status / routing vocabulary
 
@@ -89,13 +90,29 @@ If the project has a steering artifact (`.praxis/constitution.md`, `CLAUDE.md`, 
 
 Design ambition scales with project maturity, so stages must agree on **one** posture value rather than each inferring its own (independent inference lets two stages judge the same story differently). The authoritative source is a `Posture:` line in the steering artifact — `mvp` (side-project / MVP: defer more, keep architecture thin) or `production` (company product: the bar for adopting a correctness- or security-relevant idiom now is lower). It rides in the steering artifact whose path craft already passes to sketching-design, driving-tdd, and code-reviewing, so no stage infers it independently. **sketching-design** is the primary consumer — it scales design ambition to the posture (Minimum Viable Architecture). **code-reviewing** may read it to calibrate how hard to push a modern-practice deviation. **driving-tdd** receives it but keeps its refactor local regardless. When the steering artifact is absent or omits `Posture:`, the consuming stage infers it from repo signals (test maturity, CI config, release history) and **states the inferred value as an assumption** in its output; the craft ship-gate escalation (`craft/SKILL.md` → *Escalation*) already distinguishes company/production from solo MVP and reads the same value.
 
-## Conventions precedence (project norms vs modern best practice)
+## Implementation-decision flow (research · taste · project consistency)
 
-The canonical rule for resolving "conform to the project's current norms **or** modern best practice" — referenced by sketching-design, driving-tdd, and code-reviewing so the three never re-derive it in conflicting words:
+The canonical process and precedence for every architecture/style/pattern decision — referenced by sketching-design, driving-tdd, and code-reviewing so the three never re-derive it in conflicting words.
 
-1. **Project norms win by default.** The steering artifact if present, else the closest existing analog in the codebase, is the baseline. Agents trained on public code drift to generic or deprecated patterns and miss internal conventions, so consistency is the higher-priority default — not an agent's from-scratch instinct.
-2. **Modern (2026) best practice is a flagged deviation, never a silent default.** A stage may recommend departing from a project norm only as an explicit, reasoned finding that names the specific convention it breaks and why the deviation is worth it at this project's posture.
-3. **An outdated existing norm is surfaced, not silently "corrected."** When the codebase's own pattern is genuinely dated or harmful, flag it as a Risk / recommendation for the human to decide; no stage rewrites a norm unilaterally.
-4. **Pure taste disagreements** where both options are defensible stay low-severity / advisory and go under "for user consideration."
+### The three inputs, in gathering order
 
-Each stage carries a one-line summary of this rule inline (so it holds standalone, without reading this file); this section is the version they agree to.
+1. **Researched current practice — gathered first, before reading the project's implementation.** Establish what current industry practice recommends for the story's problem in this language/framework *before* studying how the project already solves similar problems, so the assessment isn't anchored by existing code. Reading the stack manifest (language, framework, versions) is fine; reading implementation patterns is not, yet. Ground it in tools: use whatever web/doc-lookup tools the runtime provides and date-stamp the findings; when none are available, state explicitly that the baseline comes from model knowledge, and date it. Cache-first: read `.praxis/stack-profile.md` and research fresh only when it's missing, stale, or silent on this story's problem (see *Stack profile*).
+2. **Taste profile.** `~/.praxis/taste.md` if it exists (the user's cross-project design philosophy — it travels with the user, not the repo), else the plugin default `craft/references/default-philosophy.md`. A standing philosophy, not a per-story judgment.
+3. **Project reality.** The steering artifact if present, else the closest existing analog in the codebase (see *Constitution / steering*). Gathered after research, so the fresh view exists before the anchor does.
+
+### Precedence when inputs conflict
+
+Written here — in the flow the stages execute — because context-file layering has no deterministic override order; only explicit skill text does.
+
+1. **Taste profile wins by default.** When the taste profile and a project convention point different ways, recommend the taste-aligned direction — and flag the departure from the project convention explicitly (rule 4). Where the taste profile is silent, fall through.
+2. **Project consistency is second.** Absent a taste-profile position, the project norm — steering artifact, else closest analog — is the baseline. Agents trained on public code drift to generic or deprecated patterns and miss internal conventions.
+3. **Researched practice is third — a recommendation input, never a silent default.** It informs and pressure-tests the choice; adopting it *against* taste or project consistency is a flagged, reasoned recommendation for the caller, not a unilateral move. Posture calibrates how hard to push: at `production` the bar for adopting a correctness- or security-relevant idiom now is lower; at `mvp`, lean toward deferring.
+4. **Every divergence is explained, proactively.** Two duties, both unconditional: (a) a recommendation that departs from a *project convention* names the convention it breaks and why the departure is worth it; (b) a final decision that differs from what the *researched practice* recommends must say so unprompted — name what current practice suggests, what was chosen instead, and which higher-precedence input (taste or project consistency) won and why. An unremarked divergence in either direction is the failure mode this rule exists to prevent.
+5. **An outdated existing norm is surfaced, not silently "corrected."** When the codebase's own pattern is genuinely dated or harmful, flag it as a Risk / recommendation for the human to decide; no stage rewrites a norm unilaterally.
+6. **Pure taste disagreements** the taste profile doesn't settle — both options defensible — stay low-severity / advisory, under "for user consideration."
+
+Each stage carries a one-line summary of this flow inline (so it holds standalone, without reading this file); this section is the version they agree to. Stage split: **sketching-design** executes the full flow; **code-reviewing** audits the outcome against it (including that divergences were explained); **driving-tdd**'s refactor stays local and routes idiom gaps back to design.
+
+### Stack profile (research cache)
+
+Researched practice is cached at `.praxis/stack-profile.md` — repo root, **cross-feature** (not under a feature slug), because it describes the stack, not one story. Entries carry the practice researched, a date, and sources. Stages read it instead of re-researching; refresh when the file is missing, the relevant entry is older than ~3 months, the stack changed (new framework or major version), or the user asks. Producer: `sketching-design` emits new/updated entries as a `Stack Profile Update` block in its output; the caller — craft, or the user standalone — writes the file (stage skills hold no Write grant).

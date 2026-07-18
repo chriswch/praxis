@@ -166,7 +166,7 @@ export const defaultWorkflow: PraxisConfig = {
       id: "sketching-design",
       systemPrompt: { file: "sketching-design.md" },
       userPromptTemplate: SKETCHING_DESIGN_USER_PROMPT,
-      allowedTools: ["Read", "Glob", "Grep", "Bash", "Skill"],
+      allowedTools: ["Read", "Glob", "Grep", "Bash", "Skill", "WebSearch", "WebFetch"],
       permissionMode: "default",
       model: "claude-opus-4-7",
       timeoutMs: 900_000,

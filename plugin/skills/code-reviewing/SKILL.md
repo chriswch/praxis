@@ -25,6 +25,8 @@ You do NOT *verify* spec compliance by executing acceptance criteria — that's 
 - The **implementation summary** (canonically from `driving-tdd`) — fast orientation on what was built and why.
 - The **design sketch** (canonically from `sketching-design`) — the intended approach.
 - The **steering artifact** (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`) — project conventions to review against; prefer it over inferring norms from the diff alone.
+- The **stack profile** (`.praxis/stack-profile.md`) — dated, sourced modern-practice research for this stack; prefer it over unaided memory for idiom judgments.
+- The **taste profile** (`~/.praxis/taste.md` if present, else the plugin default `craft/references/default-philosophy.md`) — the caller's standing design philosophy; it outranks project norms in the decision flow (see Layer 3).
 
 Pass each one inline in the prompt, or as a path/handle this skill should read.
 
@@ -99,8 +101,8 @@ This is where the real design feedback lives. Moving a conditional into a better
 - **Function focus**: each function should do one thing. Monolithic functions that mix orchestration with detail work need splitting.
 - Could this be done with fewer abstractions? Is there indirection that doesn't earn its keep?
 - Would inline code be clearer than the abstraction? Three similar lines of code is better than a premature abstraction.
-- Does the code follow the language's and framework's established conventions (2025/2026 standards)? Not blog trends — widely-adopted community practices.
-- **Conventions precedence.** Project norms (the steering artifact, else the closest existing analog) win by default; flag a modern-best-practice deviation only as an explicit finding that names the convention it breaks and why; surface a genuinely outdated *existing* norm as a Risk for the user to decide, don't silently "correct" it; pure taste where both are defensible stays Low. Calibrate how hard to push a deviation to the project **posture** (from the steering artifact, if provided): at `production` the bar for adopting a correctness- or security-relevant idiom now is lower; at `mvp`, lean toward deferring. Canonical rule: `craft/references/contracts.md` → *Conventions precedence*.
+- Does the code follow the language's and framework's established conventions (current standards)? Not blog trends — widely-adopted community practices. When a stack profile (`.praxis/stack-profile.md`) is available, judge against its dated research rather than unaided memory, and note the entry's date; without one, state that the idiom judgment comes from model knowledge.
+- **Implementation-decision flow.** The taste profile (if provided or present) outranks project norms (the steering artifact, else the closest existing analog), which outrank researched modern practice. Audit the code against that order: flag a departure from a project convention only as an explicit finding that names the convention it breaks and why; a choice that diverges from the researched practice must carry an explanation (in the sketch's Divergence & Recommendation section or the implementation's stated rationale) — an *unexplained* research-divergent choice is itself a finding. Surface a genuinely outdated *existing* norm as a Risk for the user to decide, don't silently "correct" it; pure taste the taste profile doesn't settle stays Low. Calibrate how hard to push a deviation to the project **posture** (from the steering artifact, if provided): at `production` the bar for adopting a correctness- or security-relevant idiom now is lower; at `mvp`, lean toward deferring. Canonical rule: `craft/references/contracts.md` → *Implementation-decision flow*.
 
 ### Layer 4: Breaking Changes & Behavioral Conflicts
 

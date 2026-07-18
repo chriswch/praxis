@@ -26,6 +26,9 @@ Filled-in examples showing what good design sketch output looks like. Use these 
 - Error responses follow the existing `{ error: string }` JSON shape used by `src/middleware/error-handler.ts`.
 - Tests follow the pattern in `tests/middleware/request-logger.test.ts`: use `supertest` against a minimal Express app with the middleware mounted.
 
+**Modern Practice (researched)**
+- `.praxis/stack-profile.md` (2026-06): middleware-based auth with the verifier injected behind a small interface remains current Express practice; inline `jsonwebtoken` calls in route handlers are the anti-pattern. Direction agrees — no divergence.
+
 **Approach**
 Create an auth middleware that extracts the Bearer token from the `Authorization` header and verifies it using a `TokenVerifier` interface (a single `verify(token: string)` method). Mount it in `app.ts` after the health-check route but before protected routes, so health-check stays exempt without conditional logic. Inject the verifier as a dependency so tests can provide a stub — no real token infrastructure needed for this slice.
 
@@ -50,7 +53,7 @@ Create an auth middleware that extracts the Bearer token from the `Authorization
 ## Minimal Sketch Example
 
 > Input: Story-Level Behavioral Spec for "Add created_at timestamp to user records."
-> Triage: Small (1–2 days). Locate + pattern match only.
+> Triage: Small (1–2 days). Research (cache-first) + locate + pattern match.
 
 ### Design Sketch: Add created_at timestamp to user records
 
@@ -63,6 +66,14 @@ Create an auth middleware that extracts the Bearer token from the `Authorization
 **Existing Patterns**
 - The `Order` model already has `createdAt` (see `src/models/order.ts`). Follow the same pattern: `Date` type, set in repository, exposed in API response.
 - Migrations follow the `NNNN-description.sql` naming convention in `src/migrations/`.
+
+**Modern Practice (researched)**
+- `.praxis/stack-profile.md` (2026-06): current SQL practice defaults creation timestamps at the database (`DEFAULT now()`), keeping them consistent under concurrent writers.
+
+**Divergence & Recommendation**
+- Researched practice: DB-side `DEFAULT now()` for `created_at`.
+- Current codebase: `Order` sets `createdAt` in the repository (`src/models/order.ts` pattern).
+- Chosen direction & why: project consistency wins — follow the repository-set pattern so `User` and `Order` share one convention; a mixed convention would cost more than the researched benefit here. Conform; revisit if timestamp skew across writers ever matters.
 
 **First Test**
 - File: `tests/repositories/user-repository.test.ts`

@@ -25,10 +25,13 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 - Follows the pattern in `path/to/analog` where [brief description].
 - Extends the existing `TypeName` with [what].
 
-**Divergence & Recommendation** — *include only when the scoped modern-idiom check ran a full assessment (Workflow step 3, trigger (a) no-analog or (b) behind-idiom). Omit otherwise; the common consistent-with-codebase case needs no section.*
-- Modern `<lang/framework>` practice: [1–2 sentences on the current idiom]
+**Modern Practice (researched)** — *always include*
+- [1–3 lines: what current practice recommends for this story's problem, with date + source — a `.praxis/stack-profile.md` entry or fresh research (Workflow step 2). Gathered before the codebase was read.]
+
+**Divergence & Recommendation** — *include whenever the proposed direction departs from a project convention or from the researched baseline above. Omit only when direction, conventions, and research all agree.*
+- Researched `<lang/framework>` practice: [1–2 sentences on the current idiom]
 - Current codebase: [1–2 sentences on the closest analog, or "no analog exists — this is new"]
-- Recommendation for this posture: [conform / adopt-now / defer-as-spike] — the modernize-vs-conform decision is handed to the caller, not taken here.
+- Chosen direction & why: [which input won — taste profile / project consistency — and the reasoning at this posture: conform / adopt-now / defer-as-spike. A direction that differs from the researched practice must say so here, unprompted. The final call is handed to the caller, not taken here.]
 
 **Approach**
 [2–5 sentences. The key decision. The core data structure choice, if any. Why this direction over the obvious alternative, if non-obvious.]
@@ -49,8 +52,11 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 
 **Handoff to implementation** (include when handing off to a TDD stage)
 - Implementation starts from the First Test above (with its named layer); the spec's acceptance criteria become the remaining test cases. Test ordering and refactoring belong to the TDD loop — the sketch does not prescribe them.
-- Load-bearing for a `driving-tdd` consumer reading this sketch as optional input: the **Change Map**, the **First Test** (with its layer), and any **Derived ACs**. The rest — Approach, Existing Patterns, Divergence & Recommendation, Risks — is advisory context.
+- Load-bearing for a `driving-tdd` consumer reading this sketch as optional input: the **Change Map**, the **First Test** (with its layer), and any **Derived ACs**. The rest — Approach, Existing Patterns, Modern Practice, Divergence & Recommendation, Risks — is advisory context.
 - Feedback loop: if implementation reveals the sketch was wrong, update or discard it.
+
+**Stack Profile Update** — *include only when fresh research was done (cache miss, stale entry, or stack change — Workflow step 2). The caller persists these entries into `.praxis/stack-profile.md`; this skill holds no Write grant.*
+- `[topic]` ([YYYY-MM]): [1–2 line finding] — [source]
 
 ---
 
@@ -61,7 +67,9 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 | Derived ACs / Assumptions | Only when the spec had no acceptance criteria (Input preflight branch 2) | Make inferred behavior explicit and confirmable before it hardens into tests |
 | Change Map | Always | Know which files to open before writing code |
 | Existing Patterns | Always | Prevent reinventing what the codebase already does |
-| Divergence & Recommendation | Only when the scoped modern-idiom check ran a full assessment — no codebase analog exists, or the closest analog is behind current idiom (Workflow step 3) | Record the modern-vs-current comparison and hand the modernize-vs-conform call to the caller; omit for the common consistent-with-codebase case |
+| Modern Practice (researched) | Always | Record the dated, sourced researched baseline (Workflow step 2) so downstream stages and the caller see what current practice recommends |
+| Divergence & Recommendation | Whenever the proposed direction departs from a project convention or from the researched baseline (Workflow step 5) | Explain, unprompted, which input won (taste profile / project consistency) and why; hand the final adopt-vs-conform call to the caller |
+| Stack Profile Update | Only when fresh research was done (Workflow step 2) | Give the caller the dated entries to persist into `.praxis/stack-profile.md` |
 | Approach | When direction is non-obvious | State the key decision in 2–5 sentences |
 | First Test | Always | Bridge directly into TDD — name the test's layer so the design→TDD handoff is lossless |
 | Risks / Spikes | When uncertainty exists | Flag what might force a pivot |

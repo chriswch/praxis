@@ -143,15 +143,16 @@ describe("defaultWorkflow", () => {
   });
 
   // S-2 AC-1: sketching-design stage shape — clones the read-only Skill-
-  // invoking pattern from code-reviewing but without a validator.
-  it("sketching-design uses default permission with the read-only Skill-invoking allowlist", () => {
+  // invoking pattern from code-reviewing but without a validator, plus the
+  // web-lookup tools the skill's research-first step needs.
+  it("sketching-design uses default permission with the read-only Skill-invoking allowlist plus web lookup", () => {
     const byId = Object.fromEntries(
       defaultWorkflow.workflow.map((s) => [s.id, s] as const),
     );
     const sd = byId["sketching-design"];
     expect(sd.permissionMode ?? "default").toBe("default");
     expect([...(sd.allowedTools ?? [])].sort()).toEqual(
-      ["Bash", "Glob", "Grep", "Read", "Skill"].sort(),
+      ["Bash", "Glob", "Grep", "Read", "Skill", "WebSearch", "WebFetch"].sort(),
     );
     expect(sd.timeoutMs).toBe(900_000);
     expect(sd.systemPrompt).toEqual({ file: "sketching-design.md" });
