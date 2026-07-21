@@ -176,7 +176,7 @@ A single-sentence paragraph is acceptable for emphasis. A paragraph longer than 
 ## Process
 
 1. **Draft for completeness.** Get all the content down. Do not self-edit mid-draft.
-2. **Revise for clarity.** Apply the principles above. Cut the machine habits. Tighten wordy phrases. Read each sentence and ask: does every word earn its place?
+2. **Revise for clarity.** Apply the principles above. Cut the machine habits. Tighten wordy phrases. Read each sentence and ask: does every word earn its place? If a knowledge-gap audit table accompanies the draft (from `composing-documents`), the sentences it marks — purpose statements, first-use glosses — are load-bearing for a reader who lacks the domain: tighten them, never cut them as filler.
 3. **Check structure.** Does every paragraph earn its place? Does every sentence advance the paragraph? Does every word advance the sentence?
 
 The first draft is raw material. The revision is the craft.
