@@ -1,6 +1,6 @@
 ---
 name: craft
-description: Run the entire Praxis craft workflow end-to-end as one guided flow that orchestrates every specialist stage in sequence (clarify → slice → design → TDD → review → improve → verify). Manual mode (default) checkpoints at the spec, design, and ship gates; --autopilot runs end-to-end without prompting, creating multiple commits across stages and modifying production code and tests, stopping only on its hard-stop conditions — including a mandatory human ship gate before Done that even autopilot never auto-confirms. Use when the user wants the whole pipeline (e.g. mentions Praxis craft, `/praxis:craft`, `$craft`, or "take this from idea to shipped") — not for a single stage, which should go to that stage's own skill.
+description: Runs the entire Praxis craft workflow end-to-end as one guided flow, orchestrating every specialist stage in sequence (clarify → slice → design → TDD → review → improve → verify). Manual mode (default) checkpoints at the spec, design, and ship gates; --autopilot runs end-to-end without prompting, creating multiple commits across stages and modifying production code and tests, stopping only on its hard-stop conditions — including a human ship gate before Done that autopilot never auto-confirms. Use for the whole pipeline; a single stage should go to that stage's own skill.
 ---
 
 # Craft
@@ -14,7 +14,16 @@ Parse the user request:
 - If it starts with `--autopilot`, strip that flag and run in **autopilot** mode. The remaining text is the task.
 - Otherwise, run in **manual** mode (default).
 
-**Autopilot blast radius.** Autopilot runs the full pipeline without prompting. It creates multiple commits across stages, modifies production code and tests, and stops only on the hard-stop conditions listed below — including the mandatory ship gate before Done, which even autopilot never auto-confirms. If the user did not invoke `--autopilot`, do not auto-confirm any gate.
+**Autopilot blast radius.** Autopilot runs the full pipeline without prompting. It creates multiple commits across stages, modifies production code and tests, and stops only on the hard-stop conditions listed below — including the ship gate before Done (see *Ship gate*). If the user did not invoke `--autopilot`, do not auto-confirm any gate.
+
+## Communication during the run
+
+A craft run spans many stages and can run long. Keep the reporting proportional to it.
+
+- Before invoking a stage, say in one sentence what you're about to do. While it runs, speak up only for a gate, a hard stop, or a finding that changes the plan.
+- At each gate and at the end, lead with the outcome — what happened, what was found — and put supporting detail after it.
+- Hold artifacts to the length calibration in `references/contracts.md` → *Artifact anti-bloat*: cover the substance, skip filler sections, redundant summaries, and boilerplate.
+- Correct an earlier statement when the error would change the user's code, decisions, or the routing. Smaller slips get fixed silently.
 
 ## Pipeline
 
@@ -52,20 +61,20 @@ Deterministic transitions (no human gate):
 Mode summary:
 
 - **Manual mode** — pause at the three human gates; run the rest deterministically. Use the structured-question tool when available.
-- **Autopilot mode** — auto-confirm the spec, design, and deterministic transitions. **The ship gate is never auto-confirmed** (below).
+- **Autopilot mode** — auto-confirm the spec, design, and deterministic transitions; the ship gate still stops (see *Ship gate*).
 
 **Escalation to a mandatory human gate (both modes).** When a change touches security-sensitive surfaces (`code-reviewing` returns `Security-sensitive: yes`), a public API contract, or cross-cutting architecture (signal: `code-reviewing`'s breaking-changes layer, or a risk flagged in the sketch), the ship gate is a mandatory human stop even in autopilot. For company/production work, additionally route the diff to a dedicated human/security review *outside the agent loop*. For solo MVP work, the ship gate is the minimum, and it must still be evidence-based — a human sees the executed tests and real behavior, not the agent's claim.
 
 ## Ship gate
 
-Before marking a story (or, for a multi-slice feature, the whole feature) **Done**, stop and present an **evidence pack** for human approval — never auto-confirm, even in autopilot:
+Before marking a story (or, for a multi-slice feature, the whole feature) **Done**, stop and present an **evidence pack** for human approval. This is the one gate autopilot may never skip: a full autopilot run that reaches Done still stops here. The pack carries:
 
 - `verifying-and-adapting`'s verification summary, including the executed acceptance checks and their observed output.
 - The list of commits produced this run.
 - Suite status (command + verbatim result).
 - Any `Security-sensitive: yes` flag and what it touched.
 
-Only the human's approval closes the story. This is the one gate autopilot may never skip — a full autopilot run that reaches Done still stops here. Optionally, produce a terminal merge-readiness summary or open a PR after approval.
+Only the human's approval closes the story. Optionally, produce a terminal merge-readiness summary or open a PR after approval.
 
 ## Hard stops (both modes)
 
@@ -139,7 +148,7 @@ Also read the artifact's `Posture:` value (`mvp` | `production`) once here. It r
    - **Re-review loop (bounded).** After fixes, if the improvement summary reports unresolved critical/high findings — or the fixes were substantial — re-run **code-reviewing** on the fix commits, then **code-improving** again. Loop review→improve at most **3 rounds**. If critical/high findings still remain after the cap, stop and **reject-and-decompose**: surface a hard stop recommending the story return to `clarifying-intent` / `slicing-stories`. A story that can't be made clean in three rounds is usually under-specified or too big — not a fix-harder problem.
 
 7. **verifying-and-adapting** — Pass the spec, AC checklist, feedback log, session summary, improvement summary, optional sketch, and (multi-slice only) the slice map, plus (final slice) the Feature Brief. The skill returns a verification summary, optionally an updated spec, and a `Routing:` line. Persist the verification under `.praxis/`; if the spec was updated, **overwrite the spec artifact** (the living-spec write-back is a required orchestrator action, since the skill holds no Write grant). Update the slice's state in `state.json`, then act on `Routing:`:
-   - `Routing: Done` → **ship gate** (mandatory human approval; never auto-confirmed — hard-stop condition 6), then the story/feature is complete.
+   - `Routing: Done` → **ship gate** (hard-stop condition 6), then the story/feature is complete.
    - `Routing: Next slice: S-<id>` → mark this slice `done` in `state.json`, pick the next `pending` slice, and return to step 3 with a fresh **clarifying-intent** for it (autopilot: persistence directive).
    - `Routing: Rework` → hard-stop (condition 4).
    - `Routing: Escalate` → hard-stop (condition 4).

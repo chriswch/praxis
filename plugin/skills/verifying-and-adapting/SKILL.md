@@ -1,6 +1,6 @@
 ---
 name: verifying-and-adapting
-description: Closes the loop after implementation by checking it holistically against the Story-Level Behavioral Spec — executing each acceptance criterion's observable behavior and citing the evidence, reconciling spec-vs-reality divergences, capturing emerged design knowledge, and recommending the next slice, rework, or done. Use after implementation is complete — canonically after driving-tdd and any review/improve pass — to confirm the build conforms to what was specified. Triggers on 'does this match the spec', 'check against the spec', 'close out this story against the spec', 'did we build what was specified', or 'close out this story'.
+description: Closes the loop after implementation by checking it holistically against the Story-Level Behavioral Spec — executing each acceptance criterion's observable behavior and citing the evidence, reconciling spec-vs-reality divergences, capturing emerged design knowledge, and recommending the next slice, rework, or done. Use once implementation is complete — canonically after driving-tdd and any review/improve pass — to confirm the build conforms to what was specified before closing out the story.
 context: fork
 allowed-tools: Read, Grep, Glob, Bash
 ---
@@ -31,7 +31,7 @@ This is Scrum's "inspect and adapt" applied at the story level, not the sprint l
 - **Improvement Summary** (canonically from `code-improving`) — fixes applied after review; reconciles what changed between implementation and this check.
 - **Design Sketch** (canonically from `sketching-design`) — may have been skipped or discarded during TDD.
 - **Slice Map** (canonically from `slicing-stories`) — only exists for multi-slice features.
-- **Feature Brief** (canonically from `clarifying-intent`) — only for the final slice of a multi-slice feature; step 7's feature-level completion check reads its goal and success criteria. Reconstruct from the slice map's `meta` if absent.
+- **Feature Brief** (canonically from `clarifying-intent`) — only for the final slice of a multi-slice feature; step 6's feature-level completion check reads its goal and success criteria. Reconstruct from the slice map's `meta` if absent.
 
 Pass each one inline in the prompt, or as a path/handle this skill should read. The skill runs standalone on the primary inputs alone — the enrichments make it faster and richer, not runnable. Missing enrichments are reconstructed, not a reason to stop.
 
@@ -74,6 +74,7 @@ The caller decides whether to persist the verification summary and updated spec;
      - **Match** — implementation matches spec. No action.
      - **Refined** — implementation is faithful but details evolved (e.g., error message wording, specific status codes). Update the spec to match reality.
      - **Diverged** — implementation deviated from spec (e.g., a constraint was impossible, a dependency forced a different approach). Document _why_ and update the spec.
+   - Write each spec update specifically — which AC, what changed, why. A vague update doesn't survive to the next slice.
    - Pull from driving-tdd's feedback log — discoveries already captured there flow into spec updates here.
    - The updated spec is the source of truth. Tests validate behavior; the spec documents intent. They must agree.
 
@@ -91,17 +92,9 @@ The caller decides whether to persist the verification summary and updated spec;
      - **Simplified** — a discovery means a planned slice is now easier than expected, or can be absorbed into an adjacent slice.
      - **Complicated** — a discovery means a planned slice is harder than expected, needs re-scoping, or needs splitting.
      - **Invalidated** — a discovery means a planned slice is no longer necessary.
-   - Flag affected slices with a brief note. Do NOT re-plan or re-spec them — that's `clarifying-intent`'s job when the slice is picked up. Just note the impact so the next cycle starts informed.
+   - Flag affected slices by ID with a brief note — a named slice, not a general concern. Don't re-plan or re-spec them; that's `clarifying-intent`'s job when the slice is picked up. Just note the impact so the next cycle starts informed.
 
-6. **Self-check before output.**
-   - Every AC has a verdict (Match, Refined, Diverged, or Gap).
-   - Every verdict cites the evidence it rests on — the command you ran and its observed output — not a claim that the behavior works. A Match with no evidence is not a Match yet.
-   - Every "What Must Not Break" item has a confirmation.
-   - Spec updates are specific (which AC, what changed, why) — not vague.
-   - Emerged design knowledge is actionable for future slices, not a retrospective narrative.
-   - Slice impact notes (if any) name specific slice IDs, not general concerns.
-
-7. **Recommend next action.**
+6. **Recommend next action.**
    - All ACs verified, spec reconciled, no gaps → **Done** (or **Next slice** if slices remain).
    - **Last slice of a multi-slice feature** → before recommending Done, run a feature-level completion check. Re-read the Feature Brief's goal and success criteria. Confirm the end-to-end user flow works across all slices. If a success criterion isn't met, identify what's missing — it may be a new slice (return to `slicing-stories`) or a gap in an existing slice (return to `driving-tdd` for that slice).
    - Spec diverged but implementation is correct → **Update spec** (return the revised text), then done/next.
@@ -112,7 +105,7 @@ The caller decides whether to persist the verification summary and updated spec;
 
 What each routing verdict means for **this skill's deliverables** — the orchestrator owns what happens next (the loop mechanics live in `craft`'s gate definitions, not here):
 
-- **Done** — the verified implementation, the updated spec (if changed, flagged `SPEC UPDATED`), and the passing suite are the deliverables. For the last slice of a multi-slice feature, step 7's feature-level completion check has also confirmed the Feature Brief's success criteria.
+- **Done** — the verified implementation, the updated spec (if changed, flagged `SPEC UPDATED`), and the passing suite are the deliverables. For the last slice of a multi-slice feature, step 6's feature-level completion check has also confirmed the Feature Brief's success criteria.
 - **Next slice** — the same deliverables, plus the emerged design knowledge to carry forward.
 - **Rework** — the list of specific gaps is the deliverable; nothing is done yet.
 - **Escalate** — the invalidated assumption and why it compounds is the deliverable.

@@ -72,7 +72,7 @@ Any stage may additionally surface a `## Feedback` section when implementation r
 3. sketching-design → `Status: spec-issue` (or a `## Spec Issue` heading).
 4. verifying-and-adapting → `Routing: Rework` or `Routing: Escalate`.
 5. **Sibling failure** (below).
-6. **Ship gate** — before marking a story/feature Done, present the evidence pack for human approval; never auto-confirm, even in autopilot. See `craft/SKILL.md` → *Gates*.
+6. **Ship gate** — before marking a story/feature Done, present the evidence pack for human approval. See `craft/SKILL.md` → *Ship gate*.
 
 ## Sibling failure
 
@@ -80,7 +80,9 @@ If a stage skill is unavailable, errors out, or returns output that does not mat
 
 ## Artifact anti-bloat
 
-Each artifact carries **only** the decisions that cannot be derived from an upstream artifact; it references upstream docs by path rather than copying them. A spec does not restate the brief; a sketch does not restate the spec; a review does not restate the diff. This is a deliberate guard against the well-documented failure mode where spec-driven pipelines bury the reader in redundant Markdown (Böckeler, *Exploring Gen AI: SDD tools*). If an artifact is longer than the one that feeds it, compress it.
+Each artifact carries **only** the decisions that cannot be derived from an upstream artifact; it references upstream docs by path rather than copying them. A spec does not restate the brief; a sketch does not restate the spec; a review does not restate the diff. If an artifact is longer than the one that feeds it, compress it.
+
+**Length calibration.** Match each artifact's length to what the next stage actually needs: cover the substance, and don't pad with filler sections, redundant summaries, or boilerplate. Current models default to longer written deliverables than this pipeline wants, so an artifact that *reads* thorough because it is long is this rule failing, not evidence of care.
 
 ## Constitution / steering
 

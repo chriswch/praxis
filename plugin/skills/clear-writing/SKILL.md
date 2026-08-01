@@ -1,6 +1,6 @@
 ---
 name: clear-writing
-description: "Write and revise all prose with clarity, precision, and concision. Use this skill whenever producing written content longer than a few sentences: documentation, specifications, design sketches, explanations, briefs, READMEs, PR descriptions, commit messages, technical writing, or any content a reader will consume. Also trigger when the user asks to improve, tighten, edit, rewrite, or revise existing prose — even if they don't say 'clear writing' explicitly."
+description: "Sentence-level revision for clarity, precision, and concision. Use when drafting or revising a durable written artifact — documentation, a specification, a design sketch, a README, a PR description, a commit message — or when asked to tighten, edit, rewrite, or improve existing prose. For document-level shaping (which genre, which structure, which altitude for the audience), use composing-documents first and hand the draft here for polish."
 ---
 
 # Clear Writing
@@ -14,26 +14,16 @@ These principles apply to everything you write: documentation, specifications, d
 
 ## Principles
 
+Each principle below carries a pair or two as calibration. The full substitution tables —
+every wordy/direct, passive/active, abstract/concrete pair — live in
+`references/substitutions.md`; open it when revising a draft against one principle, or
+when a construction resists tightening.
+
 ### 1. Make every word earn its place
 
 Concision is not brevity. A long sentence where every word tells is concise. A short sentence with one wasted word is not.
 
-| Wordy | Direct |
-|-------|--------|
-| the question as to whether | whether |
-| there is no doubt but that | doubtless |
-| owing to the fact that | since, because |
-| in spite of the fact that | although |
-| call your attention to the fact that | remind you |
-| the fact that he had not succeeded | his failure |
-| in a hasty manner | hastily |
-| he is a man who | he |
-| this is a subject that | this subject |
-| at this point in time | now |
-| in order to | to |
-| has the ability to | can |
-| a sufficient number of | enough |
-| for the purposes of | for, to |
+*owing to the fact that* → **since** · *at this point in time* → **now** · *has the ability to* → **can**
 
 "The fact that" should be revised out of every sentence in which it occurs.
 
@@ -41,29 +31,16 @@ Concision is not brevity. A long sentence where every word tells is concise. A s
 
 The active voice is direct and vigorous. The passive voice wraps action in bureaucratic insulation.
 
-| Passive | Active |
-|---------|--------|
-| The configuration is loaded by the server | The server loads the configuration |
-| It can be seen that the test fails | The test fails |
-| The function is called when a request arrives | The function runs on each request |
-| There were a great number of dead leaves lying on the ground | Dead leaves covered the ground |
-| The reason he left college was that his health became impaired | Failing health compelled him to leave college |
+*The configuration is loaded by the server* → **The server loads the configuration**
+*There were a great number of dead leaves lying on the ground* → **Dead leaves covered the ground**
 
-The passive voice is correct when the acted-upon is the true subject: "The server was decommissioned in March" — because you're discussing the server's history. But stacked passives ("The data is expected to be processed by the service") always need rewriting.
+The passive is correct when the acted-upon is the true subject: "The server was decommissioned in March" — you're discussing the server's history. Stacked passives ("The data is expected to be processed by the service") always need rewriting.
 
 ### 3. State things positively
 
-The reader wants to know what IS, not what ISN'T. Negative statement evades; positive statement commits.
+The reader wants to know what is, not what isn't. Negative statement evades; positive statement commits.
 
-| Negative | Positive |
-|----------|----------|
-| He was not very often on time | He usually came late |
-| did not remember | forgot |
-| did not pay attention to | ignored |
-| not important | trifling |
-| not honest | dishonest |
-| does not support | lacks |
-| is not able to | cannot |
+*did not remember* → **forgot** · *does not support* → **lacks** · *is not able to* → **cannot**
 
 Exception: antithesis gives negation force. "Not charity, but simple justice."
 
@@ -71,12 +48,8 @@ Exception: antithesis gives negation force. "Not charity, but simple justice."
 
 Abstract language forces the reader to translate. Concrete language deposits images directly into the mind.
 
-| Abstract | Concrete |
-|----------|----------|
-| A period of unfavorable weather set in | It rained every day for a week |
-| He showed satisfaction as he took possession of his well-earned reward | He grinned as he pocketed the coin |
-| The application will utilize the data store | The app reads from PostgreSQL |
-| There was an issue with the authentication functionality | Login failed: the token had expired |
+*A period of unfavorable weather set in* → **It rained every day for a week**
+*There was an issue with the authentication functionality* → **Login failed: the token had expired**
 
 Do not call something "interesting" — make it interesting. Do not call something "important" — show why it matters.
 
@@ -84,10 +57,7 @@ Do not call something "interesting" — make it interesting. Do not call somethi
 
 The end of a sentence carries the most emphasis. The beginning is secondary. The middle buries things.
 
-| Weak ending | Strong ending |
-|-------------|---------------|
-| This steel is principally used for making razors, because of its hardness | Because of its hardness, this steel is principally used for making razors |
-| The configuration is stored in `config.yaml`, which is loaded at startup | At startup, the server loads `config.yaml` |
+*The configuration is stored in `config.yaml`, which is loaded at startup* → **At startup, the server loads `config.yaml`**
 
 This applies at every scale: sentences, paragraphs, sections. End on what matters most.
 
@@ -95,19 +65,13 @@ This applies at every scale: sentences, paragraphs, sections. End on what matter
 
 In English, proximity is grammar. Subject near verb. Modifier near what it modifies.
 
-| Separated | Together |
-|-----------|----------|
-| He only found two mistakes | He found only two mistakes |
-| The function, after checking all edge cases and logging the result, returns true | After checking edge cases and logging the result, the function returns true |
+*He only found two mistakes* → **He found only two mistakes**
 
 ### 7. Express parallel ideas in parallel form
 
 When ideas are equivalent in meaning, make them equivalent in structure. Broken parallelism signals a writer unable to choose a form and hold to it.
 
-| Broken | Parallel |
-|--------|----------|
-| The system validates input, transforms it, and then there is a step where it stores the result | The system validates input, transforms it, and stores the result |
-| You can configure the app via CLI flags, or by setting environment variables, or a config file works too | Configure the app via CLI flags, environment variables, or a config file |
+*The system validates input, transforms it, and then there is a step where it stores the result* → **The system validates input, transforms it, and stores the result**
 
 ## Cut the Machine Habits
 
@@ -133,39 +97,17 @@ Cut: *very, really, truly, extremely, incredibly, highly, absolutely, literally 
 
 ### Padding and repetition
 
-State it once, well. Do not say the same thing multiple ways.
-
-Before (51 words):
-> Macbeth was very ambitious. This led him to wish to become king of Scotland. The witches told him that this wish of his would come true. The king of Scotland at this time was Duncan. Encouraged by his wife, Macbeth murdered Duncan. He was thus enabled to succeed Duncan as king.
-
-After (26 words):
-> Encouraged by his wife, Macbeth achieved his ambition and realized the prediction of the witches by murdering Duncan and becoming king of Scotland in his place.
+State it once, well. Do not say the same thing multiple ways. (Worked 51-word → 26-word example: `references/substitutions.md`.)
 
 ### Fancy words
 
 Prefer the plain word. The reader processes it faster and trusts it more.
 
-| Fancy | Plain |
-|-------|-------|
-| utilize | use |
-| leverage | use |
-| facilitate | help, enable |
-| functionality | feature, or describe what it does |
-| demonstrate | show |
-| terminate | end, stop |
-| initiate | start, begin |
-| subsequent | next, later |
+*utilize, leverage* → **use** · *facilitate* → **help, enable** · *terminate* → **end, stop** · *subsequent* → **next, later**
 
 ### Filler constructions
 
-| Filler | Direct |
-|--------|--------|
-| It is important to note that X | X |
-| It should be mentioned that X | X |
-| As previously mentioned | *(cut — if the reader needs it, they remember)* |
-| In the context of | in, for, during |
-| With respect to | about, for |
-| In terms of | *(recast the sentence)* |
+*It is important to note that X* → **X** · *In the context of* → **in, for, during** · *With respect to* → **about, for** · *As previously mentioned* → *(cut — if the reader needs it, they remember)*
 
 ## Structure
 
@@ -192,3 +134,7 @@ The first draft is raw material. The revision is the craft.
 **Explanations:** Start with the conclusion, then support it. Do not build suspense — the reader wants understanding, not surprise. Concrete examples before abstractions.
 
 **Commit messages and PR descriptions:** First line: what changed and why, imperative mood. Body: what the reviewer needs to know. Cut implementation narration — the diff shows what you did.
+
+## References
+
+- `references/substitutions.md` — the full substitution tables for all seven principles, plus fancy words, filler constructions, and the worked padding example.

@@ -1,6 +1,6 @@
 ---
 name: code-improving
-description: "Applies the fixes from a code-reviewing report — auto-fixing critical, high, and medium severity findings, leaving low-severity items for the user to decide, never modifying test files, and keeping every existing test green. Consumes a severity-graded review report (canonically from code-reviewing) and commits each fix; it does not hunt for new issues or add features. Use after code-reviewing produces a report, when the user says 'apply the review findings', 'fix the review comments', 'auto-fix these review issues', or 'address the code review'."
+description: "Applies the fixes from a severity-graded review report (canonically from code-reviewing) — auto-fixing critical, high, and medium findings, leaving low-severity items for the user to decide, never modifying test files, and keeping the suite green. Commits each fix; it does not hunt for new issues or add features. Use once a code review has produced findings that need addressing."
 context: fork
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 ---
@@ -11,7 +11,7 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 
 You take a severity-graded findings list (canonically the report from `code-reviewing`) and fix issues graded critical, high, or medium. You leave low-severity issues untouched — those are for the user to decide.
 
-You are not the reviewer. You did not write the review. You read it, understand each issue, and apply the simplest fix that addresses it. The reviewer's independence is the whole point — don't second-guess the findings. If you disagree with a finding, fix it anyway; the reviewer saw something worth flagging, so trust that. The one exception is a guardrail: if the only way to apply a finding is to cross one (add a feature or test, edit a test file, widen the API), the guardrail wins — surface `## Feedback` with the reason instead of forcing the fix (see *Guardrails*).
+You are not the reviewer. You did not write the review. You read it, understand each issue, and apply the simplest fix that addresses it. The reviewer's independence is the whole point — don't second-guess the findings. If you disagree with a finding, fix it anyway; the reviewer saw something worth flagging, so trust that. The one exception is when applying a finding would cross a guardrail, in which case the guardrail wins (see *Guardrails*).
 
 ## Input
 
@@ -46,7 +46,7 @@ The caller decides whether to persist the improvement summary; standalone, offer
 Before changing anything, run the full test suite once and record the result — this is the baseline every later gate compares against. Assuming the suite is green and staying green is the most common way this skill silently corrupts its own output: on an already-red suite, every fix looks like it "broke tests" and gets reverted, zeroing the skill out.
 
 - **Green baseline** (all pass): the normal case. Every fix must keep the suite fully green; any new failure means your fix changed behavior — revert and reconsider.
-- **Red baseline** (some already failing): do NOT try to fix pre-existing failures — they are out of scope for this run. Record which tests are already red. The gate for each fix becomes "no *new* failures relative to the baseline": a fix that turns a red test green is a bonus; a fix that reds a previously-green test is a regression to revert.
+- **Red baseline** (some already failing): leave pre-existing failures alone — they are out of scope for this run. Record which tests are already red. The gate for each fix becomes "no *new* failures relative to the baseline": a fix that turns a red test green is a bonus; a fix that reds a previously-green test is a regression to revert.
 - **No suite / unrunnable / unknown command**: don't invent one. State it plainly, record it under Test Suite Status as a top-level caveat, and proceed by reasoning about each fix in isolation (or ask the user how they want changes validated). Every fix still gets the simplest change that addresses the finding — but without a suite you cannot claim "no regressions," so say so.
 
 Record the baseline (command run + verbatim summary, or the caveat) — it feeds the Test Suite Status of the final summary.
@@ -93,15 +93,14 @@ A "test file" is any file that exercises or supports the test suite rather than 
 
 ## Guardrails
 
-- **Guardrails outrank findings.** When a reviewer's recommended fix can only be applied by adding a feature or test, modifying a test file, or widening a public API, do NOT apply it — the guardrail wins. Record the finding under `## Feedback` with the reason it wasn't auto-fixed, and leave it for the user.
-- **Intent-fit findings are not auto-fixable.** A finding that the diff doesn't implement the stated intent, or omits an in-scope behavior (e.g. `code-reviewing`'s read-only intent-fit / Premise-Check #4, typically graded High), is resolved by *building or changing behavior* — which crosses the no-new-features guardrail and is `verifying-and-adapting`'s or the developer's call, not a code-quality fix. Do NOT auto-fix it regardless of its severity; surface it under `## Feedback` for the user.
-- **Do NOT modify test files** (see **What Counts as a Test File** above). Tests define the behavioral contract. If you think a test is wrong, that's a spec clarification issue — surface a `## Feedback` section and recommend clarifying the spec with the user (via `clarifying-intent` when available), then stop.
-- **Do NOT fix low-severity issues.** Those are for the user to evaluate and decide.
-- **Do NOT add new features, tests, or functionality.** You are improving existing code quality, not extending behavior.
-- **Do NOT over-engineer the fixes.** If the review flagged over-abstraction, the fix is simplification — not a different abstraction. Remove complexity, don't transform it.
-- **Run tests after every change.** If tests break, your fix changed behavior. Revert and try differently.
-- **Commit each fix separately** (or group tightly related fixes into one commit if they're entangled). Each commit message explains what was improved and why.
-- **Existing tests are sacred.** If a test seems wrong, it might be — but that's a conversation with the user, not a unilateral change.
+- **Guardrails outrank findings.** When a reviewer's recommended fix can only be applied by adding a feature or test, modifying a test file, or widening a public API, leave it — record the finding under `## Feedback` with the reason it wasn't auto-fixed, for the user to decide.
+- **Intent-fit findings are not auto-fixable.** A finding that the diff doesn't implement the stated intent, or omits an in-scope behavior (`code-reviewing`'s read-only Premise Check #4, typically graded High), is resolved by *building or changing behavior* — a call for `verifying-and-adapting` or the developer, not a code-quality fix. Whatever its severity, surface it under `## Feedback`.
+- **Leave test files alone** (see *What Counts as a Test File*). Tests define the behavioral contract. A test that looks wrong might well be, but that's a conversation with the user rather than a unilateral change: surface `## Feedback`, recommend clarifying the spec (via `clarifying-intent` when available), and stop.
+- **Low-severity issues stay untouched.** Those are for the user to evaluate and decide.
+- **Improve quality, don't extend behavior.** No new features, tests, or functionality.
+- **Simplify rather than re-engineer.** If the review flagged over-abstraction, removing complexity is the fix; a different abstraction is not.
+- **Run tests after every change.** A newly failing test means the fix changed behavior — revert and try differently.
+- **Commit each fix separately** (or group tightly related fixes when they're entangled). Each message explains what was improved and why.
 
 ## Feedback Loop
 

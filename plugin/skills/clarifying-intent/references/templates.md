@@ -84,7 +84,7 @@ Write it in two tiers, in order, **never interleaved**:
 - **Tier 1 — Product & Behavior**: business-readable. A PM (or any non-engineer) reads this and understands the feature. It leads with who / why / what-done-looks-like and the Given/When/Then acceptance criteria in business language.
 - **Tier 2 — System Space (engineering)**: appended below the fold, clearly delimited. The system detail downstream `sketching-design` and TDD consume — observable signals, what must not break, non-functional constraints.
 
-**Guardrail:** the engineering tier is *deferred/layered, not omitted*. Delete a section only when it genuinely has no content — never drop the acceptance criteria or the system-space sections just because they read as technical. The self-check "a developer can write failing tests from the acceptance criteria alone" must still hold.
+**Guardrail:** the engineering tier is *deferred/layered, not omitted*. Delete a section only when it genuinely has no content — never drop the acceptance criteria or the system-space sections just because they read as technical. The spec property "a developer can write failing tests from the acceptance criteria alone" must still hold.
 
 **Sizing**: `small` | `story` (per triage) · **Status**: `proceed`
 (Machine-readable routing header — always the first lines of the artifact. `small` routes an orchestrator straight to TDD; `story` routes through design first. Status is `open-questions` or `spec-issue` instead when the skill stops early.)

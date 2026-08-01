@@ -1,6 +1,6 @@
 ---
 name: clarifying-intent
-description: Clarifies a request before implementation by working through two phases — product space (who needs this, why, what success looks like) then system space (where it lands in any existing code, what behavior must not break, what observable signals confirm it works). Produces a Feature Brief (feature-sized input) or Story-Level Behavioral Spec (story-sized input) ready for slicing or implementation. Use whenever a request is vague or underspecified, when scoping new work, when adding features to existing code, before any non-trivial planning or coding, or when a user says "I have a rough idea", "help me scope this", "what should we build", or "spec this out".
+description: Turns an underspecified request into a spec, working through product space (who needs this, why, what success looks like) then system space (where it lands in existing code, what must not break, what observable signals confirm it works). Produces a Feature Brief for feature-sized input or a Story-Level Behavioral Spec for story-sized input, ready for slicing or implementation. Use when scoping vague new work, or when adding a feature to existing code and the intended behavior is not yet pinned down.
 allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(find)
 ---
 
@@ -88,18 +88,14 @@ b. **Confirm current system behavior** (if a system exists). Read the modules di
 
 c. **Ask Phase B questions.** Pull from the Phase B section of `references/question-bank.md`. Focus on integration boundaries, regression risk, observable signals, and system-level acceptance.
 
-d. **Draft the Story-Level Behavioral Spec.** Use the template in `references/templates.md`. Fill in Acceptance Criteria (Given/When/Then), Observable Signals, What Must Not Break, and any system-space Decisions & Rationale. Write ACs in Given/When/Then; where a precise trigger→response sharpens testability, EARS phrasing ("When *&lt;trigger&gt;*, the system shall *&lt;response&gt;*") helps. Make every AC map to at least one concrete Observable Signal — a specific command, endpoint, log line, or UI state someone running the code could check — so `verifying-and-adapting` can later execute it, not just read it.
+d. **Draft the Story-Level Behavioral Spec.** Use the template in `references/templates.md`. Fill in Acceptance Criteria (Given/When/Then), Observable Signals, What Must Not Break, and any system-space Decisions & Rationale. A finished spec has four properties:
 
-e. **Self-check before presenting:**
-   - Can a developer write failing tests from the acceptance criteria alone?
-   - Do ACs cover the happy path and at least one error/edge case? (Add boundary cases when the domain involves limits, thresholds, or ranges.)
-   - Are observable signals concrete enough that someone running the code could verify them?
-   - Does every acceptance criterion map to at least one concrete observable signal (a specific command, endpoint, or UI state a person could check)?
-   - Are regression boundaries explicit?
+   - ACs are precise enough that a developer could write the failing tests from them alone. Write them in Given/When/Then; where a trigger→response phrasing sharpens testability, EARS ("When *&lt;trigger&gt;*, the system shall *&lt;response&gt;*") helps.
+   - ACs cover the happy path and at least one error/edge case — plus boundary cases wherever the domain involves limits, thresholds, or ranges.
+   - Every AC maps to at least one concrete Observable Signal — a specific command, endpoint, log line, or UI state someone running the code could check — so `verifying-and-adapting` can later execute it, not just read it.
+   - Regression boundaries (What Must Not Break) are explicit.
 
-   If any answer is "no", iterate before presenting.
-
-f. **Checkpoint.** Present the spec and ask for confirmation — unless the invoking prompt said to skip checkpoints (see *Checkpoints*).
+e. **Checkpoint.** Present the spec and ask for confirmation — unless the invoking prompt said to skip checkpoints (see *Checkpoints*).
 
 ### 4. Downstream handoff
 
