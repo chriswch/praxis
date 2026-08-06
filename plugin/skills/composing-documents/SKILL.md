@@ -1,6 +1,6 @@
 ---
 name: composing-documents
-description: "Document-level shaping — pick the genre framework, the structure, and the altitude for the audience, before and while drafting. Covers software architecture and spec docs, domain/background explainers, PR/MR descriptions, issue/Jira tickets, engineering blog posts, and tech-talk slides, and applies its core moves to any other genre. Use when planning, outlining, or restructuring a substantial document, or when asked what a doc should contain or how to explain something to a reader who lacks the domain. For sentence-level tightening of existing prose, hand off to clear-writing."
+description: "Document-level shaping — pick the genre framework, the structure, and the altitude for the audience, before and while drafting. Covers architecture and spec docs, domain/background explainers, PR/MR descriptions, issue/Jira tickets, engineering blog posts, and tech-talk slides. Use when planning, outlining, or restructuring a document, or when asked what it should contain or how to explain something to a reader who lacks the domain. For sentence-level tightening of existing prose, hand off to clear-writing."
 ---
 
 # Composing Documents
@@ -14,17 +14,17 @@ This skill handles document-level decisions: which genre, which framework, which
 1. Name the genre and the audience — the audience on two axes (core move 1).
 2. Apply the **core moves** below — they hold for every document.
 3. Open the matching reference file for genre-specific frameworks and structure:
-   - `reference/foundations.md` — cross-cutting frameworks every genre draws on (Diátaxis, Pyramid Principle, progressive disclosure, minimalism, two-axis audience adaptation, AI-era practices). Read this for the "why" behind a core move or a framework's trade-off.
-   - `reference/technical.md` — software architecture, testing, design patterns, conventions, feature specs (PRD/RFC), and domain/background explainers.
-   - `reference/prs-tickets.md` — PR/MR descriptions and issue/Jira tickets.
-   - `reference/blog.md` — engineering blog posts and long-form technical articles.
-   - `reference/slides.md` — tech-talk and sharing-session slides.
-   - **No dedicated file yet** (e.g. marketing copy, business/operational comms)? Apply the core moves plus `reference/foundations.md`; together they carry most of the way for any genre. Add a new `reference/<genre>.md` when one recurs often enough to deserve its own page.
+   - `references/foundations.md` — cross-cutting frameworks every genre draws on (Diátaxis, Pyramid Principle, progressive disclosure, minimalism, two-axis audience adaptation, AI-era practices). Read this for the "why" behind a core move or a framework's trade-off.
+   - `references/technical.md` — software architecture, testing, design patterns, conventions, feature specs (PRD/RFC), and domain/background explainers.
+   - `references/prs-tickets.md` — PR/MR descriptions and issue/Jira tickets.
+   - `references/blog.md` — engineering blog posts and long-form technical articles.
+   - `references/slides.md` — tech-talk and sharing-session slides.
+   - **No dedicated file yet** (e.g. marketing copy, business/operational comms)? Apply the core moves plus `references/foundations.md`; together they carry most of the way for any genre. Add a new `references/<genre>.md` when one recurs often enough to deserve its own page.
 
 ## Core moves (every document)
 
 1. **Name the genre and the audience first — the audience on two axes.** For each named reader, rate separately: (a) craft/stack expertise, and (b) domain proximity, for **each knowledge domain the document touches** (analytics, billing, ads delivery, compliance, …). Answer two questions before drafting: "What technical knowledge does this document require?" and "What domain knowledge — independent of any code, platform, or tool — does it require?" The second answer is never "n/a". A reader can be expert on one axis and novice on the other; for PR reviewers this mixed profile is the common case, not the exception. "Engineer" is a role, not a persona.
-2. **Place each section in Diátaxis.** Every section serves exactly one of four needs — *tutorial* (learn by doing), *how-to* (accomplish a task), *reference* (look up facts), *explanation* (understand why). Mixing modes in one section is the most common failure; when a section drifts from "why" into "steps," split it. (Details: `reference/foundations.md`.)
+2. **Place each section in Diátaxis.** Every section serves exactly one of four needs — *tutorial* (learn by doing), *how-to* (accomplish a task), *reference* (look up facts), *explanation* (understand why). Mixing modes in one section is the most common failure; when a section drifts from "why" into "steps," split it. (Details: `references/foundations.md`.)
 3. **Lead with the conclusion** (Pyramid Principle / BLUF). Writers trained on "background → derivation → conclusion" bury the point; readers want "conclusion → reasons if they read on." Put the main message at the top of the document and the strongest unit at the end of each section. Conclusion-first still permits — requires — one short Situation beat (SCQA): the minimum shared context that makes the conclusion land, kept to a paragraph.
 4. **Write the minimum that prevents expensive misunderstanding** (minimalism + progressive disclosure). Give essentials first; push detail behind layers — appendix, links, collapsible blocks. Every needless sentence dilutes the useful ones. The minimum *includes* weak-axis grounding (move 5) — a doc that saves three sentences of purpose and costs the reviewer an hour of confusion did not save anything.
 5. **Match the reader per axis, not per label.** The abstraction ladder applies per axis: go down to code and data on the axis where the persona is expert; supply grounding on the axis where they are a novice. "Engineers → go down to code" is wrong when the gap is domain knowledge. Don't fight the curse of knowledge with vigilance — vigilance is exactly what expertise defeats; fight it with the audit (move 6) and the fresh reader (move 7).
@@ -65,20 +65,8 @@ This skill handles document-level decisions: which genre, which framework, which
   3. **Collapsible details block** — a few paragraphs of this-doc-specific optional depth. Never content required for the reader's decision.
   4. **Linked concept doc** — sustained background reused across documents. Always leave a one-sentence bridge inline; a bare link stalls the reader.
 - **Length is conserved**: add on the weak axis, cut on the strong axis — the mechanics the code or diff already shows, the restated narration. Net growth means you're cutting too little, not explaining too much.
-- **Genuinely mixed audiences** (several reader groups at once — engineers and PMs): serve by **layering, not dumbing down** — accessible main text, technical detail in an appendix or collapsible block (progressive disclosure). Layering solves many-readers; it does not solve one-reader-with-a-gap. (Depth: `reference/foundations.md`.)
+- **Genuinely mixed audiences** (several reader groups at once — engineers and PMs): serve by **layering, not dumbing down** — accessible main text, technical detail in an appendix or collapsible block (progressive disclosure). Layering solves many-readers; it does not solve one-reader-with-a-gap. (Depth: `references/foundations.md`.)
 - De-jargon: gloss each term on first use, or replace it with the domain word.
-
-## Pitfalls
-
-- Reading "engineer" as "no background needed" — stack expertise does not confer domain knowledge; audit per axis (move 6).
-- A background section written without the audit — the cursed author fills it with background that still assumes the domain.
-- Running the audience-fit check inside the writing context — the author's context reproduces the author's blind spot; only a fresh reader (move 7) escapes it.
-- Mixing Diátaxis modes in one section.
-- Burying the conclusion under background — or its inverse, a conclusion with zero Situation beat that lands on nothing.
-- A spec without Non-goals (invites scope creep); an RFC without alternatives (looks unconsidered).
-- A pattern or convention doc that lists only the solution, never the "when not to."
-- Slides used as a teleprompter (bullet walls) instead of assertion + visual evidence.
-- For mixed audiences: flattening everything to the lowest level instead of layering it.
 
 ## Producing the actual file
 
