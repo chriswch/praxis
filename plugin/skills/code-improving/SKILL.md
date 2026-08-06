@@ -51,7 +51,7 @@ Before changing anything, run the full test suite once and record the result —
 
 Record the baseline (command run + verbatim summary, or the caveat) — it feeds the Test Suite Status of the final summary.
 
-Also note the working tree's **pre-existing dirty paths** (`git status`) before you touch anything. Standalone, this skill is often run on a tree that already has unrelated WIP — you must never stage, revert, or "clean up" a change you didn't make. The recorded starting state is what step 4 verifies against.
+Also note the working tree's **pre-existing dirty paths** (`git status`) before you touch anything. Standalone, this skill is often run on a tree that already has unrelated WIP — you must never stage, revert, or "clean up" a change you didn't make. The recorded starting state is what step 4 compares against.
 
 ### 1. Read and assess the review
 
@@ -77,11 +77,11 @@ For each issue:
 3. If a previously-passing test now fails: your fix changed behavior, not just structure. Revert and reconsider. The tests are the contract.
 4. Stage **only the files this fix touched** (`git add <paths>` — never `git add -A` or `git add .`, which would sweep in unrelated pre-existing WIP recorded in step 0) and commit with a clear message describing what was improved and why.
 
-### 4. Verify
+### 4. Close out
 
-After all fixes:
-- Run the full test suite one final time. It must be no worse than the step-0 baseline (green baseline → all green; red baseline → no new failures; no suite → restate the caveat and how fixes were validated instead).
-- `git status` — the only *new* changes beyond step 0's recorded starting state are the fixes you committed. Do not demand a fully clean tree: pre-existing WIP from step 0 is left exactly as it was. If anything you didn't intend to touch is modified, you overreached — restore it.
+After the last fix:
+- **Test Suite Status** is the result of that last fix's step-3 run — it already reflects the tree's final state, so record its command and verbatim summary rather than running the suite again. Re-run only if something changed the tree after it (a manual edit, a revert). Where step 0 found no runnable suite, restate that caveat and how the fixes were validated instead.
+- `git status` — the only *new* changes beyond step 0's recorded starting state are the fixes you committed. A fully clean tree is not the bar: pre-existing WIP from step 0 stays exactly as it was. If anything you didn't intend to touch is modified, you overreached — restore it.
 
 ### 5. Return the improvement summary
 
@@ -93,14 +93,12 @@ A "test file" is any file that exercises or supports the test suite rather than 
 
 ## Guardrails
 
+These hold across the whole run. The per-step rules — the baseline gate, running the suite after each fix, one commit per fix, leaving Low alone — live in *Workflow* and are not repeated here.
+
 - **Guardrails outrank findings.** When a reviewer's recommended fix can only be applied by adding a feature or test, modifying a test file, or widening a public API, leave it — record the finding under `## Feedback` with the reason it wasn't auto-fixed, for the user to decide.
 - **Intent-fit findings are not auto-fixable.** A finding that the diff doesn't implement the stated intent, or omits an in-scope behavior (`code-reviewing`'s read-only Premise Check #4, typically graded High), is resolved by *building or changing behavior* — a call for `verifying-and-adapting` or the developer, not a code-quality fix. Whatever its severity, surface it under `## Feedback`.
 - **Leave test files alone** (see *What Counts as a Test File*). Tests define the behavioral contract. A test that looks wrong might well be, but that's a conversation with the user rather than a unilateral change: surface `## Feedback`, recommend clarifying the spec (via `clarifying-intent` when available), and stop.
-- **Low-severity issues stay untouched.** Those are for the user to evaluate and decide.
-- **Improve quality, don't extend behavior.** No new features, tests, or functionality.
-- **Simplify rather than re-engineer.** If the review flagged over-abstraction, removing complexity is the fix; a different abstraction is not.
-- **Run tests after every change.** A newly failing test means the fix changed behavior — revert and try differently.
-- **Commit each fix separately** (or group tightly related fixes when they're entangled). Each message explains what was improved and why.
+- **Improve quality, don't extend behavior.** The fix restores the code the review flagged; new features, tests, or functionality are a different job.
 
 ## Feedback Loop
 

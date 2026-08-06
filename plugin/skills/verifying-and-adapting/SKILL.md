@@ -51,7 +51,7 @@ The caller decides whether to persist the verification summary and updated spec;
 1. **Establish the completion baseline and triage.**
    - Confirm the primary inputs: the spec, the implementation, and a way to run the tests. Only these are required.
    - Reconstruct what the optional artifacts would have carried: if no AC checklist was supplied, derive one from the spec's acceptance criteria; if no test results were supplied, run the suite yourself. Missing `driving-tdd` bookkeeping is not a reason to stop.
-   - **Completion check (always produce a summary):** run the full suite. Incomplete work is a *finding*, not a refusal — record a red suite in Suite Status, mark any AC with no passing, behavior-matching test as a **Gap** in the acceptance check, and end with `Routing: Rework` naming the specific gaps. Do not refuse to verify TDD-external code (legacy, a colleague's branch, an AI-generated PR) just because it didn't come from `driving-tdd`. The only genuine stop is input that isn't spec-shaped at all — no statement of expected behavior to verify against.
+   - **Completion check (always produce a summary):** run the full suite once here, recording the exact command and the runner's verbatim summary line — not "all green". That record is the Suite Status for the whole stage; step 2 reads it rather than running the suite again. Incomplete work is a *finding*, not a refusal — record a red suite in Suite Status, mark any AC with no passing, behavior-matching test as a **Gap** in the acceptance check, and end with `Routing: Rework` naming the specific gaps. Do not refuse to verify TDD-external code (legacy, a colleague's branch, an AI-generated PR) just because it didn't come from `driving-tdd`. The only genuine stop is input that isn't spec-shaped at all — no statement of expected behavior to verify against.
    - Scale ceremony to task size:
      - **Trivial** (one AC, one file, obvious change): Skip the full artifact. TDD passed, suite is green, you're done. Recommend done.
      - **Small** (1–2 ACs, single file): Quick sanity check — re-read the spec, confirm all ACs are covered, note if anything changed. No formal artifact.
@@ -67,7 +67,7 @@ The caller decides whether to persist the verification summary and updated spec;
      - When an AC's behavior genuinely cannot be exercised from here (no runnable entry point, external dependency unavailable), say so explicitly in the evidence cell and fall back to the strongest available check (the covering test's actual output) — do not silently upgrade "test passed" to "behavior verified."
    - This catches the gap where tests pass but don't actually test what the AC describes.
    - Check "What Must Not Break" from the spec — confirm no regressions, citing the check you ran.
-   - Run the full test suite one final time. Record the exact command and the runner's verbatim summary line — not "all green."
+   - Carry step 1's recorded Suite Status into the summary. Re-run the suite only if the tree changed after that run.
 
 3. **Reconcile spec vs. reality.**
    - Compare what was built against what the spec said. For each AC, one of:
@@ -114,14 +114,12 @@ What each routing verdict means for **this skill's deliverables** — the orches
 
 ## Guardrails
 
+These hold across the whole stage. The per-step rules — evidence per AC, spec write-back, flag-don't-replan, forward-looking feedback — live in *Workflow* and are not repeated here.
+
 - **Verify behavior, not code.** Check "does this do what the spec said?" not "is this code clean?" Code quality is driving-tdd's refactor step and code-reviewing's job.
-- **Evidence, not assertion.** Every verdict rests on something you executed and observed — a command and its output, an exercised endpoint/CLI, the runner's actual summary line. "The test passes so it works" is only acceptable when the behavior truly cannot be exercised from here, and you say so. Never restate the implementer's claim as a verification result.
-- **Update the spec, don't archive it.** The spec is a living artifact. If reality diverged, the spec should reflect reality. Version control has the history.
-- **Don't re-plan future slices.** Flag impact, don't redesign. Last Responsible Moment — the next slice gets clarified when it's picked up.
-- **Don't add tests here.** If gaps are found, recommend returning to driving-tdd. This step verifies; it doesn't implement.
-- **Proportional ceremony.** A 20-minute TDD session doesn't need a 30-minute verification. Scale with complexity.
+- **Verification never implements.** Gaps found here route back to driving-tdd; this stage adds no tests and writes no source.
+- **Proportional ceremony.** A 20-minute TDD session earns a proportional verification. Scale the artifact with complexity.
 - **No gold-plating disguised as verification.** "We should also add logging" is a new requirement, not a verification finding. Recommend running it through clarifying-intent.
-- **Feedback is forward-looking.** Capture what matters for the next slice, not a retrospective on what went wrong.
 
 ## References
 

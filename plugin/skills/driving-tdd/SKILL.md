@@ -67,19 +67,19 @@ Test files and source code are committed directly to the repository as part of e
 
 4. **Green: write the minimum code to pass.**
    - Write the simplest code that makes the failing test pass. Don't generalize yet.
-   - **Test files are frozen during Green.** Only edit source here. If passing the test seems to require changing the test, that's a signal the test was wrong or the AC is self-contradictory — go back to Red and re-observe, or surface `## Feedback`; never edit the test to fit the implementation.
+   - **Test files are frozen during Green.** Only edit source here. If passing the test seems to require changing the test, that's a signal the test was wrong or the AC is self-contradictory — go back to Red and re-observe, or surface `## Feedback` (see *Guardrails* → acceptance test is a contract).
    - **Run the test.** Confirm it passes. **Run the full suite.** Green means the entire suite is green, not just the new test.
 
 5. **Refactor: let design emerge.**
    - Now — and only now — improve the structure: extract duplication, clarify names, align with existing patterns.
    - **Rule of three**: don't extract until you've seen it three times.
    - **Run tests after each change.** Every refactor must keep the suite green.
-   - **Refactor changes structure, not the contract.** Keep each acceptance test's assertions intact. If a refactor seems to require a weakened acceptance test, that is a behavior change or a spec gap — stop and use the feedback loop; don't edit the test to fit.
+   - **Refactor changes structure, not the contract.** If a refactor seems to require a weakened acceptance test, that is a behavior change or a spec gap — stop and use the feedback loop.
    - **Keep refactor local.** This step is minutes-scale local design emergence, not ecosystem research. If the implementation is materially behind modern idiom for the stack in a way beyond a local tidy, do NOT modernize it here — record it as a **Design divergence** in the feedback log for `sketching-design` / the caller to weigh (fresh-idiom analysis belongs to design, and idiom conformance to `code-reviewing` — not the TDD loop). During refactor, consistency with existing patterns is the default; the full decision flow — taste profile > project consistency > researched practice, with every divergence explained — runs in design and review, not here (see `craft/references/contracts.md` → *Implementation-decision flow*).
    - If the sketch's approach doesn't fit what the code is telling you, discard it. The code under tests is the source of truth.
 
 6. **Commit and loop.**
-   - Stage the files changed in this cycle (test and source files) and commit. Each commit should leave the full suite green.
+   - Stage the files changed in this cycle (test and source files) and commit. Each commit should leave the full suite green — commit at Green, never at Red, since a failing test in history breaks bisect and CI.
    - Commit message: describe the behavior, imperative mood, following the project's commit conventions. `Reject requests without auth token` — not `Add test for AC-3`.
    - If the refactor was substantial (extracted a module, renamed across files), split into two commits: first the test + minimum implementation, then the refactor. Reviewers can verify the refactor changed structure, not behavior.
    - Mark the AC done in the checklist, recording the test that covers it. Return to step 3. Repeat until every AC is marked done — a complete checklist is the exit condition, and step 4 already left the full suite green.
@@ -113,20 +113,14 @@ Test files and source code are committed directly to the repository as part of e
 
 ## Guardrails
 
-- **Run the tests — every time.** Execute tests at every Red, Green, and Refactor step. Don't just write them. The test runner is the source of truth, not your expectation of what should pass.
-- **The acceptance test is a contract — never weaken it to pass.** Once a test encoding an acceptance criterion is written and confirmed failing for the right reason (Red), do not relax, narrow, or delete it to reach Green or during Refactor. If an AC's test seems impossible or self-contradictory, stop and surface it under `## Feedback` for `clarifying-intent` rather than patching the test around the problem. Only the inner unit tests that emerge during a cycle are editable within that cycle.
-- **Red evidence gates Green.** No AC advances to Green without a recorded failing-test observation: the command run plus its verbatim failure.
-- **One AC at a time.** Don't batch. Don't write multiple failing tests before making any green. Fast feedback is the whole point.
-- **Minimum to pass.** Resist adding the next feature during Green. That's the next cycle.
+These hold across the whole loop. The per-step rules — run the tests, Red evidence gates Green, minimum code to pass, all-green before the next AC, one commit per AC — live in *Workflow* and are not repeated here.
+
+- **The acceptance test is a contract — never weaken it to pass.** Once a test encoding an acceptance criterion is confirmed failing for the right reason (Red), it stays intact through Green and Refactor. If an AC's test seems impossible or self-contradictory, surface it under `## Feedback` for `clarifying-intent` rather than patching the test around the problem. Only the inner unit tests that emerge during a cycle are editable within that cycle.
+- **One AC at a time.** Finish a cycle before opening the next. Several failing tests written up front trade away the fast feedback the loop exists for.
 - **Refactor means simplify, not abstractify.** Extract a well-named function, not a `BaseFooStrategyFactory`.
-- **Test behavior, not implementation.** Don't assert on internal state, private methods, or call counts. If swapping the implementation breaks tests but not behavior, the tests are wrong.
-- **Match existing test patterns.** Use the project's framework, assertion style, file layout, and naming.
-- **Mock at boundaries only.** Mock external services, databases, network. Not the code under test or its direct collaborators.
-- **Green means ALL green.** Never move to the next AC with a failing test in the suite.
-- **Names are documentation.** `rejects expired tokens` beats `test_token_validation_3`.
+- **Test behavior, not implementation.** Assert on observable behavior rather than internal state, private methods, or call counts. If swapping the implementation breaks tests but not behavior, the tests are wrong.
+- **Mock at boundaries only.** Mock external services, databases, and network — the code under test and its direct collaborators stay real.
 - **No gold-plating.** When all ACs are green and the suite passes, stop. Missing coverage goes through `clarifying-intent`, not into speculative tests.
-- **Commit per AC.** Each Red → Green → Refactor cycle ends with a commit. The reviewer sees a progression where each commit adds one behavior with its test. Don't batch multiple ACs into one commit. Don't commit at Red — a failing test in history breaks bisect and CI.
-- **Feedback is a feature.** Discovering the spec was wrong is the system working. Surface gaps under `## Feedback` and recommend returning to `clarifying-intent`; don't silently patch around them.
 
 ## References
 

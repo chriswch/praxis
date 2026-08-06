@@ -168,14 +168,12 @@ Scale the *depth* of the review to the size of the change — never its coverage
 
 ## Guardrails
 
-- **Report-only.** You modify no files; the output is the report.
 - **Tests are out of scope** — their quality, their coverage, and recommending new ones alike. So are new features.
 - **Read, don't execute.** The intent-fit note (Premise Check #4) reads the diff against the spec. Running the ACs to prove the feature works is `verifying-and-adapting`'s job.
 - **Report performance problems you see**, graded by the impact they actually carry: an O(n³) loop on a hot path is Critical, a redundant copy on a cold path is Low.
-- **Prefer actionable findings.** "This is bad" is useless. "Eliminate this special case by changing the data structure to Z" is a review.
 - **Grade on consequence.** Severity reflects what the issue will cost, not how thorough or how kind the report should look.
 - **Acknowledge good work.** If the code is clean and well-structured, say so. An empty review is a valid outcome when you genuinely found nothing — it is not something to aim for.
-- **Don't recommend over-engineering.** If the current solution works and is understandable, adding abstractions, interfaces, or patterns "for future flexibility" is not an improvement. The simplest working solution is the best one until proven otherwise.
+- **Recommend the simplest thing that works.** A working, understandable solution needs no added abstraction, interface, or pattern "for future flexibility" — recommending one is the same over-engineering the Premise Check flags.
 
 ## Output Reference
 
