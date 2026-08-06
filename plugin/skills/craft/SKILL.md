@@ -1,6 +1,6 @@
 ---
 name: craft
-description: Runs the whole Praxis pipeline end-to-end as one guided flow: clarify → slice → design → TDD → review → improve → verify. Manual mode checkpoints between stages; --autopilot runs through, commits across stages, and stops only at the human ship gate. Use for the full pipeline; a single stage goes to that stage's own skill.
+description: "Runs the whole Praxis pipeline end-to-end as one guided flow: clarify → slice → design → TDD → review → improve → verify. Manual mode checkpoints between stages; --autopilot runs through, commits across stages, and stops only at the human ship gate. Use for the full pipeline; a single stage goes to that stage's own skill."
 ---
 
 # Craft
