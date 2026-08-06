@@ -1,6 +1,6 @@
 ---
 name: sketching-design
-description: Maps a Story-Level Behavioral Spec to a lightweight design sketch — researching current (dated) best practice for the stack first, before reading the project's implementation, then locating the affected files, matching existing patterns, and blending researched practice, the caller's taste profile, and project consistency into one implementation direction, just enough to write the first failing test. Use before TDD when the implementation path is non-obvious, or to answer where to start, which files change, whether an approach is idiomatic for the stack, or what architecture fits this project's scale. Divergences from project conventions or from researched practice are flagged and explained for the caller, never applied silently.
+description: Maps a Story-Level Behavioral Spec to a lightweight design sketch: which files change, which existing pattern to follow, one proposed direction, and the first failing test to write. Use before TDD when the implementation path is non-obvious — where to start, what to change, whether an approach is idiomatic for the stack, or what architecture fits this project's scale.
 context: fork
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 ---

@@ -1,6 +1,6 @@
 ---
 name: driving-tdd
-description: Implements a story through the Red → Green → Refactor cycle, once a Story-Level Behavioral Spec with acceptance criteria exists (without one, route to clarifying-intent first). Converts each acceptance criterion into a failing test, writes the minimum code to pass, refactors to let design emerge, and commits each cycle directly to the repository (one commit per criterion). If no architecture was provided and the design path is non-obvious, it stops with a needs-design signal rather than improvising a design. Optionally consumes a design sketch; routes spec gaps discovered during implementation back to clarifying-intent.
+description: Implements a story through Red → Green → Refactor once a Story-Level Behavioral Spec with acceptance criteria exists, committing tested code one cycle per criterion. Use to start or continue implementation from a spec; without acceptance criteria, use clarifying-intent first.
 context: fork
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, LSP
 ---

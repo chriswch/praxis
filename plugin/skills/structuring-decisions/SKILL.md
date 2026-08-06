@@ -1,6 +1,6 @@
 ---
 name: structuring-decisions
-description: Drives a consequential decision or operational-analysis question through a structured decision-science process — frame the right problem, diagnose, widen options, gather the evidence that actually changes the answer, debias, decide with explicit confidence, and record it with review tripwires — pulling specific methods from a 200+ method catalog (Minerva thinking methods, mental models, problem framing, debiasing, experimentation, ops analytics, strategy) only as each step needs them. Use for decisions that are hard to reverse or high-stakes, for weighing options, for prioritization or root-cause analysis, or for turning a product-ops or metrics analysis into a recommendation. Skip it for trivial, easily reversible choices.
+description: Drives a consequential decision or an operational-analysis question through a structured decision-science process — frame, diagnose, widen options, gather decisive evidence, debias, decide with stated confidence, record with review tripwires. Use for hard-to-reverse or high-stakes choices, prioritization, and root-cause analysis; skip it for trivial, reversible calls. For scoping what to build, use clarifying-intent instead.
 ---
 
 # Structure a Decision
