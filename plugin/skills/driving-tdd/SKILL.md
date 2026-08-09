@@ -18,6 +18,7 @@ This is where the real design happens. The design sketch gave a direction; TDD's
 ## Input
 
 - **Story-Level Behavioral Spec** — required — canonically from `clarifying-intent`, or **any equivalent user-supplied Given/When/Then acceptance criteria**. The gate is on the artifact's shape (a scoped story with testable ACs), not its provenance: a hand-written AC list is a first-class input, not a reason to route away.
+- **Test posture** — optional — `critical-path` (Praxis's default; assume it when the caller says nothing) or `standard`. It sets how much a test has to be worth before it gets written (step 2).
 - **Design Sketch** — optional — canonically from `sketching-design`. Provides the change map, first test, and approach direction. If absent, step 1 branches on whether the design path is obvious: Case A self-derives placement and proceeds; Case B emits `needs-design` and stops so a sketch can be produced first (this skill never invokes `sketching-design` itself).
 
 Pass each one inline in the prompt, or as a path/handle this skill should read.
@@ -57,10 +58,11 @@ Test files and source code are committed directly to the repository as part of e
    - Reorder when one AC's implementation depends on another's code being in place. Note the rationale.
    - If the design sketch suggested a first test, start there.
    - **Plan each AC's test layer.** Decide each AC's layer (unit / integration / contract / e2e) from the sketch's change map and the boundary the AC actually exercises in the existing codebase — a business-rule AC at a domain seam is a unit test; a cross-component or data-flow AC is integration; a public-API or contract AC is contract or e2e. When no sketch was provided, default to the lowest layer that can honestly exercise the AC's observable behavior and follow the project's existing test-type distribution (discovered in step 1). Record the chosen layer per AC in the checklist so it stays visible and reversible. (Choosing test layers is this stage's call; the sketch names only the first test's layer.)
+   - **One behavior, one test, one layer.** A behavior guaranteed at two layers is not twice the confidence, it is twice the maintenance and twice the noise on the next refactor. Where two ACs would land on the same guarantee, keep the one at the lowest layer that exercises it honestly. Under the default `critical-path` posture this also governs the cases the cycle turns up on its own: write the test when the failure would cost money, data integrity, security, or silent corruption — otherwise log it as a **deferred test candidate** (step 7) instead of writing it. See `craft/references/contracts.md` → *Test posture*.
 
 3. **Red: write one failing test.**
    - Pick the next AC. Write a test that asserts the expected behavior using the project's existing test conventions.
-   - Name the test after the behavior: `rejects request without auth token`, not `test_middleware_check`.
+   - Name the test after the behavior: `rejects request without auth token` — not `test_middleware_check`, and not after a process identifier (`test_ac3_...`, `test_s001_...`). See *Guardrails* → code annotation.
    - **Run the test.** Confirm it fails for the right reason — the behavior doesn't exist yet, not a setup error (import error, missing file).
    - **Record the Red evidence.** Capture the exact test command you ran and the verbatim failure line(s) into the AC checklist's **Red Evidence** column. This recorded observation is the gate: an AC with no Red evidence may not proceed to Green.
    - If the test passes unexpectedly, don't auto-mark the AC done. A test that is green on first write is a signal it may be too weak (asserting something trivially true), or the behavior may genuinely already exist. Inspect and strengthen it until it actually exercises the AC and is capable of failing. If it then still passes because the behavior really exists, mark the AC done with a note; if it was too weak, you just caught a test-gaming risk — keep the stronger version.
@@ -91,6 +93,7 @@ Test files and source code are committed directly to the repository as part of e
    - Impossible constraint → flag it under `## Feedback` and stop.
    - Design sketch was wrong → discard or update. Expected and normal. No need to stop for this.
    - Modern-idiom divergence noticed during refactor → log it as a **Design divergence** whose route target is `sketching-design` / the caller (a design call, **not** a spec gap for `clarifying-intent`). Advisory, not a hard stop; don't modernize inside the TDD loop.
+   - Case worth testing that the posture doesn't earn a test for (step 2) → log it as a **Deferred test candidate**: the behavior, where its test would live, and why it was deferred. Advisory, not a hard stop, and not a spec gap — the caller collects these into `.praxis/<slug>/deferred.md` and the user picks at the ship gate. Log it; don't write the test.
    - Slice map affected (the ordered list of story slices from `slicing-stories`, present when this story is one slice of a larger feature) → if implementation reveals that upcoming slices need to be split, merged, reordered, or a new slice is needed, note it for the between-slice checkpoint (step 8).
    - Track discoveries in the **feedback log**. See `references/templates.md`.
    - The spec is a living artifact. Updating it during TDD is the agile feedback loop working correctly.
@@ -120,7 +123,8 @@ These hold across the whole loop. The per-step rules — run the tests, Red evid
 - **Refactor means simplify, not abstractify.** Extract a well-named function, not a `BaseFooStrategyFactory`.
 - **Test behavior, not implementation.** Assert on observable behavior rather than internal state, private methods, or call counts. If swapping the implementation breaks tests but not behavior, the tests are wrong.
 - **Mock at boundaries only.** Mock external services, databases, and network — the code under test and its direct collaborators stay real.
-- **No gold-plating.** When all ACs are green and the suite passes, stop. Missing coverage goes through `clarifying-intent`, not into speculative tests.
+- **The code you write carries no process identifiers.** AC numbers, slice ids, ticket keys, and spec references belong in the AC checklist, the commit message, and `.praxis/` — not in source, tests, test names, docstrings, or comments, where a reader cannot resolve them. Comment only what the code cannot say: a non-obvious constraint, a rejected alternative a reader would retry, an external quirk. A convention belongs to the steering artifact and a change-wide decision to the PR description — put them there and record them in the session summary, not in a comment. Canonical rule: `craft/references/contracts.md` → *Code annotation & traceability*.
+- **No gold-plating.** When all ACs are green and the suite passes, stop. Missing coverage goes through `clarifying-intent`, not into speculative tests; a case you judged real but the posture didn't earn goes to the feedback log as a deferred test candidate.
 
 ## References
 

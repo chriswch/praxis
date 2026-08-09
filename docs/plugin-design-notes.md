@@ -28,6 +28,55 @@ restating the one that feeds it. This guards against the documented failure mode
 spec-driven-development pipelines bury the reader in redundant Markdown — see
 Böckeler, *Exploring Gen AI: SDD tools*.
 
+## Why critical-path is the default and nothing else prunes tests (2026-08-10)
+
+Live runs produced test suites the user judged bloated — one slice's spec carried eight
+ACs (one of them "suite green, lint clean, app boots"), and one commit added 201 test
+lines against 31 source lines. The cause was structural, not a model failure:
+
+- `clarifying-intent` **mandated** coverage ("at minimum one happy path and one
+  error/edge case, plus boundary cases…"), so AC count grew by rule rather than judgment.
+- `driving-tdd` writes ≥1 test per AC.
+- `code-reviewing` held tests out of scope; `code-improving` may not touch test files;
+  `verifying-and-adapting` writes none and only detects *missing* coverage.
+
+So test count was monotonically non-decreasing across the whole pipeline — no stage was
+permitted to say a test wasn't worth its maintenance cost. Two fixes landed together:
+the mandate became a consequence-based judgment rule (contracts → *Test posture*), and
+`critical-path` became the **plugin default** rather than a per-repo opt-in. The default
+is safe only because deferral is reversible at a known moment: every case the posture
+skips is recorded (spec *Not Covered*, TDD feedback log) and the ship gate makes the user
+choose. Without that register the lean default would be silent under-testing.
+
+`verifying-and-adapting` had to learn to read *Not Covered* in the same change —
+otherwise it re-reports a deliberate omission as a Gap and routes to Rework, and the two
+halves of the design fight each other.
+
+Deferred test candidates and out-of-scope findings share one file (`deferred.md`) rather
+than two: their producers differ but their audience and moment are identical — the human
+triaging at the ship gate.
+
+Not done here, deliberately: letting review/improve *delete* an over-built test. That is
+the destructive half and wants live evidence first. The rename carve-out shipped because
+a rename preserves the assertion entirely.
+
+## Why the codebase carries no process identifiers (2026-08-10)
+
+The pipeline mints `S-001`, numbers ACs, and reasons in that vocabulary for a whole run,
+so the model carried the identifiers into source and test names — where no reader can
+resolve them. The plugin had no comment rule at all; the nearest thing governed commit
+messages only. Meanwhile `default-philosophy.md` P10 ("Decisions leave a trace") named no
+home for the trace, and a comment is the cheapest place to discharge it.
+
+The fix is a routing table, not a prohibition (contracts → *Code annotation &
+traceability*): convention → steering artifact, change-wide decision → PR description,
+local why → comment, process bookkeeping → `.praxis/`. Stated positively, per the Opus 5
+guide's note that positive examples outperform instructions about what not to do.
+
+Enforcement rides on `code-reviewing`'s existing anti-pattern list rather than a sixth
+layer, and it required narrowing that skill's "tests are out of scope" guardrail: a
+process identifier in a *test name* is annotation hygiene, not test quality.
+
 ## Rightsizing pass for Claude 5 models (2026-08-01)
 
 The skills were audited against three Anthropic sources — the Opus 5 prompting guide,

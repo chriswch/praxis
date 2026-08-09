@@ -61,6 +61,12 @@ clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
   → code-reviewing → code-improving → verifying-and-adapting
 ```
 
+### Defaults worth knowing
+
+- **Critical-path tests.** Praxis covers the happy path plus failures that carry real consequence — money, data integrity, security, silent corruption, or something this codebase has actually gotten wrong. Cases the bar leaves out are recorded rather than dropped, and the ship gate asks which you want covered before the story closes. Opt into broader coverage with a `Test scope: standard` line in your steering artifact (`CLAUDE.md`/`AGENTS.md`).
+- **No process identifiers in code.** AC numbers, slice ids, and ticket keys stay in `.praxis/`, commit messages, and the PR description — never in source, tests, test names, or comments, where a reader cannot resolve them. Comments carry only what the code cannot say; conventions live in the steering artifact and change-wide decisions in the PR description.
+- **Scope discipline.** A review finding that reaches outside the story's files, or needs infrastructure the repo lacks, is recorded in `.praxis/<slug>/deferred.md` instead of being applied — yours to route to a ticket or a follow-up PR at the ship gate.
+
 ## Skills
 
 | Skill | Purpose |

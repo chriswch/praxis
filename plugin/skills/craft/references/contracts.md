@@ -19,6 +19,7 @@ Persisted artifacts live under `.praxis/<feature-slug>/` at the repo root — pr
 | Review report | `.praxis/<slug>/slices/<slice-id>/review.md` | code-reviewing |
 | Verification summary | `.praxis/<slug>/slices/<slice-id>/verification.md` | verifying-and-adapting |
 | Pipeline state | `.praxis/<slug>/state.json` | craft (see *Pipeline state*) |
+| Deferred register | `.praxis/<slug>/deferred.md` — feature-level, not per-slice | any stage (appended by craft — see *Deferred register*) |
 | Stack profile (research cache) | `.praxis/stack-profile.md` — repo-level, cross-feature | sketching-design (persisted by craft — see *Stack profile*) |
 
 For a single-story feature (no slicing), the per-slice files collapse to `.praxis/<slug>/{sketch,review,verification}.md` alongside `spec.md`.
@@ -27,12 +28,12 @@ For a single-story feature (no slicing), the per-slice files collapse to `.praxi
 
 | Stage | Consumes | Emits | Persisted to |
 | --- | --- | --- | --- |
-| clarifying-intent | user request (+ optional prior brief/spec/handoff) | Feature Brief **or** Story-Level Behavioral Spec **or** trivial statement **or** open questions | `brief.md` / `spec.md` |
+| clarifying-intent | user request (+ optional prior brief/spec/handoff, test posture) | Feature Brief **or** Story-Level Behavioral Spec (with its Not Covered entries) **or** trivial statement **or** open questions | `brief.md` / `spec.md`; Not Covered → `deferred.md` |
 | slicing-stories | Feature Brief (or feature-shaped input) | slice map (JSON + Markdown) | `slice-map.json` / `.md` |
 | sketching-design | Story-Level Behavioral Spec | design sketch (or skipped / spec-issue) | `sketch.md` |
-| driving-tdd | Story-Level Behavioral Spec (+ optional sketch) | AC checklist, feedback log, session summary; committed code+tests | `slices/<id>/` (summary optional) |
+| driving-tdd | Story-Level Behavioral Spec (+ optional sketch, test posture) | AC checklist, feedback log (incl. deferred test candidates), session summary; committed code+tests | `slices/<id>/` (summary optional); candidates → `deferred.md` |
 | code-reviewing | implementation diff (+ optional spec/summary/sketch) | severity-graded review report | `review.md` |
-| code-improving | review report (+ optional spec) | improvement summary; committed fixes | (summary optional) |
+| code-improving | review report (+ optional spec) | improvement summary (incl. out-of-scope findings); committed fixes | (summary optional); out-of-scope → `deferred.md` |
 | verifying-and-adapting | spec + implementation + test results (+ optional enrichments) | verification summary, optional updated spec, routing recommendation | `verification.md` |
 
 A design sketch always records its researched-practice baseline (a `Modern Practice` section, sourced from the stack profile or fresh research) and carries a `Divergence & Recommendation` section whenever the proposed direction departs from a project convention **or** from that researched baseline — in the latter case explaining why a higher-precedence input won (see *Implementation-decision flow*). Both ride inside `sketch.md` — no separate artifact — and downstream stages that already accept the sketch (`driving-tdd`, `code-reviewing`) read them as optional context; the adopt-vs-conform decision a divergence raises is the caller's, surfaced at the design gate.
@@ -91,6 +92,48 @@ If the project has a steering artifact (`.praxis/constitution.md`, `CLAUDE.md`, 
 ### Project posture (single source)
 
 Design ambition scales with project maturity, so stages must agree on **one** posture value rather than each inferring its own (independent inference lets two stages judge the same story differently). The authoritative source is a `Posture:` line in the steering artifact — `mvp` (side-project / MVP: defer more, keep architecture thin) or `production` (company product: the bar for adopting a correctness- or security-relevant idiom now is lower). It rides in the steering artifact whose path craft already passes to sketching-design, driving-tdd, and code-reviewing, so no stage infers it independently. **sketching-design** is the primary consumer — it scales design ambition to the posture (Minimum Viable Architecture). **code-reviewing** may read it to calibrate how hard to push a modern-practice deviation. **driving-tdd** receives it but keeps its refactor local regardless. When the steering artifact is absent or omits `Posture:`, the consuming stage infers it from repo signals (test maturity, CI config, release history) and **states the inferred value as an assumption** in its output; the craft ship-gate escalation (`craft/SKILL.md` → *Escalation*) already distinguishes company/production from solo MVP and reads the same value.
+
+### Test posture (Praxis default: `critical-path`)
+
+Praxis writes **critical-path tests by default** — no project configuration required. The asymmetry justifies the default: an over-tested change costs review attention and maintenance forever, while a deliberately deferred test costs one line in a register the user reads before shipping.
+
+- **`critical-path` (default)** — cover the happy path, plus a failure case only where getting it wrong carries real consequence in *this* system: money, data integrity, security, silent corruption, or a failure this codebase has actually had. A boundary no caller can reach, or one whose failure is already a loud exception, does not earn a test.
+- **`standard`** — error and boundary cases earn coverage on their own merit. Opt in with a `Test scope: standard` line in the steering artifact.
+
+Two rules hold under both postures:
+
+- **Build gates are not acceptance criteria.** "Suite green", "lint clean", "app boots" are pipeline execution conditions; written as an AC they turn into a test. They belong in Observable Signals.
+- **Tests introduce no infrastructure.** When verifying a behavior would require a test framework, runner, or harness the repo does not have, that is its own story — record it (see *Deferred register*) rather than standing it up mid-flow.
+
+**Nothing judged worth testing is silently dropped.** Whenever a stage decides `standard` posture would have covered a case that `critical-path` does not, it records a **deferred test candidate** — the behavior, where a test would live, why it was deferred — instead of dropping it. `clarifying-intent` records what it sees at AC time; `driving-tdd` records what implementation reveals. `craft` persists them and presents them at the ship gate for the user to pick from. Deferral being reversible at a known moment is what makes the lean default safe.
+
+Consumers: `clarifying-intent` (which behaviors earn an AC) and `driving-tdd` (which tests get written, at which layer). As with `Posture:`, craft resolves the value once at entry and passes it, so neither stage infers its own. `code-reviewing` is not a consumer — tests remain outside its scope.
+
+## Code annotation & traceability
+
+Where each kind of rationale lives — so none of it lands in a code comment by default. Referenced by `driving-tdd` (writes the code), `code-reviewing` (audits it), and `code-improving` (fixes it).
+
+**The codebase is not the process trail.** Process identifiers — AC numbers, slice ids (`S-001`), ticket keys, spec section references, pipeline stage names — belong to `.praxis/` artifacts, commit messages, and the PR description. They do not appear in source, tests, test names, docstrings, or comments: a reader of the code cannot resolve them and does not need to. Name things after the behavior — `rejects a product set the shop does not own`, not `test_ac6b_transport_failure`.
+
+**A comment carries only what the code cannot.** Write one where the *why* is unrecoverable from the code: a non-obvious external constraint, a rejected alternative a reader would otherwise retry, a third-party quirk being worked around. Match the surrounding file's comment density.
+
+| Rationale | Home |
+| --- | --- |
+| A project-wide convention or standard | steering artifact (`CLAUDE.md`/`AGENTS.md`) |
+| A decision spanning the whole change, and the alternatives it rejected | PR description (an ADR when it is durable) |
+| A local *why*, true only of this code | a comment at that code |
+| Process bookkeeping (ACs, slices, stages) | `.praxis/` artifacts |
+
+Each stage carries a one-line summary of this inline; this section is the version they agree to.
+
+## Deferred register (`deferred.md`)
+
+One file per feature — `.praxis/<slug>/deferred.md` — holding what a run noticed and deliberately did not do, for the user to triage at the ship gate. Two kinds, one table each:
+
+- **Deferred test candidates** — cases `standard` posture would have covered (see *Test posture*). Producers: `clarifying-intent`, `driving-tdd`.
+- **Out-of-scope findings** — work worth doing that is not this story. Producer: any stage; most often `code-improving`, whose scope guardrail routes such findings here instead of applying them.
+
+Each entry carries what it is, where it would live, why it was deferred, and a suggested route (`add now` · `new ticket` · `follow-up PR`). Stage skills hold no Write grant: they emit entries in their output and `craft` appends them to the file.
 
 ## Implementation-decision flow (research · taste · project consistency)
 

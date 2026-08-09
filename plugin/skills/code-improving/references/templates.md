@@ -23,6 +23,14 @@ _None._ (or table below)
 |---|-----------|-------|----------------|
 | 1 | `path/to/file.ts:3` | [from review] | [from review] |
 
+### Out of Scope (recorded, not applied)
+
+_None._ (or table below — findings the blast-radius guardrail declined, whatever their severity. The caller appends these to `.praxis/<slug>/deferred.md`.)
+
+| # | Severity | Finding | Why out of scope | What it would take |
+|---|----------|---------|------------------|--------------------|
+| 1 | Medium | [from review] | touches files this story didn't / needs infrastructure the repo lacks | [new ticket · follow-up PR] |
+
 ### Test Suite Status
 
 - **Baseline** (before fixes): `<command>` → `<verbatim summary>` — or `no runnable suite: <reason>`.

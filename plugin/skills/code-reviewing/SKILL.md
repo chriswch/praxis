@@ -150,6 +150,8 @@ Report every instance of these you find in the changed code, graded on the impac
 - **God object**: One class/module doing everything. Usually needs splitting by responsibility.
 - **Cargo cult**: Patterns copied without understanding. DI frameworks for 3 dependencies. Event systems for 2 subscribers.
 - **Silent fallbacks**: Catching exceptions and returning defaults instead of letting problems surface. Masking upstream data issues with defensive code.
+- **Process leakage**: AC numbers, slice ids (`S-001`), ticket keys, spec section references, or pipeline stage names in source, tests, test names, docstrings, or comments. A reader of the code cannot resolve them and does not need to. Grade **Medium** — it is naming that hides intent from every future reader, and the fix is mechanical.
+- **Narrating comment**: a comment restating what the code does, or recording rationale that belongs elsewhere — a project-wide convention (steering artifact) or a decision spanning the whole change (PR description). Grade the pattern rather than the instance: one stray comment is Low, a diff that systematically records its decisions in comments is Medium. Both patterns above are the audit of `craft/references/contracts.md` → *Code annotation & traceability*; judge comment density against the surrounding file, not an absolute.
 
 ## Severity Levels
 
@@ -168,7 +170,7 @@ Scale the *depth* of the review to the size of the change — never its coverage
 
 ## Guardrails
 
-- **Tests are out of scope** — their quality, their coverage, and recommending new ones alike. So are new features.
+- **Tests are out of scope** — their quality, their coverage, and recommending new ones alike. So are new features. The single exception is annotation hygiene: a process identifier in a test name or a test comment is the same finding as in source, and you report it.
 - **Read, don't execute.** The intent-fit note (Premise Check #4) reads the diff against the spec. Running the ACs to prove the feature works is `verifying-and-adapting`'s job.
 - **Report performance problems you see**, graded by the impact they actually carry: an O(n³) loop on a hot path is Critical, a redundant copy on a cold path is Low.
 - **Grade on consequence.** Severity reflects what the issue will cost, not how thorough or how kind the report should look.

@@ -73,6 +73,9 @@ Before marking a story (or, for a multi-slice feature, the whole feature) **Done
 - The list of commits produced this run.
 - Suite status (command + verbatim result).
 - Any `Security-sensitive: yes` flag and what it touched.
+- The **deferred register** — `.praxis/<slug>/deferred.md`, or the entries you collected inline where manual mode persisted nothing. Both tables: the test cases the critical-path posture skipped, and the out-of-scope findings. Say so explicitly when a table is empty; silence reads as "nothing was deferred."
+
+**Triaging the deferred test candidates is part of this gate**, not an afterthought — it is where the lean default gets its safety. Present the candidates and ask which the user wants covered now (the structured-question tool suits a multi-select). Selected candidates go back through `driving-tdd` as additional acceptance criteria — one Red → Green cycle each, same loop as any other AC — and then the ship gate runs again with the new evidence. Unselected candidates stay in the register with a `declined` route, so a later run doesn't re-propose them. Out-of-scope findings are the user's call to route to a ticket or a follow-up PR; craft does not act on them.
 
 Only the human's approval closes the story. Optionally, produce a terminal merge-readiness summary or open a PR after approval.
 
@@ -117,6 +120,10 @@ On invocation, detect an in-progress run via `.praxis/<slug>/state.json` (see *P
 
 Also read the artifact's `Posture:` value (`mvp` | `production`) once here. It rides in the steering artifact whose path you already pass to the three stages, so the value comes from one shared source instead of each stage inferring its own: sketching-design scales design ambition on it, code-reviewing may calibrate idiom-deviation strength, and driving-tdd keeps its refactor local regardless. If it's absent, the consuming stage infers and states its assumption (see `references/contracts.md` → *Project posture*). The ship-gate escalation below reads the same value.
 
+**Test posture.** Praxis writes critical-path tests by default; resolve the value once here and pass it to `clarifying-intent` and `driving-tdd`. It is `critical-path` unless the steering artifact carries `Test scope: standard` — unlike `Posture:`, an absent value is the answer, not a gap to infer (see `references/contracts.md` → *Test posture*). Cases the leaner posture skips are not dropped: stages emit **deferred test candidates**, you persist them, and the ship gate hands them to the user.
+
+**Deferred register.** Stage skills hold no Write grant, so appending to `.praxis/<slug>/deferred.md` is yours. Whenever a stage's output carries deferred test candidates or out-of-scope findings, append them to the register under their table before invoking the next stage — an entry left only in a stage's returned text is lost to the next compaction. The ship gate presents the file.
+
 **Decision-flow inputs.** Alongside the steering artifact, locate the other two decision-flow inputs once at entry (see `references/contracts.md` → *Implementation-decision flow*): the **taste profile** — `~/.praxis/taste.md` if present, else the plugin default `craft/references/default-philosophy.md` — and the **stack profile** research cache at `.praxis/stack-profile.md` (repo root, cross-feature). Pass both paths to `sketching-design` and `code-reviewing`. When `sketching-design` returns a `Stack Profile Update` block, write it into `.praxis/stack-profile.md` — stage skills hold no Write grant, so this persistence is yours.
 
 **Entry triage — size the work before running the pipeline.** Read `clarifying-intent`'s `Sizing:` line (or judge it yourself for a spec handed in directly) and scale pipeline depth. Running all seven stages on a one-line change is the documented "sledgehammer" failure mode:
@@ -126,7 +133,7 @@ Also read the artifact's `Posture:` value (`mvp` | `production`) once here. It r
 - `Sizing: story` → the full per-slice flow (steps 3–7).
 - `Sizing: feature` → slice first (step 2), then run each slice as a `story`.
 
-1. **clarifying-intent** — Pass the user request (in autopilot, include the persistence directive from *Autopilot invocation directives*). Persist the returned artifact under `.praxis/`, then branch on its `Status:` / `Sizing:`:
+1. **clarifying-intent** — Pass the user request and the test posture (in autopilot, include the persistence directive from *Autopilot invocation directives*). Persist the returned artifact under `.praxis/`, append any deferred test candidates to the register, then branch on its `Status:` / `Sizing:`:
    - `Status: trivial` → make the change directly and stop. Sanctioned trivial fast-path.
    - `Status: proceed` + `Sizing: feature` (Feature Brief) → spec gate, then step 2.
    - `Status: proceed` + `Sizing: small | story` (Story Spec) → spec gate, then entry triage routes it (`small` → step 4; `story` → step 3).
@@ -139,12 +146,12 @@ Also read the artifact's `Posture:` value (`mvp` | `production`) once here. It r
 
    **3.5 Cross-artifact consistency check (before TDD).** Before invoking `driving-tdd`, confirm the artifacts agree: every spec acceptance criterion is addressed by the sketch's change map, and (multi-slice) the work stays within the slice's `scope_in`/`scope_out`. A mismatch — an AC with nowhere to live, or a sketch reaching outside the slice — is a spec/design inconsistency; treat it like a `## Spec Issue` (hard-stop condition 3) rather than coding against a contradiction. Skip the change-map half when the sketch was `skipped`.
 
-4. **driving-tdd** — Pass the spec and (if produced) the sketch. The skill commits implementation and returns the AC checklist, feedback log, and session summary (`Status: complete | needs-design | blocked`). `## Feedback` or `Status: blocked` → hard-stop (condition 1).
+4. **driving-tdd** — Pass the spec, the test posture, and (if produced) the sketch. The skill commits implementation and returns the AC checklist, feedback log, and session summary (`Status: complete | needs-design | blocked`). Append any deferred test candidates from the summary to the register. `## Feedback` or `Status: blocked` → hard-stop (condition 1).
    - `Status: needs-design` → **re-route** (not a hard stop): the design path was non-obvious and no sketch was in hand. Run **sketching-design** on this spec (design gate as usual), run the step 3.5 consistency check, then re-enter step 4 with the sketch. If driving-tdd returns `needs-design` *again with a sketch already provided*, treat it as a sibling failure (hard-stop condition 5) — the design didn't resolve the ambiguity.
 
 5. **code-reviewing** — Pass the implementation (with the spec and TDD summary as optional context, plus the steering, taste-profile, and stack-profile paths located at entry). Persist the review under `.praxis/`. Note its `Security-sensitive:` header for the ship-gate escalation.
 
-6. **code-improving** — Pass the review report and the spec. The skill commits fixes and returns an improvement summary (`Status:`). `## Feedback` → hard-stop (condition 1).
+6. **code-improving** — Pass the review report and the spec. The skill commits fixes and returns an improvement summary (`Status:`), including any findings its scope guardrail routed to the register — append those. `## Feedback` → hard-stop (condition 1).
    - **Re-review loop (bounded).** After fixes, if the improvement summary reports unresolved critical/high findings — or the fixes were substantial — re-run **code-reviewing** on the fix commits, then **code-improving** again. Loop review→improve at most **3 rounds**. If critical/high findings still remain after the cap, stop and **reject-and-decompose**: surface a hard stop recommending the story return to `clarifying-intent` / `slicing-stories`. A story that can't be made clean in three rounds is usually under-specified or too big — not a fix-harder problem.
 
 7. **verifying-and-adapting** — Pass the spec, AC checklist, feedback log, session summary, improvement summary, optional sketch, and (multi-slice only) the slice map, plus (final slice) the Feature Brief. The skill returns a verification summary, optionally an updated spec, and a `Routing:` line. Persist the verification under `.praxis/`; if the spec was updated, **overwrite the spec artifact** (the living-spec write-back is a required orchestrator action, since the skill holds no Write grant). Update the slice's state in `state.json`, then act on `Routing:`:
@@ -168,6 +175,7 @@ Persisted pipeline artifacts live under `.praxis/` at the repo root — delibera
   slice-map.md                 # human-readable slice map
   spec.md                      # Story-Level Behavioral Spec (single-story feature, no slicing)
   state.json                   # pipeline state — current stage + per-slice status (craft; resumable runs)
+  deferred.md                  # deferred test candidates + out-of-scope findings (craft appends; ship gate triages)
   slices/<slice-id>/
     spec.md                    # per-slice Story-Level Behavioral Spec
     sketch.md                  # design sketch (sketching-design)

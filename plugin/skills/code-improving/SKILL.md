@@ -33,7 +33,9 @@ The gate is on having a findings list, not on where it came from.
 
 ## Output
 
-Return the **improvement summary** inline in the response: which issues were fixed, what was changed, and any items deferred for user decision. It opens with a machine-readable `Status:` line an orchestrator branches on (`craft` consumes it — see `craft/references/contracts.md`): `skipped` when there were no critical/high/medium findings to fix, `feedback` when you surfaced a `## Feedback` section, `complete` otherwise. If the review reported no critical/high/medium issues, say so (`Status: skipped`) and stop. If during improvement you discover the review's findings imply a spec change, surface a `## Feedback` section and recommend clarifying the spec with the user (via `clarifying-intent` when available).
+Return the **improvement summary** inline in the response: which issues were fixed, what was changed, and any items deferred for user decision. It opens with a machine-readable `Status:` line an orchestrator branches on (`craft` consumes it — see `craft/references/contracts.md`): `skipped` when there were no critical/high/medium findings to fix, `feedback` when you surfaced a `## Feedback` section, `complete` otherwise. If the review reported no critical/high/medium issues, say so (`Status: skipped`) and stop.
+
+The summary also carries an **Out of Scope** list — findings the blast-radius guardrail declined to apply, each with what applying it would take. The caller appends those to `.praxis/<slug>/deferred.md`; this skill writes source, not process artifacts. If during improvement you discover the review's findings imply a spec change, surface a `## Feedback` section and recommend clarifying the spec with the user (via `clarifying-intent` when available).
 
 Source code is committed directly to the repository as each fix is applied.
 
@@ -57,7 +59,7 @@ Also note the working tree's **pre-existing dirty paths** (`git status`) before 
 
 If the findings list is empty, declares itself skipped, or has no critical/high/medium items, return a brief summary (`Status: skipped`) noting only low-severity items remain for user consideration, and stop.
 
-Otherwise, parse the issues by severity. Count them. Set aside any intent-fit / intent-mismatch findings (see *Guardrails*) — they are resolved by changing behavior, so they go to `## Feedback` for the user rather than into the fix plan, whatever their severity.
+Otherwise, parse the issues by severity. Count them. Two kinds come out of the fix plan before it is made, whatever their severity: **intent-fit / intent-mismatch** findings go to `## Feedback` (they are resolved by changing behavior), and findings that reach outside this story's blast radius go to the **out-of-scope** list (see *Guardrails*).
 
 ### 2. Plan fixes
 
@@ -97,7 +99,8 @@ These hold across the whole run. The per-step rules — the baseline gate, runni
 
 - **Guardrails outrank findings.** When a reviewer's recommended fix can only be applied by adding a feature or test, modifying a test file, or widening a public API, leave it — record the finding under `## Feedback` with the reason it wasn't auto-fixed, for the user to decide.
 - **Intent-fit findings are not auto-fixable.** A finding that the diff doesn't implement the stated intent, or omits an in-scope behavior (`code-reviewing`'s read-only Premise Check #4, typically graded High), is resolved by *building or changing behavior* — a call for `verifying-and-adapting` or the developer, not a code-quality fix. Whatever its severity, surface it under `## Feedback`.
-- **Leave test files alone** (see *What Counts as a Test File*). Tests define the behavioral contract. A test that looks wrong might well be, but that's a conversation with the user rather than a unilateral change: surface `## Feedback`, recommend clarifying the spec (via `clarifying-intent` when available), and stop.
+- **Stay inside the story's blast radius.** A finding whose fix reaches into files this story didn't touch, or that requires infrastructure the repo doesn't have (a test framework, a new dependency, a new layer), is recorded as an **out-of-scope finding** and not applied — whatever its severity. Scope discipline outranks severity here: an unrelated improvement smuggled into this change costs the reviewer more than the improvement is worth, and whether it earns its own ticket or a follow-up PR is the user's call. Record it, name what it would take, and move on (see `craft/references/contracts.md` → *Deferred register*).
+- **Leave test files alone** (see *What Counts as a Test File*). Tests define the behavioral contract. A test that looks wrong might well be, but that's a conversation with the user rather than a unilateral change: surface `## Feedback`, recommend clarifying the spec (via `clarifying-intent` when available), and stop. One narrow exception: where a finding names a **process identifier in a test name** (`test_ac3_transport_failure`), rename it after the behavior. A rename changes what the name says, never what the test asserts — the contract survives intact. Nothing else in a test file is yours to edit.
 - **Improve quality, don't extend behavior.** The fix restores the code the review flagged; new features, tests, or functionality are a different job.
 
 ## Feedback Loop

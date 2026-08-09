@@ -103,10 +103,17 @@ Write it in two tiers, in order, **never interleaved**:
 
 **Acceptance Criteria** (behavior in Given/When/Then form, business language)
 - Happy path: Given ..., when ..., then ...
-- Error / edge case: Given ..., when ..., then ...
-- Boundary: Given ..., when ..., then ...
+- Consequential failure: Given ..., when ..., then ...
 
-At minimum: one happy path and one error/edge case. Add boundary cases when the domain involves limits, thresholds, or ranges. Describe observable behavior (what the system does), not implementation (how) — the "how" is `sketching-design`'s job downstream.
+Each AC becomes a test that is maintained forever, so list the behaviors worth *guaranteeing*. The happy path always earns one; a failure or boundary case earns one where getting it wrong costs money, data integrity, security, or silent corruption — or has already gone wrong here. Under `Test scope: standard` the bar drops to ordinary merit. Describe observable behavior (what the system does), not implementation (how) — the "how" is `sketching-design`'s job downstream. Build gates ("suite green", "lint clean", "app boots") are not ACs; they go under Observable Signals.
+
+**Not Covered** (deferred test candidates — the complement of the AC list)
+
+| Behavior | Where a test would live | Why deferred |
+| --- | --- | --- |
+| ... | ... | below the consequence bar / needs test infrastructure the repo lacks / ... |
+
+Real cases that the posture left out, never silently dropped. The caller collects these into `.praxis/<slug>/deferred.md`; the user decides at the ship gate which to cover. `verifying-and-adapting` reads this section so a deliberate omission is not re-reported as a gap. Omit the section only when there is genuinely nothing to list.
 
 ### Tier 2 — System Space (engineering — appended, never interleaved)
 

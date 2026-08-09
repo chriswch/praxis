@@ -19,6 +19,8 @@ The phases are sequential. Phase B always runs, but adapts its workload — mini
 
 The request to clarify, plus any prior context (a Feature Brief, a story-boundary handoff from a previous slice, an earlier spec). Pass it inline in the prompt, or as a path/handle this skill should read.
 
+**Optional context:** the **test posture** — `critical-path` (Praxis's default; assume it when the caller says nothing) or `standard`. It sets how much a failure or boundary case has to be worth before it earns an acceptance criterion (step 3d).
+
 A **story-boundary handoff** is the small carry-over an upstream slice leaves for the next one: the slice `id` and `title`, its one-line story, `scope_in`/`scope_out`, and any carried-over unknowns or emerged design notes. When one is supplied, treat it as a bounded seed for the new story. Do not let the handoff widen scope — it informs the next clarification pass; it does not replace the new request.
 
 ## Output
@@ -88,10 +90,12 @@ b. **Confirm current system behavior** (if a system exists). Read the modules di
 
 c. **Ask Phase B questions.** Pull from the Phase B section of `references/question-bank.md`. Focus on integration boundaries, regression risk, observable signals, and system-level acceptance.
 
-d. **Draft the Story-Level Behavioral Spec.** Use the template in `references/templates.md`. Fill in Acceptance Criteria (Given/When/Then), Observable Signals, What Must Not Break, and any system-space Decisions & Rationale. A finished spec has four properties:
+d. **Draft the Story-Level Behavioral Spec.** Use the template in `references/templates.md`. Fill in Acceptance Criteria (Given/When/Then), Observable Signals, Not Covered, What Must Not Break, and any system-space Decisions & Rationale. A finished spec holds these properties:
 
    - ACs are precise enough that a developer could write the failing tests from them alone. Write them in Given/When/Then; where a trigger→response phrasing sharpens testability, EARS ("When *&lt;trigger&gt;*, the system shall *&lt;response&gt;*") helps.
-   - ACs cover the happy path and at least one error/edge case — plus boundary cases wherever the domain involves limits, thresholds, or ranges.
+   - ACs enumerate the behaviors worth *guaranteeing*, not every behavior possible — each one becomes a test that is maintained forever. The happy path always earns an AC. A failure or boundary case earns one where getting it wrong carries real consequence in this system: money, data integrity, security, silent corruption, or a failure this codebase has actually had. A boundary no caller can reach, or one whose failure is already a loud exception, does not. This is Praxis's default `critical-path` test posture; under `Test scope: standard` in the steering artifact, error and boundary cases earn ACs on their own merit (see `craft/references/contracts.md` → *Test posture*).
+   - Cases you judged real but left out under the leaner posture go under **Not Covered** — one line each, with where a test would live and why it was deferred. These are the run's **deferred test candidates**: the caller collects them and the user decides at the ship gate whether to cover them, so the leaner default stays reversible. Nothing worth testing is dropped in silence.
+   - Build gates are not acceptance criteria. "Suite green", "lint clean", "app boots" are pipeline execution conditions — written as an AC each becomes a test of the toolchain. They belong in Observable Signals.
    - Every AC maps to at least one concrete Observable Signal — a specific command, endpoint, log line, or UI state someone running the code could check — so `verifying-and-adapting` can later execute it, not just read it.
    - Regression boundaries (What Must Not Break) are explicit.
 
