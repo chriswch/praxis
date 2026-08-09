@@ -72,6 +72,10 @@ This skill handles document-level decisions: which genre, which framework, which
 
 This skill shapes content. To generate the artifact itself, compose with the file-producing skills: slides → `pptx`, Word → `docx`, PDF → `pdf`, spreadsheets → `xlsx`. Shape the structure here first, then hand it to those.
 
-## Notes on this user's defaults
+## Voice
 
-Writes in Traditional Chinese (Taiwan) and values terse prose — cut filler. **Filler does not include weak-axis scaffolding**: purpose statements and first-use glosses from the move-6 audit are load-bearing content; what gets cut instead is restated mechanics the diff already shows. Keep framework/methodology names in their English originals with Traditional-Chinese explanation. Adapts register per axis (move 5); the two-axis audience split above is the primary axis of this skill.
+Read `~/.praxis/voice.md` if it exists — the caller's standing prose conventions (language, register, terminology). Absent it, match the reader's language and the register of the surrounding documents.
+
+Where the repo states its own documentation conventions (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`), those outrank the personal voice: a document serves the project's readers, not its author.
+
+End your output with one line naming the voice you applied, where it came from, and any point where the repo's conventions overrode it — so the reader can see what governed the result, and switch it by editing `~/.praxis/voice.md`.

@@ -83,6 +83,19 @@ Every skill follows the same prompt-in / prose-out contract:
 
 There is no enforced artifact layout. Skills focus on what they resolve; the calling agent or user owns input and output handling.
 
+## User profiles (`~/.praxis/`)
+
+Two optional files let you carry standing preferences across every project. Both live in your home directory, not in a repo — they travel with you. Neither is required; each skill states what it falls back to when the file is absent.
+
+| File | Covers | Read by | Fallback when absent |
+| --- | --- | --- | --- |
+| `~/.praxis/taste.md` | Code and architecture philosophy — the forks that research and project conventions leave open. | `sketching-design`, `code-reviewing` | The plugin's `default-philosophy.md` |
+| `~/.praxis/voice.md` | Prose conventions — language, register, terminology. | `composing-documents`, `clear-writing` | The reader's language and the register of the surrounding documents |
+
+The two do not overlap and neither reads the other. A repo can still override both: project conventions in the steering artifact (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`) outrank `voice.md`, since a document serves the project's readers rather than its author. For `taste.md` the precedence runs the other way — taste wins over project convention, and the departure is flagged and explained rather than applied silently.
+
+To start either file, write it directly; there is no generator. `taste.md` replaces `default-philosophy.md` entirely when present, so copy that file as a starting point if you want to edit rather than begin from scratch.
+
 ## License
 
 MIT

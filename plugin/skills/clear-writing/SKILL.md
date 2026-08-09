@@ -135,6 +135,14 @@ The first draft is raw material. The revision is the craft.
 
 **Commit messages and PR descriptions:** First line: what changed and why, imperative mood. Body: what the reviewer needs to know. Cut implementation narration — the diff shows what you did.
 
+## Voice
+
+Read `~/.praxis/voice.md` if it exists — the caller's standing prose conventions (language, register, terminology). Absent it, match the reader's language and the register of the surrounding documents.
+
+Where the repo states its own documentation conventions (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`), those outrank the personal voice: a document serves the project's readers, not its author.
+
+End your output with one line naming the voice you applied, where it came from, and any point where the repo's conventions overrode it — so the reader can see what governed the result, and switch it by editing `~/.praxis/voice.md`.
+
 ## References
 
 - `references/substitutions.md` — the full substitution tables for all seven principles, plus fancy words, filler constructions, and the worked padding example.
