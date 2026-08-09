@@ -65,6 +65,7 @@ clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
 
 | Skill | Purpose |
 | --- | --- |
+| `craft` | Orchestrate the whole pipeline end-to-end — manual checkpoints by default, `--autopilot` for unattended runs. |
 | `clarifying-intent` | Turn an underspecified request into a Feature Brief or Story-Level Behavioral Spec. |
 | `slicing-stories` | Split a Feature Brief into an ordered slice map of thin, vertical stories. |
 | `sketching-design` | Produce a lightweight design sketch — change map, pattern match, first test. |
@@ -72,7 +73,9 @@ clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
 | `code-reviewing` | Independent five-layer review (data, special cases, complexity, breaking changes, practicality). |
 | `code-improving` | Apply fixes for critical/high/medium review findings. |
 | `verifying-and-adapting` | Reconcile spec vs. reality, update the spec, recommend the next action. |
+| `composing-documents` | Shape a document before drafting — pick the genre framework, the structure, and the altitude for the audience. |
 | `clear-writing` | Revise prose for clarity, precision, and concision. Reusable across skills. |
+| `structuring-decisions` | Drive a consequential decision through framing, diagnosis, options, evidence, and a recorded verdict with tripwires. |
 
 ## Skill contract
 
