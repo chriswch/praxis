@@ -32,6 +32,15 @@ Filled-in examples showing what good design sketch output looks like. Use these 
 **Approach**
 Create an auth middleware that extracts the Bearer token from the `Authorization` header and verifies it using a `TokenVerifier` interface (a single `verify(token: string)` method). Mount it in `app.ts` after the health-check route but before protected routes, so health-check stays exempt without conditional logic. Inject the verifier as a dependency so tests can provide a stub — no real token infrastructure needed for this slice.
 
+**Data & Contract Shape**
+- `TokenVerifier`: one method, `verify(token: string) -> Claims`. Throws on an invalid token rather than returning `Claims | null` — a nullable return puts the same "did this work?" branch in every caller.
+- `Claims`: `sub: string` (required) · `exp: number` (required). No optional fields: a token that omits either is invalid, not partially valid.
+- Makes impossible: a request reaching a handler with unverified or half-parsed claims.
+
+**Reversal Cost**
+- Most expensive decision to undo once tests exist: throwing from `verify` rather than returning a nullable. Every test and every caller encodes the choice.
+- The alternative wins if: a caller legitimately needs to continue on a bad token (optional auth on a mixed public/private route). No such route exists in this slice's scope.
+
 **First Test**
 - File: `tests/middleware/auth.test.ts`
 - Layer: unit — the middleware in isolation, with a stubbed `TokenVerifier`
@@ -66,6 +75,14 @@ Create an auth middleware that extracts the Bearer token from the `Authorization
 **Existing Patterns**
 - The `Order` model already has `createdAt` (see `src/models/order.ts`). Follow the same pattern: `Date` type, set in repository, exposed in API response.
 - Migrations follow the `NNNN-description.sql` naming convention in `src/migrations/`.
+
+**Data & Contract Shape**
+- `User.createdAt: Date` — **required, not `Date | undefined`**. Every user has a creation time; the only reason to make it optional would be that the migration backfill is awkward, which is a loading concern, not a domain one. Backfill existing rows in the migration instead.
+- Makes impossible: a `User` in memory whose age cannot be computed — which is what would push a null check into every consumer.
+
+**Reversal Cost**
+- Most expensive decision to undo once tests exist: the required-vs-optional call above. Widening `Date` to `Date | undefined` later is easy; narrowing it back is not, because by then callers handle the undefined case.
+- The alternative wins if: the backfill cannot produce a real timestamp for existing rows and a wrong one is worse than none. Check the table before writing the migration.
 
 **Modern Practice (researched)**
 - `.praxis/stack-profile.md` (2026-06): current SQL practice defaults creation timestamps at the database (`DEFAULT now()`), keeping them consistent under concurrent writers.

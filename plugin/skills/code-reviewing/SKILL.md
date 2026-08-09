@@ -2,7 +2,7 @@
 name: code-reviewing
 description: "Independent, report-only code quality review of a diff, changed files, or uncommitted work — whether it came from TDD or was written ad hoc. Runs a sequential 5-layer analysis — data structures, special case elimination, complexity, breaking changes & behavioral conflicts, practicality — plus a security-surface pass and a read-only intent-fit check, producing a severity-graded report without modifying any code. Does not execute acceptance criteria to verify spec conformance (that is verifying-and-adapting) and does not apply fixes (that is code-improving)."
 context: fork
-allowed-tools: Read, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git status:*), Bash(git show:*)
+allowed-tools: Read, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git status:*), Bash(git show:*), Bash(git merge-base:*)
 ---
 
 # Code Review
@@ -21,6 +21,7 @@ You do not *verify* spec compliance by executing acceptance criteria; that's `ve
 - The **implementation under review** — a diff, a set of changed files, or a path. This is the subject of the review and the only input the skill needs to run.
 
 **Optional context (use if provided; never required):**
+- A **purpose statement** — a short prose account of what the change does and why, canonically the PR description. Enough to judge proportionality; it is not a spec, so intent-fit (Premise Check #4) still doesn't run. Expect it as the *only* context on an unanchored terminal review: a caller may deliberately withhold the spec, sketch, and implementation summary so the review doesn't inherit the implementer's frame. That is the pass working as designed — review the diff on the evidence given and say in the Scope line what you were not shown.
 - The **spec** (canonically from `clarifying-intent`) — lets the review judge whether complexity is proportional to the problem.
 - The **implementation summary** (canonically from `driving-tdd`) — fast orientation on what was built and why.
 - The **design sketch** (canonically from `sketching-design`) — the intended approach.
@@ -32,12 +33,13 @@ Pass each one inline in the prompt, or as a path/handle this skill should read.
 
 Without a spec, judge proportionality against the code and repo conventions alone, and say so in the report's Scope line — you're assessing internal consistency, not fit to an external requirement.
 
-**Standalone (no downstream verify stage).** When run outside a pipeline, the intent-fit note (Premise Check #4) and the behavioral-conflict pass (Layer 4) may be the only place these get considered — no `verifying-and-adapting` runs after you. So run them when a spec is available; when no spec is available, state in the Scope line that intent-conformance and acceptance verification were not performed, and recommend the user run `verifying-and-adapting` (or execute the ACs) before shipping. Make the gap explicit rather than silently dropped.
+**Standalone (no downstream verify stage).** When run outside a pipeline, the intent-fit note (Premise Check #4) and the behavioral-conflict pass (Layer 4) may be the only place these get considered — no `verifying-and-adapting` runs after you. So run them when a spec is available; when no spec is available, state in the Scope line that intent-conformance and acceptance verification were not performed, and recommend the user run `verifying-and-adapting` (or execute the ACs) before shipping. Make the gap explicit rather than silently dropped — unless the caller says verification already ran, in which case record that instead of recommending it again.
 
 **Resolving what to review**, in precedence order:
 1. An explicit diff / file list / path given in the prompt.
-2. Otherwise, uncommitted changes: `git diff`, then `git diff --staged`, then `git status` for untracked files. This is the common "review before I commit" path.
-3. Otherwise, the most recent commits: `git log --name-only`.
+2. A **base ref**, when the caller names one: review the cumulative diff against it (`git diff <base>...HEAD`), not the last commit. This is the whole-branch / whole-PR path, and it is the only one that can see cross-commit interactions — a helper added early and misused later, a branch left unreachable by a subsequent commit.
+3. Otherwise, uncommitted changes: `git diff`, then `git diff --staged`, then `git status` for untracked files. This is the common "review before I commit" path.
+4. Otherwise, the most recent commits: `git log --name-only`.
 
 State which source was used at the top of the report so the reader knows the review's scope.
 
@@ -116,7 +118,7 @@ This is where the real design feedback lives. Moving a conditional into a better
 - **Beyond signatures — behavioral conflicts with existing code.** Does a shared helper or mutable state change semantics for its *other* callers? Does a changed default or config alter an existing, unchanged code path? Does the change break an ordering, idempotency, concurrency, or transaction assumption that other code relies on, or conflict with an existing invariant? Grep for the other callers/consumers of the touched symbols (Grep/Glob are granted) and reason about their behavior — don't judge the diff in isolation. A real latent regression here is Critical/High per the severity rubric.
 - If breaking changes exist, can the improvement be achieved without breaking anything?
 - Flag breaking changes as Critical unless the spec explicitly authorized them.
-- **No spec provided?** Then you cannot check whether a breaking change was authorized — default it to Critical and note in the finding that authorization couldn't be verified (a spec would resolve it). Don't quietly downgrade it.
+- **No spec provided?** Then you cannot check whether a breaking change was authorized — default it to Critical and note in the finding that authorization couldn't be verified (a spec would resolve it). Don't quietly downgrade it. A **purpose statement** that names a contract change explicitly ("this changes X's return type") authorizes *that* change — review it on its merits at normal severity. Anything the statement does not name still defaults to Critical: an unannounced contract change is the finding, whatever the author intended.
 
 ### Layer 5: Practicality
 

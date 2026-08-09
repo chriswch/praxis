@@ -57,8 +57,10 @@ One skill body orchestrates the same underlying skills across both runtimes.
 Full TDD pipeline. `/praxis:craft <task>` (Claude Code) or `$craft <task>` (Codex) runs in manual mode with user checkpoints between stages; adding `--autopilot` auto-confirms gates and runs end-to-end, stopping only on hard blockers (worker `## Feedback`, **Open questions** from `clarifying-intent`, `## Spec Issue` from `sketching-design`, or **Rework**/**Escalate** from `verifying-and-adapting`).
 
 ```
-clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
-  → code-reviewing → code-improving → verifying-and-adapting
+per slice:  clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
+              → code-reviewing → code-improving → verifying-and-adapting
+once, then: composing-documents + clear-writing (PR description)
+              → code-reviewing (unanchored, whole branch) → code-improving → ship gate
 ```
 
 ### Defaults worth knowing
@@ -66,6 +68,8 @@ clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
 - **Critical-path tests.** Praxis covers the happy path plus failures that carry real consequence — money, data integrity, security, silent corruption, or something this codebase has actually gotten wrong. Cases the bar leaves out are recorded rather than dropped, and the ship gate asks which you want covered before the story closes. Opt into broader coverage with a `Test scope: standard` line in your steering artifact (`CLAUDE.md`/`AGENTS.md`).
 - **No process identifiers in code.** AC numbers, slice ids, and ticket keys stay in `.praxis/`, commit messages, and the PR description — never in source, tests, test names, or comments, where a reader cannot resolve them. Comments carry only what the code cannot say; conventions live in the steering artifact and change-wide decisions in the PR description.
 - **Scope discipline.** A review finding that reaches outside the story's files, or needs infrastructure the repo lacks, is recorded in `.praxis/<slug>/deferred.md` instead of being applied — yours to route to a ticket or a follow-up PR at the ship gate.
+- **A final review that doesn't share the author's frame.** Before the ship gate, `code-reviewing` runs once more over the whole branch diff and is given the PR description *only* — no spec, no sketch, no implementation summary. A reviewer holding the design rationale reads the diff sympathetically, which is what lets a problem survive the per-slice pass and turn up later in a fresh review.
+- **The run ends at a PR description.** Drafted through `composing-documents` and `clear-writing`, following your repo's PR template when it has one. It is where the change-wide decisions live once they are kept out of the code comments — and it is what the final review reads.
 
 ## Skills
 

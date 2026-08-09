@@ -1,6 +1,6 @@
 ---
 name: craft
-description: "Runs the whole Praxis pipeline end-to-end as one guided flow: clarify → slice → design → TDD → review → improve → verify. Manual mode checkpoints between stages; --autopilot runs through, commits across stages, and stops only at the human ship gate. Use for the full pipeline; a single stage goes to that stage's own skill."
+description: "Runs the whole Praxis pipeline end-to-end as one guided flow: clarify → slice → design → TDD → review → improve → verify, closing with a PR description and an unanchored whole-branch review. Manual mode checkpoints between stages; --autopilot runs through, commits across stages, and stops only at the human ship gate. Use for the full pipeline; a single stage goes to that stage's own skill."
 ---
 
 # Craft
@@ -28,8 +28,10 @@ A craft run spans many stages and can run long. Keep the reporting proportional 
 ## Pipeline
 
 ```
-clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
-  → code-reviewing → code-improving → verifying-and-adapting
+per slice:  clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
+              → code-reviewing → code-improving → verifying-and-adapting
+once, then: composing-documents + clear-writing (PR description)
+              → code-reviewing (unanchored, whole branch) → code-improving → ship gate
 ```
 
 The sibling skills you orchestrate (invoke each by its skill identity, not by file path):
@@ -41,6 +43,7 @@ The sibling skills you orchestrate (invoke each by its skill identity, not by fi
 - `code-reviewing`
 - `code-improving`
 - `verifying-and-adapting`
+- `composing-documents` and `clear-writing` — the PR description (step 8), which also feeds the final review
 
 ## Gates
 
@@ -49,14 +52,14 @@ A **gate** is a decision point between stages. Manual mode converges on **three 
 The three human gates (manual mode):
 
 1. **Spec gate** — after `clarifying-intent`. Approve the spec before design or implementation; building the wrong thing is the most expensive error.
-2. **Design gate** — after `sketching-design`. Approve the sketch (or its `skipped` rationale) before TDD. This is the canonical plan-approval checkpoint ("between Plan and Execute").
+2. **Design gate** — after `sketching-design`. Approve the sketch (or its `skipped` rationale) before TDD. This is the canonical plan-approval checkpoint ("between Plan and Execute"). Lead the gate with the sketch's **Reversal Cost** line and its **Data & Contract Shape** if present, rather than the whole sketch: those are the decisions that get expensive once tests encode them, and they are what a human is actually being asked to rule on here.
 3. **Ship gate** — before Done. Present the evidence pack and get human approval before the story/feature is considered shipped (see *Ship gate*).
 
 Deterministic transitions (no human gate):
 
 - **Slice selection** — default to the first `pending` slice in the slice map's order. Don't ask; in manual mode the user can reorder at the one-time slice-map confirmation.
 - **Slice-map confirmation** — manual mode presents the map once after `slicing-stories`; autopilot accepts it.
-- Advancing design → TDD → review → improve → verify, once each deterministic check passes (a non-blocking `Status:`/`Routing:` line is present, tests are green or show no new failures, and the required artifact was written).
+- Advancing design → TDD → review → improve → verify → PR description → final review, once each deterministic check passes (a non-blocking `Status:`/`Routing:` line is present, tests are green or show no new failures, and the required artifact was written). The close-out steps add no gate of their own; their output lands in the ship gate's evidence pack.
 
 Mode summary:
 
@@ -70,6 +73,7 @@ Mode summary:
 Before marking a story (or, for a multi-slice feature, the whole feature) **Done**, stop and present an **evidence pack** for human approval. This is the one gate autopilot may never skip: a full autopilot run that reaches Done still stops here. The pack carries:
 
 - `verifying-and-adapting`'s verification summary, including the executed acceptance checks and their observed output.
+- The **PR description** (step 8) and the **final review's** outcome (step 9) — or the reason step 9 was skipped.
 - The list of commits produced this run.
 - Suite status (command + verbatim result).
 - Any `Security-sensitive: yes` flag and what it touched.
@@ -77,7 +81,7 @@ Before marking a story (or, for a multi-slice feature, the whole feature) **Done
 
 **Triaging the deferred test candidates is part of this gate**, not an afterthought — it is where the lean default gets its safety. Present the candidates and ask which the user wants covered now (the structured-question tool suits a multi-select). Selected candidates go back through `driving-tdd` as additional acceptance criteria — one Red → Green cycle each, same loop as any other AC — and then the ship gate runs again with the new evidence. Unselected candidates stay in the register with a `declined` route, so a later run doesn't re-propose them. Out-of-scope findings are the user's call to route to a ticket or a follow-up PR; craft does not act on them.
 
-Only the human's approval closes the story. Optionally, produce a terminal merge-readiness summary or open a PR after approval.
+Only the human's approval closes the story. The PR description is already drafted by this point, so after approval opening (or updating) the PR is a single step — do it when the user asks.
 
 ## Hard stops (both modes)
 
@@ -133,6 +137,8 @@ Also read the artifact's `Posture:` value (`mvp` | `production`) once here. It r
 - `Sizing: story` → the full per-slice flow (steps 3–7).
 - `Sizing: feature` → slice first (step 2), then run each slice as a `story`.
 
+Every sizing above `trivial` ends at the branch close-out (steps 8–9) and the ship gate — a change that becomes a PR gets a PR description. On a `small` change step 9 usually skips itself under its own rule, since its diff matches step 5's.
+
 1. **clarifying-intent** — Pass the user request and the test posture (in autopilot, include the persistence directive from *Autopilot invocation directives*). Persist the returned artifact under `.praxis/`, append any deferred test candidates to the register, then branch on its `Status:` / `Sizing:`:
    - `Status: trivial` → make the change directly and stop. Sanctioned trivial fast-path.
    - `Status: proceed` + `Sizing: feature` (Feature Brief) → spec gate, then step 2.
@@ -147,7 +153,7 @@ Also read the artifact's `Posture:` value (`mvp` | `production`) once here. It r
    **3.5 Cross-artifact consistency check (before TDD).** Before invoking `driving-tdd`, confirm the artifacts agree: every spec acceptance criterion is addressed by the sketch's change map, and (multi-slice) the work stays within the slice's `scope_in`/`scope_out`. A mismatch — an AC with nowhere to live, or a sketch reaching outside the slice — is a spec/design inconsistency; treat it like a `## Spec Issue` (hard-stop condition 3) rather than coding against a contradiction. Skip the change-map half when the sketch was `skipped`.
 
 4. **driving-tdd** — Pass the spec, the test posture, and (if produced) the sketch. The skill commits implementation and returns the AC checklist, feedback log, and session summary (`Status: complete | needs-design | blocked`). Append any deferred test candidates from the summary to the register. `## Feedback` or `Status: blocked` → hard-stop (condition 1).
-   - `Status: needs-design` → **re-route** (not a hard stop): the design path was non-obvious and no sketch was in hand. Run **sketching-design** on this spec (design gate as usual), run the step 3.5 consistency check, then re-enter step 4 with the sketch. If driving-tdd returns `needs-design` *again with a sketch already provided*, treat it as a sibling failure (hard-stop condition 5) — the design didn't resolve the ambiguity.
+   - `Status: needs-design` → **re-route** (not a hard stop): a design call must be settled before the tests encode it — either the path was non-obvious with no sketch in hand, or the refactor step exposed a wrong data shape. Run **sketching-design** on this spec (design gate as usual), run the step 3.5 consistency check, then re-enter step 4 with the sketch. A mid-loop data-shape re-route *after* an up-front placement one is the mechanism working, not a failure — it carries information only the code could supply, arriving while it is still cheap to act on. Treat it as a sibling failure (hard-stop condition 5) only when driving-tdd raises `needs-design` twice for the **same** reason: that design pass didn't resolve it.
 
 5. **code-reviewing** — Pass the implementation (with the spec and TDD summary as optional context, plus the steering, taste-profile, and stack-profile paths located at entry). Persist the review under `.praxis/`. Note its `Security-sensitive:` header for the ship-gate escalation.
 
@@ -155,10 +161,22 @@ Also read the artifact's `Posture:` value (`mvp` | `production`) once here. It r
    - **Re-review loop (bounded).** After fixes, if the improvement summary reports unresolved critical/high findings — or the fixes were substantial — re-run **code-reviewing** on the fix commits, then **code-improving** again. Loop review→improve at most **3 rounds**. If critical/high findings still remain after the cap, stop and **reject-and-decompose**: surface a hard stop recommending the story return to `clarifying-intent` / `slicing-stories`. A story that can't be made clean in three rounds is usually under-specified or too big — not a fix-harder problem.
 
 7. **verifying-and-adapting** — Pass the spec, AC checklist, feedback log, session summary, improvement summary, optional sketch, and (multi-slice only) the slice map, plus (final slice) the Feature Brief. The skill returns a verification summary, optionally an updated spec, and a `Routing:` line. Persist the verification under `.praxis/`; if the spec was updated, **overwrite the spec artifact** (the living-spec write-back is a required orchestrator action, since the skill holds no Write grant). Update the slice's state in `state.json`, then act on `Routing:`:
-   - `Routing: Done` → **ship gate** (hard-stop condition 6), then the story/feature is complete.
+   - `Routing: Done` → step 8. (Steps 8–9 run once per *branch*, not per slice.)
    - `Routing: Next slice: S-<id>` → mark this slice `done` in `state.json`, pick the next `pending` slice, and return to step 3 with a fresh **clarifying-intent** for it (autopilot: persistence directive).
    - `Routing: Rework` → hard-stop (condition 4).
    - `Routing: Escalate` → hard-stop (condition 4).
+
+8. **PR description** — draft it now, before the final review, because it is also that review's only input (step 9). Invoke **composing-documents** for the shape, then **clear-writing** for the polish. Seed it from the spec, the verification summary, and the change-wide decisions the annotation rule kept *out* of the code — the PR description is their designated home (see `references/contracts.md` → *Code annotation & traceability*). Follow the repo's `.github/pull_request_template.md` when one exists. Name any deliberate contract change explicitly: step 9 has no spec, so an unnamed breaking change comes back as a Critical finding.
+
+9. **Final review — unanchored, whole branch** — run **code-reviewing** once more over the cumulative diff (`git diff <merge-base>...HEAD`, the merge base against the default branch), not the per-slice or per-commit diff.
+
+   **Pass the PR description and nothing else.** No spec, no sketch, no AC checklist, no TDD summary. The value of this pass is that it does *not* share the implementer's frame: step 5's review was handed the design rationale and reads the diff sympathetically, which is exactly what hides a problem from it. Withholding those artifacts is the mechanism, not an oversight (`composing-documents` core move 7 states the same information-isolation principle for documents). A real reviewer gets the PR description and the diff; so does this one.
+
+   This also covers what no earlier pass could see: cross-slice interactions — a helper introduced in one slice and misused in a later one, a branch left unreachable by a subsequent slice — and everything committed after step 5 by `code-improving` and the verify stage.
+
+   Findings go through **code-improving** under the same bounded loop as step 6 (3 rounds, then reject-and-decompose). Refresh the step-8 description if the fixes changed what it claims. Skip this step, saying so, only when the story was a single slice *and* nothing has changed since step 5's review — then the two diffs are the same and a second pass is pure duplication.
+
+   Then the **ship gate** (hard-stop condition 6), and the story/feature is complete.
 
 ## Pipeline state
 
@@ -176,6 +194,8 @@ Persisted pipeline artifacts live under `.praxis/` at the repo root — delibera
   spec.md                      # Story-Level Behavioral Spec (single-story feature, no slicing)
   state.json                   # pipeline state — current stage + per-slice status (craft; resumable runs)
   deferred.md                  # deferred test candidates + out-of-scope findings (craft appends; ship gate triages)
+  pr-description.md            # PR description (step 8) — also the final review's only input
+  review-final.md              # unanchored whole-branch review (step 9)
   slices/<slice-id>/
     spec.md                    # per-slice Story-Level Behavioral Spec
     sketch.md                  # design sketch (sketching-design)

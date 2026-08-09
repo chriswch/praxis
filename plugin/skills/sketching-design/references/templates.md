@@ -34,7 +34,16 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 - Chosen direction & why: [which input won — taste profile / project consistency — and the reasoning at this posture: conform / adopt-now / defer-as-spike. A direction that differs from the researched practice must say so here, unprompted. The final call is handed to the caller, not taken here.]
 
 **Approach**
-[2–5 sentences. The key decision. The core data structure choice, if any. Why this direction over the obvious alternative, if non-obvious.]
+[2–5 sentences. The key decision. Why this direction over the obvious alternative, if non-obvious.]
+
+**Data & Contract Shape** — *include whenever the story introduces or changes a domain type, a persisted shape, or a public payload. Omit only when it touches none.*
+- `TypeName`: `field: T` (required) · `other: T | None` (optional — *because the domain permits absence, not because loading is lazy*)
+- Invariants: [what is always true of a valid instance]
+- Makes impossible: [the illegal state this shape rules out]
+
+**Reversal Cost**
+- Most expensive decision to undo once tests exist: [one sentence]
+- The alternative wins if: [one sentence — the condition, not a second proposal]
 
 **First Test**
 - File: `path/to/test/file`
@@ -71,6 +80,8 @@ Use this template for the design sketch output. Adapt or omit sections based on 
 | Divergence & Recommendation | Whenever the proposed direction departs from a project convention or from the researched baseline (Workflow step 5) | Explain, unprompted, which input won (taste profile / project consistency) and why; hand the final adopt-vs-conform call to the caller |
 | Stack Profile Update | Only when fresh research was done (Workflow step 2) | Give the caller the dated entries to persist into `.praxis/stack-profile.md` |
 | Approach | When direction is non-obvious | State the key decision in 2–5 sentences |
+| Data & Contract Shape | Whenever a domain type, persisted shape, or public payload is introduced or changed | Settle field-level optionality and invariants while they are still cheap — before tests encode them |
+| Reversal Cost | Whenever step 5 runs — i.e. any sketch that proposes a direction | Give the design gate the one decision worth a human ruling |
 | First Test | Always | Bridge directly into TDD — name the test's layer so the design→TDD handoff is lossless |
 | Risks / Spikes | When uncertainty exists | Flag what might force a pivot |
 | What NOT to Change | When spec has scope-out or "must not break" items | Explicit boundaries |

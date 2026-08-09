@@ -77,6 +77,51 @@ Enforcement rides on `code-reviewing`'s existing anti-pattern list rather than a
 layer, and it required narrowing that skill's "tests are out of scope" guardrail: a
 process identifier in a *test name* is annotation hygiene, not test quality.
 
+## Why the final review is starved of context on purpose (2026-08-10)
+
+Users kept finding real issues by opening a fresh session and running a plain code
+review on the PR *after* a full craft run. Three causes, all structural:
+
+- The in-pipeline review is **anchored** — it receives the spec, the sketch, and the TDD
+  summary, so it reads the diff as the implementer intended it. A fresh reviewer has no
+  such frame and sees what the frame hid.
+- The diffs never matched a PR. Step 5 reviews one slice; the re-review loop reviews the
+  fix commits. Nothing looked at branch-vs-main, so cross-slice interactions — a helper
+  added in S-001 and misused in S-004, a branch left unreachable by S-005 — were
+  invisible to every pass.
+- Review sat at step 5, before improve and verify. Anything those two stages committed
+  was reviewed only if the bounded re-review happened to fire.
+
+So the final pass gets the cumulative diff and **only the PR description**. Withholding
+the artifacts is the mechanism; `composing-documents` already argued the same point for
+documents ("information isolation, not a second opinion") and the pipeline simply had
+not applied it to code. The cost is that intent-fit cannot run and an unannounced
+contract change defaults to Critical — which is why the PR description is drafted first
+and required to name deliberate contract changes. That ordering also matches reality:
+the description is what a human reviewer reads before the diff.
+
+## Why the data shape moved into the sketch, and why TDD may now re-route on it (2026-08-10)
+
+Design churn showed up as users re-litigating domain types in conversation *after* a
+run — in one case arguing an entity's fields should not be Optional and an extra wrapper
+type should not exist. The pipeline made that predictable: the sketch is deliberately
+thin ("compass, not blueprint", "shorter than the spec") and named no data shape, TDD's
+refactor is explicitly local, and the first stage that examines data structures is
+`code-reviewing` Layer 1 — after the tests encode the shape. A Layer-1 finding at that
+point requires editing tests, which `code-improving` may not do, so it exits as
+`## Feedback` and the human redesigns by hand. The expensive path was the only path.
+
+Two changes close it. The sketch now states field-level optionality and invariants when
+a type is introduced or changed, plus a two-sentence **Reversal Cost** that the design
+gate leads with — the point being to spend the human's one ruling on the decision that
+is expensive to undo, not on the whole sketch. And a wrong data shape discovered during
+refactor now returns `needs-design` rather than an advisory Design divergence, because
+at that moment only the current slice's tests depend on it.
+
+That required loosening the `needs-design` loop guard: it now trips on the same *reason*
+twice rather than on a second occurrence. A mid-loop data-shape re-route after an
+up-front placement one is new information from the code, not a failed design pass.
+
 ## Rightsizing pass for Claude 5 models (2026-08-01)
 
 The skills were audited against three Anthropic sources — the Opus 5 prompting guide,

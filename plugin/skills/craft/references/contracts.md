@@ -20,6 +20,8 @@ Persisted artifacts live under `.praxis/<feature-slug>/` at the repo root — pr
 | Verification summary | `.praxis/<slug>/slices/<slice-id>/verification.md` | verifying-and-adapting |
 | Pipeline state | `.praxis/<slug>/state.json` | craft (see *Pipeline state*) |
 | Deferred register | `.praxis/<slug>/deferred.md` — feature-level, not per-slice | any stage (appended by craft — see *Deferred register*) |
+| PR description | `.praxis/<slug>/pr-description.md` — feature-level | composing-documents + clear-writing (craft step 8) |
+| Final review report | `.praxis/<slug>/review-final.md` — feature-level | code-reviewing, unanchored (craft step 9 — see *Two review passes*) |
 | Stack profile (research cache) | `.praxis/stack-profile.md` — repo-level, cross-feature | sketching-design (persisted by craft — see *Stack profile*) |
 
 For a single-story feature (no slicing), the per-slice files collapse to `.praxis/<slug>/{sketch,review,verification}.md` alongside `spec.md`.
@@ -38,6 +40,21 @@ For a single-story feature (no slicing), the per-slice files collapse to `.praxi
 
 A design sketch always records its researched-practice baseline (a `Modern Practice` section, sourced from the stack profile or fresh research) and carries a `Divergence & Recommendation` section whenever the proposed direction departs from a project convention **or** from that researched baseline — in the latter case explaining why a higher-precedence input won (see *Implementation-decision flow*). Both ride inside `sketch.md` — no separate artifact — and downstream stages that already accept the sketch (`driving-tdd`, `code-reviewing`) read them as optional context; the adopt-vs-conform decision a divergence raises is the caller's, surfaced at the design gate.
 
+## Two review passes
+
+`code-reviewing` runs twice over a craft run, with deliberately different inputs. Both are the same skill; the difference is what the caller hands it.
+
+| | Per-slice review (craft step 5) | Final review (craft step 9) |
+| --- | --- | --- |
+| Diff | this slice's implementation | cumulative `git diff <merge-base>...HEAD` |
+| Context given | spec, sketch, TDD summary, steering/taste/stack profiles | **the PR description only** |
+| Catches | problems while the slice is still cheap to change | cross-slice interactions; everything committed after step 5 by improve and verify; anything the design frame hid |
+| Runs | once per slice | once per branch |
+
+**Withholding the upstream artifacts from the final pass is the mechanism, not an oversight.** A reviewer holding the spec and the sketch reads the diff as the implementer intended it; that sympathy is what lets a problem survive step 5 and surface later in a fresh review. `composing-documents` core move 7 states the same principle for documents — the value comes from *information isolation*, not from a second opinion. Skip the final pass only when the story was a single slice and nothing changed after step 5; then the two diffs are identical.
+
+Consequence to accept: without a spec the final pass cannot run intent-fit, and it defaults an unannounced contract change to Critical. That is why craft drafts the PR description first (step 8) — naming deliberate contract changes there is what keeps the pass honest instead of noisy.
+
 ## Status / routing vocabulary
 
 Each stage ends its output with a machine-readable line (or JSON field) from the set below. `craft` branches **only** on these tokens — never on prose. If a token is absent or unrecognized, treat it as a malformed hand-off (see *Sibling failure*).
@@ -55,7 +72,7 @@ Each stage ends its output with a machine-readable line (or JSON field) from the
 
 Any stage may additionally surface a `## Feedback` section when implementation reveals the spec was wrong — this is a hard stop regardless of the `Status:` value.
 
-`driving-tdd`'s `needs-design: <reason>` is a **re-route, not a stop** and not a sibling failure: craft runs `sketching-design` for the story (design gate), runs the step 3.5 consistency check, then re-enters `driving-tdd` with the sketch. It is the one status that sends work backward a stage. Guard against a loop: if `driving-tdd` returns `needs-design` *again with a sketch already in hand*, that **is** a sibling failure (the design didn't resolve it).
+`driving-tdd`'s `needs-design: <reason>` is a **re-route, not a stop** and not a sibling failure: craft runs `sketching-design` for the story (design gate), runs the step 3.5 consistency check, then re-enters `driving-tdd` with the sketch. It is the one status that sends work backward a stage, and it is raised for two different reasons — placement is non-obvious before the first test, or refactor exposed a wrong data shape mid-loop. Guard against a loop on the **reason**, not on the count: `needs-design` twice for the *same* reason is a sibling failure (that design pass didn't resolve it), while a mid-loop data-shape re-route after an up-front placement one is the mechanism working — new information from the code, arriving at the cheapest moment to act on it.
 
 ### Sizing → routing (used by craft entry triage)
 

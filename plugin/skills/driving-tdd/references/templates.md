@@ -39,7 +39,7 @@ Produced at the end of a TDD session.
 ### TDD Summary: [story title]
 
 **Status**: complete | needs-design: [reason] | blocked: [reason]
-(Machine-readable routing line — always the first line. `needs-design` is step 1's Case B — architecture must be decided before tests; an orchestrator re-routes to `sketching-design`, then re-enters here. `blocked` means a `## Feedback` gap stopped the session; an orchestrator hard-stops on it.)
+(Machine-readable routing line — always the first line. `needs-design` covers both re-route reasons: step 1's Case B, where placement must be decided before the first test, and step 5's wrong data shape, found once the code showed it. Either way an orchestrator re-routes to `sketching-design` and re-enters here; state which reason. `blocked` means a `## Feedback` gap stopped the session; an orchestrator hard-stops on it.)
 
 **ACs Completed**: [count] / [total]
 

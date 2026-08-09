@@ -9,9 +9,10 @@ Use this template for medium+ reviews. For small reviews, use a condensed versio
 **Security-sensitive**: no
 (Machine-readable header lines — always first. `Status: skipped` for a trivial change waved through. `Security-sensitive: yes` when the Security Surfaces pass flags anything, telling an orchestrator to force a human gate.)
 
-**Scope**: [N files reviewed] | [brief description of what was built]
+**Scope**: [N files reviewed] | [what resolved the diff: explicit path / base ref `<base>...HEAD` / uncommitted / recent commits] | [brief description of what was built]
 **Assessed**: structure, special cases, complexity, breaking changes & behavioral conflicts, practicality, security[, intent-fit]
 **Not assessed**: [AC execution — see verifying-and-adapting][; intent-conformance — no spec provided]
+**Context given**: [everything you were handed — e.g. "PR description only (unanchored pass): no spec, sketch, or implementation summary"]
 
 ### Premise Check
 
