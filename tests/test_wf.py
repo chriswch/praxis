@@ -82,6 +82,17 @@ class Project:
     def pr_file(self, name, title):
         return self.write(f"prs/{name}.md", f"# {title}\n\nWhy and what.\n", root=self.feature_dir)
 
+    def commit_pr(self, name, title, test=None, test_body="exit 0\n", extra=()):
+        if test:
+            self.write(f"tests/{test}_test.sh", test_body, root=self.worktree)
+        self.write("src/app.txt", f"{name}\n", root=self.worktree)
+        return self.wf("pr-done", str(self.pr_file(name, title)), *extra)
+
+    def finish_story(self):
+        self.wf("next")
+        self.wf("review")
+        return self.wf("next")
+
     def head(self):
         return self.git(self.worktree, "rev-parse", "HEAD")
 
@@ -311,6 +322,209 @@ class ModeAndPathTest(WfTestCase):
 
         self.assertIn("step: plan", out)
         self.assertIn(f"plan: {self.p.feature_dir / 'plan.md'}", out)
+
+
+class ReviewTest(WfTestCase):
+    def setUp(self):
+        super().setUp()
+        self.p.to_build(stories="### Pay by card\n\n### Refund\n")
+        self.p.commit_pr("01-pay", "Pay by card", test="pay")
+        self.p.wf("next")
+
+    def test_brief_lists_the_worktree_range_pr_files_and_rule_files_in_priority_order(self):
+        repo_taste = self.p.write(".praxis/taste.md", "- Prefer plain functions\n")
+        agents = self.p.write("AGENTS.md", "Team rules\n", root=self.p.worktree)
+        global_taste = self.p.write(".praxis/taste.md", "- Name things plainly\n", root=self.p.home)
+        head = self.p.head()
+        start = self.p.git(self.p.worktree, "rev-parse", "HEAD~1")
+
+        brief = self.p.wf("review").stdout
+
+        self.assertIn(str(self.p.worktree), brief)
+        self.assertIn(f"{start}..{head}", brief)
+        self.assertIn(str(self.p.feature_dir / "prs" / "01-pay.md"), brief)
+        order = [brief.index(str(path)) for path in (repo_taste, agents, global_taste)]
+        self.assertEqual(order, sorted(order))
+        self.assertNotIn("## Requirements", brief)
+
+    def test_story_range_holds_only_this_storys_prs(self):
+        self.p.wf("review")
+        self.p.wf("next")
+        self.p.commit_pr("02-refund", "Refund", test="refund")
+        self.p.wf("next")
+        start = self.p.git(self.p.worktree, "rev-parse", "HEAD~1")
+
+        brief = self.p.wf("review").stdout
+
+        self.assertIn(f"{start}..{self.p.head()}", brief)
+        self.assertIn("02-refund.md", brief)
+        self.assertNotIn("01-pay.md", brief)
+
+    def test_round_four_is_refused(self):
+        for _ in range(3):
+            self.p.wf("review")
+
+        result = self.p.wf("review", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.p.state()["stories"][0]["rounds"], 3)
+
+    def test_feature_brief_covers_the_whole_branch_and_adds_the_requirements(self):
+        self.p.wf("review")
+        self.p.wf("next")
+        self.p.commit_pr("02-refund", "Refund", test="refund")
+        self.p.finish_story()
+        plan = self.p.feature_dir / "plan.md"
+        plan.write_text(plan.read_text().replace("## Requirements\n", "## Requirements\n- Refunds return the full amount.\n"))
+
+        brief = self.p.wf("review").stdout
+
+        self.assertIn(f"{self.p.state()['base']['sha']}..{self.p.head()}", brief)
+        self.assertIn("Refunds return the full amount.", brief)
+        self.assertIn("01-pay.md", brief)
+        self.assertIn("02-refund.md", brief)
+
+
+class GateTest(WfTestCase):
+    def setUp(self):
+        super().setUp()
+        self.p.to_build(stories="### Pay by card\n\n### Refund\n")
+        self.p.commit_pr("01-pay", "Pay by card", test="pay")
+        self.pay = self.p.head()
+        self.p.commit_pr("02-tidy", "Tidy the app", extra=("tests/app_test.sh",))
+
+    def fixup(self, target, path, text):
+        self.p.write(path, text, root=self.p.worktree)
+        self.p.git(self.p.worktree, "add", "-A")
+        self.p.git(self.p.worktree, "commit", "-q", "--fixup", target)
+        self.p.git(self.p.worktree, "rebase", "-q", "--autosquash", self.p.state()["base"]["sha"])
+
+    def test_next_refuses_before_any_review_round(self):
+        self.p.wf("next")
+
+        result = self.p.wf("next", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("wf review", result.stderr)
+
+    def test_gate_passes_when_every_commit_maps_to_a_green_pr_and_marks_the_story_done(self):
+        self.p.wf("next")
+        self.p.wf("review")
+        open(self.p.log, "w").close()
+
+        out = self.p.wf("next").stdout
+
+        self.assertIn("story: Refund", out)
+        self.assertEqual(self.p.ran(), ["tests/pay_test.sh", "tests/app_test.sh"])
+        self.assertTrue(self.p.state()["stories"][0]["done"])
+
+    def test_gate_still_maps_after_autosquash_and_runs_tests_a_fixup_added(self):
+        self.p.wf("next")
+        self.p.wf("review")
+        self.fixup(self.pay, "tests/card_test.sh", "exit 0\n")
+        open(self.p.log, "w").close()
+
+        self.p.wf("next")
+
+        self.assertEqual(self.p.ran(), ["tests/card_test.sh tests/pay_test.sh", "tests/app_test.sh"])
+
+    def test_gate_names_a_commit_that_matches_no_pr(self):
+        self.p.wf("next")
+        self.p.wf("review")
+        self.p.write("src/app.txt", "stray\n", root=self.p.worktree)
+        self.p.git(self.p.worktree, "commit", "-q", "-am", "Stray change")
+
+        result = self.p.wf("next", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Stray change", result.stderr)
+
+    def test_gate_names_a_red_commit_and_returns_to_the_branch(self):
+        self.p.wf("next")
+        self.p.wf("review")
+        self.fixup(self.pay, "tests/pay_test.sh", "exit 1\n")
+        tip = self.p.head()
+
+        result = self.p.wf("next", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Pay by card", result.stderr)
+        self.assertEqual(self.p.git(self.p.worktree, "branch", "--show-current"), "feat")
+        self.assertEqual(self.p.head(), tip)
+        self.assertFalse(self.p.state()["stories"][0]["done"])
+
+    def test_gate_refuses_a_dirty_worktree(self):
+        self.p.wf("next")
+        self.p.wf("review")
+        self.p.write("notes.txt", "scratch\n", root=self.p.worktree)
+
+        result = self.p.wf("next", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.p.ran()[-1], "tests/app_test.sh")
+
+
+class DoneTest(WfTestCase):
+    def test_done_reports_tests_changed_after_freeze_but_not_tests_a_later_pr_edits(self):
+        self.p.to_build()
+        self.p.write("tests/pay_test.sh", "exit 0\n", root=self.p.worktree)
+        self.p.wf("freeze")
+        self.p.commit_pr("01-pay", "Pay by card")
+        self.p.write("tests/refund_test.sh", "exit 0\n", root=self.p.worktree)
+        self.p.wf("freeze")
+        self.p.write("tests/refund_test.sh", "exit 0 # loosened\n", root=self.p.worktree)
+        self.p.write("tests/pay_test.sh", "exit 0 # extended\n", root=self.p.worktree)
+        self.p.commit_pr("02-refund", "Refund")
+        self.p.finish_story()
+        self.p.wf("review")
+
+        out = self.p.wf("next").stdout
+
+        self.assertIn("step: done", out)
+        self.assertIn("changed_after_freeze: 02-refund.md tests/refund_test.sh", out)
+        self.assertNotIn("01-pay.md", out)
+
+
+class PublishTest(WfTestCase):
+    def setUp(self):
+        super().setUp()
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        gh = bin_dir / "gh"
+        gh.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os, sys\n"
+            "args = sys.argv[1:]\n"
+            "body = open(args[args.index('--body-file') + 1]).read()\n"
+            "with open(os.environ['GH_LOG'], 'a') as log:\n"
+            "    log.write(json.dumps({'args': args, 'body': body}) + '\\n')\n"
+            "print('https://github.example/pr/' + args[args.index('--head') + 1])\n"
+        )
+        gh.chmod(0o755)
+        self.gh_log = self.tmp / "gh.log"
+        self.p.env["PATH"] = f"{bin_dir}{os.pathsep}{self.p.env['PATH']}"
+        self.p.env["GH_LOG"] = str(self.gh_log)
+
+    def test_publish_pushes_a_branch_per_pr_and_stacks_the_prs(self):
+        self.p.to_build()
+        self.p.commit_pr("01-pay", "Pay by card", test="pay")
+        first = self.p.head()
+        self.p.commit_pr("02-refund", "Refund", test="refund")
+        second = self.p.head()
+        self.p.finish_story()
+        self.p.wf("review")
+        self.p.wf("next")
+
+        out = self.p.wf("publish").stdout
+
+        remote = self.p.git(self.p.main, "ls-remote", str(self.p.origin))
+        self.assertIn(f"{first}\trefs/heads/feat-01-pay", remote)
+        self.assertIn(f"{second}\trefs/heads/feat-02-refund", remote)
+        calls = [json.loads(line) for line in self.gh_log.read_text().splitlines()]
+        self.assertEqual([call["args"][call["args"].index("--base") + 1] for call in calls], ["main", "feat-01-pay"])
+        self.assertEqual(calls[0]["args"][calls[0]["args"].index("--title") + 1], "Pay by card")
+        self.assertEqual(calls[0]["body"], "Why and what.\n")
+        self.assertIn("https://github.example/pr/feat-02-refund", out)
 
 
 if __name__ == "__main__":

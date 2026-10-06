@@ -3,6 +3,7 @@ import json
 import os
 import re
 import shlex
+import string
 import subprocess
 import sys
 import tempfile
@@ -10,6 +11,9 @@ from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 SKILLS_DIR = SKILL_DIR.parent
+BRIEF = SKILL_DIR / "assets" / "reviewer-brief.md"
+MAX_ROUNDS = 3
+REQUIREMENTS = "\n## Requirements\n\nAlso report under (a) any rule below that is neither implemented nor listed as out of scope.\n\n"
 PLAN_SKELETON = "## Requirements\n\n## Questions\n\n## Stories\n\n## Design\n\n## Findings\n"
 FEATURE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
@@ -139,6 +143,74 @@ def start_next_story(feature, state):
     return title
 
 
+def rounds_holder(state):
+    return (current_story(state), "rounds") if state["step"] == "review" else (state, "feature_rounds")
+
+
+def pr_commits(feature, state):
+    prs = state["prs"]
+    commits = git("rev-list", "--reverse", f"{state['base']['sha']}..{feature.name}", cwd=feature.worktree).split()
+    for index, sha in enumerate(commits):
+        subject = git("log", "-1", "--format=%s", sha, cwd=feature.worktree)
+        if index >= len(prs) or subject != prs[index]["title"]:
+            raise WfError(f"commit {sha[:12]} '{subject}' is not registered PR {index + 1}; fold fixups with git rebase --autosquash")
+    if len(commits) < len(prs):
+        raise WfError(f"{len(prs) - len(commits)} registered PR(s) have no commit on {feature.name}")
+    return list(zip(commits, prs))
+
+
+def scope_pairs(feature, state):
+    pairs = pr_commits(feature, state)
+    if state["step"] == "review":
+        title = current_story(state)["title"]
+        pairs = [(sha, pr) for sha, pr in pairs if pr["story"] == title]
+    return pairs
+
+
+def gate(feature, state):
+    if git("status", "--porcelain", cwd=feature.worktree):
+        raise WfError("the worktree has uncommitted changes: fold them into PR commits or remove them")
+    pairs = scope_pairs(feature, state)
+    config = load_config(feature.main)
+    try:
+        for sha, pr in pairs:
+            git("checkout", "-q", sha, cwd=feature.worktree)
+            changed = git("diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha, cwd=feature.worktree).split("\0")
+            tests = test_scope(changed, pr["extra_tests"], config, feature.worktree)
+            if not tests:
+                raise WfError(f"commit {sha[:12]} '{pr['title']}' has no test to run")
+            if not run_tests(config, tests, feature.worktree):
+                raise WfError(f"tests fail at commit {sha[:12]} '{pr['title']}'")
+    finally:
+        git("checkout", "-q", feature.name, cwd=feature.worktree)
+
+
+def freeze_report(feature, state):
+    lines = []
+    for sha, pr in pr_commits(feature, state):
+        for path, blob in sorted(pr["frozen"].items()):
+            now = subprocess.run(["git", "rev-parse", "-q", "--verify", f"{sha}:{path}"], cwd=feature.worktree, capture_output=True, text=True)
+            if now.stdout.strip() != blob:
+                lines.append(f"changed_after_freeze: {Path(pr['file']).name} {path}")
+    return lines or ["changed_after_freeze: none"]
+
+
+def rule_files(feature):
+    candidates = [
+        feature.main / ".praxis" / "taste.md",
+        feature.worktree / "AGENTS.md",
+        feature.worktree / "CLAUDE.md",
+        Path.home() / ".praxis" / "taste.md",
+        *sorted(SKILLS_DIR.glob("*/standards/*.md")),
+    ]
+    files, seen = [], set()
+    for path in candidates:
+        if path.is_file() and path.resolve() not in seen:
+            seen.add(path.resolve())
+            files.append(path)
+    return files
+
+
 def require_step(state, step, command):
     if state["step"] != step:
         raise WfError(f"{command} runs during {step}; the run is at {state['step']}")
@@ -260,13 +332,26 @@ def cmd_next(feature, args):
             raise WfError(f"{feature.plan} has no '### ' story under ## Stories")
     elif step == "build":
         state["step"] = "review"
+    elif step in ("review", "feature"):
+        holder, key = rounds_holder(state)
+        if holder[key] < 1:
+            raise WfError("run at least one review round first: wf review")
+        gate(feature, state)
+        if step == "feature":
+            state["step"] = "done"
+        else:
+            holder["done"] = True
+            if start_next_story(feature, state) is None:
+                state["step"] = "feature"
     else:
-        raise WfError(f"next cannot leave {step} yet")
+        raise WfError("the run is finished")
     feature.save(state)
     print(f"step: {state['step']}")
     story = current_story(state)
     if story and state["step"] in ("build", "review"):
         print(f"story: {story['title']}")
+    if state["step"] == "done":
+        print("\n".join(freeze_report(feature, state)))
     if state["mode"] == "step":
         print("PAUSE")
 
@@ -319,12 +404,69 @@ def cmd_pr_done(feature, args):
     print(f"commit: {git('rev-parse', '--short', 'HEAD', cwd=feature.worktree)} {title}")
 
 
+def cmd_review(feature, args):
+    state = feature.load()
+    if state["step"] not in ("review", "feature"):
+        raise WfError(f"review runs during review or feature; the run is at {state['step']}")
+    holder, key = rounds_holder(state)
+    if holder[key] >= MAX_ROUNDS:
+        raise WfError(f"round {holder[key] + 1} refused: at most {MAX_ROUNDS} review rounds per scope")
+    pairs = scope_pairs(feature, state)
+    if not pairs:
+        raise WfError("no registered PR to review")
+    start = git("rev-parse", f"{pairs[0][0]}^", cwd=feature.worktree)
+    requirements = ""
+    if state["step"] == "feature":
+        requirements = REQUIREMENTS + section(feature.read_plan(), "Requirements").strip() + "\n"
+    rules = rule_files(feature)
+    brief = string.Template(BRIEF.read_text(encoding="utf-8")).substitute(
+        worktree=feature.worktree,
+        range=f"{start}..{pairs[-1][0]}",
+        prs="\n".join(f"- {pr['file']}" for _, pr in pairs),
+        requirements=requirements,
+        rules="\n".join(f"{number}. {path}" for number, path in enumerate(rules, 1)) or "(none)",
+    )
+    holder[key] += 1
+    feature.save(state)
+    print(brief, end="")
+
+
+def cmd_publish(feature, args):
+    state = feature.load()
+    pairs = pr_commits(feature, state)
+    if not pairs:
+        raise WfError("no registered PR to publish")
+    branches = [f"{feature.name}-{Path(pr['file']).stem}" for _, pr in pairs]
+    for (sha, _), branch in zip(pairs, branches):
+        git("push", "-q", "origin", f"{sha}:refs/heads/{branch}", cwd=feature.worktree)
+    base = state["base"]["ref"]
+    for (_, pr), branch in zip(pairs, branches):
+        body = Path(pr["file"]).read_text(encoding="utf-8").partition("\n")[2].lstrip("\n")
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".md", delete=False) as file:
+            file.write(body)
+        try:
+            result = subprocess.run(
+                ["gh", "pr", "create", "--head", branch, "--base", base, "--title", pr["title"], "--body-file", file.name],
+                cwd=feature.worktree, capture_output=True, text=True,
+            )
+        except FileNotFoundError:
+            raise WfError("gh is not installed")
+        finally:
+            os.unlink(file.name)
+        if result.returncode != 0:
+            raise WfError(f"gh pr create --head {branch}: {(result.stderr or result.stdout).strip()}")
+        print(f"pr: {result.stdout.strip()}")
+        base = branch
+
+
 COMMANDS = {
     "status": cmd_status,
     "mode": cmd_mode,
     "next": cmd_next,
     "freeze": cmd_freeze,
     "pr-done": cmd_pr_done,
+    "review": cmd_review,
+    "publish": cmd_publish,
 }
 
 
@@ -342,6 +484,8 @@ def main(argv=None):
     pr_done = commands.add_parser("pr-done", help="run the PR's tests and commit it when green")
     pr_done.add_argument("pr_file")
     pr_done.add_argument("tests", nargs="*", help="existing tests that cover the changed code")
+    commands.add_parser("review", help="count a review round and print the reviewer brief")
+    commands.add_parser("publish", help="push a branch per PR and open the stacked PRs")
     args = parser.parse_args(argv)
     try:
         if args.command == "start":
