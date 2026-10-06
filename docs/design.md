@@ -36,6 +36,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
   - 依序排列，每個 story 一個 `###` 標題，用一句可觀察的行為描述。
   - 每個 story 都能單獨上線。
   - 每條規則都要歸到某個 story，或列在範圍外。
+  - story 的 `###` 標題在它的 Build 開始後就不再改：`wf` 依標題追蹤 story。
 
 完成條件（`wf next` 檢查）：§Questions 是空的。
 
@@ -67,14 +68,14 @@ wf start     從 remote default branch 開 worktree 與 feature branch
 
    完整測試交給 push 後的 CI。
 
-完成條件：模型自評。
+完成條件：模型自評；`wf next` 另外檢查這個 story 至少有一支已登記的 PR。
 
 ### 4 Review（每個 story）
 
 1. `wf review`：輪數加一，並印出 reviewer brief。第 4 輪會被拒絕。
 2. 開一個新的 subagent，prompt 一字不改就是 brief。
-3. 先把每條 finding 寫進 §Findings，再逐條處理，並在同一行記下處置：
-   - 修：`git commit --fixup <所屬 PR 的 commit>`，再 `git rebase --autosquash <base commit>`。base commit 由 `wf status` 印出。
+3. 先把每條 finding 寫成 §Findings 的一行，開頭寫範圍與輪次（例如「story 2 第 1 輪：」），再逐條處理，並在同一行記下處置：
+   - 修：`git commit --fixup <所屬 PR 的 commit>`，再 `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <base commit>`。base commit 由 `wf status` 印出。加 `-i` 是因為 git 2.44 以前，沒有 `-i` 的 autosquash 不會併入 fixup。
    - 駁回：寫一行理由。
 
 這一輪沒有修任何東西，或已經跑完第 3 輪，就結束。
@@ -168,17 +169,19 @@ wf start     從 remote default branch 開 worktree 與 feature branch
   - 檢查：
     - Plan：§Questions 是空的。
     - Review 與 Feature review：這個範圍至少跑過一輪、工作區乾淨，而且 gate 通過。gate 依序 checkout 範圍內的每個 commit：每個 commit 都要對應到一支已登記的 PR，並在該 commit 上跑它的測試範圍全綠。沒對應或紅燈時，指出是哪一個 commit。不論結果，最後都回到 branch；這個檢查不改寫歷史。
+    - Build：這個 story 至少有一支已登記的 PR。
     - 其他步驟：沒有 script 檢查。
   - 前進：Plan → Design → 下一個 story 的 Build → 它的 Review。Review 通過時，這個 story 標為完成；還有沒完成的 story 就回到 Build，否則進 Feature review。Feature review 通過就結束。
   - 下一個 story ＝ §Stories 底下第一個還沒完成的 `###`。
-  - step 模式下，前進之後印出 PAUSE。
+  - step 模式下，前進之後印出 PAUSE；進到結束時不印，直接收尾。
   - 結束時，印出每支 PR 在 freeze 之後被改的測試：比對 freeze 快照與該 PR 自己的 commit。
 - **`mode auto|step`**：切換模式。
 - **`freeze`**：記下目前有變動的測試檔快照，下一次 `pr-done` 會把它綁到那支 PR。沒有變動的測試檔就拒絕。
 - **`pr-done <pr-file> [其他相關測試檔…]`**：
-  1. `git add -A`。
-  2. 用測試指令跑這支 PR 的測試範圍。
-  3. 全綠才用 PR 檔的標題 commit，並把這支 PR 登記進 PR 清單。紅燈時改動留在暫存區。
+  1. PR 檔不在 `.praxis/<feature>/prs/` 就拒絕：放在 worktree 裡會被一起 commit。
+  2. `git add -A`。
+  3. 用測試指令跑這支 PR 的測試範圍。
+  4. 全綠才用 PR 檔的標題 commit，並把這支 PR 登記進 PR 清單。紅燈時改動留在暫存區。
 - **`review`**：這個範圍的輪數加一，第 4 輪拒絕。印出 reviewer brief。
 - **`publish`**：只在你下指令時跑。
   1. 為每支 PR 的 commit 建一條 branch。

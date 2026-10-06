@@ -291,6 +291,17 @@ class PrDoneTest(WfTestCase):
 
         self.assertEqual(self.p.ran()[-1], "new tests/pay_test.sh")
 
+    def test_pr_done_refuses_a_pr_file_outside_the_prs_folder(self):
+        self.p.to_build()
+        self.p.write("tests/pay_test.sh", "exit 0\n", root=self.p.worktree)
+        inside = self.p.write("prs/01-pay.md", "# Pay by card\n", root=self.p.worktree)
+
+        result = self.p.wf("pr-done", str(inside), check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(str(self.p.feature_dir / "prs"), result.stderr)
+        self.assertEqual(self.p.git(self.p.worktree, "diff", "--cached", "--name-only"), "")
+
     def test_pr_done_binds_the_freeze_snapshot_to_its_pr(self):
         self.p.to_build()
         self.p.write("tests/pay_test.sh", "exit 0\n", root=self.p.worktree)
@@ -314,6 +325,27 @@ class ModeAndPathTest(WfTestCase):
         self.assertEqual(out.splitlines()[-1], "PAUSE")
         self.p.wf("mode", "auto")
         self.assertNotIn("PAUSE", self.p.wf("next").stdout)
+
+    def test_next_refuses_to_leave_build_before_the_story_has_a_pr(self):
+        self.p.to_build()
+
+        result = self.p.wf("next", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("pr-done", result.stderr)
+        self.assertEqual(self.p.state()["step"], "build")
+
+    def test_step_mode_does_not_pause_when_the_run_finishes(self):
+        self.p.to_build()
+        self.p.commit_pr("01-pay", "Pay by card", test="pay")
+        self.p.finish_story()
+        self.p.wf("review")
+        self.p.wf("mode", "step")
+
+        out = self.p.wf("next").stdout
+
+        self.assertIn("step: done", out)
+        self.assertNotIn("PAUSE", out)
 
     def test_wf_runs_from_a_subdirectory_of_the_worktree(self):
         self.p.wf("start", "feat", cwd=self.p.main)

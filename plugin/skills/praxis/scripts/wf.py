@@ -331,6 +331,9 @@ def cmd_next(feature, args):
         if start_next_story(feature, state) is None:
             raise WfError(f"{feature.plan} has no '### ' story under ## Stories")
     elif step == "build":
+        title = current_story(state)["title"]
+        if not any(pr["story"] == title for pr in state["prs"]):
+            raise WfError(f"story '{title}' has no PR yet: commit one with wf pr-done before moving on")
         state["step"] = "review"
     elif step in ("review", "feature"):
         holder, key = rounds_holder(state)
@@ -352,7 +355,7 @@ def cmd_next(feature, args):
         print(f"story: {story['title']}")
     if state["step"] == "done":
         print("\n".join(freeze_report(feature, state)))
-    if state["mode"] == "step":
+    if state["mode"] == "step" and state["step"] != "done":
         print("PAUSE")
 
 
@@ -379,6 +382,8 @@ def cmd_pr_done(feature, args):
     state = feature.load()
     require_step(state, "build", "pr-done")
     pr_file = Path(args.pr_file).resolve()
+    if pr_file.parent != feature.prs.resolve():
+        raise WfError(f"PR files live in {feature.prs}, next to plan.md and outside the worktree")
     title = pr_title(pr_file)
     if any(pr["file"] == str(pr_file) for pr in state["prs"]):
         raise WfError(f"{pr_file} is already registered")

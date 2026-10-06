@@ -16,13 +16,13 @@ Steps: start → 1 Plan → 2 Design → for each story, 3 Build and 4 Review �
 
 ## Running wf
 
-`wf` means `python3 <directory of this SKILL.md>/scripts/wf.py`, with the absolute path. Run every `wf` command except `start` from inside the feature's worktree.
+`wf` means `python3 <directory of this SKILL.md>/scripts/wf.py`, with the absolute path. After `wf start`, run every command (`wf`, git, tests) and edit every file in the feature's worktree, `<repo>/.praxis/<feature>/worktree`. Give each command that working directory: a git command run in the main checkout would rewrite the user's own branch.
 
 - Exit 0: done. Output is `key: value` lines.
 - Exit 1: refused or failed; stderr names the file, commit, command, or check. Fix the cause and rerun. If the cause is outside your reach (a permission, the environment, a service), stop and ask.
 - Exit 2: wrong usage; see `wf --help`.
 
-`wf status` prints the mode, step, story, review rounds, base commit, the paths of plan.md, the repo taste and config.json, and the SKILL.md paths of this plugin's other skills.
+`wf status` prints where the run is, the base commit, and the paths of plan.md, the repo taste, and config.json.
 
 ## Inputs and precedence
 
@@ -57,7 +57,7 @@ End your turn only:
 - **In step mode, when `wf next` prints PAUSE.** The user's reply is the confirmation; continue with the step `wf status` shows.
 - **When the run is finished.**
 
-The mode is `auto` unless the user asks for step mode. Switch any time with `wf mode auto|step`. To resume a run, cd into its worktree and read `wf status`, plan.md, and `git log`.
+The mode is `auto` unless the user asks for step mode. Switch any time with `wf mode auto|step`. To resume a run, work in `<repo>/.praxis/<feature>/worktree` and read `wf status`, plan.md, and `git log`.
 
 ## Rules
 
@@ -77,7 +77,7 @@ The mode is `auto` unless the user asks for step mode. Switch any time with `wf 
    - Write `<repo>/.praxis/config.json` with `test_cmd`, `test_glob`, and optionally `setup`. Find the commands in CI config, the README, or the build files.
      - `test_cmd` runs the given test files; `{files}` marks where `wf` puts them.
      - `test_glob` matches test file paths; `**` spans folders.
-     - `setup` prepares a new worktree: copy the untracked config the tests need from `$WF_MAIN` (the main checkout), and install only project-local dependencies, with a tool that has a global cache. Skip what global installs already provide.
+     - `setup` prepares a new worktree: copy the untracked config the tests need from `$WF_MAIN` (the main checkout), and install only project-local dependencies, with a tool that has a global cache. Skip what global installs already provide. The test database is shared with the main checkout; setup does not create or reset it.
    - Write one line in `<repo>/.praxis/taste.md` that names the repo's standards documents (for example guides under `docs/`), so you and the reviewer read them.
 3. From the repository, run `wf start <feature>` (with `--mode step` if the user asked for it), then cd into the worktree it prints.
 4. If setup fails, fix config.json and rerun `wf start <feature>`; for an existing feature it only reruns setup. If you cannot fix it, stop and ask.
@@ -88,7 +88,7 @@ Fill in plan.md; `wf start` created its headings.
 
 - `## Requirements`: the goal; the rules, each with a key example; what is out of scope; Assumed, the decisions you made yourself.
 - `## Questions`: everything you need the user to answer, asked at once. Merge each answer into the right section and delete the question.
-- `## Stories`: in build order, one `### ` heading per story, named by one observable behavior. Each story can ship on its own. Every rule belongs to a story or is out of scope.
+- `## Stories`: in build order, one `### ` heading per story, named by one observable behavior. Each story can ship on its own. Every rule belongs to a story or is out of scope. Never rename a story heading once its Build has started: `wf` tracks stories by title.
 
 `wf next` moves on once `## Questions` is empty.
 
@@ -116,7 +116,7 @@ For each PR:
 
 1. A behavior PR starts with its tests. Once they are written, run `wf freeze`.
 2. Implement.
-3. Write `<feature dir>/prs/NN-slug.md`, where `NN` counts PRs across the feature: first line `# <title>`, then the description.
+3. Write `prs/NN-slug.md` in the feature folder, next to plan.md and outside the worktree, where `NN` counts PRs across the feature: first line `# <title>`, then the description.
 4. Run `wf pr-done <PR file> [related tests…]`. It stages everything, runs the PR's changed tests plus the related tests you name (existing tests that cover the code you changed), and commits only when they pass. The full suite runs in CI after push. If `test_cmd` itself is wrong, fix config.json; the next call uses it.
 
 When every PR in the plan is committed, run `wf next`.
@@ -125,8 +125,8 @@ When every PR in the plan is committed, run `wf next`.
 
 1. Run `wf review`. It counts a round, refuses a fourth, and prints the reviewer brief.
 2. Start a fresh subagent whose entire prompt is that brief, word for word: in Claude Code, the Agent tool with a general-purpose agent; in Codex, a delegated subagent.
-3. Copy each finding into `## Findings` as one line before you handle it, then add what you did on the same line:
-   - Fix: `git commit --fixup <commit of the PR it belongs to>`, then `git rebase --autosquash <base commit>`.
+3. Copy each finding into `## Findings` as one line that starts with its scope and round (for example `story 2, round 1:`) before you handle it, then add what you did on the same line:
+   - Fix: `git commit --fixup <commit of the PR it belongs to>`, then `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <base commit>`, with the base commit from `wf status`.
    - Dismiss: write the reason.
 
 Stop when a round fixes nothing, or after round 3. Then run `wf next`. It reruns each PR's tests at its own commit, then moves to the next story or to the feature review.

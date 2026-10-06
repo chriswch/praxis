@@ -6,7 +6,7 @@ Work in this worktree and run every command there: $worktree
 
 ## What
 
-Review the commits in $range, oldest first, for example with `git log --reverse -p $range`. Each commit is one pull request. Their description files, in commit order:
+Review the commits in $range, oldest first, for example with `git log --reverse -p $range`. Each commit is one pull request. Their description files, in commit order (read only these files in that folder; the rest of it is the writer's working notes):
 
 $prs
 $requirements
