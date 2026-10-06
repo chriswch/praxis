@@ -1,7 +1,7 @@
 {
   "name": "praxis",
   "version": "1.0.0",
-  "description": "Spec-driven workflows: clarification, slicing, design, implementation, review, improvement, and verification — chained by craft (full TDD, with autopilot mode for end-to-end runs).",
+  "description": "Runs one feature through plan, design, test-first build, and fresh-context review as stacked PRs, stopping at local commits until told to push.",
   "author": {
     "name": "chriswch",
     "email": "chriswangwch@gmail.com",
@@ -12,16 +12,16 @@
   "license": "MIT",
   "keywords": [
     "software-engineering",
-    "spec-driven-development",
-    "tdd",
     "workflow",
-    "codex"
+    "tdd",
+    "code-review",
+    "stacked-prs"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Praxis",
-    "shortDescription": "Spec-driven workflows from clarification through verification",
-    "longDescription": "Praxis is a collection of agent skills for spec-driven software engineering. Skills cover clarification, slicing, design, implementation, review, improvement, and verification. The craft orchestrator skill chains them end-to-end — manual by default with checkpoints between stages, or --autopilot for end-to-end runs that stop only on hard blockers.",
+    "shortDescription": "One feature from requirements to reviewed, stacked PRs",
+    "longDescription": "Praxis is an agent workflow for software development. It clarifies requirements, designs the data model and API, builds each story test-first in an isolated git worktree as stacked single-concern PRs, and reviews every story with a fresh reviewer. It runs on autopilot or pauses after every step, and it never pushes without your word.",
     "developerName": "chriswch",
     "category": "Coding",
     "capabilities": [
@@ -31,9 +31,9 @@
     ],
     "websiteURL": "https://github.com/chriswch/praxis",
     "defaultPrompt": [
-      "Clarify this feature and turn it into a testable spec before coding.",
-      "Split this large feature into thin vertical slices I can ship incrementally.",
-      "Drive this change with the full Praxis craft workflow."
+      "Use Praxis to build this feature.",
+      "Resume the Praxis run for this feature.",
+      "Publish the Praxis PRs for this feature."
     ]
   }
 }
