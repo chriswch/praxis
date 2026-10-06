@@ -117,7 +117,7 @@ For each PR:
 
 1. A behavior PR starts with its tests. Once they are written, run `wf freeze`.
 2. Implement.
-3. Write `prs/NN-slug.md` in the feature folder, next to plan.md and outside the worktree, where `NN` counts PRs across the feature: first line `# <title>`, then the description.
+3. Write `prs/NN-slug.md` in the feature folder, next to plan.md and outside the worktree, where `NN` counts PRs across the feature: first line `# <title>`, then the description. The title becomes the commit message and the PR title, so write it in the repo's commit convention; the rest becomes the PR body.
 4. Run `wf pr-done <PR file> [related tests…]`. It stages everything, runs the PR's changed tests plus the related tests you name (existing tests that cover the code you changed), and commits only when they pass. The full suite runs in CI after push. If `test_cmd` itself is wrong, fix config.json; the next call uses it.
 
 When every PR in the plan is committed, run `wf next`.
@@ -127,7 +127,7 @@ When every PR in the plan is committed, run `wf next`.
 1. Run `wf review`. It counts a round, refuses a fourth, and prints the reviewer brief.
 2. Start a fresh subagent whose entire prompt is that brief, word for word: in Claude Code, the Agent tool with a general-purpose agent; in Codex, a delegated subagent.
 3. Copy each finding into `## Findings` as one line that starts with its scope and round (for example `story 2, round 1:`) before you handle it, then add what you did on the same line:
-   - Fix: `git commit --fixup <commit of the PR it belongs to>`, then `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <base commit>`, with the base commit from `wf status`.
+   - Fix: `git commit --no-verify --fixup <commit of the PR it belongs to>` (commit hooks could rewrite the fixup message that autosquash looks for), then `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <base commit>`, with the base commit from `wf status`.
    - Dismiss: write the reason.
 
 Stop when a round fixes nothing, or after round 3. Then run `wf next`. It reruns each PR's tests at its own commit, then moves to the next story or to the feature review.

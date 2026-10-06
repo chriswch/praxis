@@ -529,6 +529,31 @@ class GateTest(WfTestCase):
         self.assertEqual(self.p.git(self.p.worktree, "branch", "--show-current"), "feat")
         self.assertEqual(self.p.git(self.p.worktree, "status", "--porcelain"), "")
 
+    def test_gate_maps_commits_whose_subject_a_hook_rewrote_and_folds_unverified_fixups(self):
+        hooks = self.tmp / "hooks"
+        hooks.mkdir()
+        hook = hooks / "commit-msg"
+        hook.write_text(
+            '#!/bin/sh\n'
+            'case "$(head -n 1 "$1")" in "[KEY-1]"*) exit 0;; esac\n'
+            '{ printf "[KEY-1] "; cat "$1"; } > "$1.tmp" && mv "$1.tmp" "$1"\n'
+        )
+        hook.chmod(0o755)
+        self.p.git(self.p.main, "config", "core.hooksPath", str(hooks))
+        self.p.commit_pr("03-refund", "Refund", test="refund")
+        refund = self.p.head()
+        self.p.wf("next")
+        self.p.wf("review")
+        self.p.write("tests/refund_test.sh", "exit 0 # fixed\n", root=self.p.worktree)
+        self.p.git(self.p.worktree, "add", "-A")
+        self.p.git(self.p.worktree, "commit", "-q", "--no-verify", "--fixup", refund)
+        self.p.git(self.p.worktree, "rebase", "-q", "--autosquash", self.p.state()["base"]["sha"])
+
+        self.p.wf("next")
+
+        self.assertEqual(self.p.state()["prs"][2]["title"], "[KEY-1] Refund")
+        self.assertTrue(self.p.state()["stories"][0]["done"])
+
     def test_gate_refuses_a_dirty_worktree(self):
         self.p.wf("next")
         self.p.wf("review")

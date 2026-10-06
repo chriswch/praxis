@@ -161,8 +161,10 @@ def pr_commits(feature, state):
     commits = git("rev-list", "--reverse", f"{state['base']['sha']}..{feature.name}", cwd=feature.worktree).split()
     for index, sha in enumerate(commits):
         subject = git("log", "-1", "--format=%s", sha, cwd=feature.worktree)
-        if index >= len(prs) or subject != prs[index]["title"]:
-            raise WfError(f"commit {sha[:12]} '{subject}' is not registered PR {index + 1}; fold fixups with git rebase --autosquash")
+        if index >= len(prs):
+            raise WfError(f"commit {sha[:12]} '{subject}' belongs to no registered PR; fold fixups with git rebase --autosquash")
+        if subject != prs[index]["title"]:
+            raise WfError(f"commit {sha[:12]} '{subject}' should be PR {index + 1} '{prs[index]['title']}'; fold fixups with git rebase --autosquash")
     if len(commits) < len(prs):
         raise WfError(f"{len(prs) - len(commits)} registered PR(s) have no commit on {feature.name}")
     return list(zip(commits, prs))
@@ -416,16 +418,17 @@ def cmd_pr_done(feature, args):
     if not run_tests(config, tests, feature.worktree):
         raise WfError("tests failed; the changes stay staged")
     git("commit", "-q", "-m", title, cwd=feature.worktree)
+    subject = git("log", "-1", "--format=%s", cwd=feature.worktree)
     state["prs"].append({
         "file": str(pr_file),
-        "title": title,
+        "title": subject,
         "story": current_story(state)["title"],
         "extra_tests": extra,
         "frozen": state["pending_freeze"],
     })
     state["pending_freeze"] = {}
     feature.save(state)
-    print(f"commit: {git('rev-parse', '--short', 'HEAD', cwd=feature.worktree)} {title}")
+    print(f"commit: {git('rev-parse', '--short', 'HEAD', cwd=feature.worktree)} {subject}")
 
 
 def cmd_review(feature, args):

@@ -75,7 +75,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
 1. `wf review`：輪數加一，並印出 reviewer brief。第 4 輪會被拒絕。
 2. 開一個新的 subagent，prompt 一字不改就是 brief。
 3. 先把每條 finding 寫成 §Findings 的一行，開頭寫範圍與輪次（例如「story 2 第 1 輪：」），再逐條處理，並在同一行記下處置：
-   - 修：`git commit --fixup <所屬 PR 的 commit>`，再 `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <base commit>`。base commit 由 `wf status` 印出。加 `-i` 是因為 git 2.44 以前，沒有 `-i` 的 autosquash 不會併入 fixup。
+   - 修：`git commit --no-verify --fixup <所屬 PR 的 commit>`，再 `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <base commit>`。base commit 由 `wf status` 印出。加 `-i` 是因為 git 2.44 以前，沒有 `-i` 的 autosquash 不會併入 fixup；加 `--no-verify` 是因為 commit hook 可能改寫 `fixup!` 開頭的訊息，autosquash 就認不出它。fixup 的內容由 gate 重跑測試把關。
    - 駁回：寫一行理由。
 
 這一輪沒有修任何東西，或已經跑完第 3 輪，就結束。
@@ -183,12 +183,12 @@ wf start     從 remote default branch 開 worktree 與 feature branch
   1. PR 檔不在 `.praxis/<feature>/prs/` 就拒絕：放在 worktree 裡會被一起 commit。檔名要是 `NN-slug.md`，因為 publish 會用它當 branch 名稱。
   2. `git add -A`。
   3. 用測試指令跑這支 PR 的測試範圍。
-  4. 全綠才用 PR 檔的標題 commit，並把這支 PR 登記進 PR 清單。紅燈時改動留在暫存區。
+  4. 全綠才用 PR 檔的標題 commit，並把這支 PR 登記進 PR 清單。登記的是 commit 實際的標題，因為 commit hook 可能改寫它，例如加上 ticket 編號。紅燈時改動留在暫存區。
 - **`review`**：這個範圍的輪數加一，第 4 輪拒絕。印出 reviewer brief。
 - **`publish`**：只在你下指令時跑。
   1. 為每支 PR 的 commit 建一條 branch。
   2. push。
-  3. 用 `gh pr create` 開 PR：標題是 PR 檔的標題，內容是標題以外的部分，base 是前一支 PR 的 branch；第一支的 base 是 default branch。
+  3. 用 `gh pr create` 開 PR：標題是那支 commit 的標題，內容是標題以外的部分，base 是前一支 PR 的 branch；第一支的 base 是 default branch。
 
 ## Review 準則
 
