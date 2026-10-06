@@ -169,6 +169,12 @@ class StartTest(WfTestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("linked", result.stderr)
 
+    def test_start_refuses_a_feature_name_git_cannot_branch_and_changes_nothing(self):
+        result = self.p.wf("start", "feat.lock", cwd=self.p.main, check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse((self.p.main / ".praxis" / "feat.lock").exists())
+
     def test_start_on_an_existing_feature_only_reruns_setup(self):
         self.p.config(setup='echo setup >> "$TEST_LOG"')
         self.p.wf("start", "feat", cwd=self.p.main)
@@ -208,6 +214,16 @@ class PlanAndDesignTest(WfTestCase):
 
         self.assertIn("step: build", out)
         self.assertIn("story: 1/2 Pay by card", self.p.wf("status").stdout)
+
+    def test_next_refuses_duplicate_story_titles(self):
+        self.p.wf("start", "feat", cwd=self.p.main)
+        self.p.plan(stories="### Refund\n\n### Refund\n")
+        self.p.wf("next")
+
+        result = self.p.wf("next", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Refund", result.stderr)
 
     def test_next_refuses_to_build_without_stories(self):
         self.p.wf("start", "feat", cwd=self.p.main)
@@ -309,6 +325,15 @@ class PrDoneTest(WfTestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn(str(self.p.feature_dir / "prs"), result.stderr)
         self.assertEqual(self.p.git(self.p.worktree, "diff", "--cached", "--name-only"), "")
+
+    def test_pr_done_refuses_a_pr_file_not_named_nn_slug(self):
+        self.p.to_build()
+        self.p.write("tests/pay_test.sh", "exit 0\n", root=self.p.worktree)
+
+        result = self.p.wf("pr-done", str(self.p.pr_file("pay", "Pay by card")), check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("NN-slug", result.stderr)
 
     def test_pr_done_binds_the_freeze_snapshot_to_its_pr(self):
         self.p.to_build()
@@ -492,6 +517,17 @@ class GateTest(WfTestCase):
         self.assertEqual(self.p.git(self.p.worktree, "branch", "--show-current"), "feat")
         self.assertEqual(self.p.head(), tip)
         self.assertFalse(self.p.state()["stories"][0]["done"])
+
+    def test_gate_discards_tracked_changes_the_tests_make(self):
+        self.p.wf("next")
+        self.p.wf("review")
+        self.p.config(test_cmd='echo touched >> src/app.txt; echo {files} >> "$TEST_LOG"; for f in {files}; do sh "$f" || exit 1; done')
+
+        out = self.p.wf("next").stdout
+
+        self.assertIn("story: Refund", out)
+        self.assertEqual(self.p.git(self.p.worktree, "branch", "--show-current"), "feat")
+        self.assertEqual(self.p.git(self.p.worktree, "status", "--porcelain"), "")
 
     def test_gate_refuses_a_dirty_worktree(self):
         self.p.wf("next")

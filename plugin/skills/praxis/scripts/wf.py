@@ -16,10 +16,15 @@ MAX_ROUNDS = 3
 REQUIREMENTS = "\n## Requirements\n\nAlso report under (a) any rule below that is neither implemented nor listed as out of scope.\n\n"
 PLAN_SKELETON = "## Requirements\n\n## Questions\n\n## Stories\n\n## Design\n\n## Findings\n"
 FEATURE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+PR_FILE = re.compile(r"\d+-[A-Za-z0-9._-]+\.md")
 
 
 class WfError(Exception):
     pass
+
+
+def valid_branch(name):
+    return subprocess.run(["git", "check-ref-format", "--branch", name], capture_output=True).returncode == 0
 
 
 def git(*args, cwd):
@@ -135,8 +140,12 @@ def current_story(state):
 
 
 def start_next_story(feature, state):
+    titles = plan_stories(feature)
+    repeated = sorted({title for title in titles if titles.count(title) > 1})
+    if repeated:
+        raise WfError(f"story titles must be unique: {', '.join(repeated)}")
     done = {story["title"] for story in state["stories"] if story["done"]}
-    title = next((title for title in plan_stories(feature) if title not in done), None)
+    title = next((title for title in titles if title not in done), None)
     if title is not None:
         state["stories"].append({"title": title, "rounds": 0, "done": False})
         state["step"] = "build"
@@ -174,7 +183,7 @@ def gate(feature, state):
     config = load_config(feature.main)
     try:
         for sha, pr in pairs:
-            git("checkout", "-q", sha, cwd=feature.worktree)
+            git("checkout", "-q", "-f", sha, cwd=feature.worktree)
             changed = git("diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha, cwd=feature.worktree).split("\0")
             tests = test_scope(changed, pr["extra_tests"], config, feature.worktree)
             if not tests:
@@ -182,7 +191,7 @@ def gate(feature, state):
             if not run_tests(config, tests, feature.worktree):
                 raise WfError(f"tests fail at commit {sha[:12]} '{pr['title']}'")
     finally:
-        git("checkout", "-q", feature.name, cwd=feature.worktree)
+        git("checkout", "-q", "-f", feature.name, cwd=feature.worktree)
 
 
 def freeze_report(feature, state):
@@ -270,8 +279,8 @@ def default_branch(main):
 
 def cmd_start(args):
     main = main_checkout(Path.cwd())
-    if not FEATURE_NAME.fullmatch(args.feature):
-        raise WfError("a feature name uses letters, digits, '.', '_' and '-' only")
+    if not FEATURE_NAME.fullmatch(args.feature) or not valid_branch(args.feature):
+        raise WfError("a feature name must be a valid branch name made of letters, digits, '.', '_' and '-'")
     feature = Feature(main, args.feature)
     config = load_config(main)
     if not feature.worktree.exists():
@@ -392,6 +401,8 @@ def cmd_pr_done(feature, args):
     pr_file = Path(args.pr_file).resolve()
     if pr_file.parent != feature.prs.resolve():
         raise WfError(f"PR files live in {feature.prs}, next to plan.md and outside the worktree")
+    if not PR_FILE.fullmatch(pr_file.name) or not valid_branch(f"{feature.name}-{pr_file.stem}"):
+        raise WfError("name the PR file NN-slug.md, for example 01-add-refunds.md: publish turns it into a branch name")
     title = pr_title(pr_file)
     if any(pr["file"] == str(pr_file) for pr in state["prs"]):
         raise WfError(f"{pr_file} is already registered")

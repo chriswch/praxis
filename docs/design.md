@@ -36,7 +36,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
   - 依序排列，每個 story 一個 `###` 標題，用一句可觀察的行為描述。
   - 每個 story 都能單獨上線。
   - 每條規則都要歸到某個 story，或列在範圍外。
-  - story 的 `###` 標題在它的 Build 開始後就不再改：`wf` 依標題追蹤 story。
+  - story 的 `###` 標題不能重複，在它的 Build 開始後也不再改：`wf` 依標題追蹤 story。
 
 完成條件（`wf next` 檢查）：§Questions 是空的。
 
@@ -158,6 +158,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
 指令：
 - **`start <feature> [--mode auto|step]`**
   - mode 預設 `auto`。
+  - feature 名稱要是 git 接受的 branch 名稱，不是就在做任何變動之前拒絕。
   - 先讀 `.praxis/config.json`：檔案不存在、缺測試指令或測試 glob，或測試指令裡沒有 `{files}`，就拒絕，並指出檔案路徑。
   - `git fetch` 之後，用 `git worktree add` 在 `.praxis/<feature>/worktree` 從 remote default branch 開出 feature branch。
   - 記下 base（branch 名稱與 commit），寫入 exclude。
@@ -169,7 +170,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
 - **`next`**：先跑當前步驟的檢查，通過才前進。
   - 檢查：
     - Plan：§Questions 是空的。
-    - Review 與 Feature review：這個範圍至少跑過一輪、工作區乾淨，而且 gate 通過。gate 依序 checkout 範圍內的每個 commit：每個 commit 都要對應到一支已登記的 PR，並在該 commit 上跑它的測試範圍全綠。沒對應或紅燈時，指出是哪一個 commit。不論結果，最後都回到 branch；這個檢查不改寫歷史。
+    - Review 與 Feature review：這個範圍至少跑過一輪、工作區乾淨，而且 gate 通過。gate 依序 checkout 範圍內的每個 commit：每個 commit 都要對應到一支已登記的 PR，並在該 commit 上跑它的測試範圍全綠。gate 開始前工作區是乾淨的，所以切換 commit 時直接丟掉測試留下的改動。沒對應或紅燈時，指出是哪一個 commit。不論結果，最後都回到 branch；這個檢查不改寫歷史。
     - Build：這個 story 至少有一支已登記的 PR。
     - 其他步驟：沒有 script 檢查。
   - 前進：Plan → Design → 下一個 story 的 Build → 它的 Review。Review 通過時，這個 story 標為完成；還有沒完成的 story 就回到 Build，否則進 Feature review。Feature review 通過就結束。
@@ -179,7 +180,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
 - **`mode auto|step`**：切換模式。
 - **`freeze`**：記下目前有變動的測試檔快照，下一次 `pr-done` 會把它綁到那支 PR。沒有變動的測試檔就拒絕。
 - **`pr-done <pr-file> [其他相關測試檔…]`**：
-  1. PR 檔不在 `.praxis/<feature>/prs/` 就拒絕：放在 worktree 裡會被一起 commit。
+  1. PR 檔不在 `.praxis/<feature>/prs/` 就拒絕：放在 worktree 裡會被一起 commit。檔名要是 `NN-slug.md`，因為 publish 會用它當 branch 名稱。
   2. `git add -A`。
   3. 用測試指令跑這支 PR 的測試範圍。
   4. 全綠才用 PR 檔的標題 commit，並把這支 PR 登記進 PR 清單。紅燈時改動留在暫存區。

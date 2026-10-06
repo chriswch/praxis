@@ -89,7 +89,7 @@ Fill in plan.md; `wf start` created its headings.
 
 - `## Requirements`: the goal; the rules, each with a key example; what is out of scope; Assumed, the decisions you made yourself.
 - `## Questions`: everything you need the user to answer, asked at once. Merge each answer into the right section and delete the question.
-- `## Stories`: in build order, one `### ` heading per story, named by one observable behavior. Each story can ship on its own. Every rule belongs to a story or is out of scope. Never rename a story heading once its Build has started: `wf` tracks stories by title.
+- `## Stories`: in build order, one `### ` heading per story, named by one observable behavior. Each story can ship on its own. Every rule belongs to a story or is out of scope. Story titles are unique, and a story heading never changes once its Build has started: `wf` tracks stories by title.
 
 `wf next` moves on once `## Questions` is empty.
 
