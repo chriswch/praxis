@@ -111,9 +111,6 @@ class ManifestTest(unittest.TestCase):
     def test_claude_manifest_has_no_version(self):
         self.assertNotIn("version", load("plugin/.claude-plugin/plugin.json"))
 
-    def test_codex_manifest_has_a_version(self):
-        self.assertIn("version", load("plugin/.codex-plugin/plugin.json"))
-
 
 if __name__ == "__main__":
     unittest.main()

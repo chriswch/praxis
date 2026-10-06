@@ -294,7 +294,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
 - **frontmatter 只有 `name`、`description`。** description 寫明這是完整的軟體開發流程。不加 `disable-model-invocation`：description 已經寫明是完整流程，現代模型不會在非預期的情況下呼叫它。
 - **repo 本身同時是兩個 marketplace。** `.claude-plugin/marketplace.json` 與 `.agents/plugins/marketplace.json` 都指向 `plugin/`；`plugin/` 底下的兩份 manifest 共用同一個 `skills/`。
 - **Claude manifest 不設 `version`。** 依官方文件，設了 `version` 會「keeps users on that version until you change it」。不設的話，版本就是 git commit SHA，每次 push 到 main 都算新版本，開了自動升級的使用者會自動跟上。
-- **Codex manifest 固定 `"version": "1.0.0"`。** Codex 規定必填。Codex 沒有啟動時的自動升級，要執行 `codex plugin marketplace upgrade` 才會更新。
+- **Codex manifest 固定 `"version": "1.0.0"`，不必每次改。** Codex 依版本號快取 plugin，但 Git marketplace 一有新 commit 就整個重裝，不看版本號；檢查的時機是 Codex 啟動時在背景自動跑，或手動執行 `codex plugin marketplace upgrade`。用本機路徑安裝的 plugin 會被複製進快取，要重新安裝才會更新。
 - **CI 必須先擋住壞掉的 `wf.py`**，因為每個 commit 都會直接送到使用者手上。
 
 ### `wf.py`
