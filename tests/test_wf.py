@@ -161,6 +161,14 @@ class StartTest(WfTestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("exit 3", result.stderr)
 
+    def test_start_refuses_setup_that_leaves_files_git_would_commit(self):
+        self.p.config(setup="ln -s /tmp linked")
+
+        result = self.p.wf("start", "feat", cwd=self.p.main, check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("linked", result.stderr)
+
     def test_start_on_an_existing_feature_only_reruns_setup(self):
         self.p.config(setup='echo setup >> "$TEST_LOG"')
         self.p.wf("start", "feat", cwd=self.p.main)

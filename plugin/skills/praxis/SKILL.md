@@ -77,7 +77,7 @@ The mode is `auto` unless the user asks for step mode. Switch any time with `wf 
    - Write `<repo>/.praxis/config.json` with `test_cmd`, `test_glob`, and optionally `setup`. Find the commands in CI config, the README, or the build files.
      - `test_cmd` runs the given test files; `{files}` marks where `wf` puts them.
      - `test_glob` matches test file paths; `**` spans folders.
-     - `setup` prepares a new worktree: copy the untracked config the tests need from `$WF_MAIN` (the main checkout), and install only project-local dependencies, with a tool that has a global cache. Skip what global installs already provide. The test database is shared with the main checkout; setup does not create or reset it.
+     - `setup` prepares a new worktree: copy the untracked config the tests need from `$WF_MAIN` (the main checkout), and install only project-local dependencies, with a tool that has a global cache. Skip what global installs already provide. The test database is shared with the main checkout; setup does not create or reset it. Everything setup creates must be ignored by git: `wf start` refuses setup that leaves files `git add -A` would commit.
    - Write one line in `<repo>/.praxis/taste.md` that names the repo's standards documents (for example guides under `docs/`), so you and the reviewer read them.
 3. From the repository, run `wf start <feature>` (with `--mode step` if the user asked for it), then cd into the worktree it prints.
 4. If setup fails, fix config.json and rerun `wf start <feature>`; for an existing feature it only reruns setup. If you cannot fix it, stop and ask.

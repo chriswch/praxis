@@ -162,6 +162,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
   - `git fetch` 之後，用 `git worktree add` 在 `.praxis/<feature>/worktree` 從 remote default branch 開出 feature branch。
   - 記下 base（branch 名稱與 commit），寫入 exclude。
   - 有 setup 指令，就在 worktree 裡跑它。setup 失敗時就停下來，算缺環境。
+  - setup 跑完後，worktree 多出會被 commit 的檔案就拒絕：`git add -A` 會把它們一起 commit 進第一支 PR。
   - 不跑測試：相信 default branch 上的 CI 已經跑過。
   - feature 已經存在時，不開新 worktree，只重跑 setup。
 - **`status`**：印出 mode、步驟、story（n/m）、輪數、base commit、`plan.md`、repo taste 與 `config.json` 的路徑，以及 plugin 裡其他 skill 的 SKILL.md 絕對路徑。

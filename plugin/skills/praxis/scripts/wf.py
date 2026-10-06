@@ -239,10 +239,18 @@ def worktree_path(feature, arg):
 
 def run_setup(config, feature):
     setup = config.get("setup")
-    if setup:
-        print(f"setup: {setup}")
-        if shell(setup, feature.worktree, {**os.environ, "WF_MAIN": str(feature.main)}) != 0:
-            raise WfError(f"setup failed: {setup}")
+    if not setup:
+        return
+    before = set(git("status", "--porcelain", cwd=feature.worktree).splitlines())
+    print(f"setup: {setup}")
+    if shell(setup, feature.worktree, {**os.environ, "WF_MAIN": str(feature.main)}) != 0:
+        raise WfError(f"setup failed: {setup}")
+    added = [line[3:] for line in git("status", "--porcelain", cwd=feature.worktree).splitlines() if line not in before]
+    if added:
+        raise WfError(
+            f"setup left files that git add -A would commit: {', '.join(added)}. "
+            "Exclude them (for example in .git/info/exclude) or stop creating them, then rerun wf start"
+        )
 
 
 def add_exclude(main):
