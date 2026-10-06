@@ -74,7 +74,8 @@ The mode is `auto` unless the user asks for step mode. Switch any time with `wf 
 
 1. Name the feature with letters, digits, `.`, `_`, or `-`; it becomes the branch name.
 2. On the first run in a repository, before `wf start`:
-   - Write `<repo>/.praxis/config.json` with `test_cmd`, `test_glob`, and optionally `setup`. Find the commands in CI config, the README, or the build files.
+   - Write `<repo>/.praxis/config.json` with `test_cmd`, `test_glob`, and optionally `setup`. Find the commands in CI config, the README, or the build files. For example:
+     `{"test_cmd": "bundle exec rspec {files}", "test_glob": "spec/**/*_spec.rb", "setup": "cp \"$WF_MAIN/config/database.yml\" config/"}`
      - `test_cmd` runs the given test files; `{files}` marks where `wf` puts them.
      - `test_glob` matches test file paths; `**` spans folders.
      - `setup` prepares a new worktree: copy the untracked config the tests need from `$WF_MAIN` (the main checkout), and install only project-local dependencies, with a tool that has a global cache. Skip what global installs already provide. The test database is shared with the main checkout; setup does not create or reset it. Everything setup creates must be ignored by git: `wf start` refuses setup that leaves files `git add -A` would commit.
