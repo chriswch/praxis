@@ -577,6 +577,33 @@ class DoneTest(WfTestCase):
         self.assertNotIn("01-pay.md", out)
 
 
+class AfterDoneTest(WfTestCase):
+    def fixup_head(self, path, text):
+        self.p.write(path, text, root=self.p.worktree)
+        self.p.git(self.p.worktree, "add", "-A")
+        self.p.git(self.p.worktree, "commit", "-q", "--no-verify", "--fixup", self.p.head())
+        self.p.git(self.p.worktree, "rebase", "-q", "--autosquash", self.p.state()["base"]["sha"])
+
+    def test_next_after_the_run_finished_reruns_the_gate_and_the_freeze_report(self):
+        self.p.to_build()
+        self.p.write("tests/pay_test.sh", "exit 0\n", root=self.p.worktree)
+        self.p.wf("freeze")
+        self.p.commit_pr("01-pay", "Pay by card")
+        self.p.finish_story()
+        self.p.wf("review")
+        self.p.wf("next")
+        self.fixup_head("tests/pay_test.sh", "exit 1\n")
+
+        failed = self.p.wf("next", check=False)
+
+        self.assertEqual(failed.returncode, 1)
+        self.assertIn("Pay by card", failed.stderr)
+        self.fixup_head("tests/pay_test.sh", "exit 0 # asked for after the run\n")
+        out = self.p.wf("next").stdout
+        self.assertIn("step: done", out)
+        self.assertIn("changed_after_freeze: 01-pay.md tests/pay_test.sh", out)
+
+
 class PublishTest(WfTestCase):
     def setUp(self):
         super().setUp()

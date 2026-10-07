@@ -98,6 +98,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
   - freeze 之後被改的測試（由 `wf` 印出）
   - repo taste 的變更
   - worktree 的路徑，以及提醒：PR 都合併後，用 `git worktree remove` 移除它
+- 收尾後你要求修改：當成 finding 處理，用 fixup 併回所屬的 PR，再跑 `wf next` 重新驗證。
 - 你說 push 才跑 `wf publish`。永不 merge。
 
 ## Worktree 與平行
@@ -177,6 +178,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
   - 下一個 story ＝ §Stories 底下第一個還沒完成的 `###`。
   - step 模式下，前進之後印出 PAUSE；進到結束時不印，直接收尾。
   - 結束時，印出每支 PR 在 freeze 之後被改的測試：比對 freeze 快照與該 PR 自己的 commit。
+  - 結束之後再執行，就在整條 branch 上重跑 gate 和 freeze 報告，用來驗證你在收尾後要求的修改。
 - **`mode auto|step`**：切換模式。
 - **`freeze`**：記下目前有變動的測試檔快照，下一次 `pr-done` 會把它綁到那支 PR。沒有變動的測試檔就拒絕。
 - **`pr-done <pr-file> [其他相關測試檔…]`**：

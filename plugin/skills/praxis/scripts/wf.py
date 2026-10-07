@@ -365,7 +365,7 @@ def cmd_next(feature, args):
             if start_next_story(feature, state) is None:
                 state["step"] = "feature"
     else:
-        raise WfError("the run is finished")
+        gate(feature, state)
     feature.save(state)
     print(f"step: {state['step']}")
     story = current_story(state)
