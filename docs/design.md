@@ -90,7 +90,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
 
 ### 結束
 
-- 把這次用到、可以重複套用的模式寫進 repo taste（見〈實作決策的優先序〉）。
+- 把你明說要通用的模式寫進 repo taste（見〈實作決策的優先序〉）。
 - 最後一則訊息列出：
   - Assumed
   - 駁回的 finding
@@ -180,19 +180,19 @@ wf start     從 remote default branch 開 worktree 與 feature branch
 - **`mode auto|step`**：切換模式。
 - **`freeze`**：記下目前有變動的測試檔快照，下一次 `pr-done` 會把它綁到那支 PR。沒有變動的測試檔就拒絕。
 - **`pr-done <pr-file> [其他相關測試檔…]`**：
-  1. PR 檔不在 `.praxis/<feature>/prs/` 就拒絕：放在 worktree 裡會被一起 commit。檔名要是 `NN-slug.md`，因為 publish 會用它當 branch 名稱。
+  1. PR 檔不在 `.praxis/<feature>/prs/` 就拒絕：放在 worktree 裡會被一起 commit。
   2. `git add -A`。
   3. 用測試指令跑這支 PR 的測試範圍。
   4. 全綠才用 PR 檔的標題 commit，並把這支 PR 登記進 PR 清單。登記的是 commit 實際的標題，因為 commit hook 可能改寫它，例如加上 ticket 編號。紅燈時改動留在暫存區。
 - **`review`**：這個範圍的輪數加一，第 4 輪拒絕。印出 reviewer brief。
-- **`publish`**：只在你下指令時跑。
-  1. 為每支 PR 的 commit 建一條 branch。
-  2. push。
+- **`publish <branch>…`**：只在你下指令時跑。
+  1. 每支 PR 一個 branch 名稱，依 stack 順序給；名稱由 agent 依 repo 的 branch 慣例決定。數量不符、名稱重複或不合法，就在 push 之前拒絕。
+  2. 把每支 PR 的 commit push 到它的 branch。
   3. 用 `gh pr create` 開 PR：標題是那支 commit 的標題，內容是標題以外的部分，base 是前一支 PR 的 branch；第一支的 base 是 default branch。
 
 ## Review 準則
 
-**Reviewer：** 每一輪都開一個新的 subagent，權限和一般 subagent 相同，不另外限制。懷疑某個情境有問題時，可以實際寫測試或跑指令驗證，驗證過的 finding 證據最充分。驗證時可以暫時新增或修改 worktree 裡的檔案，結束前要還原，讓 `git status` 和開始時一樣，因為 writer 是用 `git add -A` commit。
+**Reviewer：** 每一輪都開一個新的 subagent，權限和一般 subagent 相同，不另外限制。Claude Code 派 reviewer 時明確指定 `model: opus`、`effort: xhigh`。懷疑某個情境有問題時，可以實際寫測試或跑指令驗證，驗證過的 finding 證據最充分。驗證時可以暫時新增或修改 worktree 裡的檔案，結束前要還原，讓 `git status` 和開始時一樣，因為 writer 是用 `git add -A` commit。
 
 **提供給 reviewer**（由 `wf review` 印在 brief 裡）：
 - worktree 的絕對路徑：所有指令都在這裡跑。
@@ -229,8 +229,8 @@ wf start     從 remote default branch 開 worktree 與 feature branch
 **repo taste 的讀寫：**
 - 每一步開始時，讀這一步需要的 taste 與規範檔。原因：compaction 之後，之前讀過的檔案內容可能已經不在 context 裡；在步驟入口重讀，兩個 runtime 都能補回來。
 - 第一次在這個 repo 跑時，在 `wf start` 之前就把 repo 現有規範文件的路徑寫進 repo taste，第一次 run 的 reviewer 才讀得到它們；之後的 run 直接沿用。
-- run 結束時，把實際用到、可以重複套用的模式寫進 repo taste：
-  - 一條一行，寫模式加來源。來源是你的原話，或官方文件的 URL。
+- run 結束時，只把你明說要通用的模式寫進 repo taste；只適用這次的決定留在 plan.md：
+  - 一條一行，寫模式加你的原話。
   - 和舊條目衝突時，直接取代。
   - 已經寫在其他規則檔裡的不重複寫。
 
@@ -318,7 +318,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
   - 用 JSON：Python 3.9 的標準庫就能讀；TOML 要 3.11 才有 `tomllib`。
   - `wf` 不解析 taste 檔。
 - **reviewer brief 的樣板只有一份：`assets/reviewer-brief.md`**，由 `wf` 用 `string.Template` 填入。規則檔清單依優先序列出存在的檔案：repo taste、worktree 根目錄的 AGENTS.md 與 CLAUDE.md、全域 taste、`skills/*/standards/*.md`。新增規範不用改樣板，也不用改 `wf`。
-- **reviewer 不需要 agent 定義檔。** Claude Code 用 Agent tool 開一個通用的 subagent；Codex 由 skill 指示委派一個 subagent。prompt 就是 `wf review` 的輸出。
+- **reviewer 不需要 agent 定義檔：SKILL.md 要求 Claude Code 用 Agent tool 的參數指定 `model: opus`、`effort: xhigh`。** 原因：Agent tool 的 `model` 參數會蓋過 agent 定義檔的設定，而使用者的全域規則可能要求每次派工都指定便宜的模型；在派工的那一步明確寫出參數才可靠。Codex 由 skill 指示委派一個 subagent。prompt 就是 `wf review` 的輸出。
 
 ### 測試
 

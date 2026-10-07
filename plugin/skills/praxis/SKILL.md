@@ -125,7 +125,7 @@ When every PR in the plan is committed, run `wf next`.
 ## 4 Review, for each story
 
 1. Run `wf review`. It counts a round, refuses a fourth, and prints the reviewer brief.
-2. Start a fresh subagent whose entire prompt is that brief, word for word: in Claude Code, the Agent tool with a general-purpose agent; in Codex, a delegated subagent.
+2. Start a fresh subagent whose entire prompt is that brief, word for word: in Claude Code, the Agent tool with a general-purpose agent, `model: opus`, and `effort: xhigh`; in Codex, a delegated subagent.
 3. Copy each finding into `## Findings` as one line that starts with its scope and round (for example `story 2, round 1:`) before you handle it, then add what you did on the same line:
    - Fix: `git commit --no-verify --fixup <commit of the PR it belongs to>` (commit hooks could rewrite the fixup message that autosquash looks for), then `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <base commit>`, with the base commit from `wf status`.
    - Dismiss: write the reason.
@@ -138,7 +138,7 @@ The same as Review, over the whole branch; the brief adds the requirements. `wf 
 
 ## Finish
 
-1. Add to the repo taste the patterns from this run that will apply again: one line each, the pattern plus its source (the user's words, or an official URL). Replace a line that contradicts it; skip what another rule file already says.
+1. Add to the repo taste only patterns the user explicitly said apply generally: one line each, with the user's words as the source. Replace a line it contradicts; skip what another rule file already says. A decision for this run alone stays in plan.md.
 2. Send the final message, listing:
    - the Assumed decisions;
    - dismissed findings;
@@ -146,4 +146,4 @@ The same as Review, over the whole branch; the brief adds the requirements. `wf 
    - tests changed after freeze, from the `changed_after_freeze` lines;
    - changes to the repo taste;
    - the worktree path, with a reminder to remove it with `git worktree remove` once the PRs merge.
-3. When the user tells you to publish, run `wf publish`. Never merge.
+3. When the user tells you to publish, run `wf publish <branch>…` with one branch name per PR, in stack order, following the repo's branch convention from the repo taste or its standards documents. Never merge.
