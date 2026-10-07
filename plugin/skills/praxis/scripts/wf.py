@@ -475,7 +475,8 @@ def cmd_publish(feature, args):
             file.write(body)
         try:
             result = subprocess.run(
-                ["gh", "pr", "create", "--head", branch, "--base", base, "--title", pr["title"], "--body-file", file.name],
+                ["gh", "pr", "create", "--head", branch, "--base", base, "--title", pr["title"], "--body-file", file.name]
+                + (["--draft"] if args.draft else []),
                 cwd=feature.worktree, capture_output=True, text=True,
             )
         except FileNotFoundError:
@@ -515,6 +516,7 @@ def main(argv=None):
     pr_done.add_argument("tests", nargs="*", help="existing tests that cover the changed code")
     commands.add_parser("review", help="count a review round and print the reviewer brief")
     publish = commands.add_parser("publish", help="push a branch per PR and open the stacked PRs")
+    publish.add_argument("--draft", action="store_true", help="open the PRs as drafts")
     publish.add_argument("branches", nargs="+", help="one branch name per PR, in stack order")
     args = parser.parse_args(argv)
     try:

@@ -649,6 +649,14 @@ class PublishTest(WfTestCase):
         self.assertEqual(calls[0]["body"], "Why and what.\n")
         self.assertIn("https://github.example/pr/feature/KEY-1/refund", out)
 
+    def test_publish_opens_draft_prs_when_asked(self):
+        self.finish_two_prs()
+
+        self.p.wf("publish", "--draft", "feature/KEY-1/pay", "feature/KEY-1/refund")
+
+        calls = [json.loads(line) for line in self.gh_log.read_text().splitlines()]
+        self.assertEqual(["--draft" in call["args"] for call in calls], [True, True])
+
     def test_publish_refuses_branch_names_that_do_not_fit_the_prs_before_pushing(self):
         self.finish_two_prs()
         for names in (["feature/KEY-1/pay"], ["feature/KEY-1/pay", "feature/KEY-1/pay"], ["feature/KEY-1/pay", "bad..name"]):

@@ -147,4 +147,4 @@ The same as Review, over the whole branch; the brief adds the requirements. `wf 
    - changes to the repo taste;
    - the worktree path, with a reminder to remove it with `git worktree remove` once the PRs merge.
 3. If the user asks for changes before publishing, handle each like a finding: a fixup into the PR it belongs to, then autosquash. Then run `wf next`, which at the end of a run reruns every PR's tests at its own commit and the freeze report.
-4. When the user tells you to publish, run `wf publish <branch>…` with one branch name per PR, in stack order, following the repo's branch convention from the repo taste or its standards documents. Never merge.
+4. When the user tells you to publish, run `wf publish <branch>…` (with `--draft` if they ask for draft PRs) with one branch name per PR, in stack order, following the repo's branch convention from the repo taste or its standards documents. Never merge.
