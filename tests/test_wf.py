@@ -169,6 +169,23 @@ class StartTest(WfTestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("linked", result.stderr)
 
+    def test_a_retried_setup_still_refuses_the_files_it_left_before_any_work(self):
+        self.p.config(setup="echo secret > leaked.yml")
+        self.p.wf("start", "feat", cwd=self.p.main, check=False)
+
+        result = self.p.wf("start", "feat", cwd=self.p.main, check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("leaked.yml", result.stderr)
+
+    def test_start_excludes_praxis_even_when_it_fails_early(self):
+        self.p.git(self.p.main, "remote", "remove", "origin")
+
+        result = self.p.wf("start", "feat", cwd=self.p.main, check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.p.git(self.p.main, "status", "--porcelain"), "")
+
     def test_start_refuses_a_feature_name_git_cannot_branch_and_changes_nothing(self):
         result = self.p.wf("start", "feat.lock", cwd=self.p.main, check=False)
 
@@ -178,12 +195,13 @@ class StartTest(WfTestCase):
     def test_start_on_an_existing_feature_only_reruns_setup(self):
         self.p.config(setup='echo setup >> "$TEST_LOG"')
         self.p.wf("start", "feat", cwd=self.p.main)
-        marker = self.p.write("marker.txt", "kept\n", root=self.p.worktree)
+        self.p.git(self.p.worktree, "commit", "-q", "--allow-empty", "-m", "Local work")
+        local = self.p.head()
         self.p.wf("mode", "step")
 
         self.p.wf("start", "feat", "--mode", "auto", cwd=self.p.main)
 
-        self.assertTrue(marker.exists())
+        self.assertEqual(self.p.head(), local)
         self.assertEqual(self.p.ran(), ["setup", "setup"])
         self.assertIn("mode: step", self.p.wf("status").stdout)
 
@@ -545,6 +563,17 @@ class GateTest(WfTestCase):
         self.assertEqual(self.p.state()["prs"][2]["title"], "[KEY-1] Refund")
         self.assertTrue(self.p.state()["stories"][0]["done"])
 
+    def test_gate_sees_untracked_files_even_when_git_status_hides_them(self):
+        self.p.git(self.p.main, "config", "status.showUntrackedFiles", "no")
+        self.p.wf("next")
+        self.p.wf("review")
+        self.p.write("notes.txt", "mine\n", root=self.p.worktree)
+
+        result = self.p.wf("next", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue((self.p.worktree / "notes.txt").exists())
+
     def test_gate_refuses_a_dirty_worktree(self):
         self.p.wf("next")
         self.p.wf("review")
@@ -671,7 +700,13 @@ class PublishTest(WfTestCase):
 
     def test_publish_refuses_branch_names_that_do_not_fit_the_prs_before_pushing(self):
         self.finish_two_prs()
-        for names in (["feature/KEY-1/pay"], ["feature/KEY-1/pay", "feature/KEY-1/pay"], ["feature/KEY-1/pay", "bad..name"]):
+        for names in (
+            ["feature/KEY-1/pay"],
+            ["feature/KEY-1/pay", "feature/KEY-1/pay"],
+            ["feature/KEY-1/pay", "bad..name"],
+            ["main", "feature/KEY-1/refund"],
+            ["feature/KEY-1", "feature/KEY-1/refund"],
+        ):
             with self.subTest(names=names):
                 result = self.p.wf("publish", *names, check=False)
 

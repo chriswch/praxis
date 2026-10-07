@@ -38,6 +38,10 @@ def shell(command, cwd, env=None):
     return subprocess.run(command, shell=True, cwd=cwd, env=env).returncode
 
 
+def status_lines(cwd):
+    return git("status", "--porcelain", "--untracked-files=all", cwd=cwd).splitlines()
+
+
 def main_checkout(cwd):
     return Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=cwd)).resolve().parent
 
@@ -161,9 +165,9 @@ def pr_commits(feature, state):
     for index, sha in enumerate(commits):
         subject = git("log", "-1", "--format=%s", sha, cwd=feature.worktree)
         if index >= len(prs):
-            raise WfError(f"commit {sha[:12]} '{subject}' belongs to no registered PR; fold fixups with git rebase --autosquash")
+            raise WfError(f"commit {sha[:12]} '{subject}' belongs to no registered PR: fold it into its PR as a fixup and autosquash, or remove it")
         if subject != prs[index]["title"]:
-            raise WfError(f"commit {sha[:12]} '{subject}' should be PR {index + 1} '{prs[index]['title']}'; fold fixups with git rebase --autosquash")
+            raise WfError(f"commit {sha[:12]} '{subject}' should be PR {index + 1} '{prs[index]['title']}': restore that subject, or fold fixups with autosquash")
     if len(commits) < len(prs):
         raise WfError(f"{len(prs) - len(commits)} registered PR(s) have no commit on {feature.name}")
     return list(zip(commits, prs))
@@ -178,7 +182,7 @@ def scope_pairs(feature, state):
 
 
 def gate(feature, state):
-    if git("status", "--porcelain", cwd=feature.worktree):
+    if status_lines(feature.worktree):
         raise WfError("the worktree has uncommitted changes: fold them into PR commits or remove them")
     pairs = scope_pairs(feature, state)
     config = load_config(feature.main)
@@ -247,15 +251,15 @@ def worktree_path(feature, arg):
     return relative.as_posix()
 
 
-def run_setup(config, feature):
+def run_setup(config, feature, require_clean):
     setup = config.get("setup")
     if not setup:
         return
-    before = set(git("status", "--porcelain", cwd=feature.worktree).splitlines())
+    before = set() if require_clean else set(status_lines(feature.worktree))
     print(f"setup: {setup}")
     if shell(setup, feature.worktree, {**os.environ, "WF_MAIN": str(feature.main)}) != 0:
         raise WfError(f"setup failed: {setup}")
-    added = [line[3:] for line in git("status", "--porcelain", cwd=feature.worktree).splitlines() if line not in before]
+    added = [line[3:] for line in status_lines(feature.worktree) if line not in before]
     if added:
         raise WfError(
             f"setup left files that git add -A would commit: {', '.join(added)}. "
@@ -283,12 +287,12 @@ def cmd_start(args):
     if not FEATURE_NAME.fullmatch(args.feature) or not valid_branch(args.feature):
         raise WfError("a feature name must be a valid branch name made of letters, digits, '.', '_' and '-'")
     feature = Feature(main, args.feature)
+    add_exclude(main)
     config = load_config(main)
     if not feature.worktree.exists():
         git("fetch", "-q", "origin", cwd=main)
         default = default_branch(main)
         sha = git("rev-parse", f"origin/{default}", cwd=main)
-        add_exclude(main)
         feature.prs.mkdir(parents=True, exist_ok=True)
         git("worktree", "add", "-q", "--no-track", "-b", feature.name, str(feature.worktree), f"origin/{default}", cwd=main)
         if not feature.plan.exists():
@@ -302,7 +306,7 @@ def cmd_start(args):
             "pending_freeze": {},
             "prs": [],
         })
-    run_setup(config, feature)
+    run_setup(config, feature, require_clean=feature.load()["step"] in ("plan", "design"))
     print(f"worktree: {feature.worktree}")
     print(f"plan: {feature.plan}")
 
@@ -466,6 +470,11 @@ def cmd_publish(feature, args):
     invalid = [name for name in branches if not valid_branch(name)]
     if invalid:
         raise WfError(f"not valid branch names: {', '.join(invalid)}")
+    if state["base"]["ref"] in branches:
+        raise WfError(f"{state['base']['ref']} is the base branch: give every PR a branch of its own")
+    nested = sorted({name for name in branches for other in branches if other.startswith(name + "/")})
+    if nested:
+        raise WfError(f"these names would contain other branch names and cannot both exist: {', '.join(nested)}")
     try:
         view = subprocess.run(["gh", "repo", "view", "--json", "name"], cwd=feature.worktree, capture_output=True, text=True)
     except FileNotFoundError:
