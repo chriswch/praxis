@@ -96,6 +96,12 @@ Start Claude Code or Codex from inside the repository. That way per-directory se
 - **Publish:** say so, and say whether you want draft PRs. Branch names follow the repository's branch convention, from its taste or its standards documents.
 - **Clean up:** after the PRs merge, remove the worktree (`git worktree remove`), delete the branch named after the feature, and delete `.praxis/<feature>/`.
 
+## Versions
+
+This is Praxis v2: one workflow skill, `craft`, and its script.
+
+v1, the earlier set of stage skills chained by the first `craft`, is tagged `v1`.
+
 ## Rules the agent follows
 
 Precedence, from highest:
@@ -123,3 +129,7 @@ PR descriptions follow the repository's PR template, plus your voice profile in 
   - code that can be deleted;
   - a broken rule.
 - **You stay in control of what leaves your machine.** Destructive changes need your approval in your own words, publishing waits for your word, and merging is always yours.
+
+## Developing Praxis
+
+See [docs/development.md](docs/development.md).
