@@ -1,6 +1,6 @@
 {
   "name": "praxis",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Runs one feature through plan, design, test-first build, and fresh-context review as stacked PRs, stopping at local commits until told to push.",
   "author": {
     "name": "chriswch",

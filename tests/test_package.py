@@ -33,8 +33,8 @@ def load(path):
 
 
 class SkillTest(unittest.TestCase):
-    def test_plugin_ships_the_praxis_skill(self):
-        self.assertIn("praxis", [skill.name for skill in SKILLS])
+    def test_plugin_ships_the_craft_skill(self):
+        self.assertIn("craft", [skill.name for skill in SKILLS])
 
     def test_frontmatter_has_only_name_and_description(self):
         for skill in SKILLS:

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WF = ROOT / "plugin" / "skills" / "praxis" / "scripts" / "wf.py"
+WF = ROOT / "plugin" / "skills" / "craft" / "scripts" / "wf.py"
 TEST_CMD = 'echo {files} >> "$TEST_LOG"; for f in {files}; do sh "$f" || exit 1; done'
 
 

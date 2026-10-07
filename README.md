@@ -84,7 +84,7 @@ Start Claude Code or Codex from inside the repository. That way per-directory se
 
 ## Use
 
-- **Start:** describe the feature and ask for Praxis. In Claude Code use `/praxis:praxis`; in Codex use `$praxis`. Add "in step mode" to pause after every step.
+- **Start:** describe the feature and ask for Praxis. In Claude Code use `/praxis:craft`; in Codex use `$craft`. Add "in step mode" to pause after every step.
 - **First run in a repository:** the agent writes `.praxis/config.json` and a line in `.praxis/taste.md` that points to the repository's standards documents. Check both once. `test_cmd` must contain `{files}`.
 
   ```json

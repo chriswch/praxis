@@ -1,5 +1,5 @@
 ---
-name: praxis
+name: craft
 description: Runs a complete software-engineering workflow for one
   feature - clarifies requirements and slices stories, designs the
   data model and API, builds each story test-first in an isolated git
