@@ -466,6 +466,15 @@ def cmd_publish(feature, args):
     invalid = [name for name in branches if not valid_branch(name)]
     if invalid:
         raise WfError(f"not valid branch names: {', '.join(invalid)}")
+    try:
+        view = subprocess.run(["gh", "repo", "view", "--json", "name"], cwd=feature.worktree, capture_output=True, text=True)
+    except FileNotFoundError:
+        raise WfError("gh is not installed")
+    if view.returncode != 0:
+        raise WfError(
+            f"gh cannot open this repository, so nothing was pushed: {(view.stderr or view.stdout).strip()}. "
+            "Log gh in with an account that can see it, then publish again"
+        )
     for (sha, _), branch in zip(pairs, branches):
         git("push", "-q", "origin", f"{sha}:refs/heads/{branch}", cwd=feature.worktree)
     base = state["base"]["ref"]
@@ -479,8 +488,6 @@ def cmd_publish(feature, args):
                 + (["--draft"] if args.draft else []),
                 cwd=feature.worktree, capture_output=True, text=True,
             )
-        except FileNotFoundError:
-            raise WfError("gh is not installed")
         finally:
             os.unlink(file.name)
         if result.returncode != 0:

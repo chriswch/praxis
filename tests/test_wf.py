@@ -614,6 +614,8 @@ class PublishTest(WfTestCase):
             "#!/usr/bin/env python3\n"
             "import json, os, sys\n"
             "args = sys.argv[1:]\n"
+            "if args[:2] == ['repo', 'view']:\n"
+            "    sys.exit(int(os.environ.get('GH_REPO_VIEW_EXIT', '0')))\n"
             "body = open(args[args.index('--body-file') + 1]).read()\n"
             "with open(os.environ['GH_LOG'], 'a') as log:\n"
             "    log.write(json.dumps({'args': args, 'body': body}) + '\\n')\n"
@@ -656,6 +658,16 @@ class PublishTest(WfTestCase):
 
         calls = [json.loads(line) for line in self.gh_log.read_text().splitlines()]
         self.assertEqual(["--draft" in call["args"] for call in calls], [True, True])
+
+    def test_publish_refuses_before_pushing_when_gh_cannot_open_the_repository(self):
+        self.finish_two_prs()
+        self.p.env["GH_REPO_VIEW_EXIT"] = "1"
+
+        result = self.p.wf("publish", "feature/KEY-1/pay", "feature/KEY-1/refund", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("gh", result.stderr)
+        self.assertEqual(self.p.git(self.p.main, "ls-remote", "--heads", str(self.p.origin)).count("refs/heads/"), 1)
 
     def test_publish_refuses_branch_names_that_do_not_fit_the_prs_before_pushing(self):
         self.finish_two_prs()

@@ -188,7 +188,7 @@ wf start     從 remote default branch 開 worktree 與 feature branch
   4. 全綠才用 PR 檔的標題 commit，並把這支 PR 登記進 PR 清單。登記的是 commit 實際的標題，因為 commit hook 可能改寫它，例如加上 ticket 編號。紅燈時改動留在暫存區。
 - **`review`**：這個範圍的輪數加一，第 4 輪拒絕。印出 reviewer brief。
 - **`publish <branch>…`**：只在你下指令時跑。
-  1. 每支 PR 一個 branch 名稱，依 stack 順序給；名稱由 agent 依 repo 的 branch 慣例決定。數量不符、名稱重複或不合法，就在 push 之前拒絕。
+  1. 每支 PR 一個 branch 名稱，依 stack 順序給；名稱由 agent 依 repo 的 branch 慣例決定。數量不符、名稱重複或不合法，或 `gh` 看不到這個 repo，就在 push 之前拒絕。
   2. 把每支 PR 的 commit push 到它的 branch。
   3. 用 `gh pr create` 開 PR，你要的話加 `--draft`：標題是那支 commit 的標題，內容是標題以外的部分，base 是前一支 PR 的 branch；第一支的 base 是 default branch。
 
