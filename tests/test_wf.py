@@ -326,15 +326,6 @@ class PrDoneTest(WfTestCase):
         self.assertIn(str(self.p.feature_dir / "prs"), result.stderr)
         self.assertEqual(self.p.git(self.p.worktree, "diff", "--cached", "--name-only"), "")
 
-    def test_pr_done_refuses_a_pr_file_not_named_nn_slug(self):
-        self.p.to_build()
-        self.p.write("tests/pay_test.sh", "exit 0\n", root=self.p.worktree)
-
-        result = self.p.wf("pr-done", str(self.p.pr_file("pay", "Pay by card")), check=False)
-
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("NN-slug", result.stderr)
-
     def test_pr_done_binds_the_freeze_snapshot_to_its_pr(self):
         self.p.to_build()
         self.p.write("tests/pay_test.sh", "exit 0\n", root=self.p.worktree)
@@ -606,7 +597,7 @@ class PublishTest(WfTestCase):
         self.p.env["PATH"] = f"{bin_dir}{os.pathsep}{self.p.env['PATH']}"
         self.p.env["GH_LOG"] = str(self.gh_log)
 
-    def test_publish_pushes_a_branch_per_pr_and_stacks_the_prs(self):
+    def finish_two_prs(self):
         self.p.to_build()
         self.p.commit_pr("01-pay", "Pay by card", test="pay")
         first = self.p.head()
@@ -615,17 +606,30 @@ class PublishTest(WfTestCase):
         self.p.finish_story()
         self.p.wf("review")
         self.p.wf("next")
+        return first, second
 
-        out = self.p.wf("publish").stdout
+    def test_publish_pushes_the_named_branch_for_each_pr_and_stacks_the_prs(self):
+        first, second = self.finish_two_prs()
+
+        out = self.p.wf("publish", "feature/KEY-1/pay", "feature/KEY-1/refund").stdout
 
         remote = self.p.git(self.p.main, "ls-remote", str(self.p.origin))
-        self.assertIn(f"{first}\trefs/heads/feat-01-pay", remote)
-        self.assertIn(f"{second}\trefs/heads/feat-02-refund", remote)
+        self.assertIn(f"{first}\trefs/heads/feature/KEY-1/pay", remote)
+        self.assertIn(f"{second}\trefs/heads/feature/KEY-1/refund", remote)
         calls = [json.loads(line) for line in self.gh_log.read_text().splitlines()]
-        self.assertEqual([call["args"][call["args"].index("--base") + 1] for call in calls], ["main", "feat-01-pay"])
+        self.assertEqual([call["args"][call["args"].index("--base") + 1] for call in calls], ["main", "feature/KEY-1/pay"])
         self.assertEqual(calls[0]["args"][calls[0]["args"].index("--title") + 1], "Pay by card")
         self.assertEqual(calls[0]["body"], "Why and what.\n")
-        self.assertIn("https://github.example/pr/feat-02-refund", out)
+        self.assertIn("https://github.example/pr/feature/KEY-1/refund", out)
+
+    def test_publish_refuses_branch_names_that_do_not_fit_the_prs_before_pushing(self):
+        self.finish_two_prs()
+        for names in (["feature/KEY-1/pay"], ["feature/KEY-1/pay", "feature/KEY-1/pay"], ["feature/KEY-1/pay", "bad..name"]):
+            with self.subTest(names=names):
+                result = self.p.wf("publish", *names, check=False)
+
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(self.p.git(self.p.main, "ls-remote", "--heads", str(self.p.origin)).count("refs/heads/"), 1)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,6 @@ MAX_ROUNDS = 3
 REQUIREMENTS = "\n## Requirements\n\nAlso report under (a) any rule below that is neither implemented nor listed as out of scope.\n\n"
 PLAN_SKELETON = "## Requirements\n\n## Questions\n\n## Stories\n\n## Design\n\n## Findings\n"
 FEATURE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-PR_FILE = re.compile(r"\d+-[A-Za-z0-9._-]+\.md")
 
 
 class WfError(Exception):
@@ -403,8 +402,6 @@ def cmd_pr_done(feature, args):
     pr_file = Path(args.pr_file).resolve()
     if pr_file.parent != feature.prs.resolve():
         raise WfError(f"PR files live in {feature.prs}, next to plan.md and outside the worktree")
-    if not PR_FILE.fullmatch(pr_file.name) or not valid_branch(f"{feature.name}-{pr_file.stem}"):
-        raise WfError("name the PR file NN-slug.md, for example 01-add-refunds.md: publish turns it into a branch name")
     title = pr_title(pr_file)
     if any(pr["file"] == str(pr_file) for pr in state["prs"]):
         raise WfError(f"{pr_file} is already registered")
@@ -461,9 +458,14 @@ def cmd_review(feature, args):
 def cmd_publish(feature, args):
     state = feature.load()
     pairs = pr_commits(feature, state)
-    if not pairs:
-        raise WfError("no registered PR to publish")
-    branches = [f"{feature.name}-{Path(pr['file']).stem}" for _, pr in pairs]
+    branches = args.branches
+    if len(branches) != len(pairs):
+        raise WfError(f"give one branch name per PR in stack order: {len(pairs)} PR(s), {len(branches)} name(s)")
+    if len(set(branches)) != len(branches):
+        raise WfError("branch names must be unique")
+    invalid = [name for name in branches if not valid_branch(name)]
+    if invalid:
+        raise WfError(f"not valid branch names: {', '.join(invalid)}")
     for (sha, _), branch in zip(pairs, branches):
         git("push", "-q", "origin", f"{sha}:refs/heads/{branch}", cwd=feature.worktree)
     base = state["base"]["ref"]
@@ -512,7 +514,8 @@ def main(argv=None):
     pr_done.add_argument("pr_file")
     pr_done.add_argument("tests", nargs="*", help="existing tests that cover the changed code")
     commands.add_parser("review", help="count a review round and print the reviewer brief")
-    commands.add_parser("publish", help="push a branch per PR and open the stacked PRs")
+    publish = commands.add_parser("publish", help="push a branch per PR and open the stacked PRs")
+    publish.add_argument("branches", nargs="+", help="one branch name per PR, in stack order")
     args = parser.parse_args(argv)
     try:
         if args.command == "start":
