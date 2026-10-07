@@ -23,7 +23,7 @@ Report only these four kinds of finding. Give each a location (file and line, or
 - (a) The code does not do what its pull request description says.
 - (b) A failure with real consequences is unhandled or hidden: money, data integrity, security, silent corruption. Or a destructive schema or API change that no description flags. Or the change breaks another caller in this repository.
 - (c) Something can be deleted without changing the described behavior: a field, a branch, a function, an abstraction used once, a mock of the project's own database or code, a test with no matching behavior.
-- (d) The change breaks a rule in one of the rule files. Quote the rule line.
+- (d) The change breaks a rule in one of the rule files. Quote the rule line. Rules about branch names do not apply here: the branch you are on is a local working branch, and each pull request's branch is named when it is published.
 
 You may check a suspicion by writing a test or running a command; a finding you have verified is the strongest evidence. You may add or edit files in the worktree while you check, but restore them before you finish, so that `git status` shows exactly what it showed when you started.
 
