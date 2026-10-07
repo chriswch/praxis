@@ -142,7 +142,7 @@ The same as Review, over the whole branch; the brief adds the requirements. `wf 
 2. Send the final message, listing:
    - the Assumed decisions;
    - dismissed findings;
-   - each scope's round-3 findings and what you did, noting those fixes were not reviewed again;
+   - the feature review's round-3 findings and what you did, noting those fixes were not reviewed again;
    - tests changed after freeze, from the `changed_after_freeze` lines;
    - changes to the repo taste;
    - the worktree path, with a reminder that once the PRs merge, the worktree (`git worktree remove`), the branch named after the feature, and `.praxis/<feature>/` can all be removed.
