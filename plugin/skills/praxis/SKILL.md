@@ -34,7 +34,7 @@ At the start of every step, and of every story in Build, read what that step nee
 - Voice: `~/.praxis/voice.md`, for everything you write for the user: plan.md, PR files, messages.
 - The repo's PR template.
 
-A missing file is normal; skip it. When sources disagree, the more specific one wins, and a higher source overrides a lower one only on the point it states:
+A missing file is normal; skip it. When sources disagree, a higher source overrides a lower one only on the point it states:
 
 1. repo taste
 2. the repo's committed conventions
@@ -65,7 +65,7 @@ The mode is `auto` unless the user asks for step mode. Switch any time with `wf 
 2. Tests cover the happy path plus failures with real consequences, nothing more.
 3. Tests are sociable: they use real collaborators, including the project's own database. Mock only third-party services, the network, and the clock.
 4. Code, tests, comments, and commit messages never mention this workflow: no step names, story or PR numbers, or Praxis terms.
-5. Split PRs by kind of concern, never by architecture layer. One PR is one commit and one concern; combine concerns only when the change is small and simple. Every PR is green on its own.
+5. Split PRs by kind of concern, never by architecture layer. One PR is one commit and one concern; combine concerns only when the change is small and simple. Every PR is green on its own. A fix that belongs to no PR goes into the closest PR when it is small and simple; otherwise tell the user it needs a run of its own.
 6. Write nothing without a present use: no speculative fields, branches, options, or abstractions.
 7. Never push without the user's instruction, and never merge. A destructive change is approved only by the user's own words, and one approval covers one named change.
 8. A PR description follows the repo's PR template for structure and the voice file for everything else, and states each decision with its reason.
@@ -117,7 +117,7 @@ For each PR:
 
 1. A behavior PR starts with its tests. Once they are written, run `wf freeze`.
 2. Implement.
-3. Write `prs/NN-slug.md` in the feature folder, next to plan.md and outside the worktree, where `NN` counts PRs across the feature: first line `# <title>`, then the description. The title becomes the commit message and the PR title, so write it in the repo's commit convention; the rest becomes the PR body.
+3. Write `prs/NN-slug.md` in the feature folder, next to plan.md and outside the worktree, where `NN` counts PRs across the feature: first line `# <title>`, then the description. The title becomes the commit message and the PR title, so write it in the repo's commit convention; the rest becomes the PR body. The title is final once `wf pr-done` commits it; later edits change only the body.
 4. Run `wf pr-done <PR file> [related tests…]`. It stages everything, runs the PR's changed tests plus the related tests you name (existing tests that cover the code you changed), and commits only when they pass. The full suite runs in CI after push. If `test_cmd` itself is wrong, fix config.json; the next call uses it.
 
 When every PR in the plan is committed, run `wf next`.
@@ -145,6 +145,6 @@ The same as Review, over the whole branch; the brief adds the requirements. `wf 
    - each scope's round-3 findings and what you did, noting those fixes were not reviewed again;
    - tests changed after freeze, from the `changed_after_freeze` lines;
    - changes to the repo taste;
-   - the worktree path, with a reminder to remove it with `git worktree remove` once the PRs merge.
+   - the worktree path, with a reminder that once the PRs merge, the worktree (`git worktree remove`), the branch named after the feature, and `.praxis/<feature>/` can all be removed.
 3. If the user asks for changes before publishing, handle each like a finding: a fixup into the PR it belongs to, then autosquash. Then run `wf next`, which at the end of a run reruns every PR's tests at its own commit and the freeze report.
 4. When the user tells you to publish, run `wf publish <branch>…` (with `--draft` if they ask for draft PRs) with one branch name per PR, in stack order, following the repo's branch convention from the repo taste or its standards documents. Never merge.

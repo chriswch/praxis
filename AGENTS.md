@@ -7,7 +7,7 @@ Each behavior is written down in exactly one place:
 - `wf.py` says what the script checks.
 - The test names in `tests/test_wf.py` say what each behavior is.
 
-Do not restate these elsewhere.
+Do not restate these elsewhere. The one exception is README.md, which summarizes them for users. When a behavior changes, update README.md in the same commit.
 
 ## Commands
 
@@ -52,9 +52,10 @@ Ask in order; the first "yes" decides where new content goes.
 2. **Is it a team convention for one repository?** Then it goes in that repository's standards documents, or in its `AGENTS.md`/`CLAUDE.md` if it has none.
 3. **Is it a one-line personal decision?** Then it goes in taste: `.praxis/taste.md` for one repository, `~/.praxis/taste.md` for all.
 4. **Does it change how the workflow runs?** Then it goes in `SKILL.md`. A deterministic check goes in `wf.py`.
-5. **Is it several code rules for one domain, used at specific steps?** Then it goes in `plugin/skills/praxis/standards/<topic>.md`, plus one row in a standards table in `SKILL.md`: file, steps, when it applies. `wf` gives the reviewer every `skills/*/standards/*.md`.
+5. **Is it several code rules for one domain, used at specific steps?** Then it goes in `plugin/skills/praxis/standards/<topic>.md`, plus one row in the standards table in `SKILL.md`: file, steps, when it applies. Create the table with the first standard. `wf` gives the reviewer every `skills/*/standards/*.md`.
 6. **Is it also needed outside a run, after you have asked an agent for the same job twice?** Then it becomes a new skill, `plugin/skills/<gerund-object>/`.
    - Its code rules go in its own `standards/`, and other reference material goes in `references/`.
    - Praxis reads it at the path `wf status` prints and never invokes it, so its frontmatter holds only `name` and `description`, and its internal links are relative.
+   - Add a line to `SKILL.md` that names the step that reads it.
 
 Skill names are permanent: a plugin has no migration path for renaming a skill.
