@@ -1,12 +1,50 @@
 # Praxis
 
-Spec-driven software engineering workflows for Claude Code and Codex, shipped as agent skills.
+Praxis is an agent workflow for Claude Code and Codex. It takes one feature from a request to stacked, reviewed pull requests. It clarifies the requirements, designs the data model and API, and builds each story test-first in its own git worktree. A fresh reviewer checks every story. Praxis stops at local commits until you tell it to publish.
 
-Praxis is a collection of skills that take a request through clarification, slicing, design, implementation, review, and verification — and one orchestrator entry point (`craft`) that chains them, with a manual mode (default) for stage-by-stage checkpoints and an `--autopilot` mode for end-to-end runs.
+## How a run goes
+
+```
+start     a worktree at .praxis/<feature>/worktree, from the remote
+          default branch; your own checkout is never touched
+  |
+Plan      goal, rules with key examples, out of scope, assumptions;
+          questions for you; stories that can each ship on their own
+Design    data model and schema (type, nullability, reason per field),
+          API, layering; destructive changes need your approval
+  |
+  +- for each story
+  |  Build    scenarios -> PR plan -> for each PR: tests, freeze,
+  |           code, then commit only when the PR's tests pass
+  |  Review   a fresh reviewer, up to 3 rounds; then every PR's tests
+  |           rerun at its own commit
+  |
+Feature review   the whole branch, checked against the requirements
+Finish           a final message; stacked PRs only when you say so
+```
+
+- **One PR per concern.** Each pull request is one commit with one concern, split by kind of change (tidying, schema change, behavior, cleanup), never by architecture layer.
+- **Disclosed test edits.** Before a behavior PR's code is written, its tests are frozen. Any test changed after that is listed in the final message.
+- **Local commits only.** Nothing leaves your machine until you ask for it, and Praxis never merges.
+
+### Modes
+
+- **auto** (default): runs to the end, stopping only when it needs you. That means a question it cannot settle from the code or your rules, a missing permission or environment, a test that already fails on the base commit, or a destructive schema or API change you have not approved in your own words.
+- **step**: also pauses after every step; Build pauses once per story. Your reply continues the run.
+
+### What it writes
+
+Everything goes under `.praxis/` in your repository, which Praxis adds to `.git/info/exclude`, so it is never committed.
+
+| Path | Holds |
+|---|---|
+| `.praxis/config.json` | how to run the repository's tests, and how to prepare a new worktree |
+| `.praxis/taste.md` | this repository's taste: where its standards documents are, and rules you stated for it |
+| `.praxis/<feature>/plan.md` | requirements, questions, stories, design, review findings |
+| `.praxis/<feature>/prs/` | one description per PR, ready to publish |
+| `.praxis/<feature>/worktree/` | the feature branch |
 
 ## Install
-
-Praxis ships as a git-based plugin marketplace hosted in this repo. Both runtimes install straight from GitHub — marketplace source `chriswch/praxis`, marketplace name `chriswch-atelier`, plugin `praxis`.
 
 ### Claude Code
 
@@ -16,99 +54,70 @@ Praxis ships as a git-based plugin marketplace hosted in this repo. Both runtime
 /reload-plugins
 ```
 
-Every commit to this repo is published as a new plugin version, so you always track `main`. To receive updates automatically, enable auto-update once (third-party marketplaces have it off by default): run `/plugin`, open the **Marketplaces** tab, select **chriswch-atelier**, and choose **Enable auto-update**. Claude Code then refreshes on startup and prompts you to run `/reload-plugins` when a new version lands. To update on demand instead: `/plugin marketplace update chriswch-atelier`.
+Every commit to `main` is a new version. To get updates automatically, open `/plugin`, go to **Marketplaces**, select **chriswch-atelier**, and choose **Enable auto-update**.
 
 ### Codex
 
 ```shell
 codex plugin marketplace add chriswch/praxis
+codex plugin add praxis@chriswch-atelier
 ```
 
-Then install `praxis` from the in-session `/plugins` directory and run `/reload-plugins`. Codex has no startup auto-update yet — pull new versions with `codex plugin marketplace upgrade`.
+Codex refreshes the plugin when it finds a new commit, both in a background check at startup and on `codex plugin marketplace upgrade`.
 
-### Local install (development)
+Codex's default sandbox keeps `.git` read-only, which blocks the worktree and the commits. Allow writes to each repository you run Praxis in, in `~/.codex/config.toml`:
 
-Point either runtime at a local checkout instead of the remote, from the repo root:
-
-```shell
-# Claude Code
-/plugin marketplace add ./
-/plugin install praxis@chriswch-atelier
-
-# Codex
-codex plugin marketplace add ./
+```toml
+[sandbox_workspace_write]
+writable_roots = ["/absolute/path/to/your-repo/.git"]
 ```
 
-The Claude Code plugin manifest is at `plugin/.claude-plugin/plugin.json`; the Codex manifest is at `plugin/.codex-plugin/plugin.json`. Codex reads its marketplace catalog from `.agents/plugins/marketplace.json` (repo root); Claude Code reads `.claude-plugin/marketplace.json`.
+### Requirements
 
-## Entry points
+- `python3` 3.9 or later. The macOS system Python is enough.
+- git 2.31 or later.
+- `gh`, logged in to an account that can see the repository, to publish.
 
-`craft` is a single agent skill (`plugin/skills/craft/SKILL.md`) that both runtimes read — there is no separate command file:
+Start Claude Code or Codex from inside the repository. That way per-directory settings, such as a direnv `.envrc` that picks the `gh` account, are in effect.
 
-- **Claude Code**: invoke as `/praxis:craft`.
-- **Codex**: invoke as `$craft` (or via the `/skills` picker).
+## Use
 
-One skill body orchestrates the same underlying skills across both runtimes.
+- **Start:** describe the feature and ask for Praxis. In Claude Code use `/praxis:praxis`; in Codex use `$praxis`. Add "in step mode" to pause after every step.
+- **First run in a repository:** the agent writes `.praxis/config.json` and a line in `.praxis/taste.md` that points to the repository's standards documents. Check both once. `test_cmd` must contain `{files}`.
 
-## Workflow
+  ```json
+  {"test_cmd": "bundle exec rspec {files}", "test_glob": "spec/**/*_spec.rb", "setup": "cp \"$WF_MAIN/config/database.yml\" config/"}
+  ```
 
-### Craft
+- **Resume:** open a session in the repository and ask to continue the run. The state lives in `.praxis/<feature>/`.
+- **Changes after the run:** ask for them. Each one goes into the PR it belongs to, and every PR's tests run again.
+- **Publish:** say so, and say whether you want draft PRs. Branch names follow the convention in `.praxis/taste.md`.
+- **Clean up:** after the PRs merge, remove the worktree with `git worktree remove`.
 
-Full TDD pipeline. `/praxis:craft <task>` (Claude Code) or `$craft <task>` (Codex) runs in manual mode with user checkpoints between stages; adding `--autopilot` auto-confirms gates and runs end-to-end, stopping only on hard blockers (worker `## Feedback`, **Open questions** from `clarifying-intent`, `## Spec Issue` from `sketching-design`, or **Rework**/**Escalate** from `verifying-and-adapting`).
+## Rules the agent follows
 
-```
-per slice:  clarifying-intent → [slicing-stories] → sketching-design → driving-tdd
-              → code-reviewing → code-improving → verifying-and-adapting
-once, then: composing-documents + clear-writing (PR description)
-              → code-reviewing (unanchored, whole branch) → code-improving → ship gate
-```
+Precedence, from highest:
 
-### Defaults worth knowing
+1. **Repository taste** (`.praxis/taste.md`)
+2. **The repository's committed conventions:** its standards documents, `AGENTS.md`, `CLAUDE.md`, lint and CI config
+3. **Your global taste** (`~/.praxis/taste.md`)
+4. **Standards bundled with the plugin**
+5. **Current official or mainstream practice** for the repository's versions, with a cited source
+6. **Existing code**, only where nothing above has an opinion
 
-- **Critical-path tests.** Praxis covers the happy path plus failures that carry real consequence — money, data integrity, security, silent corruption, or something this codebase has actually gotten wrong. Cases the bar leaves out are recorded rather than dropped, and the ship gate asks which you want covered before the story closes. Opt into broader coverage with a `Test scope: standard` line in your steering artifact (`CLAUDE.md`/`AGENTS.md`).
-- **No process identifiers in code.** AC numbers, slice ids, and ticket keys stay in `.praxis/`, commit messages, and the PR description — never in source, tests, test names, or comments, where a reader cannot resolve them. Comments carry only what the code cannot say; conventions live in the steering artifact and change-wide decisions in the PR description.
-- **Scope discipline.** A review finding that reaches outside the story's files, or needs infrastructure the repo lacks, is recorded in `.praxis/<slug>/deferred.md` instead of being applied — yours to route to a ticket or a follow-up PR at the ship gate.
-- **A final review that doesn't share the author's frame.** Before the ship gate, `code-reviewing` runs once more over the whole branch diff and is given the PR description *only* — no spec, no sketch, no implementation summary. A reviewer holding the design rationale reads the diff sympathetically, which is what lets a problem survive the per-slice pass and turn up later in a fresh review.
-- **The run ends at a PR description.** Drafted through `composing-documents` and `clear-writing`, following your repo's PR template when it has one. It is where the change-wide decisions live once they are kept out of the code comments — and it is what the final review reads.
+A higher rule overrides a lower one only on the point it states. These rules apply to new code and to code a story changes anyway.
 
-## Skills
+PR descriptions follow the repository's PR template, plus your voice profile in `~/.praxis/voice.md` if you have one.
 
-| Skill | Purpose |
-| --- | --- |
-| `craft` | Orchestrate the whole pipeline end-to-end — manual checkpoints by default, `--autopilot` for unattended runs. |
-| `clarifying-intent` | Turn an underspecified request into a Feature Brief or Story-Level Behavioral Spec. |
-| `slicing-stories` | Split a Feature Brief into an ordered slice map of thin, vertical stories. |
-| `sketching-design` | Produce a lightweight design sketch — change map, pattern match, first test. |
-| `driving-tdd` | Drive Red → Green → Refactor cycles, one acceptance criterion at a time. |
-| `code-reviewing` | Independent five-layer review (data, special cases, complexity, breaking changes, practicality). |
-| `code-improving` | Apply fixes for critical/high/medium review findings. |
-| `verifying-and-adapting` | Reconcile spec vs. reality, update the spec, recommend the next action. |
-| `composing-documents` | Shape a document before drafting — pick the genre framework, the structure, and the altitude for the audience. |
-| `clear-writing` | Revise prose for clarity, precision, and concision. Reusable across skills. |
-| `structuring-decisions` | Drive a consequential decision through framing, diagnosis, options, evidence, and a recorded verdict with tripwires. |
+## Design philosophy
 
-## Skill contract
-
-Every skill follows the same prompt-in / prose-out contract:
-
-- **Input**: pass the prior artifact (brief, spec, sketch, review, etc.) inline in the prompt, or as a path/handle the skill should read.
-- **Output**: the artifact is returned inline in the response. The caller decides whether to persist it and where.
-
-There is no enforced artifact layout. Skills focus on what they resolve; the calling agent or user owns input and output handling.
-
-## User profiles (`~/.praxis/`)
-
-Two optional files let you carry standing preferences across every project. Both live in your home directory, not in a repo — they travel with you. Neither is required; each skill states what it falls back to when the file is absent.
-
-| File | Covers | Read by | Fallback when absent |
-| --- | --- | --- | --- |
-| `~/.praxis/taste.md` | Code and architecture philosophy — the forks that research and project conventions leave open. | `sketching-design`, `code-reviewing` | The plugin's `default-philosophy.md` |
-| `~/.praxis/voice.md` | Prose conventions — language, register, terminology. | `composing-documents`, `clear-writing` | The reader's language and the register of the surrounding documents |
-
-The two do not overlap and neither reads the other. A repo can still override both: project conventions in the steering artifact (`.praxis/constitution.md`, `CLAUDE.md`/`AGENTS.md`) outrank `voice.md`, since a document serves the project's readers rather than its author. For `taste.md` the precedence runs the other way — taste wins over project convention, and the departure is flagged and explained rather than applied silently.
-
-To start either file, write it directly; there is no generator. `taste.md` replaces `default-philosophy.md` entirely when present, so copy that file as a starting point if you want to edit rather than begin from scratch.
-
-## License
-
-MIT
+- **Build what the request needs, and nothing more.** No speculative fields, options, or abstractions. Special cases wait until they actually happen.
+- **One living document.** `plan.md` is the only handoff between steps. The agent rereads its inputs at the start of every step, so compaction or a new session loses nothing.
+- **Scripts check, the model judges.** The bundled `wf` script records where the run is and refuses to move on when a deterministic check fails. Everything that needs judgment is left to the agent.
+- **Tests prove behavior.** Tests are sociable: they use real collaborators, including the project's own database, and mock only third-party services, the network, and the clock. They cover the happy path plus failures with real consequences.
+- **The reviewer judges what landed, not what was intended.** It never sees the plan or the design. It reports only four things:
+  - behavior that does not match the PR description;
+  - a failure with real consequences;
+  - code that can be deleted;
+  - a broken rule.
+- **You stay in control of what leaves your machine.** Destructive changes need your approval in your own words, publishing waits for your word, and merging is always yours.
