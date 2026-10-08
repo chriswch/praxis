@@ -88,6 +88,8 @@ The mode is `auto` unless the user asks for step mode. Switch any time with `wf 
 Fill in plan.md; `wf start` created its headings.
 
 - `## Requirements`: the goal; the rules, each with a key example; what is out of scope; Assumed, the decisions you made yourself.
+  - A rule says what a user or caller observes. How the request says to build it is a hint, adopted only if it meets every rule.
+  - These go under `## Questions`, never Assumed: a hint that fails a rule, with a design that meets it; a decision that would leave part of the request unmet; any part of the request you could not read, such as an image.
 - `## Questions`: everything you need the user to answer, asked at once. Merge each answer into the right section and delete the question.
 - `## Stories`: in build order, one `### ` heading per story, named by one observable behavior. Each story can ship on its own. Every rule belongs to a story or is out of scope. Story titles are unique, and a story heading never changes once its Build has started: `wf` tracks stories by title.
 

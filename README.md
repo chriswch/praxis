@@ -29,7 +29,11 @@ Finish           a final message; stacked PRs only when you say so
 
 ### Modes
 
-- **auto** (default): runs to the end, stopping only when it needs you. That means a question it cannot settle from the code or your rules, a missing permission or environment, a test that already fails on the base commit, or a destructive schema or API change you have not approved in your own words.
+- **auto** (default): runs to the end, stopping only when it needs you:
+  - a question it cannot settle from the code or your rules, including an approach your request names that cannot deliver what the request asks for, and any part of the request it could not read, such as an image;
+  - a missing permission or environment;
+  - a test that already fails on the base commit;
+  - a destructive schema or API change you have not approved in your own words.
 - **step**: also pauses after every step; Build pauses once per story. Your reply continues the run.
 
 ### What it writes
