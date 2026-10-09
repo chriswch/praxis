@@ -130,7 +130,7 @@ When every PR in the plan is committed, run `wf next`.
 2. Start a fresh subagent whose entire prompt is that brief, word for word: in Claude Code, the Agent tool with a general-purpose agent, `model: opus`, and `effort: xhigh`; in Codex, a delegated subagent.
 3. Copy each finding into `## Findings` as one line that starts with its scope and round (for example `story 2, round 1:`) before you handle it, then add what you did on the same line:
    - Fix: `git commit --no-verify --fixup <commit of the PR it belongs to>` (commit hooks could rewrite the fixup message that autosquash looks for), then `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <base commit>`, with the base commit from `wf status`.
-   - Dismiss: write the reason.
+   - Dismiss: write the reason. A finding that shows a rule in `## Requirements` unmet is never dismissed by rewording the rule or a description: fix it, or ask the user under `## Questions`.
 
 Stop when a round fixes nothing, or after round 3. Then run `wf next`. It reruns each PR's tests at its own commit, then moves to the next story or to the feature review.
 
