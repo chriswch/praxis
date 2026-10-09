@@ -356,6 +356,27 @@ class PrDoneTest(WfTestCase):
         self.assertEqual(state["pending_freeze"], {})
 
 
+class StoryOrderTest(WfTestCase):
+    def test_a_story_inserted_ahead_of_an_untouched_current_story_becomes_current(self):
+        self.p.to_build(stories="### Refund\n")
+        self.p.plan(stories="### Own shop only\n\n### Refund\n")
+
+        self.assertIn("story: 1/2 Own shop only", self.p.wf("status").stdout)
+        self.p.commit_pr("01-own", "Own shop only", test="own")
+
+        self.assertEqual(self.p.state()["prs"][0]["story"], "Own shop only")
+
+    def test_a_story_with_frozen_tests_stays_current_when_the_plan_puts_another_ahead(self):
+        self.p.to_build(stories="### Refund\n")
+        self.p.write("tests/refund_test.sh", "exit 0\n", root=self.p.worktree)
+        self.p.wf("freeze")
+        self.p.plan(stories="### Own shop only\n\n### Refund\n")
+
+        self.p.commit_pr("01-refund", "Refund")
+
+        self.assertEqual(self.p.state()["prs"][0]["story"], "Refund")
+
+
 class ModeAndPathTest(WfTestCase):
     def test_step_mode_prints_pause_after_advancing(self):
         self.p.wf("start", "feat", "--mode", "step", cwd=self.p.main)

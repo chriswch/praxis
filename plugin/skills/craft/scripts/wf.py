@@ -142,17 +142,28 @@ def current_story(state):
     return next((story for story in state["stories"] if not story["done"]), None)
 
 
-def start_next_story(feature, state):
+def next_unfinished_title(feature, state):
     titles = plan_stories(feature)
     repeated = sorted({title for title in titles if titles.count(title) > 1})
     if repeated:
         raise WfError(f"story titles must be unique: {', '.join(repeated)}")
     done = {story["title"] for story in state["stories"] if story["done"]}
-    title = next((title for title in titles if title not in done), None)
+    return next((title for title in titles if title not in done), None)
+
+
+def start_next_story(feature, state):
+    title = next_unfinished_title(feature, state)
     if title is not None:
         state["stories"].append({"title": title, "rounds": 0, "done": False})
         state["step"] = "build"
     return title
+
+
+def follow_plan(feature, state):
+    current = current_story(state)
+    if state["step"] != "build" or state["pending_freeze"] or any(pr["story"] == current["title"] for pr in state["prs"]):
+        return
+    current["title"] = next_unfinished_title(feature, state) or current["title"]
 
 
 def rounds_holder(state):
@@ -313,6 +324,7 @@ def cmd_start(args):
 
 def cmd_status(feature, args):
     state = feature.load()
+    follow_plan(feature, state)
     titles = plan_stories(feature) if feature.plan.exists() else []
     print(f"feature: {feature.name}")
     print(f"mode: {state['mode']}")
@@ -353,6 +365,7 @@ def cmd_next(feature, args):
         if start_next_story(feature, state) is None:
             raise WfError(f"{feature.plan} has no '### ' story under ## Stories")
     elif step == "build":
+        follow_plan(feature, state)
         title = current_story(state)["title"]
         if not any(pr["story"] == title for pr in state["prs"]):
             raise WfError(f"story '{title}' has no PR yet: commit one with wf pr-done before moving on")
@@ -390,6 +403,7 @@ def worktree_changes(feature):
 def cmd_freeze(feature, args):
     state = feature.load()
     require_step(state, "build", "freeze")
+    follow_plan(feature, state)
     config = load_config(feature.main)
     tests = test_scope(worktree_changes(feature), [], config, feature.worktree)
     if not tests:
@@ -403,6 +417,7 @@ def cmd_freeze(feature, args):
 def cmd_pr_done(feature, args):
     state = feature.load()
     require_step(state, "build", "pr-done")
+    follow_plan(feature, state)
     pr_file = Path(args.pr_file).resolve()
     if pr_file.parent != feature.prs.resolve():
         raise WfError(f"PR files live in {feature.prs}, next to plan.md and outside the worktree")
