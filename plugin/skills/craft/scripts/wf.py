@@ -225,7 +225,6 @@ def rule_files(feature):
         feature.main / ".praxis" / "taste.md",
         feature.worktree / "AGENTS.md",
         feature.worktree / "CLAUDE.md",
-        Path.home() / ".praxis" / "taste.md",
         *sorted(SKILLS_DIR.glob("*/standards/*.md")),
     ]
     files, seen = [], set()

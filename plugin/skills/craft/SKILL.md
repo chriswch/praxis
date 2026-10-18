@@ -30,20 +30,26 @@ At the start of every step, and of every story in Build, read what that step nee
 
 - Repo taste: `<repo>/.praxis/taste.md`. It also names the repo's standards documents; read the ones that apply.
 - The repo's committed conventions: its standards documents, AGENTS.md, CLAUDE.md, lint and CI config.
-- Global taste: `~/.praxis/taste.md`.
-- Voice: `~/.praxis/voice.md`, for everything you write for the user: plan.md, PR files, messages.
-- The repo's PR template.
+- This plugin's standards, at the steps the table below names.
 
 A missing file is normal; skip it. When sources disagree, a higher source overrides a lower one only on the point it states:
 
 1. repo taste
 2. the repo's committed conventions
-3. global taste
-4. this plugin's standards (files under `standards/` in its skills)
-5. current official or mainstream practice for the versions this repo uses: look it up and cite the URL
-6. existing code, only where nothing above has an opinion
+3. this plugin's standards (files under `standards/` in its skills)
+4. current official or mainstream practice for the versions this repo uses: look it up and cite the URL
+5. existing code, only where nothing above has an opinion
 
 This applies to new code and to code the story changes anyway. Old code that should change goes into its own structural PR.
+
+| Standard | Read at | Applies to |
+|---|---|---|
+| `standards/design.md` | 2 Design, 3 Build | all code and tests |
+| `standards/data.md` | 2 Design, 3 Build | schema migrations, and scripts that change data |
+| `standards/tests.md` | 3 Build | all tests |
+| `standards/comments.md` | 3 Build | every comment you write or keep |
+
+Voice applies only to the text published with a PR: its description, inline comments, and PR comment. Follow `references/voice.md`; the repo's PR template and documentation conventions override it on the points they state.
 
 ## Stops and modes
 
@@ -68,7 +74,7 @@ The mode is `auto` unless the user asks for step mode. Switch any time with `wf 
 5. Split PRs by kind of concern, never by architecture layer. One PR is one commit and one concern; combine concerns only when the change is small and simple. Every PR is green on its own. A fix that belongs to no PR goes into the closest PR when it is small and simple; otherwise tell the user it needs a run of its own.
 6. Write nothing without a present use: no speculative fields, branches, options, or abstractions.
 7. Never push without the user's instruction, and never merge. A destructive change is approved only by the user's own words, and one approval covers one named change.
-8. A PR description follows the repo's PR template for structure and the voice file for everything else, and states each decision with its reason.
+8. A PR description follows the voice above and states each decision with its reason.
 
 ## Start
 
@@ -113,7 +119,7 @@ Under the story's `### ` heading, write three parts with bold labels. Never use 
 
 - **Design changes**: what this story adds to or changes in `## Design`, in the same form.
 - **Scenarios**: Given/When/Then, chosen by rule 2. Each one becomes one sociable test.
-- **PR plan**: ordered by kind of concern: structural tidying → schema changes to existing tables → the behavior with its tests → cleanup that follows.
+- **PR plan**: ordered by kind of concern: structural tidying → schema migrations → the behavior with its tests → cleanup that follows.
 
 For each PR:
 

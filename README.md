@@ -112,14 +112,13 @@ Precedence, from highest:
 
 1. **Repository taste** (`.praxis/taste.md`)
 2. **The repository's committed conventions:** its standards documents, `AGENTS.md`, `CLAUDE.md`, lint and CI config
-3. **Your global taste** (`~/.praxis/taste.md`)
-4. **Standards bundled with the plugin**
-5. **Current official or mainstream practice** for the repository's versions, with a cited source
-6. **Existing code**, only where nothing above has an opinion
+3. **Praxis's standards:** one specific style for design, naming, errors, dependencies, tests, schema and data changes, and comments, independent of language and framework
+4. **Current official or mainstream practice** for the repository's versions, with a cited source
+5. **Existing code**, only where nothing above has an opinion
 
-A higher rule overrides a lower one only on the point it states. These rules apply to new code and to code a story changes anyway.
+A higher rule overrides a lower one only on the point it states. These rules apply to new code and to code a story changes anyway. A repository with no conventions of its own still gets Praxis's style.
 
-PR descriptions follow the repository's PR template, plus your voice profile in `~/.praxis/voice.md` if you have one.
+PR descriptions follow Praxis's voice, except where the repository's PR template and documentation conventions say otherwise. The voice covers only the text published with a PR: its description, inline comments, and PR comment. `plan.md` and the agent's messages do not follow it.
 
 ## Design philosophy
 

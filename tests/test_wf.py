@@ -429,7 +429,6 @@ class ReviewTest(WfTestCase):
     def test_brief_lists_the_worktree_range_pr_files_and_rule_files_in_priority_order(self):
         repo_taste = self.p.write(".praxis/taste.md", "- Prefer plain functions\n")
         agents = self.p.write("AGENTS.md", "Team rules\n", root=self.p.worktree)
-        global_taste = self.p.write(".praxis/taste.md", "- Name things plainly\n", root=self.p.home)
         head = self.p.head()
         start = self.p.git(self.p.worktree, "rev-parse", "HEAD~1")
 
@@ -438,7 +437,9 @@ class ReviewTest(WfTestCase):
         self.assertIn(str(self.p.worktree), brief)
         self.assertIn(f"{start}..{head}", brief)
         self.assertIn(str(self.p.feature_dir / "prs" / "01-pay.md"), brief)
-        order = [brief.index(str(path)) for path in (repo_taste, agents, global_taste)]
+        standards = sorted((WF.parents[1] / "standards").glob("*.md"))
+        self.assertTrue(standards)
+        order = [brief.index(str(path)) for path in (repo_taste, agents, *standards)]
         self.assertEqual(order, sorted(order))
         self.assertNotIn("## Requirements", brief)
 
@@ -451,6 +452,13 @@ class ReviewTest(WfTestCase):
 
         order = [brief.index(f"- {path}\n") for path in (description, inline, comment)]
         self.assertEqual(order, sorted(order))
+
+    def test_brief_leaves_out_the_voice(self):
+        self.assertTrue((WF.parents[1] / "references" / "voice.md").is_file())
+
+        brief = self.p.wf("review").stdout
+
+        self.assertNotIn("voice.md", brief)
 
     def test_story_range_holds_only_this_storys_prs(self):
         self.p.wf("review")

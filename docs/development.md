@@ -54,6 +54,9 @@ README.md summarizes them for users. When a behavior changes, update README.md i
 - **The reviewer's model and effort are Agent tool parameters, not an agent file.** The tool's `model` parameter overrides an agent file, and a user's global rules may ask for a cheap model on every dispatch.
 - **Publish checks `gh repo view` before it pushes anything.** Otherwise a `gh` account that cannot see the repository leaves branches pushed with no PRs.
 - **Everything ships in one plugin.** Plugin dependencies exist only in Claude Code, and reading files across plugins has no portable way.
+- **Praxis ships one specific style, not a neutral one.** Its standards and voice apply wherever nothing higher in the precedence has an opinion, so a repository with no conventions still gets consistent code.
+- **Standards hold only rules that apply in any language and framework.** Practice for one framework or one repository goes in that repository's standards documents or taste.
+- **Voice applies only to the text published with a PR.** Every later step builds from `plan.md`, and what the voice would do to the built result is unknown.
 - **Publish checks every inline comment against its PR's commit before it pushes anything.** Review fixups move lines, and GitHub accepts a review comment only on a line of the PR's diff.
 - **Inline comments are posted one by one, not as one review.** A `COMMENT` review requires a review body; a single review comment does not ([GitHub docs](https://docs.github.com/en/rest/pulls/reviews#create-a-review-for-a-pull-request)).
 - **Inline comments are JSON.** `wf` sends their fields to GitHub as they are, for the same reason `.praxis/config.json` is JSON.
@@ -64,10 +67,11 @@ Ask in order; the first "yes" decides where new content goes.
 
 1. **Can a tool decide it** (formatter, linter, migration check)? Then it belongs to the repository's own tools or CI. A standard only names the tool.
 2. **Is it a team convention for one repository?** Then it goes in that repository's standards documents, or in its `AGENTS.md`/`CLAUDE.md` if it has none.
-3. **Is it a one-line personal decision?** Then it goes in taste: `.praxis/taste.md` for one repository, `~/.praxis/taste.md` for all.
+3. **Is it a one-line decision for one repository?** Then it goes in that repository's `.praxis/taste.md`.
 4. **Does it change how the workflow runs?** Then it goes in `SKILL.md`. A deterministic check goes in `wf.py`.
-5. **Is it several code rules for one domain, used at specific steps?** Then it goes in `plugin/skills/craft/standards/<topic>.md`, plus one row in the standards table in `SKILL.md`: file, steps, when it applies. Create the table with the first standard. `wf` gives the reviewer every `skills/*/standards/*.md`.
-6. **Is it also needed outside a run, after you have asked an agent for the same job twice?** Then it becomes a new skill, `plugin/skills/<gerund-object>/`.
+5. **Is it a code rule that holds in any language and framework?** Then it goes in the matching `plugin/skills/craft/standards/<topic>.md`. A new topic gets its own file plus one row in the standards table in `SKILL.md`: file, steps, what it applies to. `wf` gives the reviewer every `skills/*/standards/*.md`.
+6. **Is it about how the text published with a PR reads?** Then it goes in `plugin/skills/craft/references/voice.md`. The reviewer never gets `references/`.
+7. **Is it also needed outside a run, after you have asked an agent for the same job twice?** Then it becomes a new skill, `plugin/skills/<gerund-object>/`.
    - Its code rules go in its own `standards/`, and other reference material goes in `references/`.
    - The workflow reads it at the path `wf status` prints and never invokes it, so its frontmatter holds only `name` and `description`, and its internal links are relative.
    - Add a line to the workflow's `SKILL.md` that names the step that reads it.
