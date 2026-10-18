@@ -99,11 +99,12 @@ Start Claude Code or Codex from inside the repository. That way per-directory se
 - **Changes after the run:** ask for them. Each one goes into the PR it belongs to, and every PR's tests run again.
 - **Publish:** say so, and say whether you want draft PRs. Branch names follow the repository's branch convention, from its taste or its standards documents. Praxis opens the PRs, then posts each one's inline comments and, for a script someone must run by hand, its PR comment.
 - **Changes after publishing:** each one is a new commit on the branch of the PR it belongs to. Praxis never rewrites a published branch: no rebase, amend, squash, or force push.
+- **Outside a run:** Praxis's standards and voice are their own skill, so any task can follow them without the workflow. In Claude Code use `/praxis:applying-taste`; in Codex use `$applying-taste`. An agent can also load it on its own when it designs, writes, tests, or reviews code, or writes a PR's text.
 - **Clean up:** after the PRs merge, remove the worktree (`git worktree remove`), delete the branch named after the feature, and delete `.praxis/<feature>/`.
 
 ## Versions
 
-This is Praxis v2: one workflow skill, `craft`, and its script.
+This is Praxis v2: one workflow skill, `craft`, with its script, and `applying-taste`, the standards and voice the workflow follows.
 
 v1, the earlier set of stage skills chained by the first `craft`, is tagged `v1`.
 

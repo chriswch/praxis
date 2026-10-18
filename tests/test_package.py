@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = sorted(path.parent for path in (ROOT / "plugin" / "skills").glob("*/SKILL.md"))
 SKILL_RELATIVE_PATH = re.compile(r"(?<![\w./~-])(?:scripts|assets|standards|references)/[\w./-]*[\w-]")
+OTHER_SKILL_PATH = re.compile(r"(?<![\w./~-])([a-z0-9-]+)/((?:scripts|assets|standards|references)/[\w./-]*[\w-])")
 YAML_INDICATORS = tuple("[]{}#&*!|>%@`")
 
 
@@ -86,6 +87,12 @@ class SkillTest(unittest.TestCase):
             for path in SKILL_RELATIVE_PATH.findall(skill_text(skill)):
                 with self.subTest(skill=skill.name, path=path):
                     self.assertTrue((skill / path).exists())
+
+    def test_paths_into_other_skills_exist(self):
+        for skill in SKILLS:
+            for name, path in OTHER_SKILL_PATH.findall(skill_text(skill)):
+                with self.subTest(skill=skill.name, path=f"{name}/{path}"):
+                    self.assertTrue((skill.parent / name / path).exists())
 
     def test_every_standards_and_references_file_is_named_in_skill_md(self):
         for skill in SKILLS:

@@ -410,6 +410,14 @@ class ModeAndPathTest(WfTestCase):
         self.assertIn("step: done", out)
         self.assertNotIn("PAUSE", out)
 
+    def test_status_prints_the_skill_md_of_every_other_skill_in_the_plugin(self):
+        self.p.wf("start", "feat", cwd=self.p.main)
+
+        out = self.p.wf("status").stdout
+
+        self.assertIn(f"skill: {WF.parents[2] / 'applying-taste' / 'SKILL.md'}", out)
+        self.assertNotIn(f"skill: {WF.parents[1] / 'SKILL.md'}", out)
+
     def test_wf_runs_from_a_subdirectory_of_the_worktree(self):
         self.p.wf("start", "feat", cwd=self.p.main)
 
@@ -437,7 +445,7 @@ class ReviewTest(WfTestCase):
         self.assertIn(str(self.p.worktree), brief)
         self.assertIn(f"{start}..{head}", brief)
         self.assertIn(str(self.p.feature_dir / "prs" / "01-pay.md"), brief)
-        standards = sorted((WF.parents[1] / "standards").glob("*.md"))
+        standards = sorted(WF.parents[2].glob("*/standards/*.md"))
         self.assertTrue(standards)
         order = [brief.index(str(path)) for path in (repo_taste, agents, *standards)]
         self.assertEqual(order, sorted(order))
@@ -454,7 +462,7 @@ class ReviewTest(WfTestCase):
         self.assertEqual(order, sorted(order))
 
     def test_brief_leaves_out_the_voice(self):
-        self.assertTrue((WF.parents[1] / "references" / "voice.md").is_file())
+        self.assertTrue((WF.parents[2] / "applying-taste" / "references" / "voice.md").is_file())
 
         brief = self.p.wf("review").stdout
 

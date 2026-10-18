@@ -30,7 +30,7 @@ At the start of every step, and of every story in Build, read what that step nee
 
 - Repo taste: `<repo>/.praxis/taste.md`. It also names the repo's standards documents; read the ones that apply.
 - The repo's committed conventions: its standards documents, AGENTS.md, CLAUDE.md, lint and CI config.
-- This plugin's standards, at the steps the table below names.
+- Praxis's standards and voice, at the steps the table below names. They are files of the applying-taste skill, in the folder of the `skill:` path `wf status` prints: read them there and never invoke that skill.
 
 A missing file is normal; skip it. When sources disagree, a higher source overrides a lower one only on the point it states:
 
@@ -44,12 +44,12 @@ This applies to new code and to code the story changes anyway. Old code that sho
 
 | Standard | Read at | Applies to |
 |---|---|---|
-| `standards/design.md` | 2 Design, 3 Build | all code and tests |
-| `standards/data.md` | 2 Design, 3 Build | schema migrations, and scripts that change data |
-| `standards/tests.md` | 3 Build | all tests |
-| `standards/comments.md` | 3 Build | every comment you write or keep |
+| `applying-taste/standards/design.md` | 2 Design, 3 Build | all code and tests |
+| `applying-taste/standards/data.md` | 2 Design, 3 Build | schema migrations, and scripts that change data |
+| `applying-taste/standards/tests.md` | 3 Build | all tests |
+| `applying-taste/standards/comments.md` | 3 Build | every comment you write or keep |
 
-Voice applies only to the text published with a PR: its description, inline comments, and PR comment. Follow `references/voice.md`; the repo's PR template and documentation conventions override it on the points they state.
+Voice applies only to the text published with a PR: its description, inline comments, and PR comment. Follow `applying-taste/references/voice.md`; the repo's PR template and documentation conventions override it on the points they state.
 
 ## Stops and modes
 
