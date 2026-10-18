@@ -45,7 +45,7 @@ Everything goes under `.praxis/` in your repository, which Praxis adds to `.git/
 | `.praxis/config.json` | how to run the repository's tests, and how to prepare a new worktree |
 | `.praxis/taste.md` | this repository's taste: where its standards documents are, and rules you stated for it |
 | `.praxis/<feature>/plan.md` | requirements, questions, stories, design, review findings |
-| `.praxis/<feature>/prs/` | one description per PR, ready to publish |
+| `.praxis/<feature>/prs/` | each PR's description, plus its inline comments and PR comment when it has them, ready to publish |
 | `.praxis/<feature>/worktree/` | the feature branch |
 
 ## Install
@@ -97,7 +97,7 @@ Start Claude Code or Codex from inside the repository. That way per-directory se
 
 - **Resume:** open a session in the repository and ask to continue the run. The state lives in `.praxis/<feature>/`.
 - **Changes after the run:** ask for them. Each one goes into the PR it belongs to, and every PR's tests run again.
-- **Publish:** say so, and say whether you want draft PRs. Branch names follow the repository's branch convention, from its taste or its standards documents.
+- **Publish:** say so, and say whether you want draft PRs. Branch names follow the repository's branch convention, from its taste or its standards documents. Praxis opens the PRs, then posts each one's inline comments and, for a script someone must run by hand, its PR comment.
 - **Clean up:** after the PRs merge, remove the worktree (`git worktree remove`), delete the branch named after the feature, and delete `.praxis/<feature>/`.
 
 ## Versions

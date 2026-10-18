@@ -54,6 +54,9 @@ README.md summarizes them for users. When a behavior changes, update README.md i
 - **The reviewer's model and effort are Agent tool parameters, not an agent file.** The tool's `model` parameter overrides an agent file, and a user's global rules may ask for a cheap model on every dispatch.
 - **Publish checks `gh repo view` before it pushes anything.** Otherwise a `gh` account that cannot see the repository leaves branches pushed with no PRs.
 - **Everything ships in one plugin.** Plugin dependencies exist only in Claude Code, and reading files across plugins has no portable way.
+- **Publish checks every inline comment against its PR's commit before it pushes anything.** Review fixups move lines, and GitHub accepts a review comment only on a line of the PR's diff.
+- **Inline comments are posted one by one, not as one review.** A `COMMENT` review requires a review body; a single review comment does not ([GitHub docs](https://docs.github.com/en/rest/pulls/reviews#create-a-review-for-a-pull-request)).
+- **Inline comments are JSON.** `wf` sends their fields to GitHub as they are, for the same reason `.praxis/config.json` is JSON.
 
 ## Extending
 

@@ -442,6 +442,16 @@ class ReviewTest(WfTestCase):
         self.assertEqual(order, sorted(order))
         self.assertNotIn("## Requirements", brief)
 
+    def test_brief_lists_each_prs_inline_comments_and_pr_comment_after_its_description(self):
+        description = self.p.feature_dir / "prs" / "01-pay.md"
+        inline = self.p.write("prs/01-pay.inline.json", "[]", root=self.p.feature_dir)
+        comment = self.p.write("prs/01-pay.comment.md", "Run it.\n", root=self.p.feature_dir)
+
+        brief = self.p.wf("review").stdout
+
+        order = [brief.index(f"- {path}\n") for path in (description, inline, comment)]
+        self.assertEqual(order, sorted(order))
+
     def test_story_range_holds_only_this_storys_prs(self):
         self.p.wf("review")
         self.p.wf("next")
@@ -666,10 +676,17 @@ class PublishTest(WfTestCase):
             "args = sys.argv[1:]\n"
             "if args[:2] == ['repo', 'view']:\n"
             "    sys.exit(int(os.environ.get('GH_REPO_VIEW_EXIT', '0')))\n"
-            "body = open(args[args.index('--body-file') + 1]).read()\n"
-            "with open(os.environ['GH_LOG'], 'a') as log:\n"
-            "    log.write(json.dumps({'args': args, 'body': body}) + '\\n')\n"
-            "print('https://github.example/pr/' + args[args.index('--head') + 1])\n"
+            "path = os.environ['GH_LOG']\n"
+            "opened = sum(line.startswith('{\"args\": [\"pr\", \"create\"') for line in open(path)) if os.path.exists(path) else 0\n"
+            "call = {'args': args}\n"
+            "if '--body-file' in args:\n"
+            "    call['body'] = open(args[args.index('--body-file') + 1]).read()\n"
+            "if '--input' in args:\n"
+            "    call['input'] = json.load(sys.stdin)\n"
+            "with open(path, 'a') as log:\n"
+            "    log.write(json.dumps(call) + '\\n')\n"
+            "if args[:2] == ['pr', 'create']:\n"
+            "    print(f'https://github.example/o/r/pull/{10 + opened}')\n"
         )
         gh.chmod(0o755)
         self.gh_log = self.tmp / "gh.log"
@@ -699,7 +716,7 @@ class PublishTest(WfTestCase):
         self.assertEqual([call["args"][call["args"].index("--base") + 1] for call in calls], ["main", "feature/KEY-1/pay"])
         self.assertEqual(calls[0]["args"][calls[0]["args"].index("--title") + 1], "Pay by card")
         self.assertEqual(calls[0]["body"], "Why and what.\n")
-        self.assertIn("https://github.example/pr/feature/KEY-1/refund", out)
+        self.assertIn("https://github.example/o/r/pull/11", out)
 
     def test_publish_opens_draft_prs_when_asked(self):
         self.finish_two_prs()
@@ -708,6 +725,46 @@ class PublishTest(WfTestCase):
 
         calls = [json.loads(line) for line in self.gh_log.read_text().splitlines()]
         self.assertEqual(["--draft" in call["args"] for call in calls], [True, True])
+
+    def test_publish_posts_each_inline_comment_on_its_line_in_its_prs_commit(self):
+        first, _ = self.finish_two_prs()
+        comment = {"path": "src/app.txt", "line": 1, "body": "Why this line."}
+        self.p.write("prs/01-pay.inline.json", json.dumps([comment]), root=self.p.feature_dir)
+
+        self.p.wf("publish", "feature/KEY-1/pay", "feature/KEY-1/refund")
+
+        calls = [json.loads(line) for line in self.gh_log.read_text().splitlines()]
+        posted = [call for call in calls if call["args"][0] == "api"]
+        self.assertEqual(len(posted), 1)
+        self.assertIn("repos/{owner}/{repo}/pulls/10/comments", posted[0]["args"])
+        self.assertEqual(posted[0]["input"], {**comment, "commit_id": first, "side": "RIGHT"})
+
+    def test_publish_posts_the_pr_comment_on_its_pr(self):
+        self.finish_two_prs()
+        self.p.write("prs/02-refund.comment.md", "Run the backfill.\n", root=self.p.feature_dir)
+
+        self.p.wf("publish", "feature/KEY-1/pay", "feature/KEY-1/refund")
+
+        calls = [json.loads(line) for line in self.gh_log.read_text().splitlines()]
+        posted = [(call["args"][2], call["body"]) for call in calls if call["args"][:2] == ["pr", "comment"]]
+        self.assertEqual(posted, [("https://github.example/o/r/pull/11", "Run the backfill.\n")])
+
+    def test_publish_refuses_an_inline_comment_off_the_lines_its_pr_adds_before_pushing(self):
+        self.finish_two_prs()
+        for text in (
+            '[{"path": "src/app.txt", "line": 2, "body": "Why."}]',
+            '[{"path": "README.md", "line": 1, "body": "Why."}]',
+            '[{"path": "src/app.txt", "body": "Why."}]',
+            "not json",
+        ):
+            with self.subTest(text=text):
+                self.p.write("prs/01-pay.inline.json", text, root=self.p.feature_dir)
+
+                result = self.p.wf("publish", "feature/KEY-1/pay", "feature/KEY-1/refund", check=False)
+
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("01-pay.inline.json", result.stderr)
+                self.assertEqual(self.p.git(self.p.main, "ls-remote", "--heads", str(self.p.origin)).count("refs/heads/"), 1)
 
     def test_publish_refuses_before_pushing_when_gh_cannot_open_the_repository(self):
         self.finish_two_prs()

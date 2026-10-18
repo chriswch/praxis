@@ -251,6 +251,51 @@ def pr_title(path):
     return first[2:].strip()
 
 
+def companion(pr, suffix):
+    path = Path(pr["file"])
+    return path.parent / (path.stem + suffix)
+
+
+def pr_files(pr):
+    return [path for path in (Path(pr["file"]), companion(pr, ".inline.json"), companion(pr, ".comment.md")) if path.exists()]
+
+
+def added_lines(sha, path, cwd):
+    diff = git("diff", "-U0", f"{sha}^", sha, "--", path, cwd=cwd)
+    lines = set()
+    for start, count in re.findall(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@", diff, re.M):
+        lines.update(range(int(start), int(start) + int(count or 1)))
+    return lines
+
+
+def inline_comments(feature, sha, pr):
+    path = companion(pr, ".inline.json")
+    if not path.exists():
+        return []
+    try:
+        comments = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise WfError(f"{path}: {error}")
+    shape = {"path": str, "line": int, "body": str}
+    if not isinstance(comments, list) or not all(
+        isinstance(comment, dict) and comment.keys() == shape.keys()
+        and all(isinstance(comment[key], kind) for key, kind in shape.items())
+        for comment in comments
+    ):
+        raise WfError(f'{path} must be a JSON list of {{"path": ..., "line": ..., "body": ...}}')
+    off = [f"{comment['path']}:{comment['line']}" for comment in comments if comment["line"] not in added_lines(sha, comment["path"], feature.worktree)]
+    if off:
+        raise WfError(f"{path}: not on a line its PR adds: {', '.join(off)}")
+    return comments
+
+
+def gh(*args, cwd, input=None):
+    result = subprocess.run(["gh", *args], cwd=cwd, input=input, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise WfError(f"gh {' '.join(args[:4])}: {(result.stderr or result.stdout).strip()}")
+    return result.stdout.strip()
+
+
 def worktree_path(feature, arg):
     path = Path(arg).resolve()
     try:
@@ -465,7 +510,7 @@ def cmd_review(feature, args):
     brief = string.Template(BRIEF.read_text(encoding="utf-8")).substitute(
         worktree=feature.worktree,
         range=f"{start}..{pairs[-1][0]}",
-        prs="\n".join(f"- {pr['file']}" for _, pr in pairs),
+        prs="\n".join(f"- {path}" for _, pr in pairs for path in pr_files(pr)),
         requirements=requirements,
         rules="\n".join(f"{number}. {path}" for number, path in enumerate(rules, 1)) or "(none)",
     )
@@ -490,6 +535,7 @@ def cmd_publish(feature, args):
     nested = sorted({name for name in branches for other in branches if other.startswith(name + "/")})
     if nested:
         raise WfError(f"these names would contain other branch names and cannot both exist: {', '.join(nested)}")
+    comments = [inline_comments(feature, sha, pr) for sha, pr in pairs]
     try:
         view = subprocess.run(["gh", "repo", "view", "--json", "name"], cwd=feature.worktree, capture_output=True, text=True)
     except FileNotFoundError:
@@ -502,21 +548,27 @@ def cmd_publish(feature, args):
     for (sha, _), branch in zip(pairs, branches):
         git("push", "-q", "origin", f"{sha}:refs/heads/{branch}", cwd=feature.worktree)
     base = state["base"]["ref"]
-    for (_, pr), branch in zip(pairs, branches):
+    for (sha, pr), branch, inline in zip(pairs, branches, comments):
         body = Path(pr["file"]).read_text(encoding="utf-8").partition("\n")[2].lstrip("\n")
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".md", delete=False) as file:
             file.write(body)
         try:
-            result = subprocess.run(
-                ["gh", "pr", "create", "--head", branch, "--base", base, "--title", pr["title"], "--body-file", file.name]
-                + (["--draft"] if args.draft else []),
-                cwd=feature.worktree, capture_output=True, text=True,
+            url = gh(
+                "pr", "create", "--head", branch, "--base", base, "--title", pr["title"], "--body-file", file.name,
+                *(["--draft"] if args.draft else []),
+                cwd=feature.worktree,
             )
         finally:
             os.unlink(file.name)
-        if result.returncode != 0:
-            raise WfError(f"gh pr create --head {branch}: {(result.stderr or result.stdout).strip()}")
-        print(f"pr: {result.stdout.strip()}")
+        print(f"pr: {url}")
+        number = url.rstrip("/").rsplit("/", 1)[-1]
+        for comment in inline:
+            gh(
+                "api", "--method", "POST", f"repos/{{owner}}/{{repo}}/pulls/{number}/comments", "--input", "-",
+                cwd=feature.worktree, input=json.dumps({**comment, "commit_id": sha, "side": "RIGHT"}),
+            )
+        if companion(pr, ".comment.md").exists():
+            gh("pr", "comment", url, "--body-file", str(companion(pr, ".comment.md")), cwd=feature.worktree)
         base = branch
 
 
