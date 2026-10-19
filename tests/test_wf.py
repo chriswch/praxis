@@ -461,12 +461,14 @@ class ReviewTest(WfTestCase):
         order = [brief.index(f"- {path}\n") for path in (description, inline, comment)]
         self.assertEqual(order, sorted(order))
 
-    def test_brief_leaves_out_the_voice(self):
-        self.assertTrue((WF.parents[2] / "applying-taste" / "references" / "voice.md").is_file())
+    def test_brief_leaves_out_the_voice_and_the_git_rules(self):
+        references = WF.parents[2] / "applying-taste" / "references"
+        self.assertTrue((references / "voice.md").is_file())
+        self.assertTrue((references / "git.md").is_file())
 
         brief = self.p.wf("review").stdout
 
-        self.assertNotIn("voice.md", brief)
+        self.assertNotIn(str(references), brief)
 
     def test_story_range_holds_only_this_storys_prs(self):
         self.p.wf("review")

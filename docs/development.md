@@ -1,6 +1,6 @@
 # Developing Praxis
 
-Praxis ships as one plugin, `plugin/`, with two skills: the workflow, `plugin/skills/craft/`, with its script `scripts/wf.py`; and the standards and voice it follows, `plugin/skills/applying-taste/`.
+Praxis ships as one plugin, `plugin/`, with two skills: the workflow, `plugin/skills/craft/`, with its script `scripts/wf.py`; and the standards, git rules, and voice it follows, `plugin/skills/applying-taste/`.
 
 Each behavior is written down in exactly one place:
 - `SKILL.md` says what the agent does.
@@ -55,7 +55,8 @@ README.md summarizes them for users. When a behavior changes, update README.md i
 - **Publish checks `gh repo view` before it pushes anything.** Otherwise a `gh` account that cannot see the repository leaves branches pushed with no PRs.
 - **Everything ships in one plugin.** Plugin dependencies exist only in Claude Code, and reading files across plugins has no portable way.
 - **Praxis ships one specific style, not a neutral one.** Its standards and voice apply wherever nothing higher in the precedence has an opinion, so a repository with no conventions still gets consistent code.
-- **The standards and voice are a skill of their own, `applying-taste`.** Sessions that do not run the workflow need them too, and a copy kept anywhere else drifts.
+- **The standards, git rules, and voice are a skill of their own, `applying-taste`.** Sessions that do not run the workflow need them too, and a copy kept anywhere else drifts.
+- **The git rules are in `references/`, not `standards/`.** The reviewer sees only local commits on a working branch, and rules about branches made it report findings that do not apply.
 - **Standards hold only rules that apply in any language and framework.** Practice for one framework or one repository goes in that repository's standards documents or taste.
 - **Voice applies only to the text published with a PR.** Every later step builds from `plan.md`, and what the voice would do to the built result is unknown.
 - **Publish checks every inline comment against its PR's commit before it pushes anything.** Review fixups move lines, and GitHub accepts a review comment only on a line of the PR's diff.
@@ -72,7 +73,8 @@ Ask in order; the first "yes" decides where new content goes.
 4. **Does it change how the workflow runs?** Then it goes in `SKILL.md`. A deterministic check goes in `wf.py`.
 5. **Is it a code rule that holds in any language and framework?** Then it goes in the matching `plugin/skills/applying-taste/standards/<topic>.md`. A new topic gets its own file, one row in the file table in applying-taste's `SKILL.md`, and one row in the standards table in craft's `SKILL.md`: file, steps, what it applies to. `wf` gives the reviewer every `skills/*/standards/*.md`.
 6. **Is it about how the text published with a PR reads?** Then it goes in `plugin/skills/applying-taste/references/voice.md`. The reviewer never gets `references/`.
-7. **Is it also needed outside a run, after you have asked an agent for the same job twice?** Then it becomes a new skill, `plugin/skills/<gerund-object>/`.
+7. **Is it about how changes are committed, integrated, or published?** Then it goes in `plugin/skills/applying-taste/references/git.md`.
+8. **Is it also needed outside a run, after you have asked an agent for the same job twice?** Then it becomes a new skill, `plugin/skills/<gerund-object>/`.
    - Its code rules go in its own `standards/`, and other reference material goes in `references/`.
    - The workflow reads it at the path `wf status` prints and never invokes it, so its frontmatter holds only `name` and `description`, and its internal links are relative.
    - Add a line to the workflow's `SKILL.md` that names the step that reads it.

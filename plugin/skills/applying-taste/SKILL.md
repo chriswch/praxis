@@ -1,18 +1,19 @@
 ---
 name: applying-taste
-description: Praxis's default engineering taste and PR voice - design,
-  naming, errors, dependencies, tests, schema and data changes, code
-  comments, and how a pull request's description, inline comments, and
-  PR comment read. A repository's own conventions override it on the
-  points they state. Use when designing, implementing, testing, or
-  reviewing code, writing a migration or a data script, or writing the
-  text of a pull request, in any repository, inside or outside a Praxis
-  run.
+description: Praxis's default engineering taste, git workflow, and PR
+  voice - design, naming, errors, dependencies, tests, schema and data
+  changes, code comments, how changes are committed and published, and
+  how a pull request's description, inline comments, and PR comment
+  read. A repository's own conventions override it on the points they
+  state. Use when designing, implementing, testing, or reviewing code,
+  writing a migration or a data script, committing, branching, opening
+  or updating a pull request, or writing its text, in any repository,
+  inside or outside a Praxis run.
 ---
 
 # Praxis taste
 
-Praxis's default style for code and for the text published with a pull request. It holds only rules that apply in any language and framework.
+Praxis's default style for code, for how changes are committed and published, and for the text published with a pull request. It holds only rules that apply in any language and framework.
 
 ## Precedence
 
@@ -28,7 +29,7 @@ This applies to new code and to code you change anyway.
 
 ## Files
 
-Read the files that cover what you are about to write or review:
+Read the files that cover what you are about to write, review, or do:
 
 | File | Applies to |
 |---|---|
@@ -36,4 +37,5 @@ Read the files that cover what you are about to write or review:
 | `standards/data.md` | schema migrations, and scripts that change data |
 | `standards/tests.md` | all tests |
 | `standards/comments.md` | every comment you write or keep |
+| `references/git.md` | commits, branches, and pull requests: committing, integrating other branches, publishing, and changing a published branch |
 | `references/voice.md` | the text published with a pull request: its description, inline comments, and PR comment |

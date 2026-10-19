@@ -68,13 +68,12 @@ The mode is `auto` unless the user asks for step mode. Switch any time with `wf 
 ## Rules
 
 1. Decide by the precedence above.
-2. Tests cover the happy path plus failures with real consequences, nothing more.
-3. Tests are sociable: they use real collaborators, including the project's own database. Mock only third-party services, the network, and the clock.
-4. Code, tests, comments, and commit messages never mention this workflow: no step names, story or PR numbers, or Praxis terms.
-5. Split PRs by kind of concern, never by architecture layer. One PR is one commit and one concern; combine concerns only when the change is small and simple. Every PR is green on its own. A fix that belongs to no PR goes into the closest PR when it is small and simple; otherwise tell the user it needs a run of its own.
-6. Write nothing without a present use: no speculative fields, branches, options, or abstractions.
-7. Never push without the user's instruction, and never merge. A destructive change is approved only by the user's own words, and one approval covers one named change.
-8. A PR description follows the voice above and states each decision with its reason.
+2. Tests follow `applying-taste/standards/tests.md`: which cases to cover, and what may be mocked.
+3. Code, tests, comments, and commit messages never mention this workflow: no step names, story or PR numbers, or Praxis terms.
+4. Split PRs by kind of concern, never by architecture layer. One PR is one commit and one concern; combine concerns only when the change is small and simple. Every PR is green on its own. A fix that belongs to no PR goes into the closest PR when it is small and simple; otherwise tell the user it needs a run of its own.
+5. Write nothing without a present use: no speculative fields, branches, options, or abstractions.
+6. Never push without the user's instruction, and never merge. A destructive change is approved only by the user's own words, and one approval covers one named change.
+7. A PR description follows the voice above and states each decision with its reason.
 
 ## Start
 
@@ -160,4 +159,4 @@ The same as Review, over the whole branch; the brief adds the requirements. `wf 
    - the worktree path, with a reminder that once the PRs merge, the worktree (`git worktree remove`), the branch named after the feature, and `.praxis/<feature>/` can all be removed.
 3. If the user asks for changes before publishing, handle each like a finding: a fixup into the PR it belongs to, then autosquash. Then run `wf next`, which at the end of a run reruns every PR's tests at its own commit and the freeze report.
 4. When the user tells you to publish, run `wf publish <branch>…` (with `--draft` if they ask for draft PRs) with one branch name per PR, in stack order, following the repo's branch convention from the repo taste or its standards documents. It refuses, before pushing anything, an inline comment that is not on a line its PR adds. It opens each PR, then posts its inline comments and its PR comment. Never merge.
-5. Once a branch is published, never rewrite it: no rebase, amend, squash, or force push. A later change, including one from PR review, is a new commit on the branch of the PR it belongs to.
+5. Once a branch is published, follow `applying-taste/references/git.md`: a later change, including one from PR review, is a new commit on the branch of the PR it belongs to.
