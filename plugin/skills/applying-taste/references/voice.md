@@ -9,7 +9,7 @@ Write for a reviewer who knows the codebase but has no context on this change, a
 ## Language
 
 - Write in the language the repo's existing PRs use: its PR template, its recent PRs, or its commit messages. If none shows one, use the language the user writes in.
-- Keep framework, method, and tool names in English (`Diátaxis`, `ADR`, `INVEST`), and explain them in the PR's language.
+- Keep technical terms and framework, method, and tool names in English (`process`, `port`, `Diátaxis`, `ADR`): never translate them or coin a local word for them. At first use, explain each one in the PR's language.
 - Keep code identifiers, file paths, commands, and error text exactly as they are.
 
 ## Register
