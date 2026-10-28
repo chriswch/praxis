@@ -1,5 +1,6 @@
 # Schema and data changes
 
+- When data moves to a new store, its schema is designed in its final shape at once; differences between the old data and that shape are the migration script's job, not an interim schema's.
 - Schema migrations go in a PR of their own, merged before the code that uses them. That PR holds only the migrations, plus the schema dump they regenerate if the project keeps one.
 - A migration never fills in or changes data. A backfill or a data fix is a script in a PR comment, run by hand after the deploy, and running it again is safe, for example because it also matches `col IS NULL`.
 - A migration on an existing table states in its PR description how it locks that table at production size and for how long, even when it is one line.

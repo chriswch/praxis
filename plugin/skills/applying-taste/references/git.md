@@ -3,6 +3,7 @@
 How changes are committed, integrated, and published.
 
 - One slice is one set of commits; two slices never share a commit.
+- An urgent fix changes only the path that fails and is still split into small PRs; the one that unblocks users ships first.
 - Independent changes merge separately: never bundle unrelated changes into one PR to save a deploy. Combine them only when they must merge together.
 - Never put a self-made number (`S-001`, `slice 3`) in a ticket title, a commit, or the code: the ticket system already holds where a change belongs and in what order, and a second copy of that state drifts. Such numbers belong only in a single working document that can be regenerated whole.
 - Until a branch has a PR or reaches a shared branch such as staging, you may rebase it and push with `--force-with-lease`.

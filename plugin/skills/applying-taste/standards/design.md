@@ -9,14 +9,18 @@ These rules hold in any language and framework.
 - A stored field is nullable only when "no value" is a real state, and null then has one meaning: never let null and an empty string both mean "none". A field every record has from the start is non-null with a default. Types state the true nullability; never coerce a nullable value into a non-null one to quiet a type checker.
 - In a payload, a missing key and a null value are different things. In a partial update, a missing key leaves the field unchanged and null clears it; a create or a full replacement says what a missing key means. Keep the two apart in code (for example the set of fields the caller sent) instead of defaulting a missing input to null. When reading an external system, a missing key means what its documentation says, never "none" by assumption.
 - An id that can point to more than one kind of thing is stored with a field that names the kind. A boolean is only for a true on/off; two named categories are an enum.
+- Store a value only when it cannot be derived on the spot from other fields, a lock, or the external system, and name who reads it; a field without a reader is not added. A multi-step process tells where it stopped from the facts each step leaves, not from a stored status or step marker.
+- Express a new state as a new value of an existing field when the meaning, the type, and what it points to all match; otherwise add a field.
+- Branch on a known finite set (a type, a status, a code) by naming each value, never by exclusion such as "everything that is not A".
 - Make an invalid state impossible to build instead of checking for it in each caller: use a constraint, a type, or a single constructor. When data arrives incomplete, check it once where it enters, turn it into a type that is complete, and let code after that point rely on it without checking again. Authorize the same way: once, at the start of each entry point (HTTP handler, job), with no second check stacked behind it; scoping each read and write to its tenant still applies.
-- A layer, an interface, or a generalization needs a present trigger. Extract an abstraction on the third similar occurrence, not the first; until then keep the concrete code, and say in the PR description what would justify extracting it.
+- A layer, an interface, or a generalization needs a present trigger. Extract an abstraction on the third similar occurrence, not the first, but extract a block copied verbatim at its second copy; until then keep the concrete code, and say in the PR description what would justify extracting it.
 - A test double justifies an interface only when the dependency has no real stand-in in tests. A test database or an HTTP stub tool is one.
 - Entry points (HTTP handlers, CLI commands, jobs, message consumers) stay thin: they read the input, call one business operation, and shape the output.
 - Each business operation lives in one place. Its business rules never read transport details such as request objects, params, or headers.
 - The business operation owns its transaction: it decides what must succeed or fail together. The request lifecycle, middleware, and dependency wiring never decide it.
 - A business rule that both a backend and a frontend need is computed once, by the backend, and returned as one field named for exactly what it checks. A value only the display needs is derived by the frontend from the raw data. The backend never returns a list of conclusions prepared for a screen.
-- A class or method that only a one-off script calls does not stay in the application: its logic goes in the script, even when scripts then repeat a little.
+- Delete what nothing calls, with its tests. A caller outside the repository, or an old client still running during a rolling deploy, still counts: keep the interface until its last caller is gone. A class or method that only a one-off script calls does not stay in the application: its logic goes in the script, even when scripts then repeat a little.
+- A fix or a refactor keeps the behavior users can observe, and the timing of its side effects, unless that change is what was asked for.
 
 ## Naming
 
@@ -33,6 +37,7 @@ These rules hold in any language and framework.
   - credentials never reach a log;
   - no transaction stays open across a call to an external system.
 - No silent fallback, and no defensive patch around data an upstream caller should have provided.
+- Before deleting a fallback branch, prove in production that the data or configuration it covers for no longer exists.
 - Reading data from an external system maps unknown values to an explicit unknown. Writing stays strict.
 - Required settings and credentials are checked when the process starts, by building the same object a request or job will use, so a misconfigured deploy fails at boot instead of in the middle of a user's action.
 

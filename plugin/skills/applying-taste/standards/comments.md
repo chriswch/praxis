@@ -16,4 +16,4 @@
   - decision records, dates, or experiment notes ("decided on 2026-09-03", "verified to build");
   - a claim about an external API's behavior without an official source: look it up in the official documentation, and delete the claim if you find none.
 - When a comment is needed: use plain words, the exact name of the entity ("Stripe", not "the payment provider"), and no coined in-house terms.
-- A database column comment states what the column means, not how to use it.
+- A database column comment states what the column means, and for a nullable column what null means; never how to use it.

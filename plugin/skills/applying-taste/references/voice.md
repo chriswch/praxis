@@ -38,6 +38,7 @@ When a reason would appear twice in one PR, keep it where the most readers will 
 - **Approach:** only the overall design, in one or two points on which part of the system changes. Delete it when the change has no design of its own.
   - What was done as a list, one change per item; the reasons in a short block below the list ("Why X:", then one sentence per line).
   - What was deliberately left out, with what would bring it in ("add X when Y happens").
+  - When the change touches code that several pages or flows share: the affected ones, and the ones deliberately left out.
   - No reading order, files, functions, field mappings, test lists, line counts, or test counts. Detail about one file goes in an inline comment on it.
 - **Before/After**, only when the UI or performance changes: screenshots for the UI, or when they will be added; for performance, a table of measured numbers with how they were measured: the command or source, what it measured, and its limits.
 - **Background:** one sentence of why, plus links that open.
