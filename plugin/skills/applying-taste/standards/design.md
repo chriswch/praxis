@@ -39,6 +39,7 @@ These rules hold in any language and framework.
 ## Dependencies and tooling
 
 - Use the framework's own mechanism before adding a library or a layer. Keep dependencies few and mainstream.
+- A setting that is not secret lives in the code, even when it differs between environments, as long as the environments are a small fixed set: the code holds one value per environment and picks it by one environment name read at startup, which must be set and known or the process does not start. Only secrets, and values that must change without a deploy, come from the environment.
 - Work with the framework, not around it: never patch its internals, or widen a type to its catch-all (such as `Any`), to make code or tests pass.
 - What a standard tool can check, such as lint rules and types, is left to the tool and CI. What it cannot, such as architecture, naming, and file layout, is followed from the docs: add no custom checker or meta-test for it.
 - Lint and type-check exemptions are listed file by file and only shrink: no glob or blanket exemption that makes a run look clean, and no new exemption for new code.
