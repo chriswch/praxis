@@ -70,7 +70,7 @@ The mode is `auto` unless the user asks for step mode. Switch any time with `wf 
 1. Decide by the precedence above.
 2. Tests follow `applying-taste/standards/tests.md`: which cases to cover, and what may be mocked.
 3. Code, tests, comments, and commit messages never mention this workflow: no step names, story or PR numbers, or Praxis terms.
-4. Split PRs by kind of concern, never by architecture layer. One PR is one commit and one concern; combine concerns only when the change is small and simple. Every PR is green on its own. A fix that belongs to no PR goes into the closest PR when it is small and simple; otherwise tell the user it needs a run of its own.
+4. Split PRs by kind of concern, never by architecture layer. One PR is one commit and one concern; combine concerns only when the change is small and simple. Every PR is green on its own. A fix the feature itself needs that belongs to no PR goes into the closest PR when it is small and simple; otherwise tell the user it needs a run of its own. A problem found along the way that the feature does not need is listed for the user, not fixed.
 5. Write nothing without a present use: no speculative fields, branches, options, or abstractions.
 6. Never push without the user's instruction, and never merge. A destructive change is approved only by the user's own words, and one approval covers one named change.
 7. A PR description follows the voice above and states each decision with its reason.
