@@ -50,6 +50,11 @@ README.md summarizes them for users. When a behavior changes, update README.md i
 - **`.praxis/` goes into `.git/info/exclude`.** Team repositories cannot commit it.
 - **Worktrees live at `<repo>/.praxis/<feature>/worktree`.** Untracked version files such as `.ruby-version` are found by walking up to the main checkout.
 - **`pr-done` registers the subject the commit actually got,** and publish uses it as the PR title. Commit hooks may rewrite the message, for example to add a ticket key.
+- **Problem, Approach, and Spikes are sections of Plan, not a step of their own.** Step mode already pauses after Plan, and none of them has a check that needs its own step. `wf next` refuses to leave Plan while one is empty, so skipping research or spikes is always written down with its reason.
+- **Spikes run in Plan as well as Design.** An assumption the plan rests on that turns out false costs a redesign, or a restart in the middle of Build.
+- **Spikes live in the feature folder, and Build starts from a clean worktree.** `wf pr-done` stages everything in the worktree, so a spike left there would be committed with the first PR.
+- **No spike runs again after Build.** The sociable tests prove in-process behavior on the finished code, and a stubbed external service returns what a spike recorded. Running a spike again only proves the external service again, and running finished code against a real service can have side effects, such as notifications sent to real users.
+- **A decision the request settles stands against research; a solution it only proposes does not.** A settled spec, such as a ticket's, carries context the agent lacks, such as what the team agreed on, so only evidence that it cannot deliver its goal reopens it, and only with the user. A proposed solution is one candidate among those research finds.
 - **Review fixups are committed with `--no-verify`.** Commit hooks may rewrite the `fixup!` subject that autosquash looks for. The gate reruns the PR's tests afterwards.
 - **The reviewer's model and effort are Agent tool parameters, not an agent file.** The tool's `model` parameter overrides an agent file, and a user's global rules may ask for a cheap model on every dispatch.
 - **Publish checks `gh repo view` before it pushes anything.** Otherwise a `gh` account that cannot see the repository leaves branches pushed with no PRs.

@@ -1,6 +1,6 @@
 # Praxis
 
-Praxis is an agent workflow for Claude Code and Codex. It takes one feature from a request to stacked, reviewed pull requests. It clarifies the requirements, designs the data model and API, and builds each story test-first in the feature's own git worktree. A fresh reviewer checks every story. Praxis stops at local commits until you tell it to publish.
+Praxis is an agent workflow for Claude Code and Codex. It takes one feature from a request to stacked, reviewed pull requests. It finds the root problem and a root solution, researching the approach and testing its assumptions with throwaway spikes, clarifies the requirements, designs the data model and API, and builds each story test-first in the feature's own git worktree. A fresh reviewer checks every story. Praxis stops at local commits until you tell it to publish.
 
 ## How a run goes
 
@@ -8,10 +8,14 @@ Praxis is an agent workflow for Claude Code and Codex. It takes one feature from
 start     a worktree at .praxis/<feature>/worktree, from the remote
           default branch; your own checkout is never touched
   |
-Plan      goal, rules with key examples, out of scope, assumptions;
-          questions for you; stories that can each ship on their own
+Plan      the root problem, its root cause, and the evidence; the
+          root solution, with approaches researched and compared;
+          spikes for every assumption; goal, rules with key examples,
+          out of scope, assumptions; questions for you; stories that
+          can each ship on their own
 Design    data model and schema (type, nullability, reason per field),
-          API, layering; destructive changes need your approval
+          API, layering, spikes for its own assumptions; destructive
+          changes need your approval
   |
   +- for each story
   |  Build    scenarios -> PR plan -> for each PR: tests, freeze,
@@ -30,7 +34,7 @@ Finish           a final message; stacked PRs only when you say so
 ### Modes
 
 - **auto** (default): runs to the end, stopping only when it needs you:
-  - a question it cannot settle from the code or your rules, including an approach your request names that cannot deliver what the request asks for, and any part of the request it could not read, such as an image;
+  - a question it cannot settle from the code, your rules, or research, including evidence that a decision your request settles cannot deliver its goal or only patches the symptom, a gap where the options give users different behavior, and any part of the request it could not read, such as an image;
   - a missing permission or environment;
   - a test that already fails on the base commit;
   - a destructive schema or API change you have not approved in your own words.
@@ -44,7 +48,8 @@ Everything goes under `.praxis/` in your repository, which Praxis adds to `.git/
 |---|---|
 | `.praxis/config.json` | how to run the repository's tests, and how to prepare a new worktree |
 | `.praxis/taste.md` | this repository's taste: where its standards documents are, and rules you stated for it |
-| `.praxis/<feature>/plan.md` | requirements, questions, stories, design, review findings |
+| `.praxis/<feature>/plan.md` | problem, approach, spikes, requirements, questions, stories, design, review findings |
+| `.praxis/<feature>/spikes/` | the throwaway scripts that test the plan's assumptions |
 | `.praxis/<feature>/prs/` | each PR's description, plus its inline comments and PR comment when it has them, ready to publish |
 | `.praxis/<feature>/worktree/` | the feature branch |
 
@@ -120,20 +125,23 @@ Precedence, from highest:
 
 A higher rule overrides a lower one only on the point it states. These rules apply to new code and to code a story changes anyway. A repository with no conventions of its own still gets Praxis's style.
 
+Research picks the approach; the precedence decides how its code is written, and a candidate that breaks a higher rule is out. A decision your request settles, such as a ticket's spec, stands unless evidence shows it cannot deliver the goal, and then Praxis asks you. A solution your request only proposes is one candidate, and a better one found by research replaces it. Either way, the final message names the alternative.
+
 PR descriptions follow Praxis's voice, except where the repository's PR template and documentation conventions say otherwise. The voice covers only the text published with a PR: its description, inline comments, and PR comment. `plan.md` and the agent's messages do not follow it.
 
 ## Design philosophy
 
 - **Build what the request needs, and nothing more.** No speculative fields, options, or abstractions. Special cases wait until they actually happen.
+- **Evidence before design.** The plan states the root cause with its evidence and a solution that removes it rather than patching the symptom, compares approaches from official and mainstream sources, and runs a throwaway spike for every assumption it can check, so the design rests on behavior the agent has seen run. Once Build starts, the tests take over: in-process behavior runs for real, and a stubbed external service returns what a spike recorded.
 - **One living document.** `plan.md` is the only handoff between steps. The agent rereads its inputs at the start of every step, so compaction or a new session loses nothing.
 - **Scripts check, the model judges.** The bundled `wf` script records where the run is and refuses to move on when a deterministic check fails. Everything that needs judgment is left to the agent.
 - **Tests prove behavior.** Tests are sociable: they use real collaborators, including the project's own database, and mock only third-party services, the network, and the clock. They cover the happy path plus failures with real consequences.
-- **The reviewer judges what landed, not what was intended.** It never sees the design, the scenarios, or the conversation; only the feature review also gets the requirements. It reports only four things:
+- **The reviewer judges what landed, not what was intended.** It never sees the plan or the conversation; only the feature review also gets the requirements. Each PR description carries the reasons and evidence for its decisions. It reports only four things:
   - behavior that does not match the PR description;
   - a failure with real consequences;
   - code that can be deleted;
   - a broken rule.
-- **You stay in control of what leaves your machine.** Destructive changes need your approval in your own words, publishing waits for your word, and merging is always yours.
+- **You stay in control of what leaves your machine.** Spikes change nothing outside your machine, destructive changes need your approval in your own words, publishing waits for your word, and merging is always yours.
 
 ## Developing Praxis
 

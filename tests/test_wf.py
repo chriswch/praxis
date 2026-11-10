@@ -69,8 +69,11 @@ class Project:
     def state(self):
         return json.loads((self.feature_dir / "state.json").read_text())
 
-    def plan(self, questions="", stories="### Pay by card\n"):
-        text = f"## Requirements\n\n## Questions\n{questions}\n## Stories\n{stories}\n## Design\n\n## Findings\n"
+    def plan(self, questions="", stories="### Pay by card\n", problem="Cards are refused.\n", approach="Not needed: one way.\n", spikes="Not needed: seen in tests.\n"):
+        text = (
+            f"## Problem\n{problem}\n## Approach\n{approach}\n## Spikes\n{spikes}\n"
+            f"## Requirements\n\n## Questions\n{questions}\n## Stories\n{stories}\n## Design\n\n## Findings\n"
+        )
         (self.feature_dir / "plan.md").write_text(text)
 
     def to_build(self, stories="### Pay by card\n"):
@@ -222,6 +225,39 @@ class PlanAndDesignTest(WfTestCase):
         self.p.plan()
 
         self.assertIn("step: design", self.p.wf("next").stdout)
+
+    def test_start_writes_the_plan_headings_in_the_order_the_steps_fill_them(self):
+        self.p.wf("start", "feat", cwd=self.p.main)
+
+        headings = [line for line in (self.p.feature_dir / "plan.md").read_text().splitlines() if line.startswith("## ")]
+
+        self.assertEqual(headings, ["## Problem", "## Approach", "## Spikes", "## Requirements", "## Questions", "## Stories", "## Design", "## Findings"])
+
+    def test_next_refuses_to_leave_plan_while_problem_approach_or_spikes_is_empty(self):
+        self.p.wf("start", "feat", cwd=self.p.main)
+        for name in ("problem", "approach", "spikes"):
+            with self.subTest(section=name):
+                self.p.plan(**{name: ""})
+
+                result = self.p.wf("next", check=False)
+
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(f"§{name.capitalize()}", result.stderr)
+                self.assertEqual(self.p.state()["step"], "plan")
+
+    def test_next_refuses_to_start_build_while_the_worktree_has_changes(self):
+        self.p.wf("start", "feat", cwd=self.p.main)
+        self.p.plan()
+        self.p.wf("next")
+        spike = self.p.write("spike.rb", "puts 1\n", root=self.p.worktree)
+
+        result = self.p.wf("next", check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("spike.rb", result.stderr)
+        self.assertEqual(self.p.state()["step"], "design")
+        spike.unlink()
+        self.assertIn("step: build", self.p.wf("next").stdout)
 
     def test_next_starts_build_on_the_first_unfinished_story(self):
         self.p.wf("start", "feat", cwd=self.p.main)

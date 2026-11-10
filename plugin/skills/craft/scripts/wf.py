@@ -14,7 +14,8 @@ SKILLS_DIR = SKILL_DIR.parent
 BRIEF = SKILL_DIR / "assets" / "reviewer-brief.md"
 MAX_ROUNDS = 3
 REQUIREMENTS = "\n## Requirements\n\nAlso report under (a) any rule below that is neither implemented nor listed as out of scope.\n\n"
-PLAN_SKELETON = "## Requirements\n\n## Questions\n\n## Stories\n\n## Design\n\n## Findings\n"
+PLAN_SKELETON = "## Problem\n\n## Approach\n\n## Spikes\n\n## Requirements\n\n## Questions\n\n## Stories\n\n## Design\n\n## Findings\n"
+EVIDENCE_SECTIONS = ("Problem", "Approach", "Spikes")
 FEATURE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
@@ -402,10 +403,17 @@ def cmd_next(feature, args):
     state = feature.load()
     step = state["step"]
     if step == "plan":
-        if section(feature.read_plan(), "Questions").strip():
+        plan = feature.read_plan()
+        if section(plan, "Questions").strip():
             raise WfError("§Questions is not empty: merge each answer into the plan and remove the question")
+        empty = [f"§{name}" for name in EVIDENCE_SECTIONS if not section(plan, name).strip()]
+        if empty:
+            raise WfError(f"{', '.join(empty)} in {feature.plan} is empty or missing: fill it in; where research or spikes are not needed, say why")
         state["step"] = "design"
     elif step == "design":
+        changes = worktree_changes(feature)
+        if changes:
+            raise WfError(f"the worktree has changes before Build: {', '.join(changes)}; spikes live in the feature folder, so restore the worktree")
         if start_next_story(feature, state) is None:
             raise WfError(f"{feature.plan} has no '### ' story under ## Stories")
     elif step == "build":
